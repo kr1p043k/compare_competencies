@@ -5,6 +5,9 @@
 а также HDBSCAN как fallback (с обработкой ошибок метрики).
 """
 
+import contextlib
+import threading
+from pathlib import Path
 from typing import Any
 
 import joblib
@@ -21,7 +24,6 @@ from src.models.enums import ExperienceLevel
 from src.parsing.api.embedding_loader import get_embedding_model
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.utils import clip01
-import contextlib
 
 logger = structlog.get_logger(__name__)
 
@@ -32,6 +34,50 @@ try:
 except ImportError:
     HDBSCAN_AVAILABLE = False
     logger.info("hdbscan_unavailable_fallback_to_kmeans")
+
+
+# Ленивый кэш десериализованных моделей кластеризации.
+# Ключ: (level, путь, mtime_ns, size) - файл меняется на диске (ретрейн), кэш
+# сам себя инвалидирует. Без этого переобученная модель игнорируется до рестарта.
+_MODEL_CACHE: dict[tuple[str, str, int, int], dict[str, Any]] = {}
+_MODEL_CACHE_LOCK = threading.Lock()
+
+
+def _cluster_model_path(level: str) -> Path:
+    return config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{level}.joblib"
+
+
+def reset_model_cache() -> None:
+    """Сбросить кэш моделей (для тестов и принудительной перезагрузки)."""
+    with _MODEL_CACHE_LOCK:
+        _MODEL_CACHE.clear()
+
+
+def load_cached_model_data(level: str | ExperienceLevel) -> dict[str, Any] | None:
+    """Десериализовать модель `level` один раз на (level, path, mtime, size).
+
+    joblib.load - диск + unpickle: при вызове на каждый HTTP-запрос это
+    блокирует event loop и читает файл заново. Здесь кэшируем результат и
+    автоматически перечитываем при изменении файла (mtime/size).
+    """
+    level_key = level.value if isinstance(level, ExperienceLevel) else str(level)
+    path = _cluster_model_path(level_key)
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    key = (level_key, str(path), st.st_mtime_ns, st.st_size)
+    with _MODEL_CACHE_LOCK:
+        data = _MODEL_CACHE.get(key)
+    if data is None:
+        data = joblib.load(path)
+        with _MODEL_CACHE_LOCK:
+            # Один актуальный снапшот на уровень: вытесняем прошлый (mtime/size).
+            stale = [k for k in _MODEL_CACHE if k[:2] == (level_key, str(path))]
+            for k in stale:
+                _MODEL_CACHE.pop(k, None)
+            _MODEL_CACHE[key] = data
+    return data
 
 
 class VacancyClusterer:
@@ -322,19 +368,8 @@ class VacancyClusterer:
         except Exception as e:
             logger.error("pkl_migration_failed", level=level, error=str(e))
 
-    def load_model(self, level: str = "all") -> bool:
-        path = config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{level}.joblib"
-        if not path.exists():
-            path_old = path.with_suffix(".pkl")
-            if path_old.exists():
-                logger.warning("detected_old_pkl_format_migrating", path=str(path_old))
-                self._migrate_pkl_to_joblib(level)
-                if not path.exists():
-                    return False
-            else:
-                logger.warning("cluster_model_file_not_found", path=str(path))
-                return False
-        data = joblib.load(path)
+    def _apply_loaded_data(self, data: dict[str, Any]) -> None:
+        """Наполнить инстанс из десериализованного словаря модели."""
         self.model = data["model"]
         self.clusterer_type = data.get("clusterer_type", "kmeans")
         self.labels_ = data["labels"]
@@ -346,6 +381,24 @@ class VacancyClusterer:
         self.label_to_center_idx = data.get("label_to_center_idx", {})
         self.skill_weights = data.get("skill_weights", {})
         self.is_fitted = True
+
+    def load_model(self, level: str = "all") -> bool:
+        level_key = level.value if isinstance(level, ExperienceLevel) else str(level)
+        path = config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{level_key}.joblib"
+        if not path.exists():
+            path_old = path.with_suffix(".pkl")
+            if path_old.exists():
+                logger.warning("detected_old_pkl_format_migrating", path=str(path_old))
+                self._migrate_pkl_to_joblib(level_key)
+                if not path.exists():
+                    return False
+            else:
+                logger.warning("cluster_model_file_not_found", path=str(path))
+                return False
+        data = load_cached_model_data(level_key)
+        if data is None:
+            return False
+        self._apply_loaded_data(data)
         logger.info(
             "cluster_model_loaded",
             path=str(path),
@@ -511,3 +564,17 @@ class VacancyClusterer:
             if label == cluster_id and i < len(self.vacancy_skills):
                 counter.update(self.vacancy_skills[i])
         return [skill for skill, _ in counter.most_common(top_n)]
+
+
+def load_cached_clusterer(level: str | ExperienceLevel) -> VacancyClusterer | None:
+    """Настроенный кластеризер для `level`: данные - из кэша, состояние - своё.
+
+    Роутер создаёт по инстансу на запрос (никаких гонок на общем объекте),
+    но сам joblib.load выполняется один раз на версию файла.
+    """
+    data = load_cached_model_data(level)
+    if data is None:
+        return None
+    clusterer = VacancyClusterer()
+    clusterer._apply_loaded_data(data)
+    return clusterer

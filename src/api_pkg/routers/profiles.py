@@ -2,6 +2,9 @@
 
 import asyncio
 import contextlib
+import json
+import threading
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # только для аннотаций: импорты тянут sklearn/shap
@@ -47,6 +50,40 @@ def _json_safe(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_json_safe(v) for v in value]
     return value
+
+
+# Кэш распарсенных справочных JSON-файлов по (path, mtime, size). Только
+# reference-файлы (competency_mapping, skill_weights, market_snapshot): они не
+# зависят от пользователя. Per-user данные (self_*_competency.json и глоб
+# students/*_competency.json, куда попадают и self-профили) НЕ кэшируются.
+_json_cache: dict[str, tuple[int, int, Any]] = {}
+_json_cache_lock = threading.Lock()
+
+
+def _reset_profile_cache() -> None:
+    with _json_cache_lock:
+        _json_cache.clear()
+
+
+def _load_json_cached(path: Path) -> Any:
+    """Прочитать и распарсить JSON, кэшируя по (path, mtime_ns, size).
+
+    Ошибки (нет файла, битый JSON) пробрасываются наружу - вызывающие сохраняют
+    прежнюю обработку и логирование (как было с read_text+json.loads).
+    Возвращаемый объект не мутируется вызывающими (справочные данные), поэтому
+    отдаём сам кэшированный экземпляр без копии.
+    """
+    key = str(path)
+    st = path.stat()  # FileNotFoundError сохраняет прежнюю семантику
+    sig = (st.st_mtime_ns, st.st_size)
+    with _json_cache_lock:
+        cached = _json_cache.get(key)
+        if cached is not None and cached[0] == sig[0] and cached[1] == sig[1]:
+            return cached[2]
+    parsed = json.loads(path.read_text(encoding="utf-8"))
+    with _json_cache_lock:
+        _json_cache[key] = (sig[0], sig[1], parsed)
+    return parsed
 
 
 @router.get("/profiles/compare", response_model=ProfilesCompareResponse)
@@ -127,11 +164,8 @@ _TECH_MAX = 200
 
 
 def _map_codes_to_skills(codes: list[str]) -> list[str]:
-    import json
-    from pathlib import Path
     try:
-        mp = json.loads((Path(config.DATA_DIR) / "processed" / "competency_mapping.json")
-                        .read_text(encoding="utf-8"))
+        mp = _load_json_cached(Path(config.DATA_DIR) / "processed" / "competency_mapping.json")
         if not isinstance(mp, dict):
             mp = {}
     except Exception as exc:
@@ -172,12 +206,9 @@ def _clean_str_list(items: Any, *, max_len: int, field: str) -> list[str]:
 @limiter.limit("60/minute")
 async def custom_profile_options(request: Request):
     """Picker data: competencies union (memory profiles + files) + top-30 market technologies. Read-only."""
-    import json
-    from pathlib import Path
     try:
         try:
-            mp = json.loads((Path(config.DATA_DIR) / "processed" / "competency_mapping.json")
-                            .read_text(encoding="utf-8"))
+            mp = _load_json_cached(Path(config.DATA_DIR) / "processed" / "competency_mapping.json")
             if not isinstance(mp, dict):
                 mp = {}
         except Exception as exc:
@@ -250,8 +281,7 @@ async def custom_profile_options(request: Request):
             # runtime fallback: baked weights file, then snapshot names
             tech_suggest = []
             try:
-                wf = json.loads((Path(config.DATA_DIR) / "processed" / "skill_weights.json")
-                                .read_text(encoding="utf-8"))
+                wf = _load_json_cached(Path(config.DATA_DIR) / "processed" / "skill_weights.json")
                 if isinstance(wf, dict) and wf:
                     tech_suggest = [str(k) for k, _ in
                                     sorted(wf.items(), key=lambda x: x[1], reverse=True)[:30]]
@@ -260,8 +290,8 @@ async def custom_profile_options(request: Request):
                 tech_suggest = []
             if not tech_suggest:
                 try:
-                    snap = json.loads((Path(config.DATA_DIR) / "benchmark" / "article_datasets" /
-                                       "market_snapshot.json").read_text(encoding="utf-8"))
+                    snap = _load_json_cached(Path(config.DATA_DIR) / "benchmark" / "article_datasets" /
+                                             "market_snapshot.json")
                     tech_suggest = [str(s.get("name", "")).strip()
                                     for s in (snap.get("skills") or [])[:30]
                                     if str(s.get("name", "")).strip()]
