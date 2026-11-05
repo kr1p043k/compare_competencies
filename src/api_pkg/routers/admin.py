@@ -967,21 +967,31 @@ async def _tail_backend_log(websocket: WebSocket, stop: asyncio.Event) -> None:
 
 
 @ws_log_router.websocket("/admin/logs/ws")
-async def admin_logs_ws(websocket: WebSocket, token: str = ""):
-    """Стрим системного лога backend.log в реальном времени (роль admin)."""
-    # JWT-проверка + роль admin (по образцу pipeline_ws)
+async def admin_logs_ws(websocket: WebSocket):
+    """Стрим системного лога backend.log в реальном времени (роль admin).
+
+    Авторизация ДО accept: cookie или Authorization. Query-токен убран - адрес
+    сокета попадает в логи прокси и историю браузера. Проверяем не только
+    подпись, но и активную сессию в БД (resolve_session): иначе logout и
+    деактивация не действуют на открытом сокете, а роль из payload остаётся
+    прежней после понижения в правах.
+    """
     try:
+        from src.api_pkg.routers.auth import resolve_session
 
-        from src.api_pkg.routers.auth import _decode_token
-
-        if not token:
+        eff_token = (
+            websocket.cookies.get("token", "")
+            or websocket.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        )
+        if not eff_token:
             await websocket.close(code=4001, reason="Unauthorized")
             return
-        data = _decode_token(token)
-        if data is None:
+        user = await resolve_session(eff_token)
+        if user is None:
             await websocket.close(code=4001, reason="Unauthorized")
             return
-        if data.get("r") != "admin":
+        if user.get("r") != "admin":
+            logger.warning("admin_logs_ws_forbidden", uid=user.get("uid"), role=user.get("r"))
             await websocket.close(code=4003, reason="Forbidden")
             return
     except Exception:

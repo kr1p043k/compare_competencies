@@ -274,3 +274,56 @@ class TestDisciplineScopeIdor:
             json={"skills": ["python"], "keywords": []},
         )
         assert r.status_code == 200, r.text
+
+
+class TestAdminLogsWs:
+    """WS /admin/logs/ws: сессия из БД, роль admin, токен не из query."""
+
+    @staticmethod
+    def _client(monkeypatch, user=None):
+        from src.api_pkg import create_app
+        import src.api_pkg.routers.auth as auth
+
+        async def _resolve(_token):
+            return user
+
+        monkeypatch.setattr(auth, "resolve_session", _resolve)
+        return TestClient(create_app(), raise_server_exceptions=False)
+
+    def test_no_token_closed_4001(self, monkeypatch):
+        client = self._client(monkeypatch)
+        with pytest.raises(WebSocketDisconnect) as exc:
+            with client.websocket_connect("/api/admin/logs/ws"):
+                pass
+        assert exc.value.code == 4001
+
+    def test_query_token_not_accepted(self, monkeypatch):
+        """?token= больше не аутентифицирует сокет: адрес утекает в логи."""
+        client = self._client(
+            monkeypatch, {"uid": "u1", "u": "a@b", "r": "admin", "t": None}
+        )
+        with pytest.raises(WebSocketDisconnect) as exc:
+            with client.websocket_connect("/api/admin/logs/ws?token=valid"):
+                pass
+        assert exc.value.code == 4001
+
+    def test_revoked_session_closed_4001(self, monkeypatch):
+        client = self._client(monkeypatch, user=None)
+        with pytest.raises(WebSocketDisconnect) as exc:
+            with client.websocket_connect(
+                "/api/admin/logs/ws", headers={"Authorization": "Bearer revoked"}
+            ):
+                pass
+        assert exc.value.code == 4001
+
+    def test_teacher_forbidden_4003(self, monkeypatch):
+        """Роль берётся из БД: понижение в правах закрывает сокет."""
+        client = self._client(
+            monkeypatch, {"uid": "u2", "u": "t@b", "r": "teacher", "t": None}
+        )
+        with pytest.raises(WebSocketDisconnect) as exc:
+            with client.websocket_connect(
+                "/api/admin/logs/ws", headers={"Authorization": "Bearer valid"}
+            ):
+                pass
+        assert exc.value.code == 4003
