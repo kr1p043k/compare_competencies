@@ -79,3 +79,9 @@ jobs:
         run: python scripts/check_krm_db_consistency.py --direction 09.03.02 --year 2025 --dsn "$DATABASE_URL"
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # Диагностика, а не гейт: расхождение установленных версий с пинами
+      # уже один раз маскировалось под баг в коде (aiohttp 3.14.4 против
+      # 3.12.14 ломал aioresponses). Печатаем, чтобы причина была видна.
+      - name: Dependency drift (advisory)
+        continue-on-error: true
+        run: python scripts/check_dependency_drift.py
