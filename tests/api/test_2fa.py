@@ -10,6 +10,7 @@ import contextlib
 import os
 import socket
 import urllib.parse
+import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -25,7 +26,9 @@ TEST_DB_URL = os.environ.get(
     "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies",
 )
 
-EMAIL = "totp-admin@example.test"
+# Уникальный адрес на процесс: прогоны могут идти параллельно на общей БД,
+# и фиксированный email приводил к гонке delete/insert (sessions_user_id_fkey).
+EMAIL = f"totp-admin-{os.getpid()}-{uuid.uuid4().hex[:8]}@example.test"
 PASSWORD = "Totp_Test_Password_123"
 
 
@@ -39,6 +42,19 @@ def _db_reachable() -> bool:
 
 
 pytestmark = pytest.mark.skipif(not _db_reachable(), reason="local postgres unavailable")
+
+
+@pytest.fixture(autouse=True)
+def _enable_two_factor(monkeypatch):
+    """Включает рубильник на время этого набора тестов.
+
+    В продакшене второй фактор по умолчанию выключен; здесь проверяется сама
+    функция, поэтому флаг включён. Выключенное состояние покрыто отдельно в
+    tests/api/test_two_factor_switch.py.
+    """
+    monkeypatch.setattr(auth_mod.config, "TWO_FACTOR_ENABLED", True, raising=False)
+    monkeypatch.setattr(auth_mod.config, "TWO_FACTOR_METHOD", "totp", raising=False)
+
 
 
 def _totp(secret: str) -> str:
