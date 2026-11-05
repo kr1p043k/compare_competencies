@@ -72,6 +72,7 @@ _TOTP_CHALLENGE_TTL = 300  # 5 минут на ввод кода
 _TOTP_MAX_FAILURES = 5
 _TOTP_LOCK_MINUTES = 15
 _RECOVERY_CODE_COUNT = 10
+_TOTP_STEP_SECONDS = 30  # RFC 6238: длина шага TOTP (окно кода)
 
 #: challenge_id -> (user_id, expires_at). Живёт в памяти процесса: пережить
 #: рестарт не обязан — пользователь просто начнёт вход заново.
@@ -111,7 +112,7 @@ def _totp_now(secret: str) -> str:
     if _PYOTP_AVAILABLE:
         return pyotp.TOTP(secret).now()
     # RFC 6238: 30-секундные окна, 6 цифр, SHA-1.
-    counter = int(time.time()) // 30
+    counter = int(time.time()) // _TOTP_STEP_SECONDS
     digest = hmac.new(
         base64.b32decode(secret + "=" * (-len(secret) % 8)),
         struct.pack(">Q", counter),
@@ -180,10 +181,15 @@ async def _totp_state(pool, user_id) -> dict | None:
             user_id,
         )
     except Exception:
-        # Таблицы может не быть, если миграция ещё не применена - не блокируем
-        # вход админам, но и 2FA не считаем настроенной.
-        logger.warning("admin_totp_table_missing", exc_info=True)
-        return None
+        # Сбой чтения 2FA-состояния не должен молча выключать второй фактор:
+        # "записи нет" и "запрос упал" - разные исходы. Падаем закрыто: токен
+        # не выдаём, клиенту - 503. Только реально отсутствующая строка значит
+        # "2FA не настроена".
+        logger.exception("admin_totp_query_failed", user_id=user_id)
+        raise HTTPException(
+            status_code=503,
+            detail="Не удалось проверить второй фактор, повторите позже",
+        ) from None
     return dict(row) if row else None
 
 
@@ -598,7 +604,7 @@ async def _require_admin(request: Request) -> dict:
 
 
 async def _ensure_totp_table(pool) -> None:
-    """Локальная страховка: таблица нужна и до применения миграции."""
+    """Локальная страховка: таблица (и её колонки) нужна и до применения миграции."""
     await pool.execute(
         """CREATE TABLE IF NOT EXISTS admin_totp (
                user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -606,10 +612,17 @@ async def _ensure_totp_table(pool) -> None:
                confirmed BOOLEAN NOT NULL DEFAULT false,
                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                last_used_at TIMESTAMPTZ,
+               last_totp_step BIGINT,
                recovery_codes JSONB,
                failed_attempts INTEGER NOT NULL DEFAULT 0,
                locked_until TIMESTAMPTZ
            )"""
+    )
+    # CREATE IF NOT EXISTS не добавляет колонку к уже существующей таблице,
+    # поэтому добавляем её отдельно - иначе защита от повтора TOTP молча
+    # выключится на БД, созданной до появления last_totp_step.
+    await pool.execute(
+        "ALTER TABLE admin_totp ADD COLUMN IF NOT EXISTS last_totp_step BIGINT"
     )
 
 
@@ -724,10 +737,22 @@ async def totp_verify(body: TotpChallengeRequest, request: Request):
     if row is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    await pool.execute(
-        "UPDATE admin_totp SET last_used_at = NOW(), failed_attempts = 0 WHERE user_id = $1",
-        user_id,
+    # Защита от повтора TOTP: принимаем код только если его шаг строго новее
+    # последнего принятого. Один UPDATE делает это атомарно - без
+    # read-check-write гонки, когда один код проходит дважды.
+    step = int(time.time()) // _TOTP_STEP_SECONDS
+    claimed = await pool.fetchval(
+        """UPDATE admin_totp
+              SET last_totp_step = $2, last_used_at = NOW(), failed_attempts = 0
+            WHERE user_id = $1
+              AND (last_totp_step IS NULL OR last_totp_step < $2)
+        RETURNING user_id""",
+        user_id, step,
     )
+    if claimed is None:
+        logger.warning("totp_replay_rejected", uid=user_id)
+        raise HTTPException(status_code=401, detail="Код уже использован")
+
     await audit_action(request, "auth.2fa.login", f"uid={user_id}")
     logger.info("user_logged_in_2fa", email=row["email"], role=row["role"])
     return await _issue_login_response(pool, row, request)
@@ -749,19 +774,22 @@ async def totp_recovery(body: TotpChallengeRequest, request: Request):
     if not state or not state.get("confirmed"):
         raise HTTPException(status_code=401, detail="2FA не настроена")
 
-    codes = state.get("recovery_codes") or []
-    if isinstance(codes, str):
-        codes = json.loads(codes)
     target = _hash_recovery_code(body.code.strip())
-    if target not in codes:
+    # Одноразовый и атомарный расход: одна UPDATE удаляет код из jsonb-массива
+    # и помечает использование. Если кода нет (или он уже потрачен), RETURNING
+    # не вернёт строку - отклоняем 401. Так исчезает read-check-write гонка,
+    # когда два запроса успевали израсходовать один код дважды.
+    consumed = await pool.fetchval(
+        """UPDATE admin_totp
+              SET recovery_codes = recovery_codes - $2::text,
+                  last_used_at = NOW()
+            WHERE user_id = $1 AND recovery_codes ? $2::text
+        RETURNING user_id""",
+        user_id, target,
+    )
+    if consumed is None:
         raise HTTPException(status_code=401, detail="Неверный recovery-код")
 
-    # Одноразовый: сразу удаляем использованный код.
-    remaining = [c for c in codes if c != target]
-    await pool.execute(
-        "UPDATE admin_totp SET recovery_codes = $2::jsonb, last_used_at = NOW() WHERE user_id = $1",
-        user_id, json.dumps(remaining),
-    )
     row = await pool.fetchrow(
         "SELECT id, email, role, full_name FROM users WHERE id = $1 AND is_active = true",
         user_id,
