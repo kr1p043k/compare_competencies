@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from src import config
 from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.models.api_responses import (
@@ -994,6 +995,27 @@ async def get_gap_progress(task_id: str, request: Request):
 
 _ws_clients: set[WebSocket] = set()
 
+# Ревалидация сессии и лимит времени жизни сокета внутри стрима: иначе logout,
+# деактивация и понижение в правах не действуют на открытом соединении.
+_WS_SESSION_RECHECK_SEC = 30.0
+_WS_MAX_LIFETIME_SEC = 30.0 * 60.0
+
+
+def _origin_allowed(origin: str | None) -> bool:
+    """Разрешаем Origin, только если он пуст, '*' (dev) или есть в allowlist.
+
+    WebSocket не покрывается CORS-middleware: браузер присылает Origin прямо в
+    хендшейке, поэтому проверяем его вручную до accept, иначе чужой сайт откроет
+    сокет с украденным cookie.
+    """
+    if not origin:
+        return True
+    allowed = config.ALLOWED_ORIGINS
+    if allowed == "*":
+        return True
+    allowlist = {o.strip() for o in allowed.split(",") if o.strip()}
+    return origin in allowlist
+
 
 @router.websocket("/pipeline/ws")
 async def pipeline_ws(websocket: WebSocket):
@@ -1001,13 +1023,20 @@ async def pipeline_ws(websocket: WebSocket):
     # адрес сокета попадает в логи прокси и историю. Проверяем не только
     # подпись, но и активную сессию в БД (resolve_session): иначе logout и
     # деактивация не действуют на открытом сокете до истечения токена.
-    try:
-        from src.api_pkg.routers.auth import resolve_session
+    # Сессия ревалидируется и внутри стрима: отзыв/деактивация закрывают
+    # сокет кодом 4001.
+    if not _origin_allowed(websocket.headers.get("Origin")):
+        logger.warning("pipeline_ws_disallowed_origin", origin=websocket.headers.get("Origin"))
+        await websocket.close(code=4003, reason="Origin not allowed")
+        return
 
-        eff_token = (
-            websocket.cookies.get("token", "")
-            or websocket.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-        )
+    from src.api_pkg.routers.auth import resolve_session
+
+    eff_token = (
+        websocket.cookies.get("token", "")
+        or websocket.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    )
+    try:
         if not eff_token:
             # slowapi не покрывает WS - фиксируем попытку без токена
             logger.warning("pipeline_ws_no_token")
@@ -1022,9 +1051,23 @@ async def pipeline_ws(websocket: WebSocket):
 
     await websocket.accept()
     _ws_clients.add(websocket)
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    last_recheck = started
     try:
         prev_data = ""
         while True:
+            now = loop.time()
+            if now - last_recheck >= _WS_SESSION_RECHECK_SEC:
+                last_recheck = now
+                if await resolve_session(eff_token) is None:
+                    logger.warning("pipeline_ws_session_invalid")
+                    await websocket.close(code=4001, reason="Session invalid")
+                    return
+            if now - started >= _WS_MAX_LIFETIME_SEC:
+                await websocket.close(code=1000, reason="Socket lifetime exceeded")
+                return
+
             raw = None
             for fp in (PIPELINE_PROGRESS_FILE, GAP_PROGRESS_FILE):
                 try:

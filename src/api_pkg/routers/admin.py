@@ -953,6 +953,28 @@ _TAIL_POLL_SEC = 0.7
 _TAIL_INITIAL_LINES = 400
 _TAIL_MAX_SEND = 200
 
+# Ревалидация сессии и лимит времени жизни сокета внутри стрима: иначе logout,
+# деактивация и понижение в правах не действуют на уже открытом соединении.
+_WS_LOOP_INTERVAL_SEC = 30.0
+_WS_SESSION_RECHECK_SEC = 30.0
+_WS_MAX_LIFETIME_SEC = 30.0 * 60.0
+
+
+def _origin_allowed(origin: str | None) -> bool:
+    """Разрешаем Origin, только если он пуст, '*' (dev) или есть в allowlist.
+
+    WebSocket не покрывается CORS-middleware: браузер не шлёт CORS preflight на
+    WS-хендшейк, поэтому Origin проверяем вручную до accept, иначе любой сайт
+    может открыть сокет с украденным cookie.
+    """
+    if not origin:
+        return True
+    allowed = config.ALLOWED_ORIGINS
+    if allowed == "*":
+        return True
+    allowlist = {o.strip() for o in allowed.split(",") if o.strip()}
+    return origin in allowlist
+
 
 async def _tail_backend_log(websocket: WebSocket, stop: asyncio.Event) -> None:
     """Читает logs/backend.log, шлёт хвост сразу и новые строки по мере появления."""
@@ -995,15 +1017,21 @@ async def admin_logs_ws(websocket: WebSocket):
     сокета попадает в логи прокси и историю браузера. Проверяем не только
     подпись, но и активную сессию в БД (resolve_session): иначе logout и
     деактивация не действуют на открытом сокете, а роль из payload остаётся
-    прежней после понижения в правах.
+    прежней после понижения в правах. Сессия ревалидируется и внутри стрима:
+    отзыв токена, деактивация или смена роли закрывают сокет кодом 4001.
     """
-    try:
-        from src.api_pkg.routers.auth import resolve_session
+    if not _origin_allowed(websocket.headers.get("Origin")):
+        logger.warning("admin_logs_ws_disallowed_origin", origin=websocket.headers.get("Origin"))
+        await websocket.close(code=4003, reason="Origin not allowed")
+        return
 
-        eff_token = (
-            websocket.cookies.get("token", "")
-            or websocket.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-        )
+    from src.api_pkg.routers.auth import resolve_session
+
+    eff_token = (
+        websocket.cookies.get("token", "")
+        or websocket.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    )
+    try:
         if not eff_token:
             await websocket.close(code=4001, reason="Unauthorized")
             return
@@ -1035,14 +1063,31 @@ async def admin_logs_ws(websocket: WebSocket):
 
     stop = asyncio.Event()
     tail_task = asyncio.create_task(_tail_backend_log(websocket, stop))
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    last_recheck = started
     try:
         while True:
             try:
-                await asyncio.wait_for(websocket.receive_text(), timeout=30)
+                await asyncio.wait_for(websocket.receive_text(), timeout=_WS_LOOP_INTERVAL_SEC)
             except TimeoutError:
-                # Клиент жив - просто keepalive-пауза
-                continue
+                pass  # клиент жив - просто keepalive-пауза
             except Exception:
+                break
+
+            now = loop.time()
+            if now - last_recheck >= _WS_SESSION_RECHECK_SEC:
+                last_recheck = now
+                if (session_user := await resolve_session(eff_token)) is None \
+                        or session_user.get("r") != "admin":
+                    logger.warning(
+                        "admin_logs_ws_session_invalid",
+                        uid=(session_user or {}).get("uid"),
+                    )
+                    await websocket.close(code=4001, reason="Session invalid")
+                    break
+            if now - started >= _WS_MAX_LIFETIME_SEC:
+                await websocket.close(code=1000, reason="Socket lifetime exceeded")
                 break
     finally:
         stop.set()
