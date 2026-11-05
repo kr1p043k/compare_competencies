@@ -324,8 +324,20 @@ def _select_observed_direction(items: list[dict], direction: str) -> list[dict]:
 
 @router.get("/forecast/all")
 @limiter.limit("30/minute")
-async def get_all_forecasts(request: Request, months: int = Query(12, ge=1, le=24)):
-    """Прогнозы по всем навыкам."""
+async def get_all_forecasts(
+    request: Request,
+    months: int = Query(12, ge=1, le=24),
+    limit: int = Query(500, ge=1, le=5000),
+    offset: int = Query(0, ge=0),
+    min_freq: float = Query(0, ge=0),
+):
+    """Прогнозы по всем навыкам (с пагинацией).
+
+    Раньше отдавал все ~780 прогнозов сразу (~3 МБ): для страницы это лишний
+    трафик и парсинг. Теперь limit/offset и total в ответе; клиенту, которому
+    нужен весь список, достаточно идти страницами. min_freq позволяет отсечь
+    низкочастотный хвост на стороне сервера.
+    """
     match await _get_forecast_engine():
         case Ok(engine):
             cache_key = ("all", months, id(engine))
@@ -348,7 +360,18 @@ async def get_all_forecasts(request: Request, months: int = Query(12, ge=1, le=2
                                 request, str(e), "Не удалось построить прогноз. Попробуйте позже."
                             ),
                         )
-            return {"total": len(items), "months": months, "forecasts": items, **_engine_info(engine)}
+            if min_freq:
+                items = [i for i in items if (i.get("current_frequency") or 0) >= min_freq]
+            total = len(items)
+            page = items[offset: offset + limit]
+            return {
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+                "months": months,
+                "forecasts": page,
+                **_engine_info(engine),
+            }
         case Err(e):
             logger.warning("forecast_engine_unavailable", error=str(e))
             raise HTTPException(
