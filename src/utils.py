@@ -328,8 +328,7 @@ def _market_freq_lookup(
         if matches and matches[0][1] >= 85:
             return freq_map[matches[0][0]]
     except ImportError:
-        pass
-
+        logger.debug("swallowed_exception", exc_info=True)
     # Level 4: bridging through mapping inverted index
     if inverted_index and mapping and skill_name.lower().strip() in inverted_index:
         comp_codes = inverted_index[skill_name.lower().strip()]

@@ -215,14 +215,12 @@ async def teacher_stats(request: Request):
             result["competencies"] = r["competencies"] or 0
             result["skills"] = r["skills"] or 0
     except Exception:
-        pass
-
+        logger.debug("swallowed_exception", exc_info=True)
     try:
         pool = get_pool()
         result["vacancies"] = await pool.fetchval("SELECT COUNT(*) FROM vacancies") or 0
     except Exception:
-        pass
-
+        logger.debug("swallowed_exception", exc_info=True)
     return result
 
 

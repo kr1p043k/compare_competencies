@@ -37,7 +37,7 @@ def _resolve_sync_dsn() -> str:
         if dsn:
             return dsn
     except Exception:
-        pass
+        logger.debug("swallowed_exception", exc_info=True)
     return _to_sync_dsn(os.environ.get("DATABASE_URL", "") or os.environ.get(
         "TEST_DATABASE_URL", ""))
 
@@ -122,7 +122,7 @@ def _norm_msg(msg: str) -> str:
         if key:
             return key
     except Exception:
-        pass
+        logger.debug("swallowed_exception", exc_info=True)
     return _PUNCT_WS.sub(" ", (msg or "").casefold()).strip()
 
 
@@ -148,7 +148,7 @@ def _exact_demand(skills: list[str]) -> tuple[dict[str, int], dict[str, str]]:
                     norms[s] = r.unwrap().strip().lower()
                     variants.add(norms[s])
             except Exception:
-                pass
+                logger.debug("swallowed_exception", exc_info=True)
         dsn = _resolve_sync_dsn()
         if not dsn or psycopg2 is None:
             return out, norms

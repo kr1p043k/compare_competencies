@@ -41,7 +41,7 @@ def _read_progress_file(path: Path) -> dict:
             with open(path, encoding="utf-8") as f:
                 return json.load(f)
     except Exception:
-        pass
+        logger.debug("swallowed_exception", exc_info=True)
     return {}
 
 
@@ -60,9 +60,7 @@ def _load_idempotency() -> None:
             if isinstance(data, dict):
                 _idempotency_map.update({str(k): str(v) for k, v in data.items()})
     except Exception:
-        pass
-
-
+        logger.debug("swallowed_exception", exc_info=True)
 def _persist_idempotency_sync() -> None:
     try:
         IDEMPOTENCY_STORE_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -70,9 +68,7 @@ def _persist_idempotency_sync() -> None:
             json.dumps(_idempotency_map, ensure_ascii=False), encoding="utf-8"
         )
     except Exception:
-        pass
-
-
+        logger.debug("swallowed_exception", exc_info=True)
 def _new_task_id(action_value: str) -> str:
     return f"{action_value}_{uuid.uuid4().hex[:12]}"
 
@@ -203,9 +199,7 @@ def _save_tasks():
         with open(TASKS_STORE_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
     except Exception:
-        pass
-
-
+        logger.debug("swallowed_exception", exc_info=True)
 def _load_tasks():
     try:
         _load_idempotency()
@@ -1060,7 +1054,7 @@ async def pipeline_ws(websocket: WebSocket):
                         raw = json.loads(text_raw)
                         break
                 except Exception:
-                    pass
+                    logger.debug("swallowed_exception", exc_info=True)
             if raw:
                 text = json.dumps(raw, ensure_ascii=False)
                 if text != prev_data:
@@ -1069,6 +1063,6 @@ async def pipeline_ws(websocket: WebSocket):
             await asyncio.sleep(2)
             _ = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
     except (TimeoutError, WebSocketDisconnect, Exception):
-        pass
+        logger.debug("swallowed_exception", exc_info=True)
     finally:
         _ws_clients.discard(websocket)

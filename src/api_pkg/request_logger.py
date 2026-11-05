@@ -272,7 +272,7 @@ async def actor_from_request(request: Request) -> tuple[str, str]:
         if isinstance(user, dict) and user.get("u"):
             return str(user.get("u")), str(user.get("r") or "?")
     except Exception:
-        pass
+        logger.debug("swallowed_exception", exc_info=True)
     try:
         from src.api_pkg.routers.auth import _decode_token
         auth = request.headers.get("Authorization", "")
@@ -281,7 +281,7 @@ async def actor_from_request(request: Request) -> tuple[str, str]:
             if isinstance(data, dict) and data.get("u"):
                 return str(data.get("u")), str(data.get("r") or "?")
     except Exception:
-        pass
+        logger.debug("swallowed_exception", exc_info=True)
     state_user: Any = getattr(request.state, "user", None)
     if isinstance(state_user, str) and state_user:
         return state_user, "?"

@@ -26,8 +26,25 @@ logger = structlog.get_logger(__name__)
 #: Ключ флага двухфакторной аутентификации.
 FLAG_TOTP_2FA = "totp_2fa_enabled"
 
-_FEATURES_PATH = Path(config.DATA_DIR) / "settings" / "features.json"
 _DEFAULTS: dict[str, bool] = {FLAG_TOTP_2FA: False}
+
+
+#: Путь по умолчанию. Тесты подменяют этот атрибут через monkeypatch,
+#: поэтому функция ниже читает его из модуля на каждый вызов.
+_FEATURES_PATH = Path(config.DATA_DIR) / "settings" / "features.json"
+
+
+def _features_path() -> Path:
+    """Путь к файлу флагов на момент вызова.
+
+    Переменная окружения `FEATURES_FILE` нужна для запусков с другим
+    `DATA_DIR`; monkeypatch модульного `_FEATURES_PATH` работает так же,
+    потому что значение читается здесь, а не при импорте.
+    """
+    override = os.environ.get("FEATURES_FILE", "")
+    if override:
+        return Path(override)
+    return _FEATURES_PATH
 
 
 def _env_default(flag: str) -> bool:
@@ -39,7 +56,7 @@ def _env_default(flag: str) -> bool:
 
 def _load_file() -> dict[str, Any]:
     try:
-        raw = _FEATURES_PATH.read_text(encoding="utf-8")
+        raw = _features_path().read_text(encoding="utf-8")
         data = json.loads(raw)
         return data if isinstance(data, dict) else {}
     except FileNotFoundError:
@@ -47,7 +64,9 @@ def _load_file() -> dict[str, Any]:
     except (OSError, ValueError) as exc:
         # Битый файл не должен ронять приложение: работаем на значениях по
         # умолчанию и оставляем след в логе.
-        logger.warning("features_file_unreadable", error=str(exc), path=str(_FEATURES_PATH))
+        logger.warning(
+            "features_file_unreadable", error=str(exc), path=str(_features_path())
+        )
         return {}
 
 
@@ -60,14 +79,15 @@ def is_enabled(flag: str) -> bool:
 
 
 def _save(values: dict[str, Any]) -> None:
-    _FEATURES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    target = _features_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(values, ensure_ascii=False, indent=2, sort_keys=True)
     # Атомарная запись: temporary в том же каталоге + os.replace.
-    fd, tmp = tempfile.mkstemp(dir=str(_FEATURES_PATH.parent), suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(dir=str(target.parent), suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(payload)
-        os.replace(tmp, _FEATURES_PATH)
+        os.replace(tmp, target)
     finally:
         if os.path.exists(tmp):
             os.unlink(tmp)
