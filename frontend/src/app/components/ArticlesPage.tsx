@@ -217,7 +217,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
   const loadAnalytics = () => {
     setAnalyticsLoading(true);
     setAnalyticsError(null);
-    api("/vacancies/stats/analytics")
+    api<Analytics>("/vacancies/stats/analytics")
       .then(setAnalytics)
       .catch((e) => setAnalyticsError(e.message))
       .finally(() => setAnalyticsLoading(false));
@@ -226,7 +226,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
   const loadTrends = () => {
     setTrendsLoading(true);
     setTrendsError(null);
-    api("/trends?top_n=10&min_change=3.0")
+    api<{ trends: TrendsData }>("/trends?top_n=10&min_change=3.0")
       .then((d) => setTrends(d.trends || { rising: [], falling: [] }))
       .catch((e) => setTrendsError(e.message))
       .finally(() => setTrendsLoading(false));
@@ -235,7 +235,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
   const loadStats = () => {
     setStatsLoading(true);
     setStatsError(null);
-    api("/vacancies/stats/summary")
+    api<VacancyStats>("/vacancies/stats/summary")
       .then(setStats)
       .catch((e) => setStatsError(e.message))
       .finally(() => setStatsLoading(false));
@@ -244,7 +244,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
   const loadTopSkills = () => {
     setSkillsLoading(true);
     setSkillsError(null);
-    api("/market/top-skills?limit=15")
+    api<{ skills: TopSkill[] }>("/market/top-skills?limit=15")
       .then((d) => setTopSkills(d.skills || []))
       .catch((e) => setSkillsError(e.message))
       .finally(() => setSkillsLoading(false));
@@ -253,7 +253,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
   const loadCoverage = () => {
     setCoverageLoading(true);
     setCoverageError(null);
-    api("/taxonomy/coverage")
+    api<TaxonomyCoverage>("/taxonomy/coverage")
       .then((d) => setCoverage(d.coverage || {}))
       .catch((e) => setCoverageError(e.message))
       .finally(() => setCoverageLoading(false));
@@ -261,7 +261,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
 
   const loadProfessions = () => {
     setProfError(null);
-    api("/trends/professions")
+    api<{ professions: { name: string }[] }>("/trends/professions")
       .then((d) => setProfessions(d.professions || []))
       .catch((e) => setProfError(e.message));
   };
@@ -273,7 +273,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
       return;
     }
     setProfTrendsLoading(true);
-    api(`/trends/by-profession?profession=${encodeURIComponent(prof)}&limit=30`)
+    api<ProfessionTrends>(`/trends/by-profession?profession=${encodeURIComponent(prof)}&limit=30`)
       .then(setProfTrends)
       .catch(() => setProfTrends(null))
       .finally(() => setProfTrendsLoading(false));

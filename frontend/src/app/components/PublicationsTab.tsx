@@ -73,7 +73,7 @@ export function PublicationsTab() {
     setSearchError("");
     const params = new URLSearchParams({ q: applied, max_pages: "10", limit: "200" });
     if (typeId) params.set("type_id", typeId);
-    api(`/publications/search?${params}`, { signal: ctrl.signal })
+    api<SearchResponse>(`/publications/search?${params}`, { signal: ctrl.signal })
       .then((d: SearchResponse) => setSearchData(d))
       .catch((e: unknown) => {
         if (isAbort(e)) return;
@@ -87,7 +87,7 @@ export function PublicationsTab() {
   // Типы публикаций: счётчики точные, поэтому запрашиваем один раз.
   useEffect(() => {
     const ctrl = new AbortController();
-    api("/publications/types", { signal: ctrl.signal })
+    api<TypesResponse>("/publications/types", { signal: ctrl.signal })
       .then((d: TypesResponse) => {
         setTypes(d.types ?? []);
         setTypesExact(d.exact !== false);
@@ -104,7 +104,7 @@ export function PublicationsTab() {
     setLoaded([]);
     setPage(1);
     const endpoint = `/publications?page=1&page_size=${pageSize}${typeId ? `&type_id=${typeId}` : ""}`;
-    api(endpoint, { signal: ctrl.signal })
+    api<ListResponse>(endpoint, { signal: ctrl.signal })
       .then((d: ListResponse) => {
         setLoaded(d.items);
         setTotal(d.total);
@@ -132,7 +132,7 @@ export function PublicationsTab() {
     loadMoreCtrl.current = ctrl;
     setLoadingMore(true);
     const endpoint = `/publications?page=${nextPage}&page_size=${pageSize}${typeId ? `&type_id=${typeId}` : ""}`;
-    api(endpoint, { signal: ctrl.signal })
+    api<ListResponse>(endpoint, { signal: ctrl.signal })
       .then((d: ListResponse) => {
         if (ctrl.signal.aborted) return;
         setLoaded((prev) => {
@@ -262,15 +262,15 @@ export function PublicationsTab() {
             <div className="space-y-3">
               <p className="text-xs text-gray-500 dark:text-slate-400" aria-live="polite">
                 {applied
-                  ? `Совпадений: ${filtered.length.toLocaleString("ru-RU")} среди ${loaded.length.toLocaleString("ru-RU")} загруженных`
+                  ? `Совпадений: ${filtered.length.toLocaleString("ru-RU")} · просмотрено ${(searchData?.total_scanned ?? 0).toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")}`
                   : `Загружено ${loaded.length.toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")}`}
                 {typesExact ? "" : " · счётчики типов приблизительные"}
               </p>
               {visibleItems.length === 0 ? (
                 <EmptyState
                   icon={<Info className="size-8" />}
-                  title="Среди загруженных записей совпадений нет"
-                  description={`Просмотрено ${loaded.length.toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")} записей. Публикация может быть в незагруженной части каталога.`}
+                  title="Совпадений не найдено"
+                  description={`Просмотрено ${(searchData?.total_scanned ?? 0).toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")} записей. Уточните запрос или выберите тип публикации.`}
                   action={
                     <Button variant="outline" size="sm" onClick={loadMore} disabled={!canLoadMore}>
                       {loadingMore ? <Loader2 className="size-4 animate-spin" /> : null}Загрузить ещё
