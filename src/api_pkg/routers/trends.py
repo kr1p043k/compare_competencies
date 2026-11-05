@@ -1,8 +1,10 @@
 """Trends analysis - per-competency aggregate + per-skill trends from trend_snapshots."""
 from __future__ import annotations
 
+import asyncio
 import json
 import statistics
+from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any
 
@@ -17,6 +19,7 @@ from src.analyzers.skills.trends import TrendAnalyzer
 from src.api_pkg import deps
 from src.api_pkg.routers.auth import require_authenticated, user_error_detail
 from src.database import async_session_factory
+from src.db import get_pool
 from src.models.api_responses import TrendsResponse
 from src.models.krm_models import Competency, CompetencySkill, Skill, TrendSnapshot
 from src.utils import load_competency_mapping, load_inverted_skill_index, skill_words
@@ -33,7 +36,7 @@ async def get_trends(
     request: Request,
     top_n: int = Query(15),
     min_change: float = Query(3.0),
-    trend_analyzer_instance: TrendAnalyzer = Depends(deps.get_trend_analyzer),
+    trend_analyzer_instance: TrendAnalyzer = Depends(deps.get_trend_analyzer),  # noqa: B008
 ):
     """Тренды навыков."""
     try:
@@ -97,11 +100,114 @@ def _sw(name: str) -> frozenset[str]:
 _CT_CACHE: dict[tuple, tuple[float, dict]] = {}
 _CT_CACHE_TTL = 600.0
 
+# Таблица trend_precomputed (asyncpg-пул src/db, см. миграцию
+# alembic/versions/trend_precomputed.py). Полезная нагрузка /competency-trends,
+# чтобы результат переживал рестарт процесса и делился между воркерами.
+_CT_TABLE = "trend_precomputed"
+
+# Срок жизни записи БД-кэша. Первичный механизм инвалидации - шина cache_bus
+# (запись нового снимка чистит таблицу), TTL - страховка на случай, если событие
+# инвалидации потерялось (например, запись была сделана до поднятия пула).
+_CT_DB_TTL = 24 * 3600.0
+
+
+def _cache_key(direction: str | None, limit: int) -> str:
+    """Строковый ключ строки таблицы trend_precomputed: (direction, limit)."""
+    return f"{direction or ''}|{limit}"
+
+
+async def _read_db_cache(key: str) -> dict | None:
+    """Прочитать payload из БД-кэша; None при промахе/порче/устаревании.
+
+    Любая ошибка (пула нет, таблицы нет, битый payload) - это промах, а не
+    исключение: эндпоинт обязан просто пересчитать и записать заново.
+    """
+    try:
+        pool = get_pool()
+    except RuntimeError:
+        return None
+    try:
+        row = await pool.fetchrow(
+            f"SELECT payload, computed_at FROM {_CT_TABLE} WHERE cache_key = $1", key
+        )
+    except Exception as exc:  # таблицы может не быть до миграции
+        logger.warning("ct_cache_read_failed", key=key, error=str(exc))
+        return None
+    if row is None:
+        return None
+    computed_at = row["computed_at"]
+    if computed_at is not None:
+        try:
+            age = (datetime.now(UTC) - computed_at).total_seconds()
+        except (TypeError, ValueError):  # наивный datetime - считаем свежим
+            age = 0.0
+        if age > _CT_DB_TTL:
+            logger.info("ct_cache_stale", key=key, age=age)
+            return None
+    try:
+        payload = json.loads(row["payload"])
+    except (TypeError, ValueError) as exc:
+        logger.warning("ct_cache_payload_corrupt", key=key, error=str(exc))
+        return None
+    if not isinstance(payload, dict) or "trends" not in payload:
+        logger.warning("ct_cache_payload_wrong_shape", key=key)
+        return None
+    return payload
+
+
+async def _write_db_cache(key: str, payload: dict) -> None:
+    """Записать (или обновить) payload в таблицу БД-кэша. Ошибка - только лог."""
+    try:
+        pool = get_pool()
+    except RuntimeError:
+        return
+    try:
+        await pool.execute(
+            f"INSERT INTO {_CT_TABLE} (cache_key, payload, computed_at) "
+            f"VALUES ($1, $2::jsonb, now()) "
+            f"ON CONFLICT (cache_key) DO UPDATE SET payload = EXCLUDED.payload, computed_at = now()",
+            key,
+            json.dumps(payload),
+        )
+    except Exception as exc:
+        logger.warning("ct_cache_write_failed", key=key, error=str(exc))
+
+
+async def _clear_db_cache(pool) -> None:
+    """Удалить все строки trend_precomputed через переданный пул."""
+    try:
+        await pool.execute(f"DELETE FROM {_CT_TABLE}")
+    except Exception as exc:
+        logger.warning("ct_cache_clear_failed", error=str(exc))
+
+
+# Отложенные задачи чистки БД-кэша: держим ссылки, чтобы task не собирался
+# сборщиком мусора до завершения (asyncio предупреждает о pending-тасках).
+_db_clear_tasks: set[asyncio.Task] = set()
+
+
+def _schedule_db_cache_clear() -> None:
+    """Запланировать асинхронную чистку таблицы в текущем цикле событий.
+
+    Вызывается из синхронного колбэка шины cache_bus. Если цикла событий нет
+    (тесты в sync-режиме) или пул ещё не поднят (старт приложения) - тихо
+    пропускаем: данные не теряются, кэш обновится при следующем промахе.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+        pool = get_pool()
+    except RuntimeError:
+        return
+    task = loop.create_task(_clear_db_cache(pool))
+    _db_clear_tasks.add(task)
+    task.add_done_callback(_db_clear_tasks.discard)
+
 
 def _clear_trend_caches() -> None:
     """Сбросить кэш трендов и token-множеств после изменения снимков."""
     _CT_CACHE.clear()
     _sw.cache_clear()
+    _schedule_db_cache_clear()
 
 
 from src.cache_bus import register as _register_cache  # noqa: E402
@@ -160,6 +266,15 @@ async def get_competency_trends(
     if entry and _time.monotonic() - entry[0] < _CT_CACHE_TTL:
         return entry[1]
 
+    # Промах in-memory кэша: пробуем БД-кэш trend_precomputed. Он переживает
+    # рестарт процесса: при первом запросе после старта _CT_CACHE пуст, но
+    # последний расчёт можно поднять из БД, если он не старше TTL.
+    db_key = _cache_key(direction, limit)
+    db_payload = await _read_db_cache(db_key)
+    if db_payload is not None:
+        _CT_CACHE[cache_key] = (_time.monotonic(), db_payload)
+        return db_payload
+
     async with async_session_factory() as session:
         # 1. find 2 snapshots with different data for meaningful comparison
         snap_rows = await session.execute(
@@ -202,8 +317,8 @@ async def get_competency_trends(
 
         # --- Normalize cur_freq: merge linux + администрирование linux ---
         normalized_cur = dict(cur_freq)
-        CUR_MERGE = {"linux": ["администрирование linux"]}
-        for target, sources in CUR_MERGE.items():
+        cur_merge = {"linux": ["администрирование linux"]}
+        for target, sources in cur_merge.items():
             for src in sources:
                 if src in normalized_cur:
                     normalized_cur[target] += normalized_cur.pop(src)
@@ -222,12 +337,12 @@ async def get_competency_trends(
                     normalized_prev[ck] = prev_freq[ok]
                     break
 
-        OVERRIDE_PREV = {
+        override_prev = {
             "linux": 1674,
             "c": 1279,
             "huggingface": 15,
         }
-        for skill, val in OVERRIDE_PREV.items():
+        for skill, val in override_prev.items():
             normalized_prev[skill] = val
 
         # 2. all competencies + their skills
@@ -348,8 +463,10 @@ async def get_competency_trends(
 
                 if pv >= 10:
                     chg = round((cv - pv) / pv * 100, 1)
-                    if chg > 200: chg = 200
-                    elif chg < -200: chg = -200
+                    if chg > 200:
+                        chg = 200
+                    elif chg < -200:
+                        chg = -200
                     changes.append(chg)
                     if chg >= 5:
                         rising += 1
@@ -417,4 +534,5 @@ async def get_competency_trends(
 
         payload = {"total": len(results), "trends": results[:limit]}
         _CT_CACHE[cache_key] = (_time.monotonic(), payload)
+        await _write_db_cache(db_key, payload)
         return payload
