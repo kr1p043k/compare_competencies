@@ -47,6 +47,12 @@ async def intake_comparison(
     compare = _load_compare()
     try:
         report = await asyncio.to_thread(compare.build_intake_report, dir_code, old, new)
-    except compare.IntakeNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from None
+    except compare.IntakeNotFoundError:
+        # Текст исключения не отдаём наружу: он собирается из путей и может
+        # содержать внутренние детали. Пользователю достаточно, какого набора
+        # не хватает.
+        raise HTTPException(
+            status_code=404,
+            detail=f"Нет данных анализа для набора {old} или {new} по направлению {dir_code}",
+        ) from None
     return report
