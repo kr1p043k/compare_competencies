@@ -9,12 +9,14 @@ areas
 
 # Логи и временные файлы запусков
 logs/
+*.log
 recompute_*.log
 recompute_*.err.log
 recompute_*.pid
 temp/
 temp*
 .tmp_*
+*.tmp
 
 # Кэши инструментов
 .pytest_cache/
@@ -85,6 +87,6 @@ docs/pentest-*.md
 # Машинное состояние релизного гейта
 .release-baseline.json
 
-# ������� ������ � �������: ������ ��������
+# ������� ������ � �������: ������ ��������
 NOTES-*.md
 .venv/
