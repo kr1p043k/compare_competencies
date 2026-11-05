@@ -19,6 +19,7 @@ from slowapi import Limiter
 from src import config
 from src.api_pkg.client_ip import client_ip
 from src.api_pkg.request_logger import audit_action
+from src.api_pkg import twofa_policy
 from src.db import get_pool
 
 try:
@@ -466,9 +467,10 @@ async def login(body: LoginRequest, request: Request):
             await _register_failed_login(pool, email, ip)
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        # 2FA: у админа с подтверждённым TOTP пароля мало. Токен не выдаём,
-        # возвращаем одноразовый challenge - код проверит /auth/2fa/verify.
-        if row["role"] == "admin":
+        # 2FA: код спрашиваем только если администратор включил флаг и у него
+        # уже подтверждён TOTP. Флаг выключен (по умолчанию) - вход по паролю,
+        # даже если в admin_totp остались старые записи.
+        if await twofa_policy.should_require_totp(pool, row["role"]):
             state = await _totp_state(pool, row["id"])
             if state and state.get("confirmed"):
                 challenge = _issue_challenge(str(row["id"]))
@@ -579,6 +581,14 @@ class TotpSetupResponse(BaseModel):
     secret: str
 
 
+class TotpStatusResponse(BaseModel):
+    """Что показать пользователю: включена ли 2FA и настроена ли у него."""
+
+    enabled_globally: bool
+    configured: bool
+    confirmed: bool
+
+
 class TotpCodeRequest(BaseModel):
     code: str = Field(min_length=4, max_length=32)
 
@@ -588,13 +598,24 @@ class TotpChallengeRequest(BaseModel):
     code: str = Field(min_length=4, max_length=32)
 
 
-async def _require_admin(request: Request) -> dict:
+async def _require_user(request: Request) -> dict:
+    """Администратор: 2FA в этой системе применяется только к роли admin."""
     user = await get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
     if user.get("r") != "admin":
         raise HTTPException(status_code=403, detail="Forbidden")
     return user
+
+
+async def _require_twofa_available() -> None:
+    """Настройка 2FA недоступна, пока её не включили в админке."""
+    pool = get_pool()
+    if pool is not None and not await twofa_policy.is_twofa_enabled(pool):
+        raise HTTPException(
+            status_code=403,
+            detail="Двухфакторная аутентификация выключена администратором",
+        )
 
 
 async def _ensure_totp_table(pool) -> None:
@@ -613,11 +634,31 @@ async def _ensure_totp_table(pool) -> None:
     )
 
 
+@router.get("/auth/2fa/status", response_model=TotpStatusResponse)
+@limiter.limit("60/minute")
+async def totp_status(request: Request):
+    """Состояние 2FA для текущего пользователя и глобального флага."""
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    pool = get_pool()
+    if pool is None:
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    enabled = await twofa_policy.is_twofa_enabled(pool)
+    state = await _totp_state(pool, user["uid"])
+    return TotpStatusResponse(
+        enabled_globally=enabled,
+        configured=state is not None,
+        confirmed=bool(state and state.get("confirmed")),
+    )
+
+
 @router.post("/auth/2fa/setup", response_model=TotpSetupResponse)
 @limiter.limit("10/minute")
 async def totp_setup(request: Request):
     """Начать настройку TOTP. Секрет показывается один раз."""
-    user = await _require_admin(request)
+    await _require_twofa_available()
+    user = await _require_user(request)
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
@@ -651,7 +692,7 @@ async def totp_setup(request: Request):
 @limiter.limit("10/minute")
 async def totp_confirm(body: TotpCodeRequest, request: Request):
     """Подтвердить код и получить recovery-коды (единственный раз)."""
-    user = await _require_admin(request)
+    user = await _require_user(request)
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
@@ -777,7 +818,7 @@ async def totp_recovery(body: TotpChallengeRequest, request: Request):
 @limiter.limit("10/minute")
 async def totp_disable(body: TotpCodeRequest, request: Request):
     """Отключить 2FA. Нужен действующий код или recovery-код."""
-    user = await _require_admin(request)
+    user = await _require_user(request)
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")

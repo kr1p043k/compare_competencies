@@ -295,6 +295,8 @@ def create_app() -> FastAPI:
     _mount(intake_comparison_router)
     from src.api_pkg.routers.history import router as history_router
     _mount(history_router)
+    from src.api_pkg.routers.security import router as security_router
+    _mount(security_router)
     from src.api_pkg.routers.teacher import router as teacher_router
     _mount(teacher_router)
     from src.api_pkg.routers.rpd import router as rpd_router

@@ -72,6 +72,7 @@ async def _make_admin(pool: asyncpg.Pool, email: str, password: str) -> None:
 async def env() -> AsyncIterator[dict[str, Any]]:
     import src.db as dbmod
     from src.api_pkg import limiter as pkg_limiter
+    from src.api_pkg import twofa_policy
 
     old = dbmod.pool
     email = _BASE_EMAIL.format(suffix=uuid.uuid4().hex[:8])
@@ -89,6 +90,9 @@ async def env() -> AsyncIterator[dict[str, Any]]:
     auth_mod._totp_challenges.clear()
 
     await auth_mod._ensure_totp_table(pool)
+    # Флаг по умолчанию выключен; тесты ниже описывают поведение при
+    # включённой 2FA, поэтому включаем явно.
+    await twofa_policy.set_twofa_enabled(pool, True, actor="test")
     await _make_admin(pool, email, PASSWORD)
 
     app = create_app()
@@ -97,6 +101,8 @@ async def env() -> AsyncIterator[dict[str, Any]]:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
             yield {"client": client, "pool": pool, "email": email, "password": PASSWORD}
     finally:
+        with contextlib.suppress(Exception):
+            await twofa_policy.set_twofa_enabled(pool, False, actor="test-teardown")
         await _drop_user(pool, email)
         dbmod.pool = old
         await pool.close()
