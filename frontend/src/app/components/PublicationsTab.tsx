@@ -10,10 +10,18 @@ import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { PaginationBar, PublicationCard, errorText, isAbort } from "./PublicationCard";
 import { PublicationDetailDialog } from "./PublicationDetailDialog";
-import { matchesQuery, type Publication } from "./publicationsFilter";
+import { type Publication } from "./publicationsFilter";
 
 interface ListResponse {
   items: Publication[]; total: number; page: number; page_size: number; num_pages: number;
+}
+interface SearchResponse {
+  query: string;
+  matches: Publication[];
+  total: number;
+  scanned_pages: number;
+  truncated: boolean;
+  total_scanned: number;
 }
 interface TypesResponse {
   types: { id: number; name: string | null; count: number }[];
@@ -38,6 +46,12 @@ export function PublicationsTab() {
   const [error, setError] = useState("");
   const [reload, setReload] = useState(0);
   const [detailId, setDetailId] = useState<number | null>(null);
+  // Серверный поиск: у hub нет полнотекстового индекса, поэтому сервер читает
+  // первые N страниц корпуса и ищет по ним. Результат приходит вместе с
+  // честной метрикой охвата (total_scanned / truncated).
+  const [searchData, setSearchData] = useState<SearchResponse | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
 
   // Живой поиск по уже загруженным записям: сеть не трогаем.
   useEffect(() => {
@@ -45,10 +59,35 @@ export function PublicationsTab() {
     return () => clearTimeout(t);
   }, [query]);
 
+  // Серверный поиск вместо фильтрации одной загруженной страницы.
+  // Раньше запрос искал только среди 20 загруженных записей из 133 902, и
+  // любое слово вне первой страницы давало пустую выдачу.
+  useEffect(() => {
+    if (!applied || applied.length < 2) {
+      setSearchData(null);
+      setSearchError("");
+      return;
+    }
+    const ctrl = new AbortController();
+    setSearching(true);
+    setSearchError("");
+    const params = new URLSearchParams({ q: applied, max_pages: "10", limit: "200" });
+    if (typeId) params.set("type_id", typeId);
+    api<SearchResponse>(`/publications/search?${params}`, { signal: ctrl.signal })
+      .then((d: SearchResponse) => setSearchData(d))
+      .catch((e: unknown) => {
+        if (isAbort(e)) return;
+        setSearchError(errorText(e));
+        setSearchData(null);
+      })
+      .finally(() => { if (!ctrl.signal.aborted) setSearching(false); });
+    return () => ctrl.abort();
+  }, [applied, typeId]);
+
   // Типы публикаций: счётчики точные, поэтому запрашиваем один раз.
   useEffect(() => {
     const ctrl = new AbortController();
-    api("/publications/types", { signal: ctrl.signal })
+    api<TypesResponse>("/publications/types", { signal: ctrl.signal })
       .then((d: TypesResponse) => {
         setTypes(d.types ?? []);
         setTypesExact(d.exact !== false);
@@ -65,7 +104,7 @@ export function PublicationsTab() {
     setLoaded([]);
     setPage(1);
     const endpoint = `/publications?page=1&page_size=${pageSize}${typeId ? `&type_id=${typeId}` : ""}`;
-    api(endpoint, { signal: ctrl.signal })
+    api<ListResponse>(endpoint, { signal: ctrl.signal })
       .then((d: ListResponse) => {
         setLoaded(d.items);
         setTotal(d.total);
@@ -93,7 +132,7 @@ export function PublicationsTab() {
     loadMoreCtrl.current = ctrl;
     setLoadingMore(true);
     const endpoint = `/publications?page=${nextPage}&page_size=${pageSize}${typeId ? `&type_id=${typeId}` : ""}`;
-    api(endpoint, { signal: ctrl.signal })
+    api<ListResponse>(endpoint, { signal: ctrl.signal })
       .then((d: ListResponse) => {
         if (ctrl.signal.aborted) return;
         setLoaded((prev) => {
@@ -114,13 +153,18 @@ export function PublicationsTab() {
   }, [loadingMore, numPages, nextPage, pageSize, typeId]);
 
   const filtered = useMemo(
-    () => (applied ? loaded.filter((p) => matchesQuery(p, applied)) : loaded),
-    [loaded, applied],
+    () => (applied ? (searchData?.matches ?? []) : loaded),
+    [loaded, applied, searchData],
   );
+  // Ошибку серверного поиска не глотаем: иначе пустой список выглядит как
+  // «совпадений нет», хотя причина другая (лимит запросов, hub недоступен).
+  useEffect(() => {
+    if (searchError) setError(searchError);
+  }, [searchError]);
   const totalFilteredPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalFilteredPages);
   const visibleItems = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const canLoadMore = numPages > 0 && nextPage <= numPages && !loadingMore;
+  const canLoadMore = !applied && numPages > 0 && nextPage <= numPages && !loadingMore;
 
   const resetAll = () => {
     setQuery("");
@@ -171,11 +215,30 @@ export function PublicationsTab() {
             <AlertTitle>Как работает поиск</AlertTitle>
             <AlertDescription className="text-blue-700 dark:text-blue-300">
               <p>
-                У hub.sfedu.ru нет серверного поиска, поэтому фильтр работает по уже загруженным
-                записям: <strong>{(applied ? filtered.length : loaded.length).toLocaleString("ru-RU")}</strong>
-                {" "}из {total.toLocaleString("ru-RU")}
-                {applied ? ` (совпадений среди ${loaded.length.toLocaleString("ru-RU")} загруженных)` : " загруженных"}.
-                Чтобы расширить охват, нажмите «Загрузить ещё».
+                {applied ? (
+                  searching ? (
+                    <>Ищем по репозиторию…</>
+                  ) : (
+                    <>
+                      Просмотрено{" "}
+                      <strong>{(searchData?.total_scanned ?? 0).toLocaleString("ru-RU")}</strong>{" "}
+                      записей из {total.toLocaleString("ru-RU")}
+                      {searchData?.truncated ? " (это не весь корпус)" : ""}.
+                      Совпадений: <strong>{filtered.length.toLocaleString("ru-RU")}</strong>.
+                    </>
+                  )
+                ) : (
+                  <>
+                    Показано {loaded.length.toLocaleString("ru-RU")} из{" "}
+                    {total.toLocaleString("ru-RU")} записей. Чтобы смотреть дальше,
+                    нажмите «Загрузить ещё».
+                  </>
+                )}
+              </p>
+              <p className="mt-1 text-[11px] opacity-80">
+                У hub.sfedu.ru нет полнотекстового индекса: поиск читает первые страницы
+                корпуса, а не весь репозиторий. Уточняйте запрос или выберите тип —
+                так совпадений в просмотренной части будет больше.
               </p>
             </AlertDescription>
           </Alert>
@@ -199,15 +262,15 @@ export function PublicationsTab() {
             <div className="space-y-3">
               <p className="text-xs text-gray-500 dark:text-slate-400" aria-live="polite">
                 {applied
-                  ? `Совпадений: ${filtered.length.toLocaleString("ru-RU")} среди ${loaded.length.toLocaleString("ru-RU")} загруженных`
+                  ? `Совпадений: ${filtered.length.toLocaleString("ru-RU")} · просмотрено ${(searchData?.total_scanned ?? 0).toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")}`
                   : `Загружено ${loaded.length.toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")}`}
                 {typesExact ? "" : " · счётчики типов приблизительные"}
               </p>
               {visibleItems.length === 0 ? (
                 <EmptyState
                   icon={<Info className="size-8" />}
-                  title="Среди загруженных записей совпадений нет"
-                  description={`Просмотрено ${loaded.length.toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")} записей. Публикация может быть в незагруженной части каталога.`}
+                  title="Совпадений не найдено"
+                  description={`Просмотрено ${(searchData?.total_scanned ?? 0).toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")} записей. Уточните запрос или выберите тип публикации.`}
                   action={
                     <Button variant="outline" size="sm" onClick={loadMore} disabled={!canLoadMore}>
                       {loadingMore ? <Loader2 className="size-4 animate-spin" /> : null}Загрузить ещё

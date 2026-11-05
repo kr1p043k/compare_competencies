@@ -1,5 +1,6 @@
 """Concrete pipeline stages - адаптеры для существующих классов."""
 
+import contextlib
 import json
 from typing import Any
 
@@ -17,7 +18,6 @@ from src.predictors import create_ranking_predictor
 from src.result import Result
 from src.scoring.vacancy_quality_scorer import VacancyQualityScorer
 from src.utils import safe_read_json
-import contextlib
 
 logger = structlog.get_logger(__name__)
 

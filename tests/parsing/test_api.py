@@ -245,8 +245,8 @@ class TestHeadHunterAPISync:
             api._ensure_token()
             mock_get_token.assert_not_called()
 
-    def test_search_vacancies_with_date_range(self):
-        """Строки 112-113: поиск с date_from/date_to"""
+    def test_search_vacancies_with_date_range_params_present(self):
+        """Строки 112-113: поиск с date_from/date_to (проверка наличия параметров)"""
         api = HeadHunterAPI()
         with patch.object(api, "_get_result") as mock_get:
             mock_get.return_value = Ok({"items": [{"id": "1"}], "pages": 1, "found": 1})
@@ -325,14 +325,6 @@ class TestHeadHunterAPISync:
         api = HeadHunterAPI()
         with patch.object(api, "_get_result", return_value=Err(ApiError(message="mocked error", endpoint="test"))):
             result = api.get_vacancy_details_validated("999")
-            assert result.is_err()
-
-    def test_get_vacancy_details_as_object_invalid(self):
-        """Строки 81-82: Vacancy.from_api вызывает ошибку"""
-        api = HeadHunterAPI()
-        raw = {"id": "1"}  # нет name
-        with patch.object(api, "_get_result", return_value=Ok(raw)):
-            result = api.get_vacancy_details_as_object("1")
             assert result.is_err()
 
     def test_get_handles_429_without_retry_after(self):
@@ -681,13 +673,6 @@ class TestHeadHunterAPIAsyncSyncWrapper:
 
 class TestHeadHunterAPIAsyncBatch:
     """Тесты пакетной загрузки (строка 223)"""
-
-    @pytest.mark.asyncio
-    async def test_get_vacancies_details_batch_empty(self):
-        """Строка 223: пустой список"""
-        api = HeadHunterAPIAsync()
-        results = await api.get_vacancies_details_batch([])
-        assert results == []
 
     @pytest.mark.asyncio
     async def test_get_vacancies_details_batch_with_exceptions(self):

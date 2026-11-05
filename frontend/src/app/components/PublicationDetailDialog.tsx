@@ -114,7 +114,7 @@ export function PublicationDetailDialog({ id, onClose }: { id: number; onClose: 
     setLoading(true);
     setError("");
     setDetail(null);
-    api(`/publications/${id}`, { signal: ctrl.signal })
+    api<Publication>(`/publications/${id}`, { signal: ctrl.signal })
       .then((d: Publication) => { setDetail(d); setLoading(false); })
       .catch((e: unknown) => {
         if (isAbort(e)) return;

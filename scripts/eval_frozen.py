@@ -35,8 +35,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
 from train_ltr_ranker import read_gold  # noqa: E402
+
+from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
 
 MODELS = ROOT / "data" / "models"
 REPORT = ROOT / "data" / "reports" / "frozen_eval.json"

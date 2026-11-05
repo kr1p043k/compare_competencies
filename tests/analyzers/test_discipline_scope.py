@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import json
-
 import numpy as np
-import pytest
 
 from src.analyzers import discipline_scope as scope
 

@@ -27,6 +27,25 @@ SECRET_KEY = config.get_secret_key()
 FLUSH_INTERVAL = 10  # seconds
 FLUSH_BATCH = 100    # entries
 
+_EMAIL_RE = re.compile(r"^(?P<local>[^@]+)@(?P<domain>.+)$")
+
+
+def mask_email(email: str | None) -> str:
+    """Маска для email в логах: первая буква логина + домен.
+
+    Аудит хранит полный адрес в буфере и БД — он нужен для атрибуции действий.
+    Но структурированные логи уходят в файлы и сборщики, где полный адрес —
+    это персональные данные. `ivanov@sfedu.ru` -> `i***@sfedu.ru`.
+    """
+    if not email:
+        return "anonymous"
+    m = _EMAIL_RE.match(str(email).strip())
+    if not m:
+        return "***"
+    local, domain = m.group("local"), m.group("domain")
+    keep = local[:1] if local else ""
+    return f"{keep}***@{domain}"
+
 
 def _extract_token(request: Request) -> str | None:
     """Bearer → cookie.
@@ -295,7 +314,11 @@ async def audit_action(request: Request, action: str, target: str = "") -> dict[
             detail=detail,
         )
         _log_buffer.append(entry)
-        logger.info("audit", action=action, target=target[:200], actor=email, role=role)
+        # В структурированный лог (файлы, сборщики) email не пишем: аудит
+        # хранит полный адрес в буфере и БД, где он нужен для атрибуции, а
+        # внешние логи - это утечка персональных данных. Маскируем домен.
+        logger.info("audit", action=action, target=target[:200],
+                    actor=mask_email(email), role=role)
         return {"actor_email": email, "actor_role": role, "action": action, "target": target, "detail": detail}
     except Exception as exc:
         logger.warning("audit_failed", action=action, error=str(exc))

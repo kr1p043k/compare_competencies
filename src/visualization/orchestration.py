@@ -1,5 +1,6 @@
 """Оркестрация построения всех графиков с учётом таксономии профессий."""
 
+import contextlib
 import gc
 import json
 import subprocess
@@ -24,7 +25,6 @@ from .coverage import (
 )
 from .importance import plot_ml_importance, plot_weight_distribution
 from .radar import plot_skill_comparison_radar
-import contextlib
 
 logger = structlog.get_logger(__name__)
 

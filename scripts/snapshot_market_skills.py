@@ -25,7 +25,12 @@ from datetime import date
 
 import psycopg
 
-DEFAULT_DSN = "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies"
+try:  # запуск как файла
+    from _dsn import resolve_dsn  # noqa: E402
+except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
+    from scripts._dsn import resolve_dsn  # noqa: E402
+
+DEFAULT_DSN = ""  # значение берётся из --dsn / DATABASE_URL / .env
 
 UNIQUE_INDEX = """
 create unique index if not exists uq_msm_period_skill
@@ -79,11 +84,12 @@ def resolve_skill_ids(conn) -> dict[str, str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dsn", default=DEFAULT_DSN)
+    parser.add_argument("--dsn", default="")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--period", type=date.fromisoformat, default=None)
     parser.add_argument("--min-frequency", type=int, default=2)
     args = parser.parse_args()
+    args.dsn = resolve_dsn(getattr(args, 'dsn', '') or None)
 
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")

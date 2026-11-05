@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "../api";
 import { Skeleton } from "../../design";
-import { useTheme } from "../../lib/theme";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { MetricsGlossary } from "./MetricsGlossary";
 import { TaxonomyBrowser } from "./TaxonomyBrowser";
@@ -56,7 +55,7 @@ type DirectionAnalysis = {
   top_cross_discipline_gaps: { skill: string; disciplines: number }[];
   top_emerging_across_all: { skill: string; frequency: number }[];
   recommendations: { type: string; priority: string; message: string }[];
-  trends: { rising: any[]; declining: any[] };
+  trends: { rising: { skill: string; change_pct: number }[]; declining: { skill: string; change_pct: number }[] };
   disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; coverage_level: string; gaps: number; emerging: number; emerging_growth?: number; emerging_growth_skills?: { skill: string; change_pct: number | null }[]; market_top_coverage?: number; market_top_total?: number; market_top_reliable?: boolean; market_top_source?: string; years?: number[] }[];
   generated_at: string;
 };
@@ -106,14 +105,29 @@ type Recommendation = {
 };
 
 type Stats = {
-  total_disciplines: number;
-  total_competencies: number;
-  total_skills: number;
+  /** Часть полей может отсутствовать, если анализ ещё не запускался. */
+  total_disciplines?: number;
+  total_competencies?: number;
+  total_skills?: number;
+  total_reports?: number;
+  by_profession?: Record<string, number>;
+};
+
+type ScopeChain = {
+  total: number;
+  in_scope: number;
+  excluded_manual: number;
+  excluded_no_data: number;
+  analyzed: number | null;
+};
+
+type RpdStatus = {
+  status: string;
+  error?: string;
+  stats?: { progress?: number; stage?: string; disciplines?: number };
 };
 
 export function TeacherDashboard() {
-  const { theme } = useTheme();
-  const dk = theme === "dark";
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   const [selected, setSelected] = useState<DisciplineDetail | null>(null);
   const [scopeSaving, setScopeSaving] = useState<string | null>(null);
@@ -124,10 +138,7 @@ export function TeacherDashboard() {
   const [intakeYear, setIntakeYear] = useState<2024 | 2025>(2025);
   // Арифметика «в наборе -> в учёте -> в анализе»: без неё три разных числа
   // дисциплин выглядят как ошибка, а не как разные выборки.
-  const [scopeChain, setScopeChain] = useState<{
-    total: number; in_scope: number; excluded_manual: number;
-    excluded_no_data: number; analyzed: number | null;
-  } | null>(null);
+  const [scopeChain, setScopeChain] = useState<ScopeChain | null>(null);
   const [metaStale, setMetaStale] = useState(false);
   const [scopeMsg, setScopeMsg] = useState("");
 
@@ -257,7 +268,7 @@ export function TeacherDashboard() {
   const [rpdCollecting, setRpdCollecting] = useState(false);
   const [rpdYandexUrl, setRpdYandexUrl] = useState("");
   const [rpdRun, setRpdRun] = useState<{ run_id: string } | null>(null);
-  const [rpdStatus, setRpdStatus] = useState<any>(null);
+  const [rpdStatus, setRpdStatus] = useState<RpdStatus | null>(null);
   const [rpdMsg, setRpdMsg] = useState("");
   const [collectCooldown, setCollectCooldown] = useState(0);
   const runAnalysisBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -277,10 +288,10 @@ export function TeacherDashboard() {
 
   useEffect(() => {
     Promise.all([
-      api("/teacher/krm/recommendations"),
-      api("/teacher/krm/directions"),
+      api<Recommendation[]>("/teacher/krm/recommendations"),
+      api<Direction[]>("/teacher/krm/directions"),
     ]).then(([r, dirs]) => {
-      setRecs(r as Recommendation[]);
+      setRecs(r);
       const list = (Array.isArray(dirs) ? dirs : [dirs]) as Direction[];
       setDirections(list);
       if (list.length > 0 && !list.some((d) => d.dir_code === selectedDir)) {
@@ -298,20 +309,20 @@ export function TeacherDashboard() {
     // При быстром переключении направлений медленный ответ старого запроса
     // затирал данные нового. Флаг отмены отбрасывает устаревшие ответы.
     let cancelled = false;
-    api(`/teacher/krm/disciplines?dir_code=${selectedDir}&year=${intakeYear}`)
-      .then((d) => { if (!cancelled) setDisciplines(d as Discipline[]); })
+    api<Discipline[]>(`/teacher/krm/disciplines?dir_code=${selectedDir}&year=${intakeYear}`)
+      .then((d) => { if (!cancelled) setDisciplines(d); })
       .catch(() => { if (!cancelled) setDisciplines([]); });
-    api(`/teacher/krm/scope-summary?dir_code=${selectedDir}&year=${intakeYear}`)
-      .then((s: any) => { if (!cancelled) setScopeChain(s); })
+    api<ScopeChain>(`/teacher/krm/scope-summary?dir_code=${selectedDir}&year=${intakeYear}`)
+      .then((s) => { if (!cancelled) setScopeChain(s); })
       .catch(() => { if (!cancelled) setScopeChain(null); });
-    api(`/teacher/krm/stats?dir_code=${selectedDir}`)
+    api<Stats>(`/teacher/krm/stats?dir_code=${selectedDir}`)
       .then((s) => { if (!cancelled) setStats(s); })
       .catch((err) => { if (!cancelled) reportError("app/components/TeacherDashboard.tsx", err); });
-    api(`/teacher/analysis?dir_code=${selectedDir}&year=${intakeYear}`)
+    api<DirectionAnalysis>(`/teacher/analysis?dir_code=${selectedDir}&year=${intakeYear}`)
       .then((a) => { if (!cancelled) setAnalysis(a); })
       .catch(() => { if (!cancelled) setAnalysis(null); });
-    api(`/teacher/analysis/meta?dir_code=${selectedDir}`)
-      .then((m: any) => { if (!cancelled) setMetaStale(!!m?.stale); })
+    api<{ stale?: boolean }>(`/teacher/analysis/meta?dir_code=${selectedDir}`)
+      .then((m) => { if (!cancelled) setMetaStale(!!m?.stale); })
       .catch(() => { if (!cancelled) setMetaStale(false); });
     return () => { cancelled = true; };
   }, [selectedDir, intakeYear]);
@@ -323,7 +334,7 @@ export function TeacherDashboard() {
   }, [collectCooldown]);
 
   useEffect(() => {
-    api("/teacher/rpd/sources")
+    api<{ yandex_covered: string[] }>("/teacher/rpd/sources")
       .then(setRpdSources)
       .catch((err) => reportError("app/components/TeacherDashboard.tsx", err));
   }, []);
@@ -344,7 +355,7 @@ export function TeacherDashboard() {
     let cancelled = false;
     let misses = 0;
     const poll = () => {
-      api(`/teacher/rpd/status/${rpdRun.run_id}`)
+      api<RpdStatus>(`/teacher/rpd/status/${rpdRun.run_id}`)
         .then((s) => {
           if (cancelled) return;
           misses = 0;
@@ -355,7 +366,7 @@ export function TeacherDashboard() {
             try { sessionStorage.removeItem("rpdRunId"); } catch (err) { reportError("app/components/TeacherDashboard.tsx:323", err); }
             setRpdMsg(s?.status === "completed" ? "Готово" : s?.status === "cancelled" ? "Отменено пользователем" : `Ошибка: ${s?.error || "unknown"}`);
             if (s?.status === "completed") {
-              api(`/teacher/analysis?dir_code=${selectedDir}`)
+              api<DirectionAnalysis>(`/teacher/analysis?dir_code=${selectedDir}`)
                 .then(setAnalysis)
                 .catch((err) => reportError("app/components/TeacherDashboard.tsx", err));
             }
@@ -507,8 +518,8 @@ export function TeacherDashboard() {
     setSeedLoading(true);
     setSeedMsg("");
     try {
-      const r = await api(`/teacher/krm/recommendations/seed/auto?dir_code=${selectedDir}`, { method: "POST" });
-      const data = await api("/teacher/krm/recommendations");
+      const r = await api<{ seeded: number }>(`/teacher/krm/recommendations/seed/auto?dir_code=${selectedDir}`, { method: "POST" });
+      const data = await api<Recommendation[]>("/teacher/krm/recommendations");
       setRecs(data);
       setSeedMsg(`Добавлено ${r.seeded} авторекомендаций (ручные не тронуты).`);
     } catch (e: any) {
@@ -520,8 +531,8 @@ export function TeacherDashboard() {
 
   async function loadDiscipline(name: string) {
     try {
-      const data = await api(`/teacher/krm/disciplines/${encodeURIComponent(name)}?dir_code=${selectedDir}&year=${intakeYear}`);
-      setSelected(data as DisciplineDetail);
+      const data = await api<DisciplineDetail>(`/teacher/krm/disciplines/${encodeURIComponent(name)}?dir_code=${selectedDir}&year=${intakeYear}`);
+      setSelected(data);
       setShowAnalysis(false);
     } catch (err) { reportError("app/components/TeacherDashboard.tsx:500", err); }
   }
@@ -530,7 +541,7 @@ export function TeacherDashboard() {
     if (!selected || !suggestion.trim()) return false;
     try {
       const compId = recType === "add" ? "" : selectedCompetency;
-      const resp = await api("/teacher/krm/recommendations", {
+      const resp = await api<{ id: number }>("/teacher/krm/recommendations", {
         method: "POST",
         body: JSON.stringify({
           discipline_id: selected.name,
@@ -605,43 +616,12 @@ export function TeacherDashboard() {
     return Array.isArray(years) && years.includes(yearFilter);
   });
 
-  const containerStyle: React.CSSProperties = {
-    display: "flex",
-    height: "calc(100vh - 100px)",
-    fontFamily: "system-ui, -apple-system, sans-serif",
-    color: dk ? "#f1f5f9" : "#111827",
-    background: dk ? "#0f172a" : "#fff",
-    borderRadius: 16,
-    border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
-    overflow: "hidden",
-  };
+  // Класс-эквивалент прежнего inline-стиля `card` (фактические значения совпадают:
+  // radius 8px = rounded-lg, padding 14px = p-3.5, margin 10px = mb-2.5).
+  const card = "rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3.5 mb-2.5 shadow-xs";
 
-  const sidebarStyle: React.CSSProperties = {
-    width: 380,
-    minWidth: 380,
-    borderRight: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-  };
-
-  const mainStyle: React.CSSProperties = {
-    flex: 1,
-    overflow: "auto",
-    padding: "24px",
-  };
-
-  const card: React.CSSProperties = {
-    background: dk ? "#0f172a" : "#fff",
-    borderRadius: 8,
-    border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
-    padding: 14,
-    marginBottom: 10,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-  };
-
-  function covColor(cov: number) {
-    return cov > 0.5 ? "#059669" : cov > 0.2 ? "#d97706" : "#dc2626";
+  function covBorderClass(cov: number) {
+    return cov > 0.5 ? "border-emerald-600" : cov > 0.2 ? "border-amber-600" : "border-red-600";
   }
 
   function covTextClass(cov: number) {
@@ -649,8 +629,8 @@ export function TeacherDashboard() {
   }
 
   return (
-    <div style={containerStyle}>
-      <div style={sidebarStyle}>
+    <div className="flex h-[calc(100vh-100px)] font-sans text-gray-900 dark:text-slate-100 bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+      <div className="w-[380px] min-w-[380px] border-r border-gray-200 dark:border-slate-700 flex flex-col overflow-hidden">
           <div className="p-4 border-b border-gray-200 dark:border-slate-700">
             <div className="flex justify-between items-center">
               <h1 className="text-lg m-0 text-gray-900 dark:text-slate-100">
@@ -658,9 +638,9 @@ export function TeacherDashboard() {
               </h1>
               {stats && (
                   <div className="text-xs text-gray-500 dark:text-slate-400 text-right">
-                    <div>{(() => { const n = (stats as any).total_disciplines ?? (stats as any).total_reports ?? 0; return `${n} ${plural(n, "дисциплина", "дисциплины", "дисциплин")}`; })()}</div>
-                    <div>{(() => { const n = (stats as any).total_competencies ?? Object.keys((stats as any).by_profession || {}).length; return `${n} ${plural(n, "компетенция", "компетенции", "компетенций")}`; })()}</div>
-                    <div>{(() => { const n = (stats as any).total_skills ?? 0; return `${n.toLocaleString()} ${plural(n, "навык", "навыка", "навыков")}`; })()}</div>
+                    <div>{(() => { const n = stats.total_disciplines ?? stats.total_reports ?? 0; return `${n} ${plural(n, "дисциплина", "дисциплины", "дисциплин")}`; })()}</div>
+                    <div>{(() => { const n = stats.total_competencies ?? Object.keys(stats.by_profession ?? {}).length; return `${n} ${plural(n, "компетенция", "компетенции", "компетенций")}`; })()}</div>
+                    <div>{(() => { const n = stats.total_skills ?? 0; return `${n.toLocaleString()} ${plural(n, "навык", "навыка", "навыков")}`; })()}</div>
                   </div>
                 )}
           </div>
@@ -669,12 +649,7 @@ export function TeacherDashboard() {
           <select
             value={selectedDir}
             onChange={(e) => setSelectedDir(e.target.value)}
-            className="w-full mt-2.5 px-2 py-1.5 rounded-md text-xs" style={{
-    background: dk ? "#0f172a" : "#fff",
-    border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
-    color: dk ? "#f1f5f9" : "#111827",
-    outline: "none",
-  }}
+        className="w-full mt-2.5 px-2 py-1.5 rounded-md text-xs bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-slate-100 outline-none"
           >
             {directions.map((d, idx) => (
               <option key={`${d.dir_code}-${idx}`} value={d.dir_code}>{d.dir_code} - {d.name}</option>
@@ -690,7 +665,7 @@ export function TeacherDashboard() {
               setRunMsg("Запуск анализа...");
               const dirAtStart = selectedDir;
               try {
-                const started: any = await api(`/teacher/krm/run-analysis?dir_code=${selectedDir}`, { method: "POST" });
+                const started = await api<{ run_id?: string }>(`/teacher/krm/run-analysis?dir_code=${selectedDir}`, { method: "POST" });
                 const runId = started?.run_id;
                 const t0 = Date.now();
                 if (!runId) throw new Error("Сервер не вернул ID задачи");
@@ -700,16 +675,16 @@ export function TeacherDashboard() {
                   // не затирая чужое состояние.
                   if (!mountedRef.current || selectedDirRef.current !== dirAtStart) return;
                   const spent = Math.round((Date.now() - t0) / 1000);
-                  let s: any = null;
+                  let s: RpdStatus | null = null;
                   try {
-                    s = await api(`/teacher/rpd/status/${runId}`);
+                    s = await api<RpdStatus>(`/teacher/rpd/status/${runId}`);
                   } catch {
                     setRunMsg(`Этап: пересчёт анализа… нет связи (${spent} c)`);
                     continue;
                   }
                   if (!s) continue;
                   if (s.status === "completed") {
-                    const a: any = await api(`/teacher/analysis?dir_code=${selectedDir}`).catch(() => null);
+                    const a = await api<DirectionAnalysis>(`/teacher/analysis?dir_code=${selectedDir}`).catch(() => null);
                     if (a) setAnalysis(a);
                     setRunMsg("Готово");
                     break;
@@ -728,11 +703,7 @@ export function TeacherDashboard() {
               }
             }}
             disabled={runLoading}
-            className="w-full mt-2.5 px-3 py-2 border-0 rounded-md text-xs font-semibold" style={{
-    background: runLoading ? "#9ca3af" : "#7c3aed",
-    color: "#fff",
-    cursor: runLoading ? "default" : "pointer",
-  }}
+        className={`w-full mt-2.5 px-3 py-2 border-0 rounded-md text-xs font-semibold text-white ${runLoading ? "bg-gray-400 cursor-default" : "bg-violet-600 cursor-pointer"}`}
           >
             {runLoading ? "Анализ запущен..." : "Запустить анализ"}
           </button>
@@ -742,10 +713,7 @@ export function TeacherDashboard() {
 
           {/* RPD upload block */}
           <div
-            className="mt-3 px-3 py-2.5 rounded-md" style={{
-    background: dk ? "#2a230f" : "#fffbeb",
-    border: "1px solid " + (dk ? "#57481c" : "#fde68a"),
-  }}
+        className="mt-3 px-3 py-2.5 rounded-md bg-amber-50 dark:bg-[#2a230f] border border-amber-200 dark:border-[#57481c]"
           >
             <div className="text-xs font-bold text-amber-800 mb-2">
               Подгрузка РПД
@@ -765,11 +733,7 @@ export function TeacherDashboard() {
             <button
               onClick={() => rpdInputRef.current?.click()}
               disabled={rpdUploading}
-              className="w-full px-3 py-2 border-0 rounded-md text-xs font-semibold" style={{
-    background: rpdUploading ? "#9ca3af" : "#7c3aed",
-    color: "#fff",
-    cursor: rpdUploading ? "default" : "pointer",
-  }}
+          className={`w-full px-3 py-2 border-0 rounded-md text-xs font-semibold text-white ${rpdUploading ? "bg-gray-400 cursor-default" : "bg-violet-600 cursor-pointer"}`}
             >
               {rpdUploading ? "Обработка..." : "Загрузить PDF и обработать"}
             </button>
@@ -777,11 +741,7 @@ export function TeacherDashboard() {
               <button
                 onClick={collectRpd}
                 disabled={collectCooldown > 0}
-                className="w-full mt-2 px-3 py-2 border-0 rounded-md text-xs font-semibold" style={{
-    background: rpdCollecting ? "#dc2626" : collectCooldown > 0 ? "#9ca3af" : "#7c3aed",
-    color: "#fff",
-    cursor: collectCooldown > 0 ? "default" : "pointer",
-  }}
+            className={`w-full mt-2 px-3 py-2 border-0 rounded-md text-xs font-semibold text-white ${rpdCollecting ? "bg-red-600 cursor-pointer" : collectCooldown > 0 ? "bg-gray-400 cursor-default" : "bg-violet-600 cursor-pointer"}`}
               >
                 {rpdCollecting ? "Отмена" : collectCooldown > 0 ? `Подождите ${collectCooldown} сек` : "Собрать с Yandex Disk"}
               </button>
@@ -792,27 +752,19 @@ export function TeacherDashboard() {
                 value={rpdYandexUrl}
                 onChange={(e) => setRpdYandexUrl(e.target.value)}
                 placeholder="Ссылка на папку Yandex Disk (https://disk.360.yandex.ru/d/...)"
-                className="w-full px-2.5 py-2 rounded-md text-xs box-border" style={{
-    border: "1px solid " + (dk ? "#57481c" : "#fde68a"),
-  }}
+            className="w-full px-2.5 py-2 rounded-md text-xs box-border border border-amber-200 dark:border-[#57481c] bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100"
               />
               <button
                 onClick={collectRpd}
                 disabled={rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim()}
-                className="w-full px-3 py-2 border-0 rounded-md text-xs font-semibold" style={{
-    background: rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim() ? "#9ca3af" : "#0d9488",
-    color: "#fff",
-    cursor: rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim() ? "default" : "pointer",
-  }}
+            className={`w-full px-3 py-2 border-0 rounded-md text-xs font-semibold text-white ${rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim() ? "bg-gray-400 cursor-default" : "bg-teal-600 cursor-pointer"}`}
               >
                 {rpdCollecting ? "Сбор..." : "Загрузить по ссылке"}
               </button>
             </div>
             {rpdStatus && (rpdStatus.status === "completed" || rpdStatus.status === "failed") && (
               <div
-                className="mt-2 text-xs" style={{
-    color: rpdStatus.status === "completed" ? "#15803d" : "#b91c1c",
-  }}
+            className={`mt-2 text-xs ${rpdStatus.status === "completed" ? "text-green-700" : "text-red-700"}`}
               >
                 {rpdMsg}
                 {rpdStatus.stats?.disciplines != null && rpdStatus.status === "completed" && (
@@ -823,14 +775,11 @@ export function TeacherDashboard() {
             {(rpdUploading || rpdCollecting) && rpdStatus && (rpdStatus.status === "running" || rpdStatus.status === "started") && (
               <div className="mt-2.5">
                 <div
-                  className="h-2 rounded overflow-hidden" style={{
-    background: dk ? "#57481c" : "#fde68a",
-  }}
+              className="h-2 rounded overflow-hidden bg-amber-200 dark:bg-[#57481c]"
                 >
                   <div
-                    className="h-full bg-teal-600 transition-[width] duration-500" style={{
-    width: `${rpdStatus.stats?.progress ?? 10}%`,
-  }}
+                className="h-full bg-teal-600 transition-[width] duration-500"
+                ref={(el) => { if (el) el.style.width = `${rpdStatus.stats?.progress ?? 10}%`; }}
                   />
                 </div>
                 <div className="mt-1.5 text-xs text-amber-800">
@@ -844,10 +793,7 @@ export function TeacherDashboard() {
           {analysis && (
             <div
               onClick={() => setShowAnalysis(!showAnalysis)}
-              className="mt-2.5 px-3 py-2 rounded-md cursor-pointer text-xs" style={{
-    background: dk ? "#1e293b" : "#f9fafb",
-    border: `1px solid ${covColor(analysis.average_coverage)}`,
-  }}
+          className={`mt-2.5 px-3 py-2 rounded-md cursor-pointer text-xs bg-gray-50 dark:bg-slate-800 border ${covBorderClass(analysis.average_coverage)}`}
             >
               <div className="flex justify-between">
                 {/* Показываем охват спроса, а не coverage_ratio: второй почти
@@ -900,12 +846,7 @@ export function TeacherDashboard() {
             aria-label="Поиск дисциплины"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full mt-2.5 px-3 py-2 rounded-md text-[13px] box-border" style={{
-    background: dk ? "#0f172a" : "#fff",
-    border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
-    color: dk ? "#f1f5f9" : "#111827",
-    outline: "none",
-  }}
+        className="w-full mt-2.5 px-3 py-2 rounded-md text-[13px] box-border bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-slate-100 outline-none"
           />
           <div className="flex gap-1.5 mt-2 items-center flex-wrap">
             <span className="text-xs text-gray-500 dark:text-slate-400">Набор:</span>
@@ -976,11 +917,7 @@ export function TeacherDashboard() {
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => { if (e.key === "Enter") loadDiscipline(d.name); }}
-                className="flex gap-2 items-start py-2.5 pl-2 pr-3 cursor-pointer" style={{
-    borderBottom: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
-    background: selected?.name === d.name ? dk ? "#1d2440" : "#eef2ff" : "transparent",
-    opacity: (d.in_scope ?? true) ? 1 : 0.55,
-  }}
+            className={`flex gap-2 items-start py-2.5 pl-2 pr-3 cursor-pointer border-b border-gray-200 dark:border-slate-700 ${selected?.name === d.name ? "bg-indigo-50 dark:bg-[#1d2440]" : "bg-transparent"} ${d.in_scope ?? true ? "opacity-100" : "opacity-55"}`}
               >
                 <input
                   type="checkbox"
@@ -1043,7 +980,7 @@ export function TeacherDashboard() {
         </div>
       </div>
 
-      <div style={mainStyle} id="teacher-main">
+      <div className="flex-1 overflow-auto p-6" id="teacher-main">
         {!selected && !showAnalysis && (
           <div className="text-center mt-20 text-gray-400 text-sm">
             Выберите дисциплину или откройте анализ
@@ -1054,31 +991,19 @@ export function TeacherDashboard() {
         <div className="flex gap-2 mb-4">
           <button
             onClick={() => setAnalysisMode("coverage")}
-            className="px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs" style={{
-    fontWeight: analysisMode === "coverage" ? 700 : 400,
-    background: analysisMode === "coverage" ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
-    color: analysisMode === "coverage" ? "#fff" : "#7c3aed",
-  }}
+        className={`px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs ${analysisMode === "coverage" ? "bg-violet-600 text-white font-bold" : "bg-gray-50 dark:bg-slate-800 text-violet-600 font-normal"}`}
           >
             Покрытие
           </button>
             <button
               onClick={() => setAnalysisMode("trends")}
-              className="px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs" style={{
-    fontWeight: analysisMode === "trends" ? 700 : 400,
-    background: analysisMode === "trends" ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
-    color: analysisMode === "trends" ? "#fff" : "#7c3aed",
-  }}
+          className={`px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs ${analysisMode === "trends" ? "bg-violet-600 text-white font-bold" : "bg-gray-50 dark:bg-slate-800 text-violet-600 font-normal"}`}
             >
               Тренды компетенций
             </button>
             <button
               onClick={() => setAnalysisMode("taxonomy")}
-              className="px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs" style={{
-    fontWeight: analysisMode === "taxonomy" ? 700 : 400,
-    background: analysisMode === "taxonomy" ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
-    color: analysisMode === "taxonomy" ? "#fff" : "#7c3aed",
-  }}
+          className={`px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs ${analysisMode === "taxonomy" ? "bg-violet-600 text-white font-bold" : "bg-gray-50 dark:bg-slate-800 text-violet-600 font-normal"}`}
             >
               Таксономия
             </button>
@@ -1124,7 +1049,7 @@ export function TeacherDashboard() {
           {/* When a discipline is selected, show its coverage instead of direction average */}
           {(() => {
             const discData = selected && analysis.disciplines
-              ? analysis.disciplines.find((d: any) => d.name === selected.name)
+              ? analysis.disciplines.find((d) => d.name === selected.name)
               : null;
             // Охват рынка вместо coverage_ratio (см. комментарий в KPI выше).
             const cov = discData
@@ -1138,7 +1063,7 @@ export function TeacherDashboard() {
             const level = discData ? discData.coverage_level : analysis.coverage_level;
           return (<>
           <div className="flex gap-3 mb-4 flex-wrap">
-            <div style={card}>
+            <div className={card}>
               <div className="text-xs text-gray-500 dark:text-slate-400">
                 {discData ? `Охват рынка: ${selected?.name ?? ""}` : "Средний охват рынка"}
                 {covTotal ? ` (из ${covTotal})` : ""}
@@ -1161,13 +1086,13 @@ export function TeacherDashboard() {
                     </div>
                   )}
                 </div>
-                <div style={card}>
+                <div className={card}>
                   <div className="text-xs text-gray-500 dark:text-slate-400">Gaps</div>
                   <div className="text-2xl font-bold text-red-300">
                     {gaps}
                   </div>
                 </div>
-                <div style={card}>
+                <div className={card}>
                   <div className="text-xs text-gray-500 dark:text-slate-400">Disciplines</div>
                   <div className="text-2xl font-bold text-blue-300">
                     {analysis.total_disciplines}
@@ -1218,7 +1143,7 @@ export function TeacherDashboard() {
 
                  <div id="t-gaps" className={`${card} scroll-mt-2`}>
                 <div className="text-xs font-semibold text-violet-600 mb-2">Междисциплинарные разрывы</div>
-                {((analysis.top_cross_discipline_gaps || []) as any[]).map((g: any, i: number) => (
+                 {((analysis.top_cross_discipline_gaps) || []).map((g, i: number) => (
                   <div key={i} className="flex justify-between py-1 border-b border-gray-200 dark:border-slate-700 text-xs">
                     <span className="text-red-700 font-medium">{g.skill}</span>
                     <span className="text-gray-500 dark:text-slate-400">{g.disciplines} дисциплин</span>
@@ -1226,10 +1151,10 @@ export function TeacherDashboard() {
                 ))}
               </div>
 
-              <div style={card}>
+              <div className={card}>
                 <div className="text-xs font-semibold text-violet-600 mb-2">Востребованные навыки рынка</div>
                 <div className="flex gap-1 flex-wrap">
-                  {((analysis.top_emerging_across_all || []) as any[]).map((s: any, i: number) => (
+                   {((analysis.top_emerging_across_all) || []).map((s, i: number) => (
                     <span key={i} className="inline-block px-2 py-0.5 rounded text-xs bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 m-0.5">
                       {s.skill}
                     </span>

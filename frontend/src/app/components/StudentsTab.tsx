@@ -55,7 +55,7 @@ export function StudentsTab() {
     setState("loading");
     setErr("");
     try {
-      const d = await api("/teacher/students");
+      const d = await api<{ students: StudentRow[] }>("/teacher/students");
       const list = (d?.students || []) as StudentRow[];
       setRows(list);
       setState(list.length === 0 ? "empty" : "ready");
@@ -76,7 +76,7 @@ export function StudentsTab() {
     setDetailState("loading");
     setDetailErr("");
     try {
-      const d = await api(`/admin/students/skills?email=${encodeURIComponent(email)}`);
+      const d = await api<StudentDetail>(`/admin/students/skills?email=${encodeURIComponent(email)}`);
       setDetail(d as StudentDetail);
       setDetailState("ready");
     } catch (e: any) {

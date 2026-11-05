@@ -10,7 +10,6 @@ from src.analyzers.skills.trends import TrendAnalyzer
 from src.api_pkg import deps
 from src.predictors.recommendation_engine import RecommendationEngine
 
-
 # pytest imports every test module during collection, before any test runs, so
 # the values captured here are the true import-time defaults. Asserting against
 # them keeps these checks independent of execution order: other modules call

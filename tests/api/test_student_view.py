@@ -8,13 +8,13 @@ crypt(<pw>, gen_salt('bf', 6)) ($2a$06$ - same scheme as existing rows);
 no hash is copied or reused.
 Cleanup: sessions + user rows deleted, self files unlinked.
 """
+import contextlib
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from src.api_pkg import create_app
-import contextlib
 
 STUDENT_EMAIL = "test.student@compare-competencies.local"
 STUDENT_PW = "Student_Test_123"

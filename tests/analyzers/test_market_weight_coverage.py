@@ -8,8 +8,6 @@ weights are supplied the two must agree exactly.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 import pytest
 
 from src.analyzers.coverage_analyzer import CoverageAnalyzer

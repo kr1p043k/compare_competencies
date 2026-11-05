@@ -21,10 +21,14 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-os.environ["DATABASE_URL"] = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies",
-)
+# Пароль в репозитории не храним: DSN берётся из --dsn нет, здесь из
+# окружения или .env через общий резолвер.
+try:  # запуск как файла
+    from _dsn import resolve_dsn  # noqa: E402
+except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
+    from scripts._dsn import resolve_dsn  # noqa: E402
+
+os.environ["DATABASE_URL"] = resolve_dsn()
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "benchmark"

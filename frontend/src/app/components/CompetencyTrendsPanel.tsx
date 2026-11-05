@@ -56,7 +56,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
     setError(null);
     const params = new URLSearchParams({ limit: "200" });
     if (filter && filter !== "all") params.set("direction", filter);
-    api(`/competency-trends?${params}`)
+    api<TrendsResponse>(`/competency-trends?${params}`)
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));

@@ -472,15 +472,6 @@ class TestExtendedCoverage:
         recs = load_ml_recommendations(profile)
         assert recs == []
 
-    def test_plot_cluster_insights_with_skills(self, sample_results, tmp_path):
-        """Покрытие ветки с навыками студента (строки 25, 37, 47)."""
-        with patch("matplotlib.pyplot.savefig"), patch("matplotlib.pyplot.close"):
-            # student_skills и cluster_skills_map присутствуют
-            plot_cluster_insights(sample_results, tmp_path)
-        # Должен создать файл для student1
-        save_path = tmp_path / "student1" / "cluster_insights_student1.png"
-        assert save_path.exists()
-
     def test_plot_skill_correlation_heatmap_taxonomy_exception(self, tmp_path):
         """Строки 47-48: ошибка получения категории в _safe_label."""
         mock_analyzer = MagicMock()
@@ -507,24 +498,6 @@ class TestExtendedCoverage:
         with patch("matplotlib.pyplot.savefig") as mock_save:
             plot_skill_comparison_radar(["py"], ["py", "java"], "S", save_path=save_path)
             mock_save.assert_called_once_with(save_path)
-
-    def test_save_all_charts_with_correlation(self, sample_results, tmp_path, monkeypatch):
-        """Покрытие ветки с vacancies_skills_list (строки 30-82)."""
-        monkeypatch.setattr(
-            "src.visualization.orchestration.load_skill_weights",
-            lambda: {"python": 0.9},
-        )
-        with patch("src.visualization.orchestration.plot_coverage_comparison"), \
-             patch("src.visualization.orchestration.plot_skill_comparison_radar"), \
-             patch("src.visualization.orchestration.plot_ml_importance"), \
-             patch("src.visualization.orchestration.plot_weight_distribution"), \
-             patch("src.visualization.orchestration.plot_skill_correlation_heatmap") as mock_corr, \
-             patch("src.visualization.orchestration.plot_skills_heatmap"), \
-             patch("src.visualization.orchestration.plot_cluster_insights"), \
-             patch("src.visualization.orchestration.load_ml_recommendations", return_value=[]), \
-             patch("src.visualization.orchestration.SkillCorrelationAnalyzer"):
-            save_all_charts(sample_results, tmp_path, vacancies_skills_list=[["python"]])
-            mock_corr.assert_called()
 
     def test_save_all_charts_correlation_exception(self, sample_results, tmp_path, monkeypatch):
         """Строки 77-82: исключение при построении heatmap."""
@@ -587,24 +560,6 @@ class TestExtendedCoverage:
             patch("src.visualization.orchestration.SkillCorrelationAnalyzer", create=True):
             save_all_charts(sample_results, tmp_path, vacancies_skills_list=[["python"]])
             mock_corr.assert_called()
-
-    def test_save_all_charts_correlation_exception(self, sample_results, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "src.visualization.orchestration.load_skill_weights",
-            lambda: {"python": 0.9},
-        )
-        with patch("src.visualization.orchestration.plot_coverage_comparison"), \
-            patch("src.visualization.orchestration.plot_skill_comparison_radar"), \
-            patch("src.visualization.orchestration.plot_ml_importance"), \
-            patch("src.visualization.orchestration.plot_weight_distribution"), \
-            patch("src.visualization.orchestration.plot_skill_correlation_heatmap",
-                side_effect=Exception("fail")), \
-            patch("src.visualization.orchestration.plot_skills_heatmap"), \
-            patch("src.visualization.orchestration.plot_cluster_insights"), \
-            patch("src.visualization.orchestration.load_ml_recommendations", return_value=[]):
-            # Не должно упасть
-            save_all_charts(sample_results, tmp_path, vacancies_skills_list=[["python"]])
-
 
     def test_save_all_charts_with_ml_recs_and_deficits(self, sample_results, tmp_path, monkeypatch):
         """Покрытие ветки с ML-рекомендациями и дефицитами (строки 55-66)."""

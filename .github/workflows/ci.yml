@@ -122,14 +122,28 @@ jobs:
         run: pip install --index-url https://download.pytorch.org/whl/cpu torch
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
-      # Measured on auto/night-core: 63% (2785 passed, 93 skipped) after the
+      # Measured on auto/night-ux: 66% (3126 passed, 94 skipped) after the
       # Course Trends client, normaliser and articles feed were added.
       # The floor tracks the measured value so a real regression fails the
       # build, while normal noise (new module without tests) does not.
       # Target is 70%; the gap is tracked in the coverage backlog.
       - name: Tests
-        run: pytest tests -q --ignore=tests/load --cov=src --cov-report=term-missing --cov-fail-under=63
+        run: pytest tests -q --ignore=tests/load --cov=src --cov-report=term-missing --cov-fail-under=65
         env:
           DATABASE_URL: postgresql+asyncpg://user:pass@localhost:5432/test
           HH_ACCESS_TOKEN: ""
           OPENAI_API_KEY: ""
+      # Живой базы у раннера нет, поэтому проверка согласованности KRM<->БД
+      # идёт только там, где задан секрет DATABASE_URL. Локально её гоняет
+      # scripts/check_krm_db_consistency.py.
+      - name: KRM/DB consistency (if a database is configured)
+        if: ${{ secrets.DATABASE_URL != '' }}
+        run: python scripts/check_krm_db_consistency.py --direction 09.03.02 --year 2025 --dsn "$DATABASE_URL"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # Диагностика, а не гейт: расхождение установленных версий с пинами
+      # уже один раз маскировалось под баг в коде (aiohttp 3.14.4 против
+      # 3.12.14 ломал aioresponses). Печатаем, чтобы причина была видна.
+      - name: Dependency drift (advisory)
+        continue-on-error: true
+        run: python scripts/check_dependency_drift.py

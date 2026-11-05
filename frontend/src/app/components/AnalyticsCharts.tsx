@@ -60,8 +60,8 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
     (async () => {
       try {
         const [top, ...prof] = await Promise.all([
-          api("/market/top-skills?limit=50"),
-          ...LEVELS.map((l) => api(`/profiles/${l.key}?full=true`).catch(() => null)),
+          api<{ skills: { skill: string; weight: number }[] }>("/market/top-skills?limit=50"),
+          ...LEVELS.map((l) => api<{ skills: string[] }>(`/profiles/${l.key}?full=true`).catch(() => null)),
         ]);
         if (!alive) return;
         const sets = {} as Record<LevelKey, Set<string>>;
@@ -95,7 +95,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
       top_dc: profiles.top_dc.has(skill.toLowerCase()),
     };
     try {
-      const info = await api(`/market/skill/${encodeURIComponent(skill)}`);
+      const info = await api<{ frequency?: number; weight?: number; category?: string }>(`/market/skill/${encodeURIComponent(skill)}`);
       setDrill({
         skill,
         frequency: info?.frequency ?? 0,

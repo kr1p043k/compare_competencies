@@ -70,7 +70,7 @@ async def list_publications(
 
 
 @router.get("/publications/search", response_model=PublicationSearchResponse)
-@limiter.limit("10/minute")
+@limiter.limit("30/minute")
 async def search_publications(
     request: Request,
     response: Response,

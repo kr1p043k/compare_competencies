@@ -186,35 +186,6 @@ class TestProfileEvaluatorExtended:
 
 
 class TestProfileEvaluatorFull:
-    @pytest.fixture
-    def student(self):
-        return StudentProfile(
-            profile_name="test_student",
-            competencies=[],
-            skills=["python", "sql", "git", "fastapi", "docker"],
-            target_level="middle",
-            created_at=datetime.now(),
-        )
-
-    @pytest.fixture
-    def skill_weights_by_level(self):
-        return {
-            "junior": {"python": 0.8, "sql": 0.6, "git": 0.5, "html": 0.4},
-            "middle": {"python": 0.9, "docker": 0.7, "sql": 0.5, "fastapi": 0.4},
-            "senior": {"python": 0.9, "docker": 0.9, "k8s": 0.8, "sql": 0.3},
-        }
-
-    @pytest.fixture
-    def vacancies_skills(self):
-        return [["python", "sql"], ["fastapi", "docker"]]
-
-    @pytest.fixture
-    def vacancies_skills_dict(self):
-        return [
-            {"skills": ["python", "sql"]},
-            {"skills": ["fastapi", "docker"]},
-        ]
-
     def test_evaluate_profile_fallback_when_all_covered(
         self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict
     ):
@@ -753,18 +724,6 @@ class TestProfileEvaluatorFull:
         h2 = evaluator._get_student_hash(student, "middle")
         assert h1 == h2
         assert isinstance(h1, str)
-
-    def test_load_cache_exception(self, tmp_path, monkeypatch, vacancies_skills, vacancies_skills_dict):
-        """Строка 267-268: исключение при загрузке кэша -> пустой кэш."""
-        monkeypatch.setattr("src.config.DATA_PROCESSED_DIR", tmp_path)
-        cache_file = tmp_path / "evaluation_cache.json"
-        cache_file.write_text("{invalid")
-        evaluator = ProfileEvaluator(
-            skill_weights={"python": 0.9},
-            vacancies_skills=vacancies_skills,
-            vacancies_skills_dict=vacancies_skills_dict,
-        )
-        assert evaluator._cache == {}
 
     # === строки 280-288 (_compute_student_hash, _get_student_cache_path) ===
     def test_compute_student_hash_and_cache_path(self, tmp_path, monkeypatch, vacancies_skills, vacancies_skills_dict):

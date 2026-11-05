@@ -10,13 +10,14 @@ import numpy as np
 sys.modules.setdefault("shap", MagicMock())
 sys.modules.setdefault("cv2", MagicMock())
 
+from unittest.mock import patch  # noqa: E402
+
 from sklearn.metrics import ndcg_score  # noqa: E402
 from sklearn.model_selection import StratifiedShuffleSplit  # noqa: E402
-from src import Ok  # noqa: E402
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
-from src.parsing.api.embedding_loader import get_embedding_model  # noqa: E402
+
 from scripts.train_ltr_ranker import load_vacancies, read_gold  # noqa: E402
-from unittest.mock import patch  # noqa: E402
+from src.parsing.api.embedding_loader import get_embedding_model  # noqa: E402
+from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
 
 ROOT = Path("C:/forCode/compare_online")
 CANON = Path("C:/Users/максим/workvs/compare_competencies/labeling/gold.csv")

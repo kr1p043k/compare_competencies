@@ -33,8 +33,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory  # noqa: E402
+try:  # запуск как файла
+    from _dsn import resolve_dsn  # noqa: E402
+except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
+    from scripts._dsn import resolve_dsn  # noqa: E402
 
-DEFAULT_DSN = "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies"
+DEFAULT_DSN = ""  # значение берётся из --dsn / DATABASE_URL / .env
 
 # key -> (table name, text expression, where clause)
 TARGETS: dict[str, tuple[str, str, str]] = {
@@ -81,11 +85,12 @@ def backfill(conn, provider, key: str, batch_size: int, dry_run: bool) -> tuple[
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dsn", default=DEFAULT_DSN)
+    parser.add_argument("--dsn", default="")
     parser.add_argument("--only", choices=sorted(TARGETS), action="append")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    args.dsn = resolve_dsn(getattr(args, 'dsn', '') or None)
 
     tables = args.only or ["skills", "ksa", "competencies"]
     provider = EmbeddingProviderFactory.get()
