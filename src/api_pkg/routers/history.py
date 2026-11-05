@@ -48,7 +48,11 @@ async def teacher_history(
     year: int = 2025,
     limit: int = _DEFAULT_LIMIT,
 ) -> dict[str, Any]:
-    """Точки истории сводки направления (oldest first) и дельта первой/последней."""
+    """Публика истории своего направления (oldest first) и дельта спроса/предложения."""
+    # dir_code уходит в имя файла: без проверки формата возможен выход из каталога.
+    from src.api_pkg.routers.zun import _validate_dir_code
+
+    _validate_dir_code(dir_code)
     snapshot = _load_snapshot()
     path = HISTORY_DIR / f"{dir_code}_{year}.jsonl"
 
