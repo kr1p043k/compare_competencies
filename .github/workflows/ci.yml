@@ -71,3 +71,11 @@ jobs:
           DATABASE_URL: postgresql+asyncpg://user:pass@localhost:5432/test
           HH_ACCESS_TOKEN: ""
           OPENAI_API_KEY: ""
+      # Живой базы у раннера нет, поэтому проверка согласованности KRM<->БД
+      # идёт только там, где задан секрет DATABASE_URL. Локально её гоняет
+      # scripts/check_krm_db_consistency.py.
+      - name: KRM/DB consistency (if a database is configured)
+        if: ${{ secrets.DATABASE_URL != '' }}
+        run: python scripts/check_krm_db_consistency.py --direction 09.03.02 --year 2025 --dsn "$DATABASE_URL"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
