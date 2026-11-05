@@ -4,6 +4,8 @@ import urllib.parse
 
 import pytest
 
+from tests.conftest import all_route_paths
+
 TEST_DB_URL = os.environ.get(
     "TEST_DATABASE_URL",
     "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies",
@@ -57,7 +59,7 @@ async def test_summary_sessions_use_activity_window(monkeypatch):
 
 def test_routes_registered():
     from src.api_pkg import create_app
-    paths = {r.path for r in create_app().routes if hasattr(r, "path")}
+    paths = all_route_paths(create_app())
     assert "/api/admin/monitoring/summary" in paths
     assert "/api/teacher/krm/disciplines/{discipline_name:path}" in paths
 
@@ -126,7 +128,7 @@ async def test_krm_discipline_detail_returns_200():
         from httpx import ASGITransport, AsyncClient
 
         from src.api_pkg import create_app
-        from tests.conftest import open_all_gates
+        from tests.conftest import open_all_gates, all_route_paths
         app = open_all_gates(create_app())
         async with AsyncClient(transport=ASGITransport(app=app),
                                base_url="http://t") as c:

@@ -49,11 +49,12 @@ class FakePool:
 
 
 def _client(pool):
+    from tests.conftest import open_all_gates
+
     app = create_app()
-    for route in app.routes:
-        dep = getattr(route, "dependant", None)
-        for sub in (getattr(dep, "dependencies", None) or []):
-            app.dependency_overrides[sub.call] = lambda: {"r": "admin"}
+    # Гейты авторизации снимаем общим хелпером: он понимает вложенные
+    # роутеры FastAPI 0.162+ (см. tests/conftest.py).
+    open_all_gates(app, role="admin")
     import src.api_pkg.routers.zun as z
     z.get_pool = lambda: pool
     return TestClient(app)

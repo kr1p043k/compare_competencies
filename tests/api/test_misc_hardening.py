@@ -1,10 +1,11 @@
 """Unit: clusters summary route + log caps."""
 
 from src.api_pkg import create_app
+from tests.conftest import all_route_paths
 
 
 def test_clusters_summary_registered():
-    paths = sorted({r.path for r in create_app().routes if hasattr(r, 'path')})
+    paths = sorted(all_route_paths(create_app()))
     assert "/api/clusters/summary" in paths
 
 

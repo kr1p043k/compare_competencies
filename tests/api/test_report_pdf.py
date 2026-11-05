@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.api_pkg import create_app, deps
+from tests.conftest import all_route_paths
 
 # data/ is gitignored, so these payloads are absent in a fresh clone and in CI.
 # The two builder tests below read them from disk; skip instead of failing.
@@ -15,7 +16,7 @@ needs_sample = pytest.mark.skipif(
 
 
 def test_report_route_registered():
-    paths = {r.path for r in create_app().routes if hasattr(r, "path")}
+    paths = all_route_paths(create_app())
     assert "/api/results/report/{profile}" in paths
 
 
@@ -27,7 +28,7 @@ def test_report_unknown_profile_404(monkeypatch):
         "base": StudentProfile(profile_name="base", competencies=[],
                                skills=["python"], target_level="middle"),
     }
-    from tests.conftest import open_all_gates
+    from tests.conftest import open_all_gates, all_route_paths
     open_all_gates(app)
     client = TestClient(app, raise_server_exceptions=False)
     try:

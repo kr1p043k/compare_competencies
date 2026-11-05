@@ -18,12 +18,12 @@ from src.models.student import StudentProfile
 
 
 def _override_auth(app, path: str, method: str = "GET"):
-    for r in app.routes:
-        if getattr(r, "path", "") == path and method in getattr(r, "methods", set()):
-            for d in list(getattr(r, "dependencies", []) or []):
-                fn = getattr(d, "dependency", None)
-                if fn is not None and getattr(fn, "__name__", "") == "dependency":
-                    app.dependency_overrides[fn] = lambda: {"u": "t", "r": "student"}
+    from tests.conftest import open_all_gates
+
+    # Раньше искали маршрут по app.routes и снимали гейт только на нём; на
+    # FastAPI 0.162+ маршруты вложены в _IncludedRouter, поэтому путь не
+    # находился. Снимаем все гейты общим хелпером.
+    open_all_gates(app, role="student")
     return app
 
 

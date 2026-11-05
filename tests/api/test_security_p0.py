@@ -2,38 +2,27 @@
 from fastapi.testclient import TestClient
 
 from src.api_pkg import create_app
+from tests.conftest import route_gate_roles
 
 
-def _route_deps(path: str, method: str = "GET"):
-    for r in create_app().routes:
-        if getattr(r, "path", "") == path and method in getattr(r, "methods", set()):
-            return list(getattr(r, "dependencies", []) or [])
-    raise AssertionError(f"route {method} {path} not found")
+def _route_gate_roles(path: str, method: str = "GET") -> set[tuple]:
+    """Роли гейтов маршрута, включая router-level зависимости.
 
-
-def _dep_roles(dep) -> tuple:
-    fn = getattr(dep, "dependency", None)
-    closure = getattr(fn, "__closure__", None) or []
-    for cell in closure:
-        try:
-            val = cell.cell_contents
-        except ValueError:
-            continue
-        if isinstance(val, tuple) and all(isinstance(x, str) for x in val):
-            return val
-    raise AssertionError("roles not introspectable")
+    На FastAPI 0.162+ маршруты лежат во вложенных роутерах, поэтому ходим
+    через conftest.route_gate_roles, а не по app.routes.
+    """
+    return route_gate_roles(create_app(), path, method)
 
 
 def test_users_create_admin_only():
-    deps = _route_deps("/api/admin/users/create", "POST")
-    assert deps, "users/create must carry auth dependency"
-    roles = {_dep_roles(d) for d in deps}
+    roles = _route_gate_roles("/api/admin/users/create", "POST")
+    assert roles, "users/create must carry auth dependency"
     assert ("admin",) in roles, f"no admin-only gate, have {roles}"
 
 
 def test_export_requires_auth():
-    deps = _route_deps("/api/teacher/export/vacancies", "GET")
-    assert deps, "export must carry auth dependency"
+    roles = _route_gate_roles("/api/teacher/export/vacancies", "GET")
+    assert roles, "export must carry auth dependency"
 
 
 def test_no_token_unauthorized():

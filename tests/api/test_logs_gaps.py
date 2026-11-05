@@ -2,6 +2,7 @@
 from fastapi.testclient import TestClient
 
 from src.api_pkg import create_app
+from tests.conftest import all_route_paths
 
 
 def _req(path="/api/x", headers=None, cookies=None, query=""):
@@ -29,7 +30,7 @@ def test_extract_token_all_sources():
 
 
 def test_student_actions_route_registered_and_guarded():
-    paths = {r.path for r in create_app().routes if hasattr(r, "path")}
+    paths = all_route_paths(create_app())
     assert "/api/admin/student-actions" in paths
     assert "/api/admin/monitoring/summary" in paths
     client = TestClient(create_app(), raise_server_exceptions=False)

@@ -40,8 +40,11 @@ class TestCreateApp:
         assert hasattr(app.state, "limiter")
 
     def test_routers_are_included(self):
-        paths = [r.path for r in app.routes if hasattr(r, "path")]
-        assert "/health" in paths
+        # app.routes на FastAPI 0.162+ содержит _IncludedRouter без .path,
+        # поэтому пути собираем через conftest.all_route_paths.
+        from tests.conftest import all_route_paths
+
+        assert "/health" in all_route_paths(app)
 
     def test_allowed_origins_defaults_to_star(self, monkeypatch):
         monkeypatch.setattr(config, "ALLOWED_ORIGINS", "*")

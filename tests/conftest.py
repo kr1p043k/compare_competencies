@@ -1,4 +1,5 @@
 # tests/conftest.py
+import contextlib
 import logging
 import sys
 from datetime import datetime
@@ -228,6 +229,25 @@ def domain_analyzer():
     return DomainAnalyzer()
 
 
+def _iter_included(routes, prefix=""):
+    """(путь, prefix) для всех APIRoute, включая вложенные роутеры.
+
+    В FastAPI 0.162+ app.routes содержит `_IncludedRouter`, а пути лежат в
+    `original_router.routes` БЕЗ префикса include_router. Префикс берём из
+    `include_context.prefix` (для проекта это '/api' и '/api/v1').
+    """
+    for route in routes:
+        inner = getattr(route, "original_router", None)
+        if inner is not None:
+            ctx = getattr(route, "include_context", None)
+            sub_prefix = prefix + (getattr(ctx, "prefix", "") or "")
+            yield from _iter_included(getattr(inner, "routes", []) or [], sub_prefix)
+            continue
+        path = getattr(route, "path", None)
+        if path is not None:
+            yield prefix + path, route
+
+
 def _iter_api_routes(routes):
     """Плоский список APIRoute из app.routes.
 
@@ -236,13 +256,20 @@ def _iter_api_routes(routes):
     APIRoute лежат в `original_router.routes`. Поддерживаем обе формы, иначе
     open_all_gates не находит гейты и все endpoint-тесты получают 401.
     """
-    for route in routes:
-        inner = getattr(route, "original_router", None)
-        if inner is not None:
-            yield from _iter_api_routes(getattr(inner, "routes", []) or [])
-            continue
+    for _path, route in _iter_included(routes):
         if getattr(route, "dependant", None) is not None:
             yield route
+
+
+def all_route_paths(app) -> set[str]:
+    """Все пути зарегистрированных маршрутов (с префиксами /api и /api/v1).
+
+    FastAPI 0.161 и ниже держал APIRoute прямо в app.routes; 0.162+ оборачивает
+    include_router в _IncludedRouter без атрибута path. Тесты, проверяющие
+    регистрацию маршрутов, должны пользоваться этим хелпером, иначе видят
+    пустое множество или пути без префикса.
+    """
+    return {path for path, _route in _iter_included(app.routes)}
 
 
 def _iter_routers(routes):
@@ -258,6 +285,58 @@ def _iter_routers(routes):
         if inner is not None:
             yield inner
             yield from _iter_routers(getattr(inner, "routes", []) or [])
+
+
+def route_dependencies(app, path: str, method: str = "GET") -> list:
+    """Зависимости маршрута: per-route + router-level.
+
+    Нужен тестам, которые проверяют, что на эндпоинте стоит нужный гейт.
+    На FastAPI 0.162+ router-level зависимости (APIRouter(dependencies=[...]))
+    не попадают в route.dependant, поэтому собираем их из original_router.
+    """
+    result: list = []
+    for full_path, route in _iter_included(app.routes):
+        methods = getattr(route, "methods", None) or set()
+        if full_path != path or method not in methods:
+            continue
+        dep = getattr(route, "dependant", None)
+        result.extend(getattr(dep, "dependencies", None) or [])
+        # найти роутер-владелец и добавить его зависимости
+        for router in _iter_routers(app.routes):
+            if route in (getattr(router, "routes", []) or []):
+                result.extend(getattr(router, "dependencies", None) or [])
+                break
+        return result
+    raise AssertionError(f"route {method} {path} not found")
+
+
+def _dep_callable(dep):
+    """Достать функцию из зависимости.
+
+    FastAPI кладёт в dependant.dependencies объекты Dependant (атрибут .call),
+    а в APIRouter.dependencies - Depends (атрибут .dependency). Поддерживаем оба.
+    """
+    return getattr(dep, "call", None) or getattr(dep, "dependency", None)
+
+
+def route_gate_roles(app, path: str, method: str = "GET") -> set[tuple]:
+    """Роли гейтов require_any_role на маршруте (включая router-level).
+
+    Нужен тестам вида «этот эндпоинт только для админа»: собираем роли из
+    замыкания gate-функции. Понимает вложенные роутеры FastAPI 0.162+.
+    """
+    roles: set[tuple] = set()
+    for dep in route_dependencies(app, path, method):
+        fn = _dep_callable(dep)
+        if not getattr(fn, "__qualname__", "").startswith("require_any_role"):
+            continue
+        for cell in getattr(fn, "__closure__", None) or []:
+            with contextlib.suppress(ValueError):
+                val = cell.cell_contents
+                if isinstance(val, tuple) and all(isinstance(x, str) for x in val):
+                    roles.add(val)
+                    break
+    return roles
 
 
 def _is_gate(fn) -> bool:
