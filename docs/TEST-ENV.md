@@ -1,34 +1,41 @@
 # Окружение тестов: почему локально красное, а в CI зелёное
 
-Короткая памятка для тех, кто запускает `pytest` локально. Она не про качество
-кода, а про то, какие падения вызваны средой и чинятся установкой зависимостей,
-а не правкой логики.
+Памятка для тех, кто запускает `pytest` локально. Она не про качество кода, а про
+то, какие падения вызваны средой и чинятся установкой зависимостей или чисткой
+кэша, а не правкой логики.
 
 ## Быстрая проверка
 
 ```powershell
-python scripts/check_env.py
+# Рекомендуется отдельное окружение в репозитории:
+python -m venv --system-site-packages .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe scripts/check_env.py
 ```
 
-Скрипт сравнивает установленные версии критичных пакетов с пинами в
-`requirements*.txt`, печатает таблицу и возвращает код 1 при расхождении.
+`scripts/check_env.py` сравнивает установленные версии критичных пакетов с пинами
+в `requirements*.txt`, печатает таблицу и возвращает код 1 при расхождении.
 Он ничего не устанавливает — только читает.
 
 Если видите `ДРИФТ`, выравнивайте окружение:
 
 ```powershell
-python -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 ```
 
-## Известные расхождения (история)
+## Правило: не ставить пакеты в глобальный Python
 
-| Пакет | Пин | Что было | Симптом |
-|---|---|---|---|
-| `fastapi` | `0.116.1` | `0.162.0` | 36 падений в `tests/api`: в 0.162 `include_router` стал ленивым (`_IncludedRouter`), тесты, обходящие `app.routes`, не могли навесить `dependency_overrides` → все запросы 401 |
-| `aiohttp` | `3.14.4` | `3.12.14` | 13 падений в `tests/parsing/test_api.py`: у `ClientResponse` появился обязательный keyword-only `stream_writer` |
+Глобальный Python общий для всех сессий и worktree. Обновление в нём ломает
+чужие прогоны: один агент поставит `fastapi 0.162`, другой — `0.116.1`, и обе
+сессии получат ложные падения. Поэтому зависимости проекта живут в `.venv`
+(каталог в `.gitignore`), а глобальный Python трогать нельзя.
 
-`pyproject.toml` теперь держит верхнюю границу у `fastapi` (`>=0.116.1,<0.117`):
-без неё `pip install -e .` подтягивал свежую версию и ломал тесты.
+## Известная история расхождений
+
+| Пакет | Итоговое решение | Что было и чем кончилось |
+|---|---|---|
+| `fastapi` | `0.162.0`, `starlette 1.3.1` | В 0.162 `include_router` стал ленивым: `app.routes` содержит `_IncludedRouter` без `.path`. Тесты, обходившие `app.routes` для установки `dependency_overrides`, перестали находить эндпоинты и получали 401 вместо своих кодов. Исправлено в `tests/conftest.py:open_all_gates` — он разворачивает вложенные роутеры. Откатывать на 0.116.1 не нужно. |
+| `aiohttp` | `3.14.4` | В 3.14 у `ClientResponse` появился обязательный keyword-only `stream_writer`; фикстуры в `tests/parsing/test_api.py` конструируют объект по старой сигнатуре. Держим 3.14.4 и правим фикстуры, а не откатываемся. |
 
 ## Правило: не переносить `__pycache__`
 
@@ -44,26 +51,26 @@ Get-ChildItem -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Fo
 Get-ChildItem -Recurse -Filter *.pyc | Remove-Item -Force
 ```
 
-Синхронизация между копиями (`robocopy`) должна исключать `__pycache__`.
+Синхронизация между копиями (`robocopy`, `rsync`) должна исключать `__pycache__`.
 
 ## Как читать прогон
 
 ```powershell
-python -m pytest tests -q -p no:cacheprovider --ignore=tests/load
+.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider --ignore=tests/load
 ```
 
 - `--ignore=tests/load` — нагрузочные тесты не входят в обычный прогон.
 - `-p no:cacheprovider` — не создаёт `.pytest_cache`, не мешает параллельным сессиям.
 
-Ожидаемый результат на здоровом окружении: **308+ passed**, `tests/api` полностью
-зелёный.
+Ожидаемый результат на здоровом окружении: **3050+ passed**, `tests/api` полностью
+зелёный (330+ тестов).
 
 ## Что считать настоящим падением
 
-1. Тест падает и при `python scripts/check_env.py` → `OK` — это баг.
+1. `scripts/check_env.py` показывает `OK`, а тест падает — это баг.
 2. Падает один и тот же тест в изоляции (`pytest tests/...::test_x`) — баг.
 3. Тест проходит в изоляции, но падает в полном прогоне — сначала проверьте
-   порядок и глобальное состояние (мок `sys.modules`, патчи `time.sleep`,
-   общий `TestClient` в module-scope), а не среду.
+   порядок и глобальное состояние (моки в `sys.modules`, патчи `time.sleep`,
+   module-scope `TestClient`), а не среду.
 4. Одиночное падение `hypothesis` по deadline — флак под нагрузкой; повторите
    прогон, прежде чем писать баг.
