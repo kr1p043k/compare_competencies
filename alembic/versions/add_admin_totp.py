@@ -19,7 +19,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.execute(
         """
-        CREATE TABLE admin_totp (
+        CREATE TABLE IF NOT EXISTS admin_totp (
             user_id         UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
             secret          TEXT NOT NULL,
             confirmed       BOOLEAN NOT NULL DEFAULT false,

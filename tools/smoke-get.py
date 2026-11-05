@@ -10,6 +10,7 @@
 HTTPException внутри функции делал имя локальным для всей функции).
 """
 import argparse
+import os
 import time
 
 import requests
@@ -17,7 +18,14 @@ import requests
 SKIP = {"/docs", "/redoc", "/openapi.json", "/metrics", "/docs/oauth2-redirect"}
 
 
-def login(base: str, email: str, password: str, attempts: int = 40) -> str | None:
+def login(base: str, email: str, password: str, attempts: int = 40,
+          totp_secret: str = "") -> str | None:
+    """Вход с учётом 2FA.
+
+    Если у админа включён TOTP, /auth/login отвечает 200 и объектом
+    {status: totp_required, challenge_id} без токена - тогда нужен второй шаг
+    с кодом. totp_secret берётся из TOTP_SECRET (или --totp-secret).
+    """
     for _ in range(attempts):
         try:
             r = requests.post(
@@ -26,7 +34,29 @@ def login(base: str, email: str, password: str, attempts: int = 40) -> str | Non
                 timeout=10,
             )
             if r.status_code == 200:
-                return r.json().get("token")
+                body = r.json()
+                if body.get("token"):
+                    return body["token"]
+                if body.get("status") == "totp_required":
+                    if not totp_secret:
+                        print(
+                            "Нужен TOTP-код: укажите --totp-secret или TOTP_SECRET"
+                        )
+                        return None
+                    import pyotp
+
+                    v = requests.post(
+                        f"{base}/api/auth/2fa/verify",
+                        json={
+                            "challenge_id": body["challenge_id"],
+                            "code": pyotp.TOTP(totp_secret).now(),
+                        },
+                        timeout=10,
+                    )
+                    if v.status_code == 200:
+                        return v.json().get("token")
+                    print(f"2fa verify: {v.status_code} {v.text[:200]}")
+                    return None
         except Exception:
             pass
         time.sleep(3)
@@ -47,16 +77,23 @@ def wait_health(base: str, attempts: int = 60) -> bool:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="http://127.0.0.1:8000")
-    ap.add_argument("--email", default="admin@compare-competencies.local")
-    ap.add_argument("--password", default="admin")
+    ap.add_argument("--email", default=os.environ.get("SMOKE_EMAIL", ""))
+    ap.add_argument("--password", default=os.environ.get("SMOKE_PASSWORD", ""))
     ap.add_argument("--timeout", type=int, default=40)
+    ap.add_argument("--warmup-retry", type=float, default=5.0)
+    ap.add_argument("--totp-secret", default=os.environ.get("TOTP_SECRET", ""))
     args = ap.parse_args()
+
+    # Учётные данные не храним в репозитории: только аргументы или окружение.
+    if not args.email or not args.password:
+        print("Укажите --email/--password или SMOKE_EMAIL/SMOKE_PASSWORD")
+        return 2
 
     if not wait_health(args.base):
         print("API не поднялся")
         return 2
 
-    token = login(args.base, args.email, args.password)
+    token = login(args.base, args.email, args.password, totp_secret=args.totp_secret)
     if not token:
         print("login failed")
         return 2
@@ -76,6 +113,18 @@ def main() -> int:
         except Exception as exc:
             print(f"  skip {p}: {type(exc).__name__}")
             continue
+        if code == 503:
+            # 503 бывает и «честным» (интеграция не настроена), и временным:
+            # зависимости (эмбеддинги, кластеры) поднимаются после старта.
+            # Даём второй шанс, иначе первый же прогрев даёт ложные находки.
+            time.sleep(args.warmup_retry)
+            try:
+                code = requests.get(
+                    f"{args.base}{p}", headers=headers, timeout=args.timeout
+                ).status_code
+            except Exception as exc:
+                print(f"  skip {p}: {type(exc).__name__}")
+                continue
         if code >= 500:
             bad.append((p, code))
             print(f"  5xx: {p} {code}")

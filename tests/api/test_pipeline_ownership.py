@@ -129,3 +129,33 @@ class TestTaskStatusVisibility:
         row = next(t for t in tasks if t["task_id"] == TASK)
         assert row["output"] is None
         assert row["logs"] == []
+
+
+class TestActiveTaskVisibility:
+    """/pipeline/active: та же редакция деталей, что у /pipeline/task/{id}.
+
+    До фикса эндпоинт отдавал задачу целиком любому teacher/rop: работодатели,
+    регионы и поисковые запросы чужого сбора.
+    """
+
+    def test_other_teacher_gets_no_details(self, monkeypatch):
+        pl.pipeline_tasks[TASK] = _task("owner-1")
+        client = _client(monkeypatch, "intruder-2")
+        body = client.get("/api/pipeline/active").json()
+        assert body is not None
+        assert body["status"] == "running", "прогресс виден всем"
+        assert body["output"] is None
+        assert body["logs"] == []
+
+    def test_owner_gets_details(self, monkeypatch):
+        pl.pipeline_tasks[TASK] = _task("owner-1")
+        client = _client(monkeypatch, "owner-1")
+        body = client.get("/api/pipeline/active").json()
+        assert body["output"] is not None
+        assert body["logs"]
+
+    def test_admin_gets_details(self, monkeypatch):
+        pl.pipeline_tasks[TASK] = _task("owner-1")
+        client = _client(monkeypatch, "admin-1", role="admin")
+        body = client.get("/api/pipeline/active").json()
+        assert body["output"] is not None

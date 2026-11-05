@@ -145,7 +145,11 @@ async def whitelist_remove(request: Request, body: WhitelistRemoveRequest):
     }
 
 
-@router.post("/admin/whitelist/backup", response_model=WhitelistBackupResponse, dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/whitelist/backup",
+    response_model=WhitelistBackupResponse,
+    dependencies=[Depends(require_any_role("admin"))],
+)
 @limiter.limit("5/minute")
 async def whitelist_backup(request: Request):
     """Бэкап whitelist в файл."""
@@ -634,7 +638,7 @@ async def admin_logs_file(
     # Последняя строка может быть неполной (пишется на лету) - берём хвост целиком
     wanted = raw_lines[-max(lines, 1):]
     if level in ("error", "warning", "info", "debug"):
-        wanted = [l for l in wanted if f"level={level}" in l or l.startswith(f"{level.upper()} ")]
+        wanted = [x for x in wanted if f"level={level}" in x or x.startswith(f"{level.upper()} ")]
         wanted = wanted[-max(lines, 1):]
     return {"file": str(LOG_FILE), "lines": wanted, "total": len(wanted)}
 
@@ -999,6 +1003,12 @@ async def admin_logs_ws(websocket: WebSocket):
     """
     try:
         from src.api_pkg.routers.auth import resolve_session
+        from src.api_pkg.ws_origin import reject_if_bad_origin
+
+        # CSWSH: сторонний сайт не должен открывать сокет от имени админа.
+        if reject_if_bad_origin(websocket, config.ALLOWED_ORIGINS):
+            await websocket.close(code=4003, reason="Forbidden origin")
+            return
 
         eff_token = (
             websocket.cookies.get("token", "")
@@ -1100,3 +1110,61 @@ async def scheduler_gap_now(request: Request):
         raise HTTPException(status_code=409, detail="Планировщик уже выполняет задачу")
     asyncio.create_task(_run_scheduled_gap())
     return {"status": "started", "job": "gap"}
+
+# ---------- Безопасность: мастер-переключатель 2FA ----------
+# Флаг хранится в БД (app_settings), а не в .env: включение/выключение
+# действует сразу на все процессы и переживает деплой.
+
+
+class TwoFactorSettingsPatch(BaseModel):
+    enabled: bool
+
+
+async def _two_factor_payload() -> dict[str, Any]:
+    from src.api_pkg.security_settings import get_two_factor_enabled
+    from src.db import get_pool
+
+    pool = get_pool()
+    if pool is None:
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    enabled = await get_two_factor_enabled(pool)
+    enrolled = 0
+    try:
+        enrolled = int(
+            await pool.fetchval("SELECT count(*) FROM admin_totp WHERE confirmed = true") or 0
+        )
+    except Exception:
+        # Таблицы может не быть до применения миграции - это не ошибка экрана.
+        enrolled = 0
+    return {"enabled": enabled, "enrolled_admins": enrolled}
+
+
+@router.get("/admin/security/2fa/settings", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("60/minute")
+async def two_factor_settings(request: Request):
+    """Текущее состояние мастер-переключателя 2FA."""
+    return await _two_factor_payload()
+
+
+@router.put("/admin/security/2fa/settings", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("10/minute")
+async def two_factor_settings_update(request: Request, body: TwoFactorSettingsPatch):
+    """Включить/выключить 2FA одним кликом (только админ).
+
+    Выключение не требует кода: это аварийный тумблер.
+
+    ВНИМАНИЕ: при выключении действующие подключения не удаляются - при
+    следующем включении те же админы снова будут спрашивать код.
+    """
+    from src.api_pkg.routers.auth import get_current_user
+    from src.api_pkg.security_settings import set_two_factor_enabled
+    from src.db import get_pool
+
+    pool = get_pool()
+    if pool is None:
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    user = await get_current_user(request) or {}
+    await set_two_factor_enabled(pool, body.enabled, user.get("uid"))
+    await audit_action(request, "admin.2fa.toggle", f"enabled={body.enabled}")
+    logger.info("two_factor_toggled", enabled=body.enabled, by=user.get("u"))
+    return await _two_factor_payload()

@@ -79,6 +79,10 @@ async def _require_user(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=401, detail="Unauthorized")
     return user
 
+# Общий объект зависимости: ruff B008 не любит вызов Depends() прямо в
+# значении по умолчанию, а FastAPI нормально переиспользует один и тот же.
+_REQUIRE_USER = Depends(_require_user)
+
 
 def _jwt_username(token: str) -> str | None:
     """Достаёт username из payload JWT (часть [1]) без проверки подписи."""
@@ -308,6 +312,35 @@ async def sso_login(body: SsoRequest, request: Request):
             detail="Учётная запись ЮФУ не найдена в системе. Обратитесь к администратору.",
         )
 
+    # 2FA обязательна и для SSO: иначе владелец hub-JWT админа получал бы
+    # полный токен, не зная TOTP (второй фактор обходился стороной).
+    # Мастер-переключатель действует одинаково для пароля и SSO: выключен -
+    # код не спрашиваем ни у кого, включён - у всех подключённых.
+    if row["role"] == "admin":
+        from src.api_pkg.routers.auth import (
+            _issue_challenge,
+            _issue_enroll,
+            _totp_state,
+            get_two_factor_enabled,
+        )
+
+        if await get_two_factor_enabled(pool):
+            state = await _totp_state(pool, row["id"])
+            if state and state.get("confirmed"):
+                challenge = _issue_challenge(str(row["id"]))
+                logger.info("sso_totp_required", username=username)
+                return {
+                    "status": "totp_required",
+                    "challenge_id": challenge,
+                    "expires_in": 300,
+                }
+            logger.info("sso_totp_setup_required", username=username)
+            return {
+                "status": "totp_setup_required",
+                "enroll_id": _issue_enroll(str(row["id"])),
+                "expires_in": 600,
+            }
+
     token = _make_token(str(row["id"]), row["email"], row["role"])
     token_hash = _hash_token(token)
     ip = client_ip(request)
@@ -332,7 +365,7 @@ async def sso_login(body: SsoRequest, request: Request):
 async def academic_krm_competencies(
     request: Request,
     dir_code: str | None = None,
-    user: dict[str, Any] = Depends(_require_user),
+    user: dict[str, Any] = _REQUIRE_USER,
 ):
     """Все коды компетенций ОП из БД (для current_competencies в analyze-gap).
 
@@ -363,7 +396,7 @@ async def academic_krm_competencies(
 async def academic_get_competencies(
     body: CompetenciesRequest,
     request: Request,
-    user: dict[str, Any] = Depends(_require_user),
+    user: dict[str, Any] = _REQUIRE_USER,
 ):
     """Компетенции направления из БД.
 
@@ -401,7 +434,7 @@ async def academic_get_competencies(
 async def academic_analyze_gap(
     body: GapRequest,
     request: Request,
-    user: dict[str, Any] = Depends(_require_user),
+    user: dict[str, Any] = _REQUIRE_USER,
 ):
     """Анализ разрыва по теме (AcademicGapAnalyzer)."""
     sso_token, token_hash = await _get_sso_token(request)
@@ -424,7 +457,7 @@ async def academic_analyze_gap(
 async def academic_analyze_gap_local(
     body: CompetenciesRequest,
     request: Request,
-    user: dict[str, Any] = Depends(_require_user),
+    user: dict[str, Any] = _REQUIRE_USER,
 ):
     """Собственный анализ разрыва (без сервиса ЮФУ).
 
