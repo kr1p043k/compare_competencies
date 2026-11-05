@@ -243,9 +243,10 @@ def test_pipeline_ws_rejects_invalid_token(monkeypatch):
     monkeypatch.setattr("src.api_pkg.startup.run_startup", _fake_startup)
     monkeypatch.setattr("src.api_pkg.routers.auth.resolve_session", _reject)
     client = TestClient(create_app(), raise_server_exceptions=False)
-    with pytest.raises(WebSocketDisconnect) as exc_ctx:
-        with client.websocket_connect("/api/pipeline/ws", headers={"Authorization": "Bearer bad"}):
-            pass
+    with pytest.raises(WebSocketDisconnect) as exc_ctx, client.websocket_connect(
+        "/api/pipeline/ws", headers={"Authorization": "Bearer bad"}
+    ):
+        pass
     assert exc_ctx.value.code == 4001
 
 
