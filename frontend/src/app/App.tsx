@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "./components/ui/select";
 import { Tabs, TabsContent, TabsList } from "./components/ui/tabs";
+import { DashboardSkeleton, ListSkeleton } from "./components/ui/loading";
 import ErrorBoundary from "../design/ErrorBoundary";
 import { Skeleton } from "../design";
 import {
@@ -88,32 +89,14 @@ import { reportError } from "./../lib/errors";
 
 const API = "/api";
 
-// Fallback для ЛОКАЛЬНОГО Suspense одной вкладки: маленький инлайн-спиннер.
-// Грузится только переключаемая вкладка - вся область контента больше не гасится.
-function TabSpinner() {
-  return (
-    <div
-      className="p-6 flex items-center gap-2 text-sm text-gray-500"
-      role="status"
-      aria-live="polite"
-    >
-      <span
-        className="mr-2 inline-block size-4 shrink-0 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin motion-reduce:animate-none"
-        aria-hidden="true"
-      />
-      Загрузка раздела…
-    </div>
-  );
-}
-
-// Fallback вкладки «Аналитика рынка»: в её графе recharts (vendor-charts),
-// поэтому до догрузки чанка вместо графиков показываем layout-скелетон.
-// ArticlesPage - React.lazy (см. объявление ниже), стилистика фолбэка
-// повторяет сетку графиков AnalyticsCharts, пропсы самой вкладки не меняются.
-function TabSkeleton() {
+// Fallback для графовых вкладок (recharts = vendor-charts): до догрузки
+// чанка вместо графиков показываем layout-скелетон. Вкладки - React.lazy
+// (см. объявления ниже), стилистика фолбэка повторяет сетку графиков,
+// пропсы самой вкладки не меняются.
+function ChartTabSkeleton({ label }: { label: string }) {
   return (
     <div className="space-y-4" role="status" aria-live="polite">
-      <span className="sr-only">Загружается аналитика рынка…</span>
+      <span className="sr-only">{label}</span>
       <Skeleton className="h-8 w-72" />
       <div className="grid gap-4 lg:grid-cols-2">
         <Skeleton className="h-72 w-full" />
@@ -957,7 +940,7 @@ export default function App() {
           )}
 
           {/* Vacancies Tab */}
-          <Suspense fallback={<div className="p-6 text-sm text-gray-500">Загрузка раздела…</div>}>
+          <Suspense fallback={<ListSkeleton label="Загружается раздел «Вакансии»…" />}>
           <TabsContent value="vacancies">
             <ErrorBoundary scope="vacancies">
               <VacanciesList
@@ -1236,7 +1219,7 @@ export default function App() {
           {effectiveRole === "admin" && (
             <TabsContent value="visualization">
               <ErrorBoundary scope="visualization">
-                <Suspense fallback={<TabSpinner />}>
+                <Suspense fallback={<ChartTabSkeleton label="Загружается визуализация gap-анализа…" />}>
                   <GapAnalysisVisualizer profile={profile} onProfileChange={handleProfileChange} />
                 </Suspense>
               </ErrorBoundary>
@@ -1250,7 +1233,7 @@ export default function App() {
           </TabsContent>
           <TabsContent value="articles">
             <ErrorBoundary scope="articles">
-              <Suspense fallback={<TabSkeleton />}>
+              <Suspense fallback={<ChartTabSkeleton label="Загружается аналитика рынка…" />}>
                 <ArticlesPage onStartGapAnalysis={() => { runGapAnalysis(); setActiveTab("data"); }} />
               </Suspense>
             </ErrorBoundary>
@@ -1265,14 +1248,14 @@ export default function App() {
           </TabsContent>
           <TabsContent value="publications">
             <ErrorBoundary scope="publications">
-              <Suspense fallback={<TabSpinner />}>
+              <Suspense fallback={<ListSkeleton label="Загружается раздел «Публикации»…" />}>
                 <PublicationsTab />
               </Suspense>
             </ErrorBoundary>
           </TabsContent>
           <TabsContent value="help">
             <ErrorBoundary scope="help">
-              <Suspense fallback={<TabSpinner />}>
+              <Suspense fallback={<ListSkeleton label="Загружается раздел «Помощь»…" />}>
                 <FaqPage />
               </Suspense>
             </ErrorBoundary>
@@ -1280,7 +1263,7 @@ export default function App() {
           {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
             <TabsContent value="taxonomy">
               <ErrorBoundary scope="taxonomy">
-                <Suspense fallback={<TabSpinner />}>
+                <Suspense fallback={<ListSkeleton label="Загружается раздел «Таксономия»…" />}>
                   <TaxonomyBrowser showSuggest />
                 </Suspense>
               </ErrorBoundary>
@@ -1289,7 +1272,7 @@ export default function App() {
           {effectiveRole === "admin" && (
             <TabsContent value="monitoring">
               <ErrorBoundary scope="monitoring">
-                <Suspense fallback={<TabSpinner />}>
+                <Suspense fallback={<DashboardSkeleton label="Загружается раздел «Мониторинг»…" />}>
                   <MonitoringTab />
                 </Suspense>
               </ErrorBoundary>
@@ -1298,7 +1281,7 @@ export default function App() {
           {effectiveRole === "admin" && (
             <TabsContent value="logs">
               <ErrorBoundary scope="logs">
-                <Suspense fallback={<TabSpinner />}>
+                <Suspense fallback={<ListSkeleton label="Загружается раздел «Логи»…" />}>
                   <LogsTab />
                 </Suspense>
               </ErrorBoundary>
@@ -1307,7 +1290,7 @@ export default function App() {
           {effectiveRole === "admin" && (
             <TabsContent value="admin">
               <ErrorBoundary scope="admin">
-                <Suspense fallback={<TabSpinner />}>
+                <Suspense fallback={<DashboardSkeleton label="Загружается раздел «Админ»…" />}>
                   <AdminDashboard />
                 </Suspense>
               </ErrorBoundary>
@@ -1316,7 +1299,7 @@ export default function App() {
           {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
             <TabsContent value="teacher">
               <ErrorBoundary scope="teacher">
-                <Suspense fallback={<TabSpinner />}>
+                <Suspense fallback={<DashboardSkeleton label="Загружается раздел «Преподавательский анализ»…" />}>
                   <TeacherDashboard />
                 </Suspense>
               </ErrorBoundary>
@@ -1325,7 +1308,7 @@ export default function App() {
           {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
             <TabsContent value="students">
               <ErrorBoundary scope="students">
-                <Suspense fallback={<TabSpinner />}>
+                <Suspense fallback={<ListSkeleton label="Загружается раздел «Студенты»…" />}>
                   <StudentsTab />
                 </Suspense>
               </ErrorBoundary>
@@ -1334,7 +1317,7 @@ export default function App() {
           {(effectiveRole === "student" || effectiveRole === "admin") && (
             <TabsContent value="student">
               <ErrorBoundary scope="student">
-                <Suspense fallback={<TabSpinner />}>
+                <Suspense fallback={<ListSkeleton label="Загружается раздел «Мои запросы»…" />}>
                   <StudentDashboard onNavigate={setActiveTab} />
                 </Suspense>
               </ErrorBoundary>
@@ -1342,7 +1325,7 @@ export default function App() {
           )}
           <TabsContent value="profile">
             <ErrorBoundary scope="profile">
-              <Suspense fallback={<TabSpinner />}>
+              <Suspense fallback={<ListSkeleton label="Загружается раздел «Мой профиль»…" />}>
                 {effectiveRole === "admin" ? (
                   <AdminProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
                 ) : effectiveRole === "teacher" || effectiveRole === "rop" ? (

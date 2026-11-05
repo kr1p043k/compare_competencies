@@ -7,6 +7,8 @@ type Props = {
   title?: string;
   /** Что именно упало: используется в тексте и в логе. */
   scope?: string;
+  /** Обработчик кнопки «Обновить». По умолчанию - window.location.reload(). */
+  onReload?: () => void;
   children: ReactNode;
 };
 
@@ -52,6 +54,7 @@ export default class ErrorBoundary extends Component<Props, State> {
     if (!error) return this.props.children;
 
     const title = this.props.title ?? "Раздел не загрузился";
+    const reload = this.props.onReload ?? (() => window.location.reload());
 
     return (
       <div
@@ -65,13 +68,24 @@ export default class ErrorBoundary extends Component<Props, State> {
         <p className="max-w-md break-words text-xs text-muted-foreground/80">
           {error.message || String(error)}
         </p>
-        <button
-          type="button"
-          onClick={this.reset}
-          className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
-        >
-          Повторить
-        </button>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={this.reset}
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            Повторить
+          </button>
+          {/* Полная перезагрузка: помогает, когда сбой не в самом рендере,
+              а в потерянном состоянии (протухшая сессия, битый чанк). */}
+          <button
+            type="button"
+            onClick={reload}
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            Обновить
+          </button>
+        </div>
       </div>
     );
   }
