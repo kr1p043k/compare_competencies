@@ -21,13 +21,13 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from src.api_pkg import create_app
+from src.api_pkg.routers import academic_trends as trends_mod
 from src.api_pkg.routers.academic import (
     _jwt_exp,
     _jwt_username,
     _local_competencies,
     _request_token,
 )
-from src.api_pkg.routers import academic_trends as trends_mod
 from src.infrastructure.course_trends import CourseTrendsError
 from tests.conftest import open_all_gates
 

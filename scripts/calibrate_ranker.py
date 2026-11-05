@@ -23,14 +23,15 @@ import numpy as np
 sys.modules.setdefault("shap", MagicMock())
 sys.modules.setdefault("cv2", MagicMock())
 
+from unittest.mock import patch  # noqa: E402
+
 from sklearn.isotonic import IsotonicRegression  # noqa: E402
 from sklearn.linear_model import LogisticRegression  # noqa: E402
 from sklearn.metrics import brier_score_loss, log_loss  # noqa: E402
 from sklearn.model_selection import StratifiedShuffleSplit  # noqa: E402
 
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
-from unittest.mock import patch  # noqa: E402
 from scripts.train_ltr_ranker import read_gold  # noqa: E402
+from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 ART = ROOT / "data" / "models" / "ltr_ranker_xgb_rank_human.joblib"
@@ -75,8 +76,9 @@ def zpool(scores_by_role: dict[str, np.ndarray]) -> tuple[np.ndarray, dict[str, 
 def oof_scores(rows: list[dict], roles: list[str], vacancies: list[dict]):
     """Role-based out-of-fold raw scores: each role scored by a model
     that never saw it. Scale-free use only (z-norm per query)."""
-    from src import Ok
     from unittest.mock import patch
+
+    from src import Ok
     from src.parsing.api.embedding_loader import get_embedding_model
     with patch("src.predictors.ltr_recommendation_engine.get_embedding_model",
                return_value=get_embedding_model()):
@@ -134,6 +136,7 @@ def main() -> None:
     winner = min(("platt", "isotonic", "raw_minmax"), key=lambda k: rep[k]["log_loss"])
     # --- honest protocol: fit on role-OOF z-scores, eval on test z-scores ---
     import asyncio
+
     from scripts.train_ltr_ranker import load_vacancies
     vacancies = asyncio.run(load_vacancies(3000))
     oof = oof_scores(rows, roles, vacancies)

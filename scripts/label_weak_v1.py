@@ -21,9 +21,9 @@ from pathlib import Path
 import asyncpg
 import numpy as np
 
+from scripts.build_labeling_pairs import ROLES, role_core_skills
 from src.config import settings
 from src.parsing.api.embedding_loader import get_embedding_model
-from scripts.build_labeling_pairs import ROLES, role_core_skills
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "labeling"

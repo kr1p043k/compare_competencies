@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """Audit fixes 2026-10-12 evening: schema/model drift, LTR features, blend, cache."""
-import numpy as np
 import pytest
 from sqlalchemy.dialects.postgresql import dialect as PG
 
@@ -9,7 +8,7 @@ def test_pipeline_run_action_list_matches_code():
     """reparse/rpd-import/cancelled пишет код - CHECK в модели обязан их пускать."""
     from sqlalchemy.schema import CreateTable
 
-    from src.models.krm_models import Base, PipelineRun
+    from src.models.krm_models import PipelineRun
 
     ddl = str(CreateTable(PipelineRun.__table__).compile(dialect=PG()))
     for act in ("reparse", "rpd-import", "hh-import", "cancelled"):

@@ -1,12 +1,11 @@
 """v33: skill-link + competency-search endpoints (fake pool, auth overridden)."""
 import uuid
 
+import pytest as _pytest
 from fastapi.testclient import TestClient
 
-from src.api_pkg import create_app
-
-import pytest as _pytest
 import src.api_pkg.routers.zun as _zun_mod
+from src.api_pkg import create_app
 
 
 @_pytest.fixture(autouse=True)

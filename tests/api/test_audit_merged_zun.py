@@ -8,12 +8,11 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytest as _pytest
 from fastapi.testclient import TestClient
 
-from src.api_pkg import create_app
-
-import pytest as _pytest
 import src.api_pkg.routers.zun as _zun_mod
+from src.api_pkg import create_app
 
 
 @_pytest.fixture(autouse=True)

@@ -1,11 +1,11 @@
 """Типизированные модели для работы с вакансиями."""
 
+import contextlib
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
 import structlog
-import contextlib
 
 logger = structlog.get_logger(__name__)
 

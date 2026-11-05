@@ -3,10 +3,10 @@
 Используются DataSource и main.py.
 """
 
+import contextlib
 import json
 import sys
 import time
-import contextlib
 
 # Windows console defaults to cp1251: any emoji print (e.g. U+274C in stage
 # messages via console_info's 2-space indent) raises UnicodeEncodeError and

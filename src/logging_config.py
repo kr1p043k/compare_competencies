@@ -1,5 +1,6 @@
 """Конфигурация structlog с маскированием чувствительных данных и защитой от дублирования handler'ов."""
 
+import contextlib
 import logging
 import os
 import re
@@ -8,7 +9,6 @@ from logging.handlers import RotatingFileHandler
 import structlog
 
 from src.config import LOG_FILE
-import contextlib
 
 
 class SecretsMasker:

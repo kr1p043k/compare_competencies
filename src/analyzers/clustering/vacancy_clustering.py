@@ -5,6 +5,7 @@
 а также HDBSCAN как fallback (с обработкой ошибок метрики).
 """
 
+import contextlib
 from typing import Any
 
 import joblib
@@ -21,7 +22,6 @@ from src.models.enums import ExperienceLevel
 from src.parsing.api.embedding_loader import get_embedding_model
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.utils import clip01
-import contextlib
 
 logger = structlog.get_logger(__name__)
 
