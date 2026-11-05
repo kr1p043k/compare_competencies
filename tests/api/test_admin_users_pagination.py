@@ -45,7 +45,7 @@ class _FakeSession:
         self._directions = directions
         self.queries: list[str] = []
 
-    async def __aenter__(self) -> "_FakeSession":
+    async def __aenter__(self) -> _FakeSession:
         return self
 
     async def __aexit__(self, *exc: object) -> bool:
