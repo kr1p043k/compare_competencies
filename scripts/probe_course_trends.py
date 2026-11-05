@@ -26,8 +26,12 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.par
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from src.infrastructure.course_trends import CourseTrendsClient, CourseTrendsError  # noqa: E402
+try:  # запуск как файла
+    from _dsn import resolve_dsn  # noqa: E402
+except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
+    from scripts._dsn import resolve_dsn  # noqa: E402
 
-DEFAULT_DSN = "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies"
+DEFAULT_DSN = ""  # значение берётся из --dsn / DATABASE_URL / .env
 
 
 def token_from_db(dsn: str) -> str:
@@ -84,10 +88,11 @@ def main() -> int:
     p.add_argument("--token", default=os.environ.get("HUB_JWT", ""),
                    help="hub-JWT; иначе HUB_JWT, иначе самый свежий из sessions")
     p.add_argument("--pid", default=None, help="программа для подробного дампа")
-    p.add_argument("--dsn", default=DEFAULT_DSN)
+    p.add_argument("--dsn", default="")
     p.add_argument("--depth", type=int, default=3)
     p.add_argument("--raw", default=None, help="куда сохранить сырой ответ (JSON)")
     args = p.parse_args()
+    args.dsn = resolve_dsn(getattr(args, 'dsn', '') or None)
 
     token = args.token or token_from_db(args.dsn)
     if not token:

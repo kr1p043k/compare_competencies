@@ -31,7 +31,7 @@ import psycopg
 
 ROOT = Path(__file__).resolve().parent.parent
 REFERENCE = ROOT / "data" / "reference"
-DEFAULT_DSN = "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies"
+DEFAULT_DSN = ""  # значение берётся из --dsn / DATABASE_URL / .env
 
 DISCIPLINE_CODES = """
 select c.code, c.name from competencies c
@@ -53,6 +53,10 @@ order by c.code, s.name
 KSA = """
 select c.code, k.ksa_type::text, k.cleaned_text
 from competencies c
+try:  # запуск как файла
+    from _dsn import resolve_dsn  # noqa: E402
+except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
+    from scripts._dsn import resolve_dsn  # noqa: E402
 join ksa_entries k on k.competency_id = c.id
 where c.discipline_id = (select id from disciplines where name = %s limit 1)
   and c.code is not null
@@ -83,11 +87,12 @@ def build_entry(conn, discipline: str) -> dict | None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--direction", default="09.03.02")
-    parser.add_argument("--dsn", default=DEFAULT_DSN)
+    parser.add_argument("--dsn", default="")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--overwrite", action="store_true",
                         help="перестроить и уже существующие записи")
     args = parser.parse_args()
+    args.dsn = resolve_dsn(getattr(args, 'dsn', '') or None)
 
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")

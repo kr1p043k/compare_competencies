@@ -21,13 +21,17 @@ from pathlib import Path
 
 import psycopg
 
-DEFAULT_DSN = "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies"
+DEFAULT_DSN = ""  # значение берётся из --dsn / DATABASE_URL / .env
 ROOT = Path(__file__).resolve().parent.parent
 BACKUP = ROOT / "data" / "reports" / "empty_competencies_backup.json"
 
 SELECT_SHELLS = """
 select c.id, c.code, c.parent_id, c.category
 from competencies c
+try:  # запуск как файла
+    from _dsn import resolve_dsn  # noqa: E402
+except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
+    from scripts._dsn import resolve_dsn  # noqa: E402
 where coalesce(trim(c.name), '') = ''
   and coalesce(trim(c.description), '') = ''
   and not exists (select 1 from competency_skills cs where cs.competency_id = c.id)
@@ -37,9 +41,10 @@ order by c.code nulls last
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dsn", default=DEFAULT_DSN)
+    parser.add_argument("--dsn", default="")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    args.dsn = resolve_dsn(getattr(args, 'dsn', '') or None)
 
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")

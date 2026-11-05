@@ -40,11 +40,15 @@ from pathlib import Path
 from uuid import UUID
 
 import psycopg
+try:  # запуск как файла
+    from _dsn import resolve_dsn  # noqa: E402
+except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
+    from scripts._dsn import resolve_dsn  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 REFERENCE_DIR = ROOT / "data" / "reference"
 RESULT_DIR = ROOT / "data" / "result" / "cleanup"
-DEFAULT_DSN = "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies"
+DEFAULT_DSN = ""  # значение берётся из --dsn / DATABASE_URL / .env
 DEFAULT_YEAR = 2025  # год, для которого KRM-файл называется без суффикса года
 
 CYRILLIC_RE = re.compile(r"[А-Яа-яЁё]")
@@ -396,8 +400,9 @@ def main() -> int:
     parser.add_argument("--direction", default="09.03.02")
     parser.add_argument("--year", type=int, default=2024)
     parser.add_argument("--apply", action="store_true", help="записать изменения (по умолчанию dry-run)")
-    parser.add_argument("--dsn", default=DEFAULT_DSN)
+    parser.add_argument("--dsn", default="")
     args = parser.parse_args()
+    args.dsn = resolve_dsn(getattr(args, 'dsn', '') or None)
 
     official_names = load_official_names(args.direction, args.year)
     krm_path, krm_doc, krm_disciplines = load_krm(args.direction, args.year)

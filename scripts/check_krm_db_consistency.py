@@ -18,12 +18,16 @@ import argparse
 import json
 import sys
 from pathlib import Path
+try:  # запуск как файла
+    from _dsn import resolve_dsn  # noqa: E402
+except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
+    from scripts._dsn import resolve_dsn  # noqa: E402
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 ROOT = Path(__file__).resolve().parent.parent
 REFERENCE_DIR = ROOT / "data" / "reference"
-DEFAULT_DSN = "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies"
+DEFAULT_DSN = ""  # значение берётся из --dsn / DATABASE_URL / .env
 DEFAULT_YEAR = 2025
 
 
@@ -178,9 +182,10 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--direction", default="09.03.02")
     p.add_argument("--year", type=int, default=DEFAULT_YEAR)
-    p.add_argument("--dsn", default=DEFAULT_DSN)
+    p.add_argument("--dsn", default="")
     p.add_argument("--json", dest="json_path", default=None)
     args = p.parse_args()
+    args.dsn = resolve_dsn(getattr(args, 'dsn', '') or None)
 
     path = krm_path(args.direction, args.year)
     if not path.exists():

@@ -23,8 +23,12 @@ from pathlib import Path
 
 import numpy as np
 import psycopg
+try:  # запуск как файла
+    from _dsn import resolve_dsn  # noqa: E402
+except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
+    from scripts._dsn import resolve_dsn  # noqa: E402
 
-DEFAULT_DSN = "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies"
+DEFAULT_DSN = ""  # значение берётся из --dsn / DATABASE_URL / .env
 ROOT = Path(__file__).resolve().parent.parent
 REPORT = ROOT / "data" / "reports" / "skill_duplicates.json"
 
@@ -190,7 +194,7 @@ def merge(conn, keep_id: str, drop_id: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dsn", default=DEFAULT_DSN)
+    parser.add_argument("--dsn", default="")
     parser.add_argument("--threshold", type=float, default=0.95)
     parser.add_argument("--top", type=int, default=40)
     parser.add_argument("--apply", action="store_true")
@@ -198,6 +202,7 @@ def main() -> int:
     parser.add_argument("--apply-typos", action="store_true")
     parser.add_argument("--pair", nargs=2, metavar=("KEEP_ID", "DROP_ID"))
     args = parser.parse_args()
+    args.dsn = resolve_dsn(getattr(args, 'dsn', '') or None)
 
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")

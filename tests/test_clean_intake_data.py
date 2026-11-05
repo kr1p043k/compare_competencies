@@ -16,6 +16,9 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
+# Скрипты импортируют соседний _dsn; при запуске файлом эта папка
+# уже в sys.path, при импорте из тестов её надо добавить руками.
+sys.path.insert(0, str(ROOT / "scripts"))
 
 
 def _load():
