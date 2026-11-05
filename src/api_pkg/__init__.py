@@ -1,5 +1,6 @@
 """API package - фабрика FastAPI приложения."""
 
+import hmac
 import os
 import time
 import uuid
@@ -25,6 +26,28 @@ _disable_cmdstan().__enter__()
 from src.api_pkg import deps as deps  # noqa: F401,E402
 
 logger = structlog.get_logger("api")
+
+
+_metrics_token_warned = False
+
+
+def _warn_metrics_token_unset() -> None:
+    """Одноразовое предупреждение на старте при отсутствии METRICS_TOKEN.
+
+    Без сервисного токена /metrics отдаёт метрики только роли admin, и
+    Prometheus-скрейп падает с 401. Пишем один раз за процесс: create_app()
+    может вызываться несколько раз (тесты), спам на каждый вызов не нужен.
+    """
+    global _metrics_token_warned
+    if _metrics_token_warned:
+        return
+    _metrics_token_warned = True
+    if getattr(config.settings, "METRICS_TOKEN", None) is None:
+        logger.warning(
+            "metrics_token_unset",
+            hint="Задайте METRICS_TOKEN (заголовок X-Metrics-Token), "
+            "чтобы Prometheus мог скрейпить /metrics без роли admin",
+        )
 
 
 class _BodyTooLargeError(Exception):
@@ -322,19 +345,26 @@ def create_app() -> FastAPI:
 
     from src.api_pkg.routers.auth import require_any_role
 
+    _warn_metrics_token_unset()
+
     async def _metrics_access(request: Request) -> None:
-        """Доступ к /metrics: сервисный токен Prometheus либо роль admin.
+        """Доступ к /metrics: общий секрет X-Metrics-Token либо роль admin.
 
-        Prometheus не умеет логиниться, поэтому при заданном METRICS_TOKEN он
-        присылает его в Authorization. Остальные клиенты проходят обычную
-        проверку роли, как и раньше.
+        Prometheus не умеет логиниться: при заданном METRICS_TOKEN он присылает
+        его в заголовке X-Metrics-Token, и этого достаточно. Совпадение проверяем
+        через hmac.compare_digest (константное время, не палит секрет таймингом).
+        Если токен не задан либо не совпал - падаем в обычную проверку роли admin,
+        не раскрывая сам факт наличия токена (401/403 неотличимы от «токена нет»).
         """
-        expected = config.METRICS_TOKEN
-        if expected is not None:
-            import secrets as _secrets
-
-            supplied = request.headers.get("authorization", "")
-            if _secrets.compare_digest(supplied, f"Bearer {expected.get_secret_value()}"):
+        token = getattr(config.settings, "METRICS_TOKEN", None)
+        if token is not None:
+            expected = (
+                token.get_secret_value()
+                if hasattr(token, "get_secret_value")
+                else str(token)
+            )
+            supplied = request.headers.get("X-Metrics-Token", "")
+            if hmac.compare_digest(supplied.encode(), expected.encode()):
                 return
         await require_any_role("admin")(request)
 

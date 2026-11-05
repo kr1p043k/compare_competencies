@@ -2,23 +2,21 @@
 
 import asyncio
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
 import structlog
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel, Field, model_validator
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+import src.db as _db
 from src import config
 from src.api_pkg import deps
 from src.model_registry import ModelRegistry
-from src.models.api_responses import (
-    HealthResponse,
-    ReadyResponse,
-)
+from src.models.api_responses import HealthResponse
 
 logger = structlog.get_logger("api")
 limiter = Limiter(key_func=get_remote_address)
@@ -79,7 +77,7 @@ def _write_log_sync(entry: LogEntry) -> None:
     _LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     line = json.dumps(
         {
-            "time": entry.timestamp or datetime.now().isoformat(),
+            "time": entry.timestamp or datetime.now(UTC).isoformat(),
             "level": entry.level,
             "message": entry.message,
             "data": entry.data,
@@ -132,9 +130,37 @@ async def health_check():
     }
 
 
-@router.get("/ready", response_model=ReadyResponse)
-async def ready_check():
-    """Проверка готовности всех компонентов."""
+class ReadyBody(BaseModel):
+    """Ответ /ready: готовность сервиса + список проблем.
+
+    В отличие от исторического ReadyResponse сюда добавлено поле `problems`:
+    оркестратору (k8s/proxmox) и людям удобнее видеть, ЧТО именно не готово,
+    а не угадывать по HTTP-коду.
+    """
+
+    status: str
+    components: dict[str, bool]
+    problems: list[str] = Field(default_factory=list)
+
+
+@router.get("/ready", response_model=ReadyBody)
+async def ready_check(response: Response) -> ReadyBody:
+    """Проверка готовности критических зависимостей (fail-closed).
+
+    Критическими считаются ТОЛЬКО две вещи:
+    1) deps.is_ready - False, пока bootstrap не дочитал файл вакансий (startup.py
+       `_bootstrap`), либо True после загрузки данных / входа в режим ожидания;
+    2) src.db.pool - без пула БД не работают auth/session-эндпоинты.
+    Всё остальное (evaluator, recommendation_engine, trend_analyzer) НЕ критично:
+    _set_waiting_mode() в startup.py обнуляет их, когда файла вакансий нет, и API
+    при этом считается готовым (режим ожидания) - ровнять их в 503 нельзя.
+    """
+    problems: list[str] = []
+    if not deps.is_ready:
+        problems.append("data_not_loaded")
+    if _db.pool is None:
+        problems.append("db_pool_unavailable")
+
     components = {
         "evaluator": deps.evaluator is not None,
         "recommendation_engine": deps.recommendation_engine is not None
@@ -143,9 +169,11 @@ async def ready_check():
         "clusterer": deps.get_clusterer().is_fitted,
         "trend_analyzer": deps.trend_analyzer is not None,
     }
-    ready = all(components.values())
-    status = "ready" if ready else "not ready"
-    return {"status": status, "components": components}
+
+    if problems:
+        response.status_code = 503
+        return ReadyBody(status="not_ready", components=components, problems=problems)
+    return ReadyBody(status="ok", components=components, problems=problems)
 
 
 

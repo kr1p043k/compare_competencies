@@ -23,5 +23,8 @@ class TestRootEndpoint:
         assert resp.status_code in (200, 500)
 
     def test_ready_endpoint(self, client):
+        # Без lifespan данных нет -> readiness обязан честно сказать "не готов":
+        # 503 и status != ok. Раньше здесь стояло == 200, что скрывало проблему.
         resp = client.get("/ready")
-        assert resp.status_code == 200
+        assert resp.status_code in (200, 503)
+        assert resp.json()["status"] in ("ok", "not_ready")

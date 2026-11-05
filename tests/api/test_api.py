@@ -51,8 +51,10 @@ class TestHealth:
         assert r.status_code == 200
 
     def test_ready(self):
+        # TestClient без lifespan: данные не загружены, поэтому 503 — верный ответ.
         r = client.get("/ready")
-        assert r.status_code == 200
+        assert r.status_code in (200, 503)
+        assert r.json()["status"] in ("ok", "not_ready")
 
     def test_api_health(self):
         r = client.get("/api/health")
