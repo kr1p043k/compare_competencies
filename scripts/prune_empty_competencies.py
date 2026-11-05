@@ -21,6 +21,11 @@ from pathlib import Path
 
 import psycopg
 
+try:  # запуск как файла
+    from _dsn import resolve_dsn  # noqa: E402
+except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
+    from scripts._dsn import resolve_dsn  # noqa: E402
+
 DEFAULT_DSN = ""  # значение берётся из --dsn / DATABASE_URL / .env
 ROOT = Path(__file__).resolve().parent.parent
 BACKUP = ROOT / "data" / "reports" / "empty_competencies_backup.json"
@@ -28,10 +33,6 @@ BACKUP = ROOT / "data" / "reports" / "empty_competencies_backup.json"
 SELECT_SHELLS = """
 select c.id, c.code, c.parent_id, c.category
 from competencies c
-try:  # запуск как файла
-    from _dsn import resolve_dsn  # noqa: E402
-except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
-    from scripts._dsn import resolve_dsn  # noqa: E402
 where coalesce(trim(c.name), '') = ''
   and coalesce(trim(c.description), '') = ''
   and not exists (select 1 from competency_skills cs where cs.competency_id = c.id)
