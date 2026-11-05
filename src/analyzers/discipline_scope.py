@@ -22,8 +22,11 @@ import json
 from pathlib import Path
 
 import numpy as np
+import structlog
 
 from src import config
+
+logger = structlog.get_logger(__name__)
 
 OVERRIDES_PATH = config.REFERENCE_DIR / "discipline_market_scope.json"
 
@@ -39,7 +42,13 @@ def load_overrides(path: Path | None = None) -> dict[str, dict]:
     p = path or OVERRIDES_PATH
     try:
         data = json.loads(Path(p).read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError:
+        # Файл необязателен: без него действуют только правила методики.
+        return {}
+    except json.JSONDecodeError as exc:
+        # Битый файл - это не «настроек нет»: все ручные исключения молча
+        # пропадут и в анализ попадут дисциплины, которые преподаватель убрал.
+        logger.warning("scope_overrides_corrupt", path=str(p), error=str(exc))
         return {}
     if not isinstance(data, dict):
         return {}
@@ -159,7 +168,12 @@ def load_rpd_texts(path: Path | None = None) -> dict[str, str]:
     p = Path(path or ANNOTATIONS_PATH)
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError as exc:
+        # Без корпуса РПД профиль дисциплины остаётся пустым, и scope
+        # считается только по названию - молча менее точно.
+        logger.warning("rpd_texts_corrupt", path=str(p), error=str(exc))
         return {}
     out: dict[str, str] = {}
     if not isinstance(data, dict):
