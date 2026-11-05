@@ -8,7 +8,10 @@ version = "3.0.0"
 description = "Comparison of educational competencies with hh.ru job vacancies"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.115",
+    # Верхняя граница обязательна: 0.162 сделал include_router ленивым
+    # (_IncludedRouter), из-за чего тесты, обходящие app.routes, перестают
+    # ставить dependency_overrides и получают 401. Пин совпадает с requirements.txt.
+    "fastapi>=0.116.1,<0.117",
     "uvicorn[standard]>=0.30",
     "sqlalchemy[asyncio]>=2.0",
     "asyncpg>=0.29",

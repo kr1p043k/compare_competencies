@@ -17,6 +17,7 @@ import {
 } from "./components/ui/select";
 import { Tabs, TabsContent, TabsList } from "./components/ui/tabs";
 import ErrorBoundary from "../design/ErrorBoundary";
+import { Skeleton } from "../design";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -105,6 +106,24 @@ function TabSpinner() {
   );
 }
 
+// Fallback вкладки «Аналитика рынка»: в её графе recharts (vendor-charts),
+// поэтому до догрузки чанка вместо графиков показываем layout-скелетон.
+// ArticlesPage - React.lazy (см. объявление ниже), стилистика фолбэка
+// повторяет сетку графиков AnalyticsCharts, пропсы самой вкладки не меняются.
+function TabSkeleton() {
+  return (
+    <div className="space-y-4" role="status" aria-live="polite">
+      <span className="sr-only">Загружается аналитика рынка…</span>
+      <Skeleton className="h-8 w-72" />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Skeleton className="h-72 w-full" />
+        <Skeleton className="h-72 w-full" />
+      </div>
+      <Skeleton className="h-40 w-full" />
+    </div>
+  );
+}
+
 // Тяжёлые списки под React.memo: не перерисовываются от ререндеров App
 // (health-poll, статусы, шаги пайплайна), только от собственного стейта.
 const MemoPredictionsTab = memo(PredictionsTab);
@@ -132,6 +151,8 @@ function NavGroup({
     return (
       <button
         onClick={() => onSelect(only.value)}
+        role="tab"
+        aria-selected={isActive}
         className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all cursor-pointer ${
           isActive
             ? "bg-white text-gray-900 shadow-sm dark:bg-slate-800 dark:text-slate-100"
@@ -147,6 +168,8 @@ function NavGroup({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
+          role="tab"
+          aria-selected={!!active}
           className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all cursor-pointer ${
             active
               ? "bg-white text-gray-900 shadow-sm dark:bg-slate-800 dark:text-slate-100"
@@ -788,6 +811,7 @@ export default function App() {
                 size="sm"
                 onClick={() => setActiveTab("profile")}
                 title="Мой профиль"
+                aria-label="Мой профиль"
                 className="cursor-pointer transition-colors duration-200 text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
               >
                 <User className="size-4" />
@@ -813,11 +837,12 @@ export default function App() {
                 size="sm"
                 onClick={toggleTheme}
                 title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
+                aria-label={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
                 className="text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100"
               >
                 {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => { request<void>("/api/auth/logout", { method: "POST" }).catch((err) => reportError("app/App.tsx:logout", err)); try { localStorage.removeItem("rolePreview"); } catch (err) { reportError("app/App.tsx:785", err); } setRolePreview(null); logout(); }} className="text-gray-500 dark:text-slate-400 hover:text-red-600">
+              <Button variant="ghost" size="sm" aria-label="Выйти" onClick={() => { request<void>("/api/auth/logout", { method: "POST" }).catch((err) => reportError("app/App.tsx:logout", err)); try { localStorage.removeItem("rolePreview"); } catch (err) { reportError("app/App.tsx:785", err); } setRolePreview(null); logout(); }} className="text-gray-500 dark:text-slate-400 hover:text-red-600">
                 <LogOut className="size-4" />
               </Button>
             </div>
@@ -1225,7 +1250,7 @@ export default function App() {
           </TabsContent>
           <TabsContent value="articles">
             <ErrorBoundary scope="articles">
-              <Suspense fallback={<TabSpinner />}>
+              <Suspense fallback={<TabSkeleton />}>
                 <ArticlesPage onStartGapAnalysis={() => { runGapAnalysis(); setActiveTab("data"); }} />
               </Suspense>
             </ErrorBoundary>
