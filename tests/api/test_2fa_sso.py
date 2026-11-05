@@ -11,7 +11,8 @@ import pytest
 from fastapi import HTTPException
 from starlette.requests import Request
 
-from src.api_pkg.routers import academic, auth as auth_mod
+from src.api_pkg.routers import academic
+from src.api_pkg.routers import auth as auth_mod
 
 
 def _request() -> Request:
