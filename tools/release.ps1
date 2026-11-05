@@ -284,11 +284,9 @@ function Test-Alembic {
 }
 
 # ------------------------------------------------------------- 6. dep audit
-# Известный принятый долг: эти пакеты не блокируют релиз, пока не появится
-# безопасный путь обновления. Любая НОВАЯ уязвимость - блокер.
-$script:AllowedVulnPackages = @(
-    "starlette"   # 6 CVE; фикс в 1.3.1 требует миграции FastAPI (см. MEMORY E50)
-)
+# Известного принятого долга больше нет: starlette обновлён до 1.3.1 вместе с
+# fastapi 0.162 (pip-audit: No known vulnerabilities). Любая уязвимость - блокер.
+$script:AllowedVulnPackages = @()
 
 function Get-DepAudit {
     Write-Step "dependency audit"
