@@ -15,14 +15,15 @@ Cache task 'extract' via DB-backed src.services.llm_cache
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
+import structlog
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
-import contextlib
 
 try:  # DB-backed shared cache (parallel worker): get_cached(task, model, prompt)
     from src.services.llm_cache import (  # type: ignore
@@ -34,6 +35,8 @@ try:  # DB-backed shared cache (parallel worker): get_cached(task, model, prompt
     _DB_CACHE = True
 except Exception:
     _DB_CACHE = False
+
+logger = structlog.get_logger(__name__)
 
 # L1 in-memory cache (spec fallback names: get_cached/put_cached).
 _CACHE: dict[str, tuple[float, Any]] = {}
@@ -80,11 +83,12 @@ def _model_of(client: Any) -> str:
         if m:
             return str(m)
     except Exception:
-        pass
+        logger.warning("llm_model_attr_unavailable", exc_info=True)
     try:
         from src import config as _cfg
         return str(getattr(_cfg, "OLLAMA_MODEL", "") or "gpt-oss:120b")
     except Exception:
+        logger.warning("llm_model_config_unavailable", exc_info=True)
         return "gpt-oss:120b"
 
 
@@ -138,12 +142,14 @@ def _parse_json_list(text: str) -> list[str]:
     try:
         data = json.loads(text)
     except Exception:
+        logger.warning("llm_parse_json_failed", exc_info=True)
         m = _JSON_ARRAY_RE.search(text or "")
         if not m:
             return []
         try:
             data = json.loads(m.group(0))
         except Exception:
+            logger.warning("llm_parse_json_regex_failed", exc_info=True)
             return []
     if not isinstance(data, list):
         return []
@@ -169,6 +175,7 @@ def _chat_guarded(client: Any, messages: list[dict[str, str]], timeout_s: float)
     try:
         return resp.choices[0].message.content or ""
     except Exception:
+        logger.warning("llm_chat_content_unavailable", exc_info=True)
         return ""
 
 
@@ -209,6 +216,7 @@ def extract_skills(
             try:
                 raw_hit = _db_get_cached("extract", model, prompt)
             except Exception:
+                logger.warning("llm_db_cache_get_failed", model=model, exc_info=True)
                 raw_hit = None
             if isinstance(raw_hit, str) and raw_hit.strip():
                 result = _validate(_parse_json_list(raw_hit), vocab)
@@ -228,4 +236,5 @@ def extract_skills(
                     _db_put_cached("extract", model, prompt, text)
         return result
     except Exception:
+        logger.exception("skills_extract_failed")
         return []

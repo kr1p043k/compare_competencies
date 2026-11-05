@@ -12,14 +12,15 @@ Cache task 'recommend' via DB-backed src.services.llm_cache
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
+import structlog
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
-import contextlib
 
 try:  # DB-backed shared cache (parallel worker): get_cached(task, model, prompt)
     from src.services.llm_cache import (  # type: ignore
@@ -31,6 +32,8 @@ try:  # DB-backed shared cache (parallel worker): get_cached(task, model, prompt
     _DB_CACHE = True
 except Exception:
     _DB_CACHE = False
+
+logger = structlog.get_logger(__name__)
 
 # L1 in-memory cache (spec fallback names: get_cached/put_cached).
 _CACHE: dict[str, tuple[float, Any]] = {}
@@ -77,11 +80,12 @@ def _model_of(client: Any) -> str:
         if m:
             return str(m)
     except Exception:
-        pass
+        logger.warning("llm_model_attr_unavailable", exc_info=True)
     try:
         from src import config as _cfg
         return str(getattr(_cfg, "OLLAMA_MODEL", "") or "gpt-oss:120b")
     except Exception:
+        logger.warning("llm_model_config_unavailable", exc_info=True)
         return "gpt-oss:120b"
 
 
@@ -107,6 +111,7 @@ def _fit(text: Any, budget: int) -> str:
         try:
             text = json.dumps(text, ensure_ascii=False, default=str)
         except Exception:
+            logger.warning("llm_fit_json_serialize_failed", exc_info=True)
             text = str(text)
     return " ".join(text.split())[:budget]
 
@@ -151,12 +156,14 @@ def _parse_llm_items(text: str) -> list[dict]:
     try:
         data = json.loads(text or "")
     except Exception:
+        logger.warning("llm_parse_json_failed", exc_info=True)
         m = _JSON_OBJ_RE.search(text or "")
         if not m:
             return []
         try:
             data = json.loads(m.group(0))
         except Exception:
+            logger.warning("llm_parse_json_regex_failed", exc_info=True)
             return []
     if isinstance(data, dict):
         data = data.get("recommendations", [])
@@ -203,6 +210,7 @@ def _chat_guarded(
     try:
         return resp.choices[0].message.content or ""
     except Exception:
+        logger.warning("llm_chat_content_unavailable", exc_info=True)
         return ""
 
 
@@ -211,6 +219,7 @@ def _timeout_s() -> float:
         from src import config as _cfg
         return float(getattr(_cfg, "LLM_TIMEOUT_S", 20) or 20)
     except Exception:
+        logger.warning("llm_timeout_config_unavailable", exc_info=True)
         return 20.0
 
 
@@ -261,6 +270,7 @@ def _enhance_core(
         try:
             raw_hit = _db_get_cached("recommend", model, prompt)
         except Exception:
+            logger.warning("llm_db_cache_get_failed", model=model, exc_info=True)
             raw_hit = None
         if isinstance(raw_hit, str) and raw_hit.strip():
             merged = _apply_rerank(valid, _parse_llm_items(raw_hit))
@@ -309,6 +319,7 @@ def enhance_student_recs(
         out = _enhance_core("student", profile_summary, base_recs, client, use_cache)
         return out if isinstance(out, dict) else base_recs
     except Exception:
+        logger.exception("student_recs_failed")
         return base_recs
 
 
@@ -326,4 +337,5 @@ def enhance_teacher_recs(
         ctx = "Disciplina: %s. Probely: %s" % (_fit(discipline, 200), _fit(gaps, 800))
         return _enhance_core("teacher", ctx, base_recs, client, use_cache)
     except Exception:
+        logger.exception("teacher_recs_failed", discipline=discipline)
         return base_recs if base_recs is not None else {}

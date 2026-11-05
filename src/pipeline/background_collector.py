@@ -41,14 +41,17 @@ def _seed_defaults() -> dict:
     try:
         enabled = bool(config.settings.BACKGROUND_COLLECTOR_ENABLED)
     except Exception:
+        logger.warning("scheduler_seed_enabled_unavailable", exc_info=True)
         enabled = False
     try:
         interval = int(config.settings.SCHEDULER_COLLECT_INTERVAL_HOURS)
     except Exception:
+        logger.warning("scheduler_seed_interval_unavailable", exc_info=True)
         interval = SCHEDULER_DEFAULT_INTERVAL_HOURS
     try:
         daily = bool(config.settings.SCHEDULER_DAILY_GAP_ENABLED)
     except Exception:
+        logger.warning("scheduler_seed_daily_unavailable", exc_info=True)
         daily = False
     return {
         "collector_enabled": enabled,
@@ -181,7 +184,7 @@ async def _wait_until_ready(timeout_s: int = 7200) -> bool:
             if _deps.is_ready:
                 return True
         except Exception:
-            pass
+            logger.warning("wait_until_ready_check_failed", exc_info=True)
         await asyncio.sleep(15)
         waited += 15
     return False
@@ -585,7 +588,8 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
         after = await pool.fetchval("SELECT COUNT(*) FROM vacancies") or 0
         logger.info("collect_done", before=before, after=after, new=after - before, collected=len(all_vacancies))
     except Exception:
-        pass
+        logger.warning("collect_count_query_failed", exc_info=True)
+    _rid: str | None = None
     try:
         from src.pipeline.db_writer import complete_pipeline_run, create_pipeline_run
         _rid = await create_pipeline_run("data-collection")
@@ -595,6 +599,13 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
         )
     except Exception as exc:
         logger.warning("collect_run_record_failed", error=str(exc))
+        if _rid is not None:
+            with contextlib.suppress(Exception):
+                # Leave an explicit "failed" row instead of a dangling "started"
+                # one: a stuck run looks like "nothing happened" in the UI and
+                # never gates retries.
+                from src.pipeline.db_writer import complete_pipeline_run
+                await complete_pipeline_run(_rid, status="failed", error=str(exc))
 
     # Авто-снимок рынка: обновляет freq_market_YYYY-MM.json и trend_snapshots,
     # чтобы Prophet всегда имел свежую точку истории (не только при полном pipeline).
@@ -611,6 +622,7 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
                 try:
                     ps = json.loads(ps)
                 except Exception:
+                    logger.warning("collect_snapshot_skills_json_failed", exc_info=True)
                     ps = []
             for s in ps:
                 if not isinstance(s, str):
