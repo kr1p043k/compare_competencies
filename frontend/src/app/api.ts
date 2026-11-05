@@ -9,7 +9,7 @@ import { request } from "../lib/api";
 
 const API_BASE = "/api";
 
-export function api<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
+export function api<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> {
   return request<T>(`${API_BASE}${endpoint}`, {
     ...options,
     headers: {

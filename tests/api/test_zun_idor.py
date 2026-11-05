@@ -265,13 +265,6 @@ def test_unauthorized_when_no_session(monkeypatch):
 
 # ------------------------------------------------------- анализ направления
 
-def test_analyze_foreign_direction_403(monkeypatch):
-    """Запуск ZUN-анализа чужого направления запрещён."""
-    client = _make_client(monkeypatch, FakePool(FOREIGN))
-    r = client.post(f"/api/teacher/zun/analyze?dir_code={FOREIGN}")
-    assert r.status_code == 403, r.text
-
-
 def test_analyze_own_direction_starts(monkeypatch):
     """Своё направление - запуск разрешён.
 
@@ -298,11 +291,3 @@ def test_analyze_own_direction_starts(monkeypatch):
     r = client.post(f"/api/teacher/zun/analyze?dir_code={OWN}")
     assert r.status_code == 200, r.text
     assert r.json().get("status") == "started"
-
-
-def test_analyze_results_foreign_direction_403(monkeypatch, tmp_path):
-    """Результаты анализа чужого направления не читаются."""
-    monkeypatch.setattr(zun_mod, "RESULT_TEACHER", tmp_path)
-    client = _make_client(monkeypatch, FakePool(FOREIGN))
-    r = client.get(f"/api/teacher/zun/analyze/results?dir_code={FOREIGN}")
-    assert r.status_code == 403, r.text

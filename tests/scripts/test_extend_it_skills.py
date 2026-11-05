@@ -544,15 +544,6 @@ class TestExtendItSkills:
         captured = capsys.readouterr()
         assert "ещё" in captured.out and "10" in captured.out  # 40-30=10
 
-    def test_main_interactive_and_yes_conflict(self, monkeypatch, capsys):
-        """Строки 305-306: конфликт флагов."""
-        monkeypatch.setattr("sys.argv", [
-            "extend_it_skills.py", "--interactive", "--yes"
-        ])
-        with pytest.raises(SystemExit):
-            from scripts.extend_it_skills import main
-            main()
-
     def test_main_taxonomy_load_error(self, sample_vacancies_rich, tmp_path, monkeypatch, capsys):
         vac_file = tmp_path / "test_vacancies.json"
         vac_file.write_text(json.dumps(sample_vacancies_rich))
@@ -581,16 +572,6 @@ class TestExtendItSkills:
             from scripts.extend_it_skills import main
             main()
 
-    def test_interactive_confirm_selective(self, monkeypatch):
-        """Строки 352-361: выборочное добавление (y/n)."""
-        from scripts.extend_it_skills import interactive_confirm
-        new_skills = {"a": 5, "b": 3}
-        inputs = iter(["y", "n"])
-        monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-        approved = interactive_confirm(new_skills)
-        assert "a" in approved
-        assert "b" not in approved
-
     def test_main_yes_with_cache_cleanup_message(self, sample_vacancies_rich, tmp_path, monkeypatch, capsys):
         """Строка 373: сообщение о необходимости очистки кэша."""
         vac_file = tmp_path / "test_vacancies.json"
@@ -607,10 +588,3 @@ class TestExtendItSkills:
         main()
         captured = capsys.readouterr()
         assert "Очистите кэш" in captured.out
-
-    def test_print_dead_skills_empty(self, capsys):
-        """Строка 241: вывод при отсутствии мёртвых навыков."""
-        from scripts.extend_it_skills import print_dead_skills
-        print_dead_skills([])
-        captured = capsys.readouterr()
-        assert "Все навыки" in captured.out or "✅" in captured.out

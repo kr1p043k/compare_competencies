@@ -16,6 +16,8 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from src.api_pkg.routers.academic import _get_sso_token
 from src.api_pkg.routers.auth import require_any_role
@@ -24,6 +26,7 @@ from src.infrastructure.course_trends_normalize import extract_articles
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["academic-trends"])
+limiter = Limiter(key_func=get_remote_address)
 
 # Статьи/рекомендации по программе считаются заранее, но ответ может быть
 # объёмным; держим таймаут выше обычного.
@@ -58,12 +61,14 @@ async def _fetch(request: Request, path: str) -> Any:
 
 
 @router.get("/academic/programs", dependencies=[Depends(require_any_role(*_ROLES))])
+@limiter.limit("60/minute")
 async def list_programs(request: Request) -> Any:
     """Список программ сервиса ЮФУ: pid и метки (курсов, среднее покрытие)."""
     return await _fetch(request, "/programs")
 
 
 @router.get("/academic/glossary", dependencies=[Depends(require_any_role(*_ROLES))])
+@limiter.limit("60/minute")
 async def glossary(request: Request) -> Any:
     """Глоссарий терминов сервиса (что означает каждая метка)."""
     return await _fetch(request, "/meta/glossary")
@@ -71,6 +76,7 @@ async def glossary(request: Request) -> Any:
 
 @router.get("/academic/programs/{pid}/summary",
             dependencies=[Depends(require_any_role(*_ROLES))])
+@limiter.limit("60/minute")
 async def program_summary(pid: str, request: Request) -> Any:
     """Краткая сводка по программе для виджета."""
     return await _fetch(request, f"/programs/{pid}/summary")
@@ -78,6 +84,7 @@ async def program_summary(pid: str, request: Request) -> Any:
 
 @router.get("/academic/programs/{pid}/course-trends",
             dependencies=[Depends(require_any_role(*_ROLES))])
+@limiter.limit("60/minute")
 async def course_trends(pid: str, request: Request) -> Any:
     """Тренды и статьи по курсам программы."""
     return await _fetch(request, f"/programs/{pid}/course-trends")
@@ -85,6 +92,7 @@ async def course_trends(pid: str, request: Request) -> Any:
 
 @router.get("/academic/programs/{pid}/course-coverage",
             dependencies=[Depends(require_any_role(*_ROLES))])
+@limiter.limit("60/minute")
 async def course_coverage(pid: str, request: Request) -> Any:
     """Покрытие компетенций по курсам программы."""
     return await _fetch(request, f"/programs/{pid}/course-coverage")
@@ -92,12 +100,14 @@ async def course_coverage(pid: str, request: Request) -> Any:
 
 @router.get("/academic/programs/{pid}/recommendations",
             dependencies=[Depends(require_any_role(*_ROLES))])
+@limiter.limit("60/minute")
 async def recommendations(pid: str, request: Request) -> Any:
     """Предрассчитанные рекомендации по программе."""
     return await _fetch(request, f"/programs/{pid}/recommendations")
 
 
 @router.get("/academic/programs/{pid}", dependencies=[Depends(require_any_role(*_ROLES))])
+@limiter.limit("60/minute")
 async def program_bundle(pid: str, request: Request) -> Any:
     """Всё по программе одним ответом (summary + тренды + покрытие + рекомендации)."""
     return await _fetch(request, f"/programs/{pid}")
@@ -105,6 +115,7 @@ async def program_bundle(pid: str, request: Request) -> Any:
 
 @router.get("/academic/programs/{pid}/articles",
             dependencies=[Depends(require_any_role(*_ROLES))])
+@limiter.limit("60/minute")
 async def program_articles(
     pid: str,
     request: Request,

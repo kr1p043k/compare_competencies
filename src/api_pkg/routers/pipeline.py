@@ -368,14 +368,23 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
     cancel_event = _cancel_events[task_id]
 
     started_at = time.time()
-    # Владельца уже проставил эндпоинт при создании задачи. Здесь мы лишь
-    # переводим её в "running", поэтому owner_uid берём из существующей записи:
-    # у этой функции нет request (она запускается в фоне), и обращение к нему
-    # было NameError.
-    existing_owner = getattr(pipeline_tasks.get(task_id), "owner_uid", None)
-    pipeline_tasks[task_id] = _make_task_status(
-        task_id, "running", "Запуск...", started_at, step=0, owner_uid=existing_owner
-    )
+    # Фоновая задача не получает Request: статус с owner_uid уже создан
+    # обработчиком. Пересоздавать его здесь нельзя - терялся владелец, а
+    # обращение к _current_uid(request) падало с NameError на каждом запуске.
+    existing = pipeline_tasks.get(task_id)
+    # Владелец фиксируется один раз: фоновой задаче Request недоступен, а
+    # пересоздание статуса без owner_uid лишало автора доступа к своему прогону.
+    owner_uid = existing.owner_uid if existing is not None else kwargs.get("owner_uid")
+    if existing is None:
+        pipeline_tasks[task_id] = _make_task_status(
+            task_id, "running", "Запуск...", started_at, step=0,
+            owner_uid=owner_uid,
+        )
+    else:
+        existing.status = "running"
+        existing.started_at = started_at
+        existing.completed_at = None
+        existing.owner_uid = owner_uid
     await _asave_tasks()
 
     loop = asyncio.get_running_loop()
@@ -509,14 +518,15 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
             if cancel_event.is_set():
                 return
             pipeline_tasks[task_id] = _make_task_status(
-                task_id, "failed", f"Неизвестное действие: {action}", started_at, output="")
+                task_id, "failed", f"Неизвестное действие: {action}", started_at,
+                output="", owner_uid=owner_uid)
             await _asave_tasks()
             return
 
         if cancel_event.is_set():
             return
         pipeline_tasks[task_id] = _make_task_status(
-            task_id, status, msg[:500], started_at, output=msg)
+            task_id, status, msg[:500], started_at, output=msg, owner_uid=owner_uid)
         await _asave_tasks()
 
     except (asyncio.CancelledError, RuntimeError) as e:
@@ -529,14 +539,14 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
                 await _asave_tasks()
         else:
             pipeline_tasks[task_id] = _make_task_status(
-                task_id, "failed", str(e), started_at, output="")
+                task_id, "failed", str(e), started_at, output="", owner_uid=owner_uid)
             await _asave_tasks()
     except Exception as e:
         if cancel_event.is_set():
             return
         logger.exception("Pipeline task failed", task_id=task_id)
         pipeline_tasks[task_id] = _make_task_status(
-            task_id, "failed", str(e), started_at, output="")
+            task_id, "failed", str(e), started_at, output="", owner_uid=owner_uid)
         await _asave_tasks()
     finally:
         _cancel_events.pop(task_id, None)

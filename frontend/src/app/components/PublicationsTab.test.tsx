@@ -59,8 +59,28 @@ const TYPES = {
   total: 133902,
 };
 
+function searchResponse(query: string) {
+  const needle = decodeURIComponent(query).toLowerCase();
+  const matches = PAGE_ONE.filter((p) =>
+    `${p.title ?? ""} ${p.authors.join(" ")} ${p.abstract ?? ""}`.toLowerCase().includes(needle),
+  );
+  return {
+    query,
+    matches,
+    total: matches.length,
+    scanned_pages: 10,
+    truncated: true,
+    total_scanned: 1000,
+    source: "hub.sfedu.ru",
+  };
+}
+
 function route(endpoint: string) {
   if (endpoint.startsWith("/publications/types")) return Promise.resolve(TYPES);
+  if (endpoint.startsWith("/publications/search")) {
+    const q = new URLSearchParams(endpoint.split("?")[1] ?? "").get("q") ?? "";
+    return Promise.resolve(searchResponse(q));
+  }
   if (endpoint.startsWith("/publications?")) {
     return Promise.resolve({ items: PAGE_ONE, total: 133902, page: 1, page_size: 20, num_pages: 6696 });
   }
@@ -85,7 +105,7 @@ describe("PublicationsTab", () => {
     expect(screen.getByText("Все типы")).toBeInTheDocument();
   });
 
-  it("фильтрует загруженные записи локально, не дергая сервер", async () => {
+  it("ищет по корпусу через сервер и показывает охват", async () => {
     const user = userEvent.setup();
     render(<PublicationsTab />);
     await screen.findByText("Моделирование графов");
@@ -95,21 +115,24 @@ describe("PublicationsTab", () => {
 
     await waitFor(() => expect(screen.queryByText("Экономика региона")).not.toBeInTheDocument());
     expect(screen.getByText("Моделирование графов")).toBeInTheDocument();
-    expect(screen.getByText(/Совпадений: 1 среди 3 загруженных/)).toBeInTheDocument();
+    expect(screen.getByText(/Совпадений: 1 · просмотрено 1 000 из 133 902/)).toBeInTheDocument();
 
-    const calledSearch = apiMock.mock.calls.some(([endpoint]) => String(endpoint).includes("/publications/search"));
-    expect(calledSearch).toBe(false);
+    const searchCall = apiMock.mock.calls
+      .map(([endpoint]) => String(endpoint))
+      .find((endpoint) => endpoint.includes("/publications/search"));
+    expect(searchCall).toBeDefined();
+    expect(searchCall).toContain("max_pages=10");
   });
 
-  it("честно сообщает, когда совпадений нет среди загруженных", async () => {
+  it("честно сообщает, что совпадений нет, и показывает охват", async () => {
     const user = userEvent.setup();
     render(<PublicationsTab />);
     await screen.findByText("Моделирование графов");
 
     await user.type(screen.getByPlaceholderText("Фильтр по названию, авторам, журналу, аннотации"), "квантовая хромодинамика");
 
-    expect(await screen.findByText("Среди загруженных записей совпадений нет")).toBeInTheDocument();
-    expect(screen.getByText(/Просмотрено 3 из 133 902 записей/)).toBeInTheDocument();
+    expect(await screen.findByText("Совпадений не найдено")).toBeInTheDocument();
+    expect(screen.getByText(/Просмотрено 1 000 из 133 902 записей/)).toBeInTheDocument();
   });
 
   it("догружает следующую страницу кнопкой", async () => {

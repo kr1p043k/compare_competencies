@@ -9,7 +9,6 @@ import pytest
 sys.modules['shap'] = MagicMock()
 sys.modules['cv2'] = MagicMock()
 
-from src import Ok
 from src.errors import RecommendationError
 from src.models.vacancy import Vacancy
 from src.pipeline.data_source import HhDataSource

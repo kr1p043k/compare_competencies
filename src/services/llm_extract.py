@@ -15,6 +15,7 @@ Cache task 'extract' via DB-backed src.services.llm_cache
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
@@ -22,7 +23,6 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
-import contextlib
 
 try:  # DB-backed shared cache (parallel worker): get_cached(task, model, prompt)
     from src.services.llm_cache import (  # type: ignore

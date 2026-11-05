@@ -49,7 +49,11 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
-@router.get("/profiles/compare", response_model=ProfilesCompareResponse)
+@router.get(
+    "/profiles/compare",
+    response_model=ProfilesCompareResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
+)
 @limiter.limit("20/minute")
 async def compare_profiles(
     request: Request,
@@ -427,6 +431,7 @@ async def create_custom_profile(request: Request, body: CustomProfileIn):
 @router.get(
     "/profiles/{profile}/profession-evaluation",
     response_model=dict,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
 )
 @limiter.limit("30/minute")
 async def get_profile_profession_evaluation(
@@ -438,6 +443,7 @@ async def get_profile_profession_evaluation(
     """Оценка профиля под профессию. Без ?profession= - фиксированная цель профиля
     (краткий ответ). С ?profession=<имя> - полный фокус-режим: строгие метрики,
     KRM по выбранной профессии и Топ-10, пересчитанный движком под её домены."""
+    await _authorize_student_profile(request, profile)
     if profile not in deps.student_profiles:
         raise HTTPException(status_code=404, detail=f"Profile '{profile}' not found")
     if deps.evaluator is None:
@@ -719,6 +725,24 @@ def _self_profile_name(email: str) -> tuple[str, str]:
     return name, str(Path(config.DATA_DIR) / "students" / f"{name}_competency.json")
 
 
+async def _authorize_student_profile(request: Request, profile: str) -> None:
+    """Студент видит только свой профиль (self_<username>); чужой - 403.
+
+    admin/teacher/rop не ограничиваются. Ключ своего профиля строится той же
+    `_self_profile_name`, что и при его создании, поэтому совпадение точное
+    (тот же подход, что и в results.get_results_summary).
+    """
+    from src.api_pkg.routers.auth import get_current_user
+
+    user = await get_current_user(request) or {}
+    if (user.get("r") or user.get("role")) != "student":
+        return
+    username = str(user.get("u") or user.get("username") or "")
+    self_key, _ = _self_profile_name(username)
+    if profile != self_key:
+        raise HTTPException(status_code=403, detail="Доступ к чужому профилю запрещён")
+
+
 def _load_self_profile(name: str, fpath: str) -> dict:
     import json
 
@@ -871,7 +895,11 @@ async def patch_self_profile(request: Request, body: SelfProfilePatch):
             "tech_added": tech_added, "tech_removed": tech_removed}
 
 
-@router.get("/profiles/{profile}", response_model=ProfileShort)
+@router.get(
+    "/profiles/{profile}",
+    response_model=ProfileShort,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
+)
 @limiter.limit("60/minute")
 async def get_profile(
     request: Request,
@@ -881,6 +909,7 @@ async def get_profile(
 ):
     """Профиль студента по имени. По умолчанию первые 50 навыков (для UI),
     ?full=true - полный список (для графиков покрытия)."""
+    await _authorize_student_profile(request, profile)
     if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")
     student = profiles[profile]

@@ -1,10 +1,11 @@
 """Honest ensemble calibrator: isotonic fit on ensemble-OOF z-scores
 (500 rows, each scored by models that never saw its role). No train reuse.
 Overwrites data/models/ranker_calibrator_ensemble.joblib"""
-import joblib
 import json
-import numpy as np
 from pathlib import Path
+
+import joblib
+import numpy as np
 from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import brier_score_loss, log_loss
 

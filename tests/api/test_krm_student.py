@@ -112,8 +112,16 @@ def reset_limiter():
     yield
 
 
+# Ключ своего профиля студента s@example.com: self_s_example_com.
+# Тесты student-доступа должны содержать его, иначе роут честно отвечает 404.
+SELF_KEY = "self_s_example_com"
+
+
 def _profiles(*skills: str) -> dict[str, StudentProfile]:
-    return {"base": StudentProfile(profile_name="base", skills=list(skills))}
+    return {
+        "base": StudentProfile(profile_name="base", skills=list(skills)),
+        SELF_KEY: StudentProfile(profile_name=SELF_KEY, skills=list(skills)),
+    }
 
 
 def _mock_client(
@@ -164,8 +172,10 @@ def test_mock_directions_forbidden_role(monkeypatch):
 
 
 def test_competencies_merges_sources(monkeypatch):
+    # Чужой профиль читает только учитель: студенту он теперь 403.
     client = _mock_client(
         monkeypatch,
+        role="teacher",
         profiles=_profiles("Python", "Docker"),
         krm=KRM_DATA,
     )
@@ -200,6 +210,27 @@ def test_competencies_unknown_profile_mocked_404(monkeypatch):
     assert "не найден" in r.json()["detail"]
 
 
+def test_competencies_foreign_profile_forbidden_for_student(monkeypatch):
+    """Студент не читает чужой профиль, даже если тот существует."""
+    client = _mock_client(monkeypatch, profiles=_profiles("Python"), krm=KRM_DATA)
+    r = client.get(
+        "/krm/student/competencies",
+        params={"direction": "09.03.02", "profile": "base"},
+    )
+    assert r.status_code == 403, r.text
+
+
+def test_competencies_foreign_profile_allowed_for_teacher(monkeypatch):
+    client = _mock_client(
+        monkeypatch, role="teacher", profiles=_profiles("Python"), krm=KRM_DATA
+    )
+    r = client.get(
+        "/krm/student/competencies",
+        params={"direction": "09.03.02", "profile": "base"},
+    )
+    assert r.status_code == 200, r.text
+
+
 def test_competencies_invalid_direction_400(monkeypatch):
     client = _mock_client(monkeypatch, profiles=_profiles("Python"), krm=KRM_DATA)
     r = client.get(
@@ -231,7 +262,9 @@ def test_competencies_krm_unavailable_503(monkeypatch):
     def _boom(_d):
         raise HTTPException(status_code=503, detail="KRM data unavailable")
 
-    client = _mock_client(monkeypatch, profiles=_profiles("Python"))
+    client = _mock_client(
+        monkeypatch, role="teacher", profiles=_profiles("Python")
+    )
     monkeypatch.setattr(krm_student_mod, "_load_krm_direction", _boom)
     r = client.get(
         "/krm/student/competencies",

@@ -44,6 +44,11 @@ _ACADEMIC_HEADERS = {
 }
 
 
+# /auth/sso принимает hub-JWT в теле; cap защищает _jwt_username (base64-декод)
+# и внешний verify-token от патологически длинных токенов. JWT хаба ~1-2 КБ.
+_MAX_SSO_TOKEN_LEN = 4096
+
+
 class SsoRequest(BaseModel):
     # JWT не бывает длиннее нескольких килобайт: ограничение снимает
     # бесплатный CPU-усилитель на разборе и логировании гигантской строки.
@@ -323,6 +328,7 @@ async def sso_login(body: SsoRequest, request: Request):
 
 
 @router.get("/academic/krm-competencies")
+@limiter.limit("60/minute")
 async def academic_krm_competencies(
     request: Request,
     dir_code: str | None = None,
@@ -353,6 +359,7 @@ async def academic_krm_competencies(
 
 
 @router.post("/academic/get-competencies")
+@limiter.limit("10/minute")
 async def academic_get_competencies(
     body: CompetenciesRequest,
     request: Request,
@@ -390,6 +397,7 @@ async def academic_get_competencies(
 
 
 @router.post("/academic/analyze-gap", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@limiter.limit("10/minute")
 async def academic_analyze_gap(
     body: GapRequest,
     request: Request,
@@ -412,6 +420,7 @@ async def academic_analyze_gap(
 
 
 @router.post("/academic/analyze-gap-local", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@limiter.limit("10/minute")
 async def academic_analyze_gap_local(
     body: CompetenciesRequest,
     request: Request,

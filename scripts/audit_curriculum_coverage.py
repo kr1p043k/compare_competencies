@@ -19,10 +19,14 @@ import sys
 from pathlib import Path
 
 import psycopg
+try:  # запуск как файла
+    from _dsn import resolve_dsn  # noqa: E402
+except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
+    from scripts._dsn import resolve_dsn  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 REFERENCE = ROOT / "data" / "reference"
-DEFAULT_DSN = "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies"
+DEFAULT_DSN = ""  # значение берётся из --dsn / DATABASE_URL / .env
 # Optional JSON export of the discipline_scope table (owner may dump it here).
 # The authoritative store is the discipline_scope table itself; this file is a
 # read-only convenience. Format: {discipline_name: {"included": bool}}.
@@ -228,11 +232,12 @@ def main() -> int:
     parser.add_argument("--direction", default="09.03.02")
     parser.add_argument("--year", type=int, default=2025,
                         help="год набора: файл official_curriculum_<код>_<год>.json")
-    parser.add_argument("--dsn", default=DEFAULT_DSN)
+    parser.add_argument("--dsn", default="")
     parser.add_argument("--json", dest="json_path", default=None)
     parser.add_argument("--status", dest="status_path", default=None,
                         help="записать статус каждой дисциплины перечня (БД/KRM/переименование)")
     args = parser.parse_args()
+    args.dsn = resolve_dsn(getattr(args, 'dsn', '') or None)
 
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")

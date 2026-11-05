@@ -2,7 +2,6 @@
 """Парсер компетенций/заголовков аннотаций: реальные варианты написания
 (замер 2026-10-14 на аннотациях ЮФУ с Яндекс.Диска)."""
 import importlib.util
-import sys
 from pathlib import Path
 
 _spec = importlib.util.spec_from_file_location(

@@ -29,7 +29,7 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
 
   const loadMine = () => {
     if (!showSuggest) return;
-    api("/teacher/skills/suggestions").then((d) => setMyList(d?.suggestions || [])).catch((err) => reportError("app/components/TaxonomyBrowser.tsx", err));
+    api<{ suggestions: unknown[] }>("/teacher/skills/suggestions").then((d) => setMyList(d?.suggestions || [])).catch((err) => reportError("app/components/TaxonomyBrowser.tsx", err));
   };
 
   const submitSuggest = async () => {
@@ -55,7 +55,7 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
 
   useEffect(() => {
     let alive = true;
-    api("/taxonomy/categories")
+    api<{ categories: TaxCategory[] }>("/taxonomy/categories")
       .then((d) => {
         if (alive) setCats(d?.categories || []);
       })

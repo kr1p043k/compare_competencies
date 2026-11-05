@@ -156,3 +156,92 @@ class TestAuditLogTokenSources:
 
         assert _extract_token(_req([(b"authorization", b"Bearer T")])) == "T"
         assert _extract_token(_req(cookies="token=C")) == "C"
+
+
+class TestAcademicRouteRateLimits:
+    """/academic/* ограничены slowapi: GET 60/мин, POST 10/мин."""
+
+    @staticmethod
+    def _reset():
+        from src.api_pkg.routers import academic
+
+        with contextlib.suppress(Exception):
+            academic.limiter.reset()
+
+    def _client(self, monkeypatch):
+        from unittest.mock import AsyncMock
+
+        from src.api_pkg import create_app
+        from src.api_pkg.routers import academic
+
+        self._reset()
+
+        async def _fake_user(_request):
+            return {"uid": "u-1", "u": "t@example.com", "r": "teacher"}
+
+        monkeypatch.setattr(academic, "get_current_user", _fake_user)
+        pool = AsyncMock()
+        pool.fetch = AsyncMock(return_value=[])
+        monkeypatch.setattr(academic, "get_pool", lambda: pool)
+        return TestClient(create_app(), raise_server_exceptions=False)
+
+    def test_get_krm_competencies_limited_to_60(self, monkeypatch):
+        client = self._client(monkeypatch)
+        for _ in range(60):
+            assert client.get("/api/academic/krm-competencies").status_code == 200
+        assert client.get("/api/academic/krm-competencies").status_code == 429
+
+    def test_post_get_competencies_limited_to_10(self, monkeypatch):
+        from fastapi import HTTPException
+
+        from src.api_pkg.routers import academic
+
+        client = self._client(monkeypatch)
+
+        async def _no_sso(_request):
+            raise HTTPException(status_code=403, detail="no sso")
+
+        async def _no_dirs(_user):
+            return []
+
+        monkeypatch.setattr(academic, "_get_sso_token", _no_sso)
+        monkeypatch.setattr(academic, "_user_direction_codes", _no_dirs)
+        monkeypatch.setattr(
+            academic,
+            "_local_competencies",
+            lambda *_a, **_k: {"recommended_competencies": []},
+        )
+        for _ in range(10):
+            assert client.post(
+                "/api/academic/get-competencies", json={"topic": "x"}
+            ).status_code == 200
+        assert client.post(
+            "/api/academic/get-competencies", json={"topic": "x"}
+        ).status_code == 429
+
+
+class TestSsoTokenLengthCap:
+    """/auth/sso не принимает hub-JWT длиннее 4096 символов."""
+
+    def test_overlong_token_rejected(self, monkeypatch):
+        from src import config
+        from src.api_pkg import create_app
+        from src.api_pkg.routers import academic
+
+        with contextlib.suppress(Exception):
+            academic.limiter.reset()
+        monkeypatch.setattr(config, "ACADEMIC_SSO_ENABLED", False)
+        client = TestClient(create_app(), raise_server_exceptions=False)
+        assert client.post("/api/auth/sso", json={"token": "x" * 4097}).status_code == 422
+
+    def test_token_within_cap_passes_validation(self, monkeypatch):
+        from src import config
+        from src.api_pkg import create_app
+        from src.api_pkg.routers import academic
+
+        with contextlib.suppress(Exception):
+            academic.limiter.reset()
+        monkeypatch.setattr(config, "ACADEMIC_SSO_ENABLED", False)
+        client = TestClient(create_app(), raise_server_exceptions=False)
+        # SSO выключен → 503, значит Pydantic пропустил тело (иначе было бы 422).
+        assert client.post("/api/auth/sso", json={"token": "x"}).status_code == 503
