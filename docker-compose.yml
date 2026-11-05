@@ -27,7 +27,7 @@ services:
       competency-postgres:
         condition: service_healthy
     environment:
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@competency-postgres:5432/${POSTGRES_DB:-compare_competencies}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (see .env.example)}@competency-postgres:5432/${POSTGRES_DB:-compare_competencies}
       - OLLAMA_URL=http://ollama8.r61.net:11434
       - HF_HOME=/root/.cache/huggingface
       - HF_HUB_CACHE=/root/.cache/huggingface/hub
@@ -155,7 +155,7 @@ services:
     container_name: competency-postgres
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (see .env.example)}
       - POSTGRES_DB=${POSTGRES_DB:-compare_competencies}
     ports:
       - "5432:5432"
@@ -211,7 +211,7 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?set GRAFANA_PASSWORD in .env (see .env.example)}
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
       - GF_SERVER_ROOT_URL=https://compareserver.tailb909df.ts.net/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
@@ -230,7 +230,7 @@ services:
     image: prometheuscommunity/postgres-exporter:latest
     container_name: postgres-exporter
     environment:
-      - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@competency-postgres:5432/${POSTGRES_DB:-compare_competencies}?sslmode=disable
+      - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (see .env.example)}@competency-postgres:5432/${POSTGRES_DB:-compare_competencies}?sslmode=disable
     ports:
       - "9187:9187"
     restart: unless-stopped

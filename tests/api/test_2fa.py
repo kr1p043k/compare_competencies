@@ -26,7 +26,10 @@ TEST_DB_URL = os.environ.get(
     "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies",
 )
 
-EMAIL = "totp-admin@example.test"
+# Уникальный email на процесс: тесты идут в общей БД, и параллельная сессия
+# с тем же литералом выносит пользователя из-под ног (Invalid credentials,
+# чужой confirmed-TOTP). PID делает учётку по-настоящему своей.
+EMAIL = f"totp-admin-{os.getpid()}@example.test"
 PASSWORD = "Totp_Test_Password_123"
 FLAG_TOTP_2FA = "totp_2fa_enabled"
 

@@ -28,6 +28,7 @@ def main() -> None:
         rebuild,
         retention,
         seed_db,
+        set_password,
         snapshot_professions,
         taxonomy_audit,
         teacher_analysis,
@@ -140,6 +141,7 @@ def main() -> None:
             dir_code=a.dir_code)))
 
     retention.build_parser(sub)
+    set_password.build_parser(sub)
 
     args = parser.parse_args()
     args.func(args)

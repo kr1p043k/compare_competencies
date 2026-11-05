@@ -16,7 +16,7 @@ from typing import Any
 import httpx
 import structlog
 from cryptography.fernet import Fernet, InvalidToken
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -268,7 +268,7 @@ async def _academic_post(
 
 @router.post("/auth/sso")
 @limiter.limit("10/minute")
-async def sso_login(body: SsoRequest, request: Request):
+async def sso_login(body: SsoRequest, request: Request, response: Response):
     """SSO-вход через академический провайдер.
 
     Лимит 10/мин: эндпоинт ходит во внешний academic-api и создаёт сессию,
@@ -352,6 +352,11 @@ async def sso_login(body: SsoRequest, request: Request):
     )
 
     logger.info("sso_user_logged_in", username=username, role=row["role"])
+    # SSO тоже ставит HttpOnly-cookie: иначе фронту пришлось бы держать токен
+    # в localStorage только ради этого пути входа.
+    from src.api_pkg.routers.auth import _set_session_cookie
+
+    _set_session_cookie(response, token)
     return {
         "token": token,
         "role": row["role"],

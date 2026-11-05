@@ -1,66 +1,146 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { reportError } from "./errors";
 
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
+/** Ключ несекретного признака «сессия была активна».
+ *
+ *  Токен здесь НЕ хранится: он живёт только в HttpOnly-cookie, которую ставит
+ *  сервер. localStorage читает любой скрипт на странице, поэтому токен там
+ *  означал бы угон сессии при одной XSS. Флаг нужен лишь чтобы первая
+ *  отрисовка не мигала экраном входа; истину всё равно даёт /auth/me.
+ */
+const HINT_KEY = "sessionHint";
+
 interface AuthState {
-  token: string | null;
   role: string | null;
   name: string | null;
   username: string | null;
+  authed: boolean;
 }
 
 interface AuthContextType extends AuthState {
-  login: (token: string, role: string, name: string) => void;
+  /** token принимается для совместимости с вызывающим кодом и НЕ сохраняется. */
+  login: (token: string | null, role: string, name: string) => void;
   logout: () => void;
   isAuth: boolean;
 }
 
+const EMPTY: AuthState = { role: null, name: null, username: null, authed: false };
+
 const AuthContext = createContext<AuthContextType>({
-  token: null, role: null, name: null, username: null,
-  login: () => {}, logout: () => {}, isAuth: false,
+  ...EMPTY,
+  login: () => {},
+  logout: () => {},
+  isAuth: false,
 });
 
+function setHint(on: boolean) {
+  try {
+    if (on) localStorage.setItem(HINT_KEY, "1");
+    else localStorage.removeItem(HINT_KEY);
+  } catch (err) {
+    reportError("lib/auth.tsx:hint", err);
+  }
+}
+
+function hadSession(): boolean {
+  try {
+    return localStorage.getItem(HINT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** Подписчики на внешние изменения сессии (hub SSO), вне дерева React. */
+const sessionListeners = new Set<(next: AuthState) => void>();
+
+function notify(next: AuthState) {
+  for (const listener of sessionListeners) listener(next);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>(() => {
-    const stored = localStorage.getItem("auth");
-    if (stored) {
-      try { return JSON.parse(stored); } catch { /* ignore */ }
-    }
-    return { token: null, role: null, name: null, username: null };
-  });
+  const [state, setState] = useState<AuthState>(() => ({
+    ...EMPTY,
+    authed: hadSession(),
+  }));
 
-  const persistState = (next: AuthState) => {
-    if (next.token) {
-      localStorage.setItem("auth", JSON.stringify(next));
-    } else {
-      localStorage.removeItem("auth");
-    }
-  };
+  // setSession() вызывается из main.tsx до/вне React-дерева (hub SSO):
+  // подписываемся, чтобы состояние обновилось без перезагрузки.
+  useEffect(() => {
+    sessionListeners.add(setState);
+    return () => {
+      sessionListeners.delete(setState);
+    };
+  }, []);
 
-  const login = (token: string, role: string, name: string) => {
-    const parts = token.split(".");
-    // Токен формата payload.signature (HMAC, НЕ JWT): payload - parts[0].
-    // Битый payload не должен ронять вход: username просто останется null.
-    let decoded: { u?: string; username?: string } = {};
-    try {
-      decoded = JSON.parse(decodeBase64Url(parts[0] || "")) ?? {};
-    } catch (err) {
-      reportError("lib/auth.tsx:login", err);
-    }
-    const next = { token, role, name, username: decoded.u ?? decoded.username ?? null };
-    persistState(next);
-    setState(next);
+  // После перезагрузки cookie остаётся, состояние React - нет. /auth/me
+  // отвечает 200 только при живой сессии в БД, поэтому он и есть источник
+  // истины: роль, имя и username берём оттуда, а не из токена на клиенте.
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await nativeFetch("/api/auth/me", { credentials: "same-origin" });
+        if (!alive) return;
+        if (!res.ok) {
+          setHint(false);
+          setState(EMPTY);
+          return;
+        }
+        const me = (await res.json()) as {
+          role?: string;
+          name?: string;
+          username?: string;
+        };
+        setHint(true);
+        setState({
+          role: me.role ?? null,
+          name: me.name ?? null,
+          username: me.username ?? null,
+          authed: true,
+        });
+      } catch (err) {
+        if (alive) reportError("lib/auth.tsx:restore", err);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const login = (_token: string | null, role: string, name: string) => {
+    setHint(true);
+    setState({ role, name, username: null, authed: true });
+    // username и точная роль приходят из БД: добираем, не блокируя вход.
+    void (async () => {
+      try {
+        const res = await nativeFetch("/api/auth/me", { credentials: "same-origin" });
+        if (!res.ok) return;
+        const me = (await res.json()) as {
+          role?: string;
+          name?: string;
+          username?: string;
+        };
+        setState({
+          role: me.role ?? role,
+          name: me.name ?? name,
+          username: me.username ?? null,
+          authed: true,
+        });
+      } catch (err) {
+        reportError("lib/auth.tsx:login-refresh", err);
+      }
+    })();
   };
 
   const logout = () => {
-    const next = { token: null, role: null, name: null, username: null };
-    persistState(next);
-    setState(next);
+    setHint(false);
+    setState(EMPTY);
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, isAuth: !!state.token }}>
+    <AuthContext.Provider value={{ ...state, login, logout, isAuth: state.authed }}>
       {children}
     </AuthContext.Provider>
   );
@@ -68,21 +148,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export const useAuth = () => useContext(AuthContext);
 
+/** Заголовки авторизации.
+ *
+ *  Токена в JS больше нет - сессию прикладывает браузер из HttpOnly-cookie,
+ *  поэтому достаточно пустого объекта. Функция оставлена, чтобы не менять
+ *  все точки вызова и явно показывать, что запрос авторизован.
+ */
 export function authHeaders(): Record<string, string> {
-  const token = getToken();
-  if (token) {
-    document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Lax`;
-    return { Authorization: `Bearer ${token}` };
-  }
   return {};
 }
 
-/** Clear stale session (invalid/expired token) and bounce back to the login screen. */
+/** Сессия недействительна: сбросить локальное состояние и вернуться на вход. */
 export function handleUnauthorized() {
+  setHint(false);
   try {
     localStorage.removeItem("auth");
-  } catch (err) { reportError("lib/auth.tsx:92", err); }
-  document.cookie = "token=; path=/; max-age=0; SameSite=Lax";
+  } catch (err) {
+    reportError("lib/auth.tsx:handleUnauthorized", err);
+  }
   if (window.location.pathname !== "/") {
     window.location.assign("/");
   } else {
@@ -90,40 +173,26 @@ export function handleUnauthorized() {
   }
 }
 
-function getToken(): string | null {
-  try {
-    const stored = localStorage.getItem("auth");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.token || null;
-    }
-  } catch (err) { reportError("lib/auth.tsx:108", err); }
-  return null;
-}
-
-/** Write a full session object (used by the hub SSO bootstrap). */
-export function setSession(session: { token: string; role: string; name: string; username?: string | null }) {
-  try {
-    localStorage.setItem("auth", JSON.stringify({
-      token: session.token,
-      role: session.role,
-      name: session.name,
-      username: session.username ?? null,
-    }));
-  } catch (err) { reportError("lib/auth.tsx:121", err); }
-}
-
-/** Decode a base64url string (RFC 4648 §5) using browser atob(). */
-function decodeBase64Url(input: string): string {
-  let b64 = input.replace(/-/g, "+").replace(/_/g, "/");
-  while (b64.length % 4 !== 0) b64 += "=";
-  return atob(b64);
+/** Записать сессию после внешнего входа (hub SSO).
+ *
+ *  Cookie уже поставил сервер; здесь только помечаем состояние, чтобы UI не
+ *  ждал следующей перезагрузки. Подписчики - активные AuthProvider-ы.
+ */
+export function setSession(session: { role: string; name: string; username?: string | null }) {
+  setHint(true);
+  notify({
+    role: session.role,
+    name: session.name,
+    username: session.username ?? null,
+    authed: true,
+  });
 }
 
 /** Log frontend action to request_logs (fire-and-forget). */
 export function logAction(action: string, detail?: string) {
   nativeFetch("/api/log", {
     method: "POST",
+    credentials: "same-origin",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify({ action, detail: detail || "" }),
   }).catch((err) => reportError("lib/auth.tsx", err));

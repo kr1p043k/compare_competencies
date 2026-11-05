@@ -53,3 +53,19 @@ def test_export_rejects_bad_date_with_400_not_500(monkeypatch):
     client = TestClient(app, raise_server_exceptions=False)
     r = client.get("/api/teacher/export/vacancies?date_from=2026-13-45")
     assert r.status_code == 400, r.text
+
+
+def test_market_endpoints_require_auth():
+    """Рыночные агрегаты закрыты авторизацией.
+
+    Раньше /market/* отдавались без токена: любой внешний клиент тянул
+    агрегаты рынка. UI ходит через api() с токеном, поэтому гейт его не ломает.
+    """
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    for path in (
+        "/api/market/top-skills",
+        "/api/market-competencies",
+        "/api/market/skill/python",
+    ):
+        r = client.get(path)
+        assert r.status_code == 401, f"{path} -> {r.status_code}"

@@ -242,6 +242,9 @@ class Settings(BaseSettings):
     # входе, ни при SSO, даже если пользователь его настроил. Так фича не мешает
     # работе, пока её не включат осознанно. Значение по умолчанию - выключено.
     TOTP_2FA_ENABLED: bool = False
+    # Ставить сессионную cookie с флагом Secure. Включать на HTTPS-деплое:
+    # на http (localhost) браузер такую cookie не сохранит.
+    COOKIE_SECURE: bool = False
 
     # ---------- hub.sfedu.ru: публикации (публичный API хаба ЮФУ) ----------
     HUB_API_BASE: str = "https://hub.sfedu.ru"
@@ -488,6 +491,7 @@ ACADEMIC_TRENDS_API_BASE = settings.ACADEMIC_TRENDS_API_BASE
 ACADEMIC_EMAIL_DOMAIN = settings.ACADEMIC_EMAIL_DOMAIN
 ACADEMIC_SSO_ENABLED = settings.ACADEMIC_SSO_ENABLED
 TOTP_2FA_ENABLED = settings.TOTP_2FA_ENABLED
+COOKIE_SECURE = settings.COOKIE_SECURE
 
 HUB_API_BASE = settings.HUB_API_BASE
 HUB_API_TOKEN = settings.HUB_API_TOKEN

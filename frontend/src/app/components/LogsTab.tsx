@@ -4,21 +4,21 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { FileText, RefreshCw, AlertCircle, Search, Radio } from "lucide-react";
-import { useAuth } from "../../lib/auth";
 import { request } from "../../lib/api";
 import { PageHeader } from "./PageHeader";
 import { EmptyState } from "./EmptyState";
 
 const MAX_LINES = 500;
 
-function wsUrl(token: string | null): string {
+// Токен в URL сокета больше не передаём: адрес попадает в логи прокси и
+// историю браузера. Сессию браузер прикладывает cookie, сервер проверяет
+// её через resolve_session до accept.
+function wsUrl(): string {
   const proto = window.location.protocol === "https:" ? "wss://" : "ws://";
-  const q = token ? `?token=${encodeURIComponent(token)}` : "";
-  return `${proto}${window.location.host}/api/admin/logs/ws${q}`;
+  return `${proto}${window.location.host}/api/admin/logs/ws`;
 }
 
 function LogsTabBase() {
-  const { token } = useAuth();
   const [lines, setLines] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +61,7 @@ function LogsTabBase() {
     let closed = false;
 
     try {
-      ws = new WebSocket(wsUrl(token));
+      ws = new WebSocket(wsUrl());
     } catch {
       ws = null;
     }
@@ -118,7 +118,7 @@ function LogsTabBase() {
         }
       }
     };
-  }, [token, loadLogs]);
+  }, [loadLogs]);
 
   // Autoscroll to bottom when new lines arrive (only if enabled).
   useEffect(() => {

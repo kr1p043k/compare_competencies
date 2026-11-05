@@ -12,7 +12,7 @@ from typing import Any
 
 import structlog
 from cryptography.fernet import Fernet, InvalidToken
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 
@@ -201,8 +201,14 @@ def _two_factor_disabled() -> HTTPException:
     )
 
 
-async def _issue_login_response(pool, user_row, request: Request) -> dict:
-    """Выдать сессию и токен (общий финал login и 2FA-verify)."""
+async def _issue_login_response(
+    pool, user_row, request: Request, response: Response
+) -> dict:
+    """Выдать сессию и токен (общий финал login и 2FA-verify).
+
+    Cookie ставится здесь же: иначе вход через 2FA выдавал бы токен только в
+    теле ответа, и фронт снова держал бы его в localStorage.
+    """
     token = _make_token(str(user_row["id"]), user_row["email"], user_row["role"])
     await pool.execute(
         """INSERT INTO sessions (user_id, token_hash, ip_address, user_agent)
@@ -210,6 +216,7 @@ async def _issue_login_response(pool, user_row, request: Request) -> dict:
         user_row["id"], _hash_token(token), client_ip(request),
         request.headers.get("User-Agent", ""),
     )
+    _set_session_cookie(response, token)
     return {
         "token": token,
         "role": user_row["role"],
@@ -356,6 +363,26 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def _set_session_cookie(response: Response, token: str) -> None:
+    """Поставить сессионную cookie с HttpOnly.
+
+    Токен в localStorage доступен любому JS на странице: одна XSS - и сессия
+    угнана. Cookie ставит сервер и помечает HttpOnly, поэтому JS её не читает.
+    SameSite=Lax закрывает CSRF для обычных переходов; Secure включаем только
+    на HTTPS (на localhost по http cookie с Secure не сохранится).
+    """
+    secure = bool(getattr(config, "COOKIE_SECURE", False))
+    response.set_cookie(
+        key="token",
+        value=token,
+        max_age=TOKEN_TTL,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        path="/",
+    )
+
+
 def _request_token(request: Request) -> str:
     """Только заголовок Authorization или cookie.
 
@@ -467,7 +494,7 @@ async def user_error_detail(request: Request | None, technical: str, user_msg: s
 
 @router.post("/auth/login")
 @limiter.limit("10/minute")
-async def login(body: LoginRequest, request: Request):
+async def login(body: LoginRequest, request: Request, response: Response):
     """Вход по email/паролю, выдача токена.
 
     Защита от перебора: лимит по IP (slowapi) + блокировка по аккаунту.
@@ -576,6 +603,7 @@ async def login(body: LoginRequest, request: Request):
                 row["id"],
             )
 
+        _set_session_cookie(response, token)
         logger.info("user_logged_in", email=row["email"], role=row["role"], ip=ip)
         return {
             "token": token,
@@ -594,7 +622,7 @@ async def login(body: LoginRequest, request: Request):
 
 @router.post("/auth/logout")
 @limiter.limit("30/minute")
-async def logout(request: Request):
+async def logout(request: Request, response: Response):
     """Выход (инвалидация сессии)."""
     user_data = await get_current_user(request)
     if user_data is None:
@@ -612,6 +640,7 @@ async def logout(request: Request):
         token_hash,
     )
 
+    response.delete_cookie("token", path="/")
     logger.info("user_logged_out", email=user_data.get("u"))
     return {"status": "ok", "message": "Logged out"}
 
@@ -783,7 +812,7 @@ async def totp_setup(request: Request, body: TotpSetupRequest | None = None):
 
 @router.post("/auth/2fa/confirm")
 @limiter.limit("10/minute")
-async def totp_confirm(body: TotpCodeRequest, request: Request):
+async def totp_confirm(body: TotpCodeRequest, request: Request, response: Response):
     """Подтвердить код и получить recovery-коды (единственный раз)."""
     pool = get_pool()
     if pool is None:
@@ -815,7 +844,7 @@ async def totp_confirm(body: TotpCodeRequest, request: Request):
         user["uid"], json.dumps(hashes),
     )
     await audit_action(request, "auth.2fa.enabled", f"uid={user['uid']}")
-    response: dict[str, Any] = {"status": "enabled", "recovery_codes": codes}
+    payload: dict[str, Any] = {"status": "enabled", "recovery_codes": codes}
     if enroll_used:
         # Админ настраивал TOTP по пропуску, сессии у него ещё нет - вход
         # завершаем сразу, чтобы фронтенд не гонял его по кругу.
@@ -825,13 +854,13 @@ async def totp_confirm(body: TotpCodeRequest, request: Request):
         )
         if row is None:
             raise HTTPException(status_code=401, detail="Unauthorized")
-        response.update(await _issue_login_response(pool, row, request))
-    return response
+        payload.update(await _issue_login_response(pool, row, request, response))
+    return payload
 
 
 @router.post("/auth/2fa/verify")
 @limiter.limit("10/minute")
-async def totp_verify(body: TotpChallengeRequest, request: Request):
+async def totp_verify(body: TotpChallengeRequest, request: Request, response: Response):
     """Завершить вход: проверить TOTP по challenge_id и выдать токен."""
     pool = get_pool()
     if pool is None:
@@ -885,12 +914,12 @@ async def totp_verify(body: TotpChallengeRequest, request: Request):
     )
     await audit_action(request, "auth.2fa.login", f"uid={user_id}")
     logger.info("user_logged_in_2fa", email=row["email"], role=row["role"])
-    return await _issue_login_response(pool, row, request)
+    return await _issue_login_response(pool, row, request, response)
 
 
 @router.post("/auth/2fa/recovery")
 @limiter.limit("10/minute")
-async def totp_recovery(body: TotpChallengeRequest, request: Request):
+async def totp_recovery(body: TotpChallengeRequest, request: Request, response: Response):
     """Вход по одноразовому recovery-коду (когда телефон недоступен)."""
     pool = get_pool()
     if pool is None:
@@ -929,7 +958,7 @@ async def totp_recovery(body: TotpChallengeRequest, request: Request):
         raise HTTPException(status_code=401, detail="Unauthorized")
     await audit_action(request, "auth.2fa.recovery_used", f"uid={user_id}")
     logger.warning("user_logged_in_recovery_code", email=row["email"])
-    return await _issue_login_response(pool, row, request)
+    return await _issue_login_response(pool, row, request, response)
 
 
 @router.post("/auth/2fa/disable")

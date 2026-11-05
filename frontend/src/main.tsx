@@ -38,11 +38,19 @@ async function performHubSso(): Promise<void> {
         if (j.detail) detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
       } catch (err) { reportError("main.tsx:36", err); }
       localStorage.removeItem("auth");
-      document.cookie = "token=; path=/; max-age=0; SameSite=Lax";
       throw new Error(detail);
     }
     const data = await res.json();
-    setSession({ token: data.token, role: data.role, name: data.name, username: data.username });
+    if (!data.token) {
+      // Сервер ответил статусом 2FA вместо токена: cookie не выставлена,
+      // значит вход не состоялся. Просим войти обычным способом.
+      throw new Error(
+        data.status === "totp_setup_required" || data.status === "totp_required"
+          ? "Вход через хаб требует двухфакторной аутентификации. Войдите по логину и паролю."
+          : "Сервер не выдал сессию",
+      );
+    }
+    setSession({ role: data.role, name: data.name, username: data.username });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Не удалось подтвердить токен хаба";
     console.error("[SSO] Ошибка авторизации:", msg);
