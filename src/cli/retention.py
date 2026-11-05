@@ -29,6 +29,34 @@ DEFAULT_VACANCY_DAYS = 730
 DEFAULT_LOG_DAYS = 90
 DEFAULT_RUN_DAYS = 365
 
+#: Границы допустимых значений дня для всех day-based аргументов.
+#: Интерполяция в `INTERVAL '<n> days'` без границ позволяла передать
+#: `--vacancies-days 0` или `-1`, и условие `published_at < NOW() - INTERVAL
+#: '0 days'` (или отрицательный интервал) собирало буквально все строки.
+MIN_DAYS = 1
+MAX_DAYS = 36500
+
+
+def positive_days(value: str) -> int:
+    """Argparse type: принимает только целое число дней от 1 до 36500.
+
+    Поднимает argparse.ArgumentTypeError с русским сообщением, чтобы
+    argparse показал ошибку и завершился с ненулевым кодом.
+    """
+    try:
+        days = int(value)
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(
+            f"'{value}' - не число. Укажите целое число дней "
+            f"от {MIN_DAYS} до {MAX_DAYS}, например: --vacancies-days 730"
+        ) from err
+    if days < MIN_DAYS or days > MAX_DAYS:
+        raise argparse.ArgumentTypeError(
+            f"{days} - вне допустимого диапазона: число дней должно быть "
+            f"от {MIN_DAYS} до {MAX_DAYS} (получено {value})"
+        )
+    return days
+
 
 def _to_sync_dsn(url: str) -> str:
     return url.replace("postgresql+asyncpg://", "postgresql://").replace(
@@ -48,12 +76,13 @@ def main(args: argparse.Namespace) -> int:
     plan = [
         (
             "vacancies",
-            # позиции, у которых истёк срок давности И которые не участвуют в
-            # последних прогонах (иначе сломается сравнение с историей)
+            # позиции, у которых истёк срок давности. published_at бывает
+            # NULL - для таких строк используем created_at, иначе они никогда
+            # не попадали бы под чистку и копились вечно.
             "SELECT COUNT(*) FROM vacancies "
-            f"WHERE published_at < NOW() - INTERVAL '{vac_days} days'",
+            f"WHERE COALESCE(published_at, created_at) < NOW() - INTERVAL '{vac_days} days'",
             "DELETE FROM vacancies "
-            f"WHERE published_at < NOW() - INTERVAL '{vac_days} days'",
+            f"WHERE COALESCE(published_at, created_at) < NOW() - INTERVAL '{vac_days} days'",
         ),
         (
             "request_logs",
@@ -98,8 +127,8 @@ def main(args: argparse.Namespace) -> int:
 
 def build_parser(sub) -> None:
     p = sub.add_parser("retention", help="Удалить устаревшие данные (по умолчанию dry-run)")
-    p.add_argument("--vacancies-days", type=int, default=DEFAULT_VACANCY_DAYS)
-    p.add_argument("--logs-days", type=int, default=DEFAULT_LOG_DAYS)
-    p.add_argument("--run-days", type=int, default=DEFAULT_RUN_DAYS)
+    p.add_argument("--vacancies-days", type=positive_days, default=DEFAULT_VACANCY_DAYS, metavar="N")
+    p.add_argument("--logs-days", type=positive_days, default=DEFAULT_LOG_DAYS, metavar="N")
+    p.add_argument("--run-days", type=positive_days, default=DEFAULT_RUN_DAYS, metavar="N")
     p.add_argument("--apply", action="store_true", help="Реально удалить (без флага - dry-run)")
     p.set_defaults(func=lambda a: main(a))
