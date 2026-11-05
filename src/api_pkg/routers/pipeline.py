@@ -122,7 +122,7 @@ async def _resolve_area_ids(regions_str: str) -> str:
                 raise
             except Exception as e:
                 logger.error("region_resolve_failed", region=p, error=str(e))
-                raise HTTPException(status_code=503, detail="Справочник регионов hh.ru недоступен")
+                raise HTTPException(status_code=503, detail="Справочник регионов hh.ru недоступен") from e
             if aid:
                 ids.append(str(aid))
             else:
@@ -561,7 +561,10 @@ async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
             output=f"Task ID: {task_id}. Check /api/pipeline/task/{task_id} for status",
         )
     started_at = time.time()
-    pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск пересборки...", started_at, step=0, owner_uid=await _current_uid(request))
+    pipeline_tasks[task_id] = _make_task_status(
+        task_id, "running", "Запуск пересборки...",
+        started_at, step=0, owner_uid=await _current_uid(request),
+    )
     background_tasks.add_task(run_pipeline_task, PipelineAction.REBUILD, task_id)
     return PipelineResponse(
         status="started", message="Full rebuild started in background",
@@ -621,7 +624,7 @@ async def reload_api(request: Request):
         raise HTTPException(
             status_code=500,
             detail=await user_error_detail(request, str(e), "Не удалось перезагрузить данные. Попробуйте позже."),
-        )
+        ) from e
 
 
 def _reload_tasks_preserving_running() -> None:

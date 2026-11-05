@@ -145,7 +145,11 @@ async def whitelist_remove(request: Request, body: WhitelistRemoveRequest):
     }
 
 
-@router.post("/admin/whitelist/backup", response_model=WhitelistBackupResponse, dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/whitelist/backup",
+    response_model=WhitelistBackupResponse,
+    dependencies=[Depends(require_any_role("admin"))],
+)
 @limiter.limit("5/minute")
 async def whitelist_backup(request: Request):
     """Бэкап whitelist в файл."""
@@ -634,7 +638,7 @@ async def admin_logs_file(
     # Последняя строка может быть неполной (пишется на лету) - берём хвост целиком
     wanted = raw_lines[-max(lines, 1):]
     if level in ("error", "warning", "info", "debug"):
-        wanted = [l for l in wanted if f"level={level}" in l or l.startswith(f"{level.upper()} ")]
+        wanted = [line for line in wanted if f"level={level}" in line or line.startswith(f"{level.upper()} ")]
         wanted = wanted[-max(lines, 1):]
     return {"file": str(LOG_FILE), "lines": wanted, "total": len(wanted)}
 

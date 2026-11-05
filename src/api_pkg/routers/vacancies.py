@@ -269,7 +269,7 @@ async def get_vacancy_detail(
     try:
         hh_id = int(vacancy_id)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid vacancy ID format")
+        raise HTTPException(status_code=400, detail="Invalid vacancy ID format") from None
 
     row = await pool.fetchrow(
         """SELECT hh_id, name, description, experience, salary_from, salary_to,

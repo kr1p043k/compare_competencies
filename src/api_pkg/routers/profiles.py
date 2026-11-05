@@ -333,7 +333,7 @@ async def create_custom_profile(request: Request, body: CustomProfileIn):
             level = ExperienceLevel((body.target_level or "middle").strip().lower())
         except ValueError:
             raise HTTPException(status_code=400,
-                                detail="target_level must be junior|middle|senior")
+                                detail="target_level must be junior|middle|senior") from None
         is_new = bool(body.base is not None or body.competency_codes or body.new_competencies or body.technologies)
         codes_old = list(dict.fromkeys(c.strip() for c in (body.competencies or [])
                                        if c and isinstance(c, str) and c.strip()))[:200]
@@ -575,7 +575,7 @@ async def _build_focused_profession_view(
         raise HTTPException(
             status_code=500,
             detail=await user_error_detail(request, str(e), "Не удалось пересчитать рекомендации. Попробуйте позже."),
-        )
+        ) from e
     match gen:
         case Ok(rec_result):
             pass
@@ -830,7 +830,7 @@ async def patch_self_profile(request: Request, body: SelfProfilePatch):
             level = ExperienceLevel(body.target_level.strip().lower())
         except ValueError:
             raise HTTPException(status_code=400,
-                                detail="target_level must be junior|middle|senior")
+                                detail="target_level must be junior|middle|senior") from None
         data["target_level"] = level.value
 
     skills = list(data.get("skills", []))

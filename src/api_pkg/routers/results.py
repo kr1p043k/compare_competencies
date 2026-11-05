@@ -128,7 +128,7 @@ async def get_results_summary(
                     detail=await user_error_detail(
                         request, str(e), "Не удалось прочитать результаты анализа. Попробуйте позже."
                     ),
-                )
+                ) from e
 
     return {
         "message": "Результаты анализа не найдены. Запустите gap-анализ.",
@@ -168,7 +168,7 @@ async def get_recommendations_result(
             raise HTTPException(
                 status_code=500,
                 detail=await user_error_detail(request, str(e), "Не удалось прочитать рекомендации. Попробуйте позже."),
-            )
+            ) from e
 
     return {
         "profile": profile,
@@ -205,7 +205,7 @@ async def get_report_pdf(
         raise HTTPException(
             status_code=500,
             detail=await user_error_detail(request, str(e), "Не удалось собрать PDF. Попробуйте позже."),
-        )
+        ) from e
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

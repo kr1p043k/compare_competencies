@@ -348,8 +348,10 @@ async def get_competency_trends(
 
                 if pv >= 10:
                     chg = round((cv - pv) / pv * 100, 1)
-                    if chg > 200: chg = 200
-                    elif chg < -200: chg = -200
+                    if chg > 200:
+                        chg = 200
+                    elif chg < -200:
+                        chg = -200
                     changes.append(chg)
                     if chg >= 5:
                         rising += 1
