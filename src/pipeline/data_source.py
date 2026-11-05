@@ -225,7 +225,8 @@ class HhDataSource(DataSourceProtocol):
 
             console_info(f"Найдено {len(basic_vacancies)} базовых вакансий")
             match parser.save_raw_vacancies(basic_vacancies, filename="hh_vacancies_basic.json"):
-                case Ok(_): pass
+                case Ok(_):
+                    pass
                 case Err(e):
                     return Err(DataSourceError(message=f"❌ Ошибка сохранения вакансий: {e}"))
 
@@ -272,7 +273,8 @@ class HhDataSource(DataSourceProtocol):
 
             console_info(f"Найдено {len(basic_vacancies)} вакансий")
             match parser.save_raw_vacancies(basic_vacancies, filename="hh_vacancies_basic.json"):
-                case Ok(_): pass
+                case Ok(_):
+                    pass
                 case Err(e):
                     return Err(DataSourceError(message=f"❌ Ошибка сохранения вакансий: {e}"))
 
