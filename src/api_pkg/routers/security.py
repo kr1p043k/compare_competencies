@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -24,10 +24,6 @@ from src.db import get_pool
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["security"])
 limiter = Limiter(key_func=get_remote_address)
-
-
-class TwofaSettings(BaseModel):
-    enabled: bool
 
 
 class TwofaAdminState(BaseModel):
@@ -67,7 +63,10 @@ async def get_twofa_settings(request: Request):
     dependencies=[Depends(require_any_role("admin"))],
 )
 @limiter.limit("10/minute")
-async def set_twofa_settings(body: TwofaSettings, request: Request):
+async def set_twofa_settings(
+    request: Request,
+    enabled: bool = Body(..., embed=True),
+):
     """Включить или выключить 2FA для администраторов.
 
     Выключение не удаляет секреты TOTP: если включить снова, настройки
@@ -80,16 +79,16 @@ async def set_twofa_settings(body: TwofaSettings, request: Request):
     user = await get_current_user(request) or {}
     actor = str(user.get("u") or user.get("username") or "unknown")
 
-    await twofa_policy.set_twofa_enabled(pool, body.enabled, actor=actor)
+    await twofa_policy.set_twofa_enabled(pool, enabled, actor=actor)
     await audit_action(
         request,
         "admin.security.2fa.toggle",
-        f"enabled={body.enabled}",
+        f"enabled={enabled}",
     )
     enrolled, total = await _admin_enrolment_counts(pool)
-    logger.info("twofa_settings_updated", enabled=body.enabled, actor=actor)
+    logger.info("twofa_settings_updated", enabled=enabled, actor=actor)
     return {
-        "enabled": body.enabled,
+        "enabled": enabled,
         "enrolled_admins": enrolled,
         "total_admins": total,
     }
