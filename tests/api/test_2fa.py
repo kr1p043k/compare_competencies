@@ -67,8 +67,15 @@ async def _make_admin(pool: asyncpg.Pool) -> None:
 
 
 @pytest.fixture()
-async def env() -> AsyncIterator[dict[str, Any]]:
+async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
     import src.db as dbmod
+
+    # Эти тесты проверяют сам TOTP-поток, поэтому мастер-переключатель
+    # считаем включённым. Поведение при выключенном флаге - в test_2fa_toggle.py.
+    async def _enabled(_pool: Any) -> bool:
+        return True
+
+    monkeypatch.setattr(auth_mod, "get_two_factor_enabled", _enabled)
 
     old = dbmod.pool
     try:
@@ -76,6 +83,7 @@ async def env() -> AsyncIterator[dict[str, Any]]:
     except Exception:  # pragma: no cover
         pytest.skip("local postgres unavailable")
     dbmod.pool = pool
+    _ENROLLED.clear()
     with contextlib.suppress(Exception):
         auth_mod.limiter._storage.reset()
     await auth_mod._ensure_totp_table(pool)
@@ -95,13 +103,44 @@ async def _login(client: AsyncClient):
     return await client.post("/api/auth/login", json={"email": EMAIL, "password": PASSWORD})
 
 
+#: Секрет и recovery-коды, полученные при настройке в текущем тесте: при
+#: включённом 2FA логин без TOTP не выдаёт токен, поэтому настройка идёт первой.
+_ENROLLED: dict[str, Any] = {}
+
+
 async def _admin_token(client: AsyncClient) -> str:
+    """Сессия админа при включённом мастер-переключателе 2FA.
+
+    Если админ ещё не подключил TOTP, логин возвращает пропуск на настройку
+    (status=totp_setup_required): проходим её тем же путём, что пользователь.
+    """
     r = await _login(client)
     assert r.status_code == 200, r.text
-    return r.json()["token"]
+    data = r.json()
+    if data.get("token"):
+        return data["token"]
+
+    assert data.get("status") == "totp_setup_required", data
+    enroll = data["enroll_id"]
+
+    setup = await client.post("/api/auth/2fa/setup", json={"enroll_id": enroll})
+    assert setup.status_code == 200, setup.text
+    secret = setup.json()["secret"]
+
+    confirm = await client.post(
+        "/api/auth/2fa/confirm", json={"code": _totp(secret), "enroll_id": enroll}
+    )
+    assert confirm.status_code == 200, confirm.text
+    token = confirm.json().get("token")
+    assert token, "подтверждение настройки должно сразу выдавать сессию"
+    _ENROLLED["secret"] = secret
+    _ENROLLED["codes"] = confirm.json().get("recovery_codes", [])
+    return token
 
 
 async def _enable(client: AsyncClient, token: str) -> tuple[str, list[str]]:
+    if _ENROLLED.get("secret"):
+        return _ENROLLED["secret"], _ENROLLED.get("codes", [])
     setup = await client.post("/api/auth/2fa/setup", headers={"Authorization": f"Bearer {token}"})
     assert setup.status_code == 200, setup.text
     secret = setup.json()["secret"]
@@ -111,15 +150,19 @@ async def _enable(client: AsyncClient, token: str) -> tuple[str, list[str]]:
         headers={"Authorization": f"Bearer {token}"},
     )
     assert confirm.status_code == 200, confirm.text
+    _ENROLLED["secret"] = secret
+    _ENROLLED["codes"] = confirm.json().get("recovery_codes", [])
     return secret, confirm.json()["recovery_codes"]
 
 
 # ------------------------------------------------------------------ setup
 
 async def test_setup_returns_uri_and_secret(env):
+    """Первичная настройка идёт по пропуску из логина (сессии ещё нет)."""
     client = env["client"]
-    token = await _admin_token(client)
-    r = await client.post("/api/auth/2fa/setup", headers={"Authorization": f"Bearer {token}"})
+    data = (await _login(client)).json()
+    assert data.get("status") == "totp_setup_required", data
+    r = await client.post("/api/auth/2fa/setup", json={"enroll_id": data["enroll_id"]})
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["otpauth_uri"].startswith("otpauth://totp/")
@@ -153,14 +196,16 @@ async def test_setup_forbidden_for_teacher(env):
 # ---------------------------------------------------------------- confirm
 
 async def test_confirm_wrong_code_400(env):
+    """Неверный код при подтверждении настройки не принимается."""
     client = env["client"]
-    token = await _admin_token(client)
-    setup = await client.post("/api/auth/2fa/setup", headers={"Authorization": f"Bearer {token}"})
+    data = (await _login(client)).json()
+    assert data.get("status") == "totp_setup_required", data
+    enroll = data["enroll_id"]
+    setup = await client.post("/api/auth/2fa/setup", json={"enroll_id": enroll})
     secret = setup.json()["secret"]
     r = await client.post(
         "/api/auth/2fa/confirm",
-        json={"code": _bad_code(secret)},
-        headers={"Authorization": f"Bearer {token}"},
+        json={"code": _bad_code(secret), "enroll_id": enroll},
     )
     assert r.status_code == 400, r.text
 
@@ -283,14 +328,33 @@ async def test_unknown_recovery_code_401(env):
 
 # ------------------------------------------------------------- regression
 
-async def test_admin_without_2fa_logs_in_as_before(env):
+async def test_admin_without_2fa_must_enroll_while_switch_on(env):
+    """Мастер включён: админ без TOTP получает пропуск на настройку, а не сессию."""
     client = env["client"]
     r = await _login(client)
     assert r.status_code == 200, r.text
-    assert r.json().get("token"), "обычный вход обязан работать"
+    body = r.json()
+    assert body.get("status") == "totp_setup_required", body
+    assert body.get("enroll_id")
+    assert not body.get("token"), "без второго фактора токен не выдаём"
 
 
-async def test_disable_returns_to_password_only(env):
+async def test_login_is_password_only_when_switch_off(env, monkeypatch):
+    """Мастер выключен: вход по паролю, как раньше (даже для подключённых)."""
+    client = env["client"]
+    await _admin_token(client)  # подключаем TOTP
+    _ENROLLED.clear()
+
+    async def _disabled(_pool):
+        return False
+
+    monkeypatch.setattr(auth_mod, "get_two_factor_enabled", _disabled)
+    r = await _login(client)
+    assert r.status_code == 200, r.text
+    assert r.json().get("token"), "при выключенном тумблере код не спрашиваем"
+
+
+async def test_disable_returns_to_enrollment_while_switch_on(env):
     client = env["client"]
     token = await _admin_token(client)
     secret, _ = await _enable(client, token)
@@ -301,9 +365,11 @@ async def test_disable_returns_to_password_only(env):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert off.status_code == 200, off.text
+    # Мастер-переключатель всё ещё включён, поэтому настройку потребуют заново:
+    # персональное отключение не обходит требование администратора.
     r = await _login(client)
     assert r.status_code == 200
-    assert r.json().get("token")
+    assert r.json().get("status") == "totp_setup_required", r.text
 
 
 async def test_disable_wrong_code_400(env):

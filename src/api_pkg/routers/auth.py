@@ -19,6 +19,7 @@ from slowapi import Limiter
 from src import config
 from src.api_pkg.client_ip import client_ip
 from src.api_pkg.request_logger import audit_action
+from src.api_pkg.security_settings import get_two_factor_enabled
 from src.db import get_pool
 
 try:
@@ -72,10 +73,15 @@ _TOTP_CHALLENGE_TTL = 300  # 5 минут на ввод кода
 _TOTP_MAX_FAILURES = 5
 _TOTP_LOCK_MINUTES = 15
 _RECOVERY_CODE_COUNT = 10
+_ENROLL_TTL = 600  # 10 минут на первичную настройку при включённом 2FA
 
 #: challenge_id -> (user_id, expires_at). Живёт в памяти процесса: пережить
 #: рестарт не обязан — пользователь просто начнёт вход заново.
 _totp_challenges: dict[str, tuple[str, float]] = {}
+
+#: enroll_id -> (user_id, expires_at). Пропуск на настройку для админа,
+#: который ещё не подключил TOTP при включённом мастер-переключателе.
+_totp_enrolls: dict[str, tuple[str, float]] = {}
 
 
 def _totp_fernet() -> Fernet:
@@ -152,6 +158,47 @@ def _consume_challenge(token: str) -> str | None:
     if exp <= time.time():
         return None
     return user_id
+
+
+def _issue_enroll(user_id: str) -> str:
+    """Одноразовый пропуск на настройку 2FA для админа без сессии.
+
+    Нужен, когда мастер-переключатель включён, а админ ещё не подключил TOTP:
+    пароля уже недостаточно для сессии, но /auth/2fa/setup требует авторизацию -
+    без такого пропуска получился бы замкнутый круг.
+    """
+    now = time.time()
+    for token, (_uid, exp) in list(_totp_enrolls.items()):
+        if exp <= now:
+            _totp_enrolls.pop(token, None)
+    token = secrets.token_urlsafe(32)
+    _totp_enrolls[token] = (user_id, now + _ENROLL_TTL)
+    return token
+
+
+def _enroll_user_id(token: str | None) -> str | None:
+    """Проверить пропуск, не сжигая его (setup -> confirm используют один)."""
+    entry = _totp_enrolls.get(token or "")
+    if not entry:
+        return None
+    user_id, exp = entry
+    if exp <= time.time():
+        _totp_enrolls.pop(token or "", None)
+        return None
+    return user_id
+
+
+def _consume_enroll(token: str | None) -> str | None:
+    user_id = _enroll_user_id(token)
+    _totp_enrolls.pop(token or "", None)
+    return user_id
+
+
+def _two_factor_disabled() -> HTTPException:
+    return HTTPException(
+        status_code=404,
+        detail="Двухфакторная аутентификация отключена администратором",
+    )
 
 
 async def _issue_login_response(pool, user_row, request: Request) -> dict:
@@ -478,9 +525,11 @@ async def login(body: LoginRequest, request: Request):
             await _register_failed_login(pool, email, ip)
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        # 2FA: у админа с подтверждённым TOTP пароля мало. Токен не выдаём,
-        # возвращаем одноразовый challenge - код проверит /auth/2fa/verify.
-        if row["role"] == "admin":
+        # 2FA включается мастер-переключателем в админке (по умолчанию
+        # выключена). Выключена - входим по паролю, как раньше. Включена:
+        # у подключившего TOTP пароля мало (одноразовый challenge), а
+        # неподключённому выдаём пропуск на настройку вместо сессии.
+        if row["role"] == "admin" and await get_two_factor_enabled(pool):
             state = await _totp_state(pool, row["id"])
             if state and state.get("confirmed"):
                 challenge = _issue_challenge(str(row["id"]))
@@ -490,6 +539,12 @@ async def login(body: LoginRequest, request: Request):
                     "challenge_id": challenge,
                     "expires_in": _TOTP_CHALLENGE_TTL,
                 }
+            logger.info("login_totp_setup_required", email=row["email"], ip=ip)
+            return {
+                "status": "totp_setup_required",
+                "enroll_id": _issue_enroll(str(row["id"])),
+                "expires_in": _ENROLL_TTL,
+            }
 
         token = _make_token(str(row["id"]), row["email"], row["role"])
 
@@ -589,10 +644,16 @@ async def me(request: Request):
 class TotpSetupResponse(BaseModel):
     otpauth_uri: str
     secret: str
+    enroll_id: str | None = None
+
+
+class TotpSetupRequest(BaseModel):
+    enroll_id: str | None = Field(default=None, max_length=128)
 
 
 class TotpCodeRequest(BaseModel):
     code: str = Field(min_length=4, max_length=32)
+    enroll_id: str | None = Field(default=None, max_length=128)
 
 
 class TotpChallengeRequest(BaseModel):
@@ -607,6 +668,33 @@ async def _require_admin(request: Request) -> dict:
     if user.get("r") != "admin":
         raise HTTPException(status_code=403, detail="Forbidden")
     return user
+
+
+async def _resolve_2fa_actor(request: Request, enroll_id: str | None) -> dict[str, Any]:
+    """Кто настраивает 2FA: админ с сессией или админ с пропуском enroll_id.
+
+    Второй путь нужен при включённом мастер-переключателе: сессии ещё нет,
+    пока TOTP не настроен.
+    """
+    user = await get_current_user(request)
+    if user is not None:
+        if user.get("r") != "admin":
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return user
+
+    user_id = _enroll_user_id(enroll_id)
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    pool = get_pool()
+    if pool is None:
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    row = await pool.fetchrow(
+        "SELECT id, email, role FROM users WHERE id = $1 AND is_active = true",
+        user_id,
+    )
+    if row is None or row["role"] != "admin":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return {"uid": str(row["id"]), "u": row["email"], "r": row["role"]}
 
 
 async def _ensure_totp_table(pool) -> None:
@@ -625,14 +713,47 @@ async def _ensure_totp_table(pool) -> None:
     )
 
 
-@router.post("/auth/2fa/setup", response_model=TotpSetupResponse)
-@limiter.limit("10/minute")
-async def totp_setup(request: Request):
-    """Начать настройку TOTP. Секрет показывается один раз."""
+@router.get("/auth/2fa/policy")
+@limiter.limit("60/minute")
+async def totp_policy(request: Request):
+    """Публичный статус 2FA: показывать ли шаг кода на экране входа.
+
+    Секретов не отдаёт - только сам факт, что защита включена администратором.
+    """
+    pool = get_pool()
+    enabled = await get_two_factor_enabled(pool) if pool is not None else False
+    return {"enabled": enabled}
+
+
+@router.get("/auth/2fa/status")
+@limiter.limit("60/minute")
+async def totp_status(request: Request):
+    """Состояние 2FA для текущего админа (мастер-флаг + личное подключение)."""
     user = await _require_admin(request)
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    enabled = await get_two_factor_enabled(pool)
+    state = await _totp_state(pool, user["uid"])
+    return {
+        "enabled": enabled,
+        "enrolled": bool(state and state.get("confirmed")),
+        "available": True,
+    }
+
+
+@router.post("/auth/2fa/setup", response_model=TotpSetupResponse)
+@limiter.limit("10/minute")
+async def totp_setup(request: Request, body: TotpSetupRequest | None = None):
+    """Начать настройку TOTP. Секрет показывается один раз."""
+    pool = get_pool()
+    if pool is None:
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    if not await get_two_factor_enabled(pool):
+        raise _two_factor_disabled()
+
+    enroll_id = body.enroll_id if body else None
+    user = await _resolve_2fa_actor(request, enroll_id)
     await _ensure_totp_table(pool)
 
     state = await _totp_state(pool, user["uid"])
@@ -656,6 +777,7 @@ async def totp_setup(request: Request):
     return TotpSetupResponse(
         otpauth_uri=f"otpauth://totp/{issuer}:{label}?secret={secret}&issuer={issuer}",
         secret=secret,
+        enroll_id=enroll_id,
     )
 
 
@@ -663,10 +785,13 @@ async def totp_setup(request: Request):
 @limiter.limit("10/minute")
 async def totp_confirm(body: TotpCodeRequest, request: Request):
     """Подтвердить код и получить recovery-коды (единственный раз)."""
-    user = await _require_admin(request)
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    if not await get_two_factor_enabled(pool):
+        raise _two_factor_disabled()
+
+    user = await _resolve_2fa_actor(request, body.enroll_id)
     state = await _totp_state(pool, user["uid"])
     if not state:
         raise HTTPException(status_code=400, detail="Сначала вызовите /auth/2fa/setup")
@@ -674,6 +799,9 @@ async def totp_confirm(body: TotpCodeRequest, request: Request):
     secret = _decrypt_totp_secret(state["secret"])
     if secret is None or not _verify_totp(secret, body.code):
         raise HTTPException(status_code=400, detail="Неверный код")
+
+    # Настройку завершает именно этот вызов: пропуск одноразовый.
+    enroll_used = _consume_enroll(body.enroll_id) is not None
 
     # 8 байт (64 бита), а не 4: 32-битные коды вскрываются перебором при
     # утечке БД вместе с SECRET_KEY (хэш выводится из него).
@@ -687,7 +815,18 @@ async def totp_confirm(body: TotpCodeRequest, request: Request):
         user["uid"], json.dumps(hashes),
     )
     await audit_action(request, "auth.2fa.enabled", f"uid={user['uid']}")
-    return {"status": "enabled", "recovery_codes": codes}
+    response: dict[str, Any] = {"status": "enabled", "recovery_codes": codes}
+    if enroll_used:
+        # Админ настраивал TOTP по пропуску, сессии у него ещё нет - вход
+        # завершаем сразу, чтобы фронтенд не гонял его по кругу.
+        row = await pool.fetchrow(
+            "SELECT id, email, role, full_name FROM users WHERE id = $1 AND is_active = true",
+            user["uid"],
+        )
+        if row is None:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        response.update(await _issue_login_response(pool, row, request))
+    return response
 
 
 @router.post("/auth/2fa/verify")
@@ -697,6 +836,8 @@ async def totp_verify(body: TotpChallengeRequest, request: Request):
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    if not await get_two_factor_enabled(pool):
+        raise _two_factor_disabled()
 
     user_id = _consume_challenge(body.challenge_id)
     if user_id is None:
@@ -754,6 +895,8 @@ async def totp_recovery(body: TotpChallengeRequest, request: Request):
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    if not await get_two_factor_enabled(pool):
+        raise _two_factor_disabled()
 
     user_id = _consume_challenge(body.challenge_id)
     if user_id is None:
@@ -797,6 +940,8 @@ async def totp_disable(body: TotpCodeRequest, request: Request):
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    if not await get_two_factor_enabled(pool):
+        raise _two_factor_disabled()
     state = await _totp_state(pool, user["uid"])
     if not state or not state.get("confirmed"):
         raise HTTPException(status_code=400, detail="2FA не настроена")

@@ -1,9 +1,10 @@
-"""2FA: закрытые дыры из security-ревью.
+﻿"""2FA: Р·Р°РєСЂС‹С‚С‹Рµ РґС‹СЂС‹ РёР· security-СЂРµРІСЊСЋ.
 
-Три дефекта, найденные ревью:
-  H1. SSO-вход обходил 2FA админа (в academic.py проверки не было);
-  H2. ошибка чтения состояния 2FA трактовалась как «не настроена» (fail-open);
-  M1. recovery-коды были 32-битными и сравнивались не constant-time.
+РўСЂРё РґРµС„РµРєС‚Р°, РЅР°Р№РґРµРЅРЅС‹Рµ СЂРµРІСЊСЋ:
+  H1. SSO-РІС…РѕРґ РѕР±С…РѕРґРёР» 2FA Р°РґРјРёРЅР° (РІ academic.py РїСЂРѕРІРµСЂРєРё РЅРµ Р±С‹Р»Рѕ);
+  H2. РѕС€РёР±РєР° С‡С‚РµРЅРёСЏ СЃРѕСЃС‚РѕСЏРЅРёСЏ 2FA С‚СЂР°РєС‚РѕРІР°Р»Р°СЃСЊ РєР°Рє В«РЅРµ
+      РЅР°СЃС‚СЂРѕРµРЅР°В» (fail-open);
+  M1. recovery-РєРѕРґС‹ Р±С‹Р»Рё 32-Р±РёС‚РЅС‹РјРё Рё СЃСЂР°РІРЅРёРІР°Р»РёСЃСЊ РЅРµ constant-time.
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ import src.api_pkg.routers.auth as auth_mod
 
 
 class TestTotpFailClosed:
-    """H2: сбой БД не должен снимать второй фактор."""
+    """H2: СЃР±РѕР№ Р‘Р” РЅРµ РґРѕР»Р¶РµРЅ СЃРЅРёРјР°С‚СЊ РІС‚РѕСЂРѕР№ С„Р°РєС‚РѕСЂ."""
 
     @pytest.mark.asyncio
     async def test_db_error_raises_503(self):
@@ -38,10 +39,10 @@ class TestTotpFailClosed:
 
 
 class TestRecoveryCodes:
-    """M1: 64-битные коды, сравнение constant-time."""
+    """M1: 64-Р±РёС‚РЅС‹Рµ РєРѕРґС‹, СЃСЂР°РІРЅРµРЅРёРµ constant-time."""
 
     def test_codes_are_64_bit(self):
-        # token_hex(8) -> 16 hex-символов = 64 бита
+        # token_hex(8) -> 16 hex-СЃРёРјРІРѕР»РѕРІ = 64 Р±РёС‚Р°
         code = secrets.token_hex(8)
         assert len(code) == 16
 
@@ -49,12 +50,12 @@ class TestRecoveryCodes:
         a = auth_mod._hash_recovery_code("abcd1234abcd1234")
         b = auth_mod._hash_recovery_code("abcd1234abcd1234")
         assert a == b
-        assert a != "abcd1234abcd1234", "код не должен храниться открытым"
+        assert a != "abcd1234abcd1234", "РєРѕРґ РЅРµ РґРѕР»Р¶РµРЅ С…СЂР°РЅРёС‚СЊСЃСЏ РѕС‚РєСЂС‹С‚С‹Рј"
         assert len(a) == 64, "sha256 hex"
 
 
 class TestSsoRequiresTotp:
-    """H1: SSO-вход админа идёт через challenge, а не сразу выдаёт токен."""
+    """H1: SSO-РІС…РѕРґ Р°РґРјРёРЅР° РёРґС‘С‚ С‡РµСЂРµР· challenge, Р° РЅРµ СЃСЂР°Р·Сѓ РІС‹РґР°С‘С‚ С‚РѕРєРµРЅ."""
 
     @pytest.mark.asyncio
     async def test_admin_with_confirmed_totp_gets_challenge(self, monkeypatch):
@@ -101,6 +102,9 @@ class TestSsoRequiresTotp:
         monkeypatch.setattr(acad, "get_pool", lambda: FakePool())
         monkeypatch.setattr(acad.config, "ACADEMIC_SSO_ENABLED", True)
         monkeypatch.setattr(auth_mod, "_totp_state", _confirmed)
+        async def _flag_on(_pool):
+            return True
+        monkeypatch.setattr(auth_mod, "get_two_factor_enabled", _flag_on)
 
         from src.api_pkg.routers.academic import SsoRequest
 
@@ -108,7 +112,7 @@ class TestSsoRequiresTotp:
         result = await acad.sso_login(SsoRequest(token=_hub_token()), request)
 
         assert result["status"] == "totp_required", result
-        assert "token" not in result, "SSO не должен выдавать токен в обход 2FA"
+        assert "token" not in result, "SSO РЅРµ РґРѕР»Р¶РµРЅ РІС‹РґР°РІР°С‚СЊ С‚РѕРєРµРЅ РІ РѕР±С…РѕРґ 2FA"
         assert result["challenge_id"]
 
     @pytest.mark.asyncio
@@ -160,11 +164,11 @@ class TestSsoRequiresTotp:
         from src.api_pkg.routers.academic import SsoRequest
 
         result = await acad.sso_login(SsoRequest(token=_hub_token()), _fake_request())
-        assert result.get("token"), "админ без 2FA должен входить как раньше"
+        assert result.get("token"), "Р°РґРјРёРЅ Р±РµР· 2FA РґРѕР»Р¶РµРЅ РІС…РѕРґРёС‚СЊ РєР°Рє СЂР°РЅСЊС€Рµ"
 
 
 def _hub_token(username: str = "boss") -> str:
-    """JWT-подобная строка: _jwt_username читает payload без проверки подписи."""
+    """JWT-РїРѕРґРѕР±РЅР°СЏ СЃС‚СЂРѕРєР°: _jwt_username С‡РёС‚Р°РµС‚ payload Р±РµР· РїСЂРѕРІРµСЂРєРё РїРѕРґРїРёСЃРё."""
     import base64
     import json as _json
 
@@ -191,3 +195,4 @@ def _fake_request():
             "scheme": "http",
         }
     )
+
