@@ -5,7 +5,7 @@ import { VacancyDetailPanel } from "./VacancyDetailPanel";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { PageHeader } from "../../design";
+import { PageHeader, Skeleton } from "../../design";
 import {
   Select,
   SelectContent,
@@ -947,16 +947,34 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
 
       {/* Vacancies Grid */}
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center space-y-4">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            >
-              <Loader2 className="size-16 text-primary mx-auto" />
-            </motion.div>
-            <p className="text-muted-foreground">Загрузка вакансий...</p>
-          </div>
+        <div
+          role="status"
+          aria-live="polite"
+          className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2"
+        >
+          <span className="sr-only">Загрузка вакансий...</span>
+          {Array.from({ length: 6 }, (_, i) => (
+            <Card key={`vacancy-skeleton-${i}`} aria-hidden="true">
+              <CardContent className="space-y-3 pt-6">
+                <div className="flex items-start gap-3">
+                  <Skeleton className="size-11 shrink-0 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <Skeleton className="h-5 w-14 rounded-full" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="h-5 w-12 rounded-full" />
+                </div>
+                <div className="flex gap-2">
+                  <Skeleton className="h-8 flex-1" />
+                  <Skeleton className="h-8 w-8" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       ) : error ? (
         <motion.div

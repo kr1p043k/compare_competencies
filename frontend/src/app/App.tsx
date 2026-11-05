@@ -1,41 +1,14 @@
-import { useState, useEffect, useRef, Suspense, lazy, memo, useCallback } from "react";
-import { Label } from "./components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "./components/ui/card";
-import { Button } from "./components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./components/ui/select";
-import { Tabs, TabsContent, TabsList } from "./components/ui/tabs";
+import { useState, useEffect, useRef, Suspense, lazy, memo } from "react";
+import { Tabs, TabsContent } from "./components/ui/tabs";
 import ErrorBoundary from "../design/ErrorBoundary";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "./components/ui/dropdown-menu";
 const GapAnalysisVisualizer = lazy(() => import("./components/GapAnalysisVisualizer").then(m => ({ default: m.GapAnalysisVisualizer })));
 import { Footer } from "./components/Footer";
 import { VacanciesList } from "./components/VacanciesList";
-import { MarketView } from "./components/MarketView";
-import { ProfileView } from "./components/ProfileView";
 const ArticlesPage = lazy(() => import("./components/ArticlesPage").then(m => ({ default: m.ArticlesPage })));
 import { ScientificTrendsTab } from "./components/ScientificTrendsTab";
 const PublicationsTab = lazy(() => import("./components/PublicationsTab").then(m => ({ default: m.PublicationsTab })));
 import { ArticlesPanel } from "./components/ArticlesPanel";
 import { PipelineProgress } from "./components/PipelineProgress";
-import { DataViewer } from "./components/DataViewer";
-import { RecommendationsReport } from "./components/RecommendationsReport";
-import { SummaryReport } from "./components/SummaryReport";
 import { PredictionsTab } from "./components/PredictionsTab";
 const MonitoringTab = lazy(() => import("./components/MonitoringTab").then(m => ({ default: m.MonitoringTab })));
 const LogsTab = lazy(() => import("./components/LogsTab").then(m => ({ default: m.LogsTab })));
@@ -50,40 +23,16 @@ const StudentProfilePage = lazy(() => import("./components/ProfilePages").then(m
 const FaqPage = lazy(() => import("./components/FaqPage").then(m => ({ default: m.FaqPage })));
 const TaxonomyBrowser = lazy(() => import("./components/TaxonomyBrowser").then(m => ({ default: m.TaxonomyBrowser })));
 import { useAuth } from "../lib/auth";
-import { profileLabel } from "../lib/profiles";
-import { ApiError, download, request, saveBlob } from "../lib/api";
+import { download, request, saveBlob } from "../lib/api";
 import { useTheme } from "../lib/theme";
 import { initApiLogger } from "../lib/logger";
-import { useTabRoute } from "../lib/router";
 import { motion, AnimatePresence } from "motion/react";
-import {
-  Database,
-  Sparkles,
-  Search,
-  FileText,
-  Download,
-  BarChart3,
-  Zap,
-  Award,
-  Briefcase,
-  TrendingUp,
-    AlertCircle,
-  LogOut,
-  Moon,
-  Sun,
-  Shield,
-  GraduationCap,
-  UserCheck,
-  User,
-  History,
-  Activity,
-  HelpCircle,
-  ChevronDown,
-  FolderOpen,
-  LineChart,
-  BookOpen,
-} from "lucide-react";
 import { reportError } from "./../lib/errors";
+import { AppHeader, AppNavTabs } from "./shell/AppHeader";
+import { isTabAllowedForRole } from "./shell/tabConfig";
+import { useTabNavigation } from "./shell/useTabNavigation";
+import { usePipeline } from "./shell/usePipeline";
+import { DataTab } from "./components/DataTab";
 
 const API = "/api";
 
@@ -110,85 +59,6 @@ function TabSpinner() {
 const MemoPredictionsTab = memo(PredictionsTab);
 const MemoScientificTrendsTab = memo(ScientificTrendsTab);
 const MemoPipelineProgress = memo(PipelineProgress);
-
-type NavItem = { value: string; label: string; Icon: any };
-
-function NavGroup({
-  title,
-  items,
-  activeTab,
-  onSelect,
-}: {
-  title: string;
-  items: NavItem[];
-  activeTab: string;
-  onSelect: (v: string) => void;
-}) {
-  if (items.length === 0) return null;
-  const active = items.find((i) => i.value === activeTab);
-  if (items.length === 1) {
-    const only = items[0];
-    const isActive = only.value === activeTab;
-    return (
-      <button
-        onClick={() => onSelect(only.value)}
-        className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all cursor-pointer ${
-          isActive
-            ? "bg-white text-gray-900 shadow-sm dark:bg-slate-800 dark:text-slate-100"
-            : "text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
-        }`}
-      >
-        <only.Icon className="size-4" />
-        {only.label}
-      </button>
-    );
-  }
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all cursor-pointer ${
-            active
-              ? "bg-white text-gray-900 shadow-sm dark:bg-slate-800 dark:text-slate-100"
-              : "text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
-          }`}
-        >
-          {active ? <active.Icon className="size-4" /> : null}
-          {active ? active.label : title}
-          <ChevronDown className="size-3.5 opacity-60" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-52">
-        {items.map(({ value, label, Icon }) => (
-          <DropdownMenuItem
-            key={value}
-            onSelect={() => onSelect(value)}
-            className={`gap-2 cursor-pointer ${value === activeTab ? "font-semibold text-blue-700 dark:text-blue-300" : ""}`}
-          >
-            <Icon className="size-4" />
-            {label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-interface PipelineActive {
-  task_id?: string;
-  status?: string;
-}
-
-interface PipelineStep {
-  step: number;
-  total: number;
-  status: "running" | "success" | "error" | "completed";
-  message: string;
-  progress: number;
-  maxPages?: number;
-  periodDays?: number;
-  logs?: string[];
-}
 
 function MaintenanceScreen() {
   return (
@@ -243,43 +113,32 @@ export default function App() {
       return {};
     }
   });
-  // Вкладка синхронизирована с адресом: #/teacher и т.п. (deep links + история).
-  const [activeTab, setActiveTab] = useTabRoute("vacancies");
   const [professionsList, setProfessionsList] = useState<string[]>([]);
   const [targetProfession, setTargetProfession] = useState("");
+
+  // Дата подгрузки переживает перезагрузку (localStorage), а сами результаты - нет.
+  // Если штамп есть, а результата в памяти нет - подтягиваем автоматически.
+  const autoLoadedRef = useRef<Record<string, boolean>>({});
 
   const handleProfileChange = (newProfile: string) => {
     setProfile(newProfile);
     setLastResult(null);
     delete autoLoadedRef.current[newProfile];
   };
-  const [pipelineStep, setPipelineStep] = useState<PipelineStep | null>(null);
-  const [pipelineLoading, setPipelineLoading] = useState(false);
-  const [pipelineQuery, setPipelineQuery] = useState("");
-  const [pipelineRegions, setPipelineRegions] = useState("");
-  const [pipelineMaxPages, setPipelineMaxPages] = useState(20);
-  const [pipelinePeriod, setPipelinePeriod] = useState(30);
-  const [restartFlag, setRestartFlag] = useState(0);
-  const pipelineTaskRef = useRef<string | null>(null);
-  const pipelineLoadingRef = useRef(false);
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gapCancelRef = useRef(false);
-  const profileRef = useRef(profile);
-  useEffect(() => { profileRef.current = profile; }, [profile]);
 
   // Размонтирование: гасим таймер статуса и останавливаем поллинг gap-анализа
   // (иначе цикл живёт в фоне и делает setState в никуда).
+  // Таймер поллинга пайплайна чистится внутри usePipeline.
   useEffect(() => () => {
     gapCancelRef.current = true;
     if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
-    if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
   }, []);
 
   const { isAuth, login, logout, role, name, username } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
-  const roleRef = useRef(role);
-  useEffect(() => { roleRef.current = role; }, [role]);
 
   // Предпросмотр чужой роли (только admin, только UI: API-права не меняются).
   const [rolePreview, setRolePreview] = useState<string | null>(() => {
@@ -291,6 +150,11 @@ export default function App() {
   const canPreview = role === "admin";
   const effectiveRole = canPreview && rolePreview ? rolePreview : role;
   const previewActive = canPreview && !!rolePreview && rolePreview !== role;
+
+  // Вкладка синхронизирована с адресом: #/teacher и т.п. (deep links + история),
+  // при смене роли (или предпросмотра) - уход с недоступной вкладки на «vacancies».
+  const [activeTab, setActiveTab] = useTabNavigation("vacancies", effectiveRole);
+
   const setPreview = (v: string | null) => {
     setRolePreview(v);
     try {
@@ -305,24 +169,19 @@ export default function App() {
       try { localStorage.removeItem("rolePreview"); } catch (err) { reportError("app/App.tsx:280", err); }
     }
   }, [role]);
-  useEffect(() => {
-    // Роль сменилась (или включён предпросмотр): уводим с вкладки,
-    // недоступной текущей роли, на безопасную «vacancies».
-    const adminOnly = ["visualization", "monitoring", "logs", "admin"];
-    const teacherOnly = ["taxonomy", "teacher", "students"];
-    const studentOnly = ["student"];
-    setActiveTab((cur) => {
-      if (adminOnly.includes(cur) && effectiveRole !== "admin") return "vacancies";
-      if (teacherOnly.includes(cur) && !(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin")) return "vacancies";
-      if (studentOnly.includes(cur) && !(effectiveRole === "student" || effectiveRole === "admin")) return "vacancies";
-      return cur;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveRole]);
 
-  // Дата подгрузки переживает перезагрузку (localStorage), а сами результаты - нет.
-  // Если штамп есть, а результата в памяти нет - подтягиваем автоматически.
-  const autoLoadedRef = useRef<Record<string, boolean>>({});
+  // Полный цикл HH-сбора: запуск, поллинг, отмена, рестарт, переподключение.
+  const {
+    pipelineStep,
+    pipelineLoading,
+    pipelineMaxPages,
+    pipelinePeriod,
+    restartFlag,
+    startPipeline,
+    cancelPipeline,
+    restartPipeline,
+  } = usePipeline({ profile, role, setResult: setLastResult, navigate: setActiveTab });
+
   useEffect(() => {
     if (!isAuth) return;
     if (autoLoadedRef.current[profile]) return;
@@ -363,193 +222,6 @@ export default function App() {
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
-  // reconnect to running task after page refresh
-  useEffect(() => {
-    request<PipelineActive | null>("/api/pipeline/active")
-      .catch(() => null)
-      .then(active => {
-        if (active && active.task_id && active.status === "running") {
-          pipelineTaskRef.current = active.task_id;
-          sessionStorage.setItem("pipelineTaskId", active.task_id);
-          setPipelineLoading(true);
-          pipelineLoadingRef.current = true;
-          setPipelineStep({ step: 1, total: 4, status: "running", message: "Переподключение...", progress: 5 });
-          pollTimerRef.current = setTimeout(pollPipeline, 500);
-          return;
-        }
-        const savedId = sessionStorage.getItem("pipelineTaskId");
-        if (savedId) {
-          pipelineTaskRef.current = savedId;
-          setPipelineLoading(true);
-          pipelineLoadingRef.current = true;
-          setPipelineStep({ step: 1, total: 4, status: "running", message: "Переподключение...", progress: 5 });
-          pollTimerRef.current = setTimeout(pollPipeline, 500);
-        }
-      });
-  }, []);
-
-  const startPipeline = (regionIds: string, profession: string, maxPages?: number, periodDays?: number) => {
-    if (pipelineTaskRef.current || pipelineLoadingRef.current) return;
-    pipelineLoadingRef.current = true;
-    setPipelineLoading(true);
-    setPipelineQuery(profession);
-    setPipelineRegions(regionIds);
-    const mp = maxPages || 20;
-    const pd = periodDays || 30;
-    setPipelineMaxPages(mp);
-    setPipelinePeriod(pd);
-    setPipelineStep({ step: 1, total: 4, status: "running", message: "Запуск сбора...", progress: 5, maxPages: mp, periodDays: pd });
-    const params = new URLSearchParams({ regions: regionIds, max_pages: String(mp), period: String(pd) });
-    if (profession) params.set("query", profession);
-    request<{ output?: string }>(`/api/pipeline/full-cycle?${params}`, { method: "POST" })
-      .then(data => {
-        const m = data.output?.match(/Task ID: (\S+?)\.?\s/);
-        if (!m) throw new Error("Не получен ID задачи");
-        pipelineTaskRef.current = m[1];
-        sessionStorage.setItem("pipelineTaskId", m[1]);
-        pollTimerRef.current = setTimeout(pollPipeline, 1000);
-      })
-      .catch(e => {
-        setPipelineStep({ step: 0, total: 1, status: "error", message: String(e), progress: 0 });
-        setPipelineLoading(false);
-        pipelineLoadingRef.current = false;
-      });
-  };
-
-  const cancelPipeline = useCallback(() => {
-    const taskId = pipelineTaskRef.current;
-    if (!taskId) return;
-    request<void>(`/api/pipeline/cancel/${taskId}`, { method: "POST" }).catch((err) =>
-      reportError("app/App.tsx:cancel", err),
-    );
-    if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
-    setPipelineStep(prev => prev ? { ...prev, status: "error", message: "Отменено" } : null);
-    setPipelineLoading(false);
-    pipelineTaskRef.current = null;
-    pipelineLoadingRef.current = false;
-    // keep task id: refresh shows final state + restart button
-  }, []);
-
-  const restartPipeline = useCallback(() => {
-    cancelPipeline();
-    setTimeout(() => {
-      setPipelineStep(null);
-      setRestartFlag(n => n + 1);
-    }, 300);
-  }, [cancelPipeline]);
-
-  const pollPipeline = () => {
-    const taskId = pipelineTaskRef.current;
-    if (!taskId) { setPipelineLoading(false); pipelineLoadingRef.current = false; return; }
-    request<{
-      step?: number;
-      sub_progress?: number;
-      status?: string;
-      message?: string;
-      logs?: string[];
-      max_pages?: number;
-      period_days?: number;
-    }>(`/api/pipeline/task/${taskId}`)
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 404) throw new Error("NOT_FOUND");
-        throw err;
-      })
-      .then(s => {
-        if (pipelineTaskRef.current !== taskId) return; // cancelled or replaced while fetching
-        const step = Math.min(s.step || 1, 4);
-        let subProgress = s.sub_progress ?? undefined;
-        setPipelineStep(() => {
-          const pct = s.status === "completed" ? 100 : Math.min(step * 25, 95);
-          return {
-            step,
-            total: 4,
-            status: s.status === "completed" ? "completed" : s.status === "failed" || s.status === "cancelled" ? "error" : "running",
-            message: s.message || "Выполняется...",
-            progress: pct,
-            subProgress: subProgress,
-            logs: s.logs ?? [],
-          };
-        });
-            if (s.status === "completed") {
-          setPipelineLoading(false);
-          pipelineTaskRef.current = null;
-          pipelineLoadingRef.current = false;
-          sessionStorage.removeItem("pipelineTaskId");
-          const prof = profileRef.current;
-          request<any>(`/api/results/recommendations/${prof}`).catch(() => null).then(d => {
-            if (d) { setLastResult(d); }
-            if (roleRef.current === "student" && d) {
-              const q = pipelineQuery;
-              const url = q ? `/api/vacancies?limit=1&search=${encodeURIComponent(q)}` : "/api/vacancies/info";
-              request<any>(url).catch(() => ({ total: 0 })).then(vi => {
-                const vc = vi.total || 0;
-                request("/api/student/log-action", {
-                  method: "POST",
-                  body: {
-                    action_type: "analysis",
-                    profession: q,
-                    region: pipelineRegions,
-                    vacancies_found: vc,
-                    result_ref: JSON.stringify({ profile: prof }),
-                    profile: prof,
-                  },
-                }).then(() => window.dispatchEvent(new CustomEvent("student-history-update"))).catch((err) => reportError("app/App.tsx", err));
-              });
-            }
-          }).catch((err) => reportError("app/App.tsx", err));
-          setActiveTab("data");
-          return;
-        }
-        if (s.status === "failed" || s.status === "cancelled") {
-          setPipelineLoading(false);
-          pipelineTaskRef.current = null;
-          pipelineLoadingRef.current = false;
-          sessionStorage.removeItem("pipelineTaskId");
-          return;
-        }
-        pollTimerRef.current = setTimeout(pollPipeline, 2000);
-      })
-      .catch(e => {
-        if (e?.message === "NOT_FOUND") {
-          // Задача пропала из памяти (рестарт сервера): проверяем готовые
-          // результаты через /api/pipeline/status, а не молча сбрасываем прогресс.
-          request<any>("/api/pipeline/status").catch(() => null)
-            .then(st => {
-              const prof = profileRef.current;
-              if (st?.recommendations_all_ready) {
-                setPipelineStep({ step: 4, total: 4, status: "completed", message: "Сервер перезапускался, но результаты готовы.", progress: 100 });
-                request<any>(`/api/results/recommendations/${prof}`).catch(() => null).then(d => {
-                  if (d) { setLastResult(d); }
-                }).catch((err) => reportError("app/App.tsx", err));
-                setActiveTab("data");
-              } else {
-                setPipelineStep(null);
-              }
-              setPipelineLoading(false);
-              pipelineTaskRef.current = null;
-              pipelineLoadingRef.current = false;
-              sessionStorage.removeItem("pipelineTaskId");
-            })
-            .catch(() => {
-              setPipelineStep(null);
-              setPipelineLoading(false);
-              pipelineTaskRef.current = null;
-              pipelineLoadingRef.current = false;
-              sessionStorage.removeItem("pipelineTaskId");
-            });
-          return;
-        }
-        if (pipelineTaskRef.current) {
-          pollTimerRef.current = setTimeout(pollPipeline, 5000);
-        } else {
-          setPipelineLoading(false);
-          pipelineLoadingRef.current = false;
-        }
-      });
-  };
-
-  useEffect(() => () => { if (pollTimerRef.current) clearTimeout(pollTimerRef.current); }, []);
-
   // navigate-analysis event from StudentDashboard
   useEffect(() => {
     const handler = (e: Event) => {
@@ -562,6 +234,7 @@ export default function App() {
     };
     window.addEventListener("navigate-analysis", handler);
     return () => window.removeEventListener("navigate-analysis", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function showStatus(type: "success" | "error" | "info", message: string) {
@@ -732,6 +405,14 @@ export default function App() {
     apiCall("/results/summary");
   }
 
+  // Выход: убиваем сессию на бэкенде, чистим предпросмотр роли, разлогиниваемся.
+  const handleLogout = () => {
+    request<void>("/api/auth/logout", { method: "POST" }).catch((err) => reportError("app/App.tsx:logout", err));
+    try { localStorage.removeItem("rolePreview"); } catch (err) { reportError("app/App.tsx:785", err); }
+    setRolePreview(null);
+    logout();
+  };
+
   if (backendDown) {
     return <MaintenanceScreen />;
   }
@@ -740,8 +421,6 @@ export default function App() {
     return <LoginPage onLogin={login} />;
   }
 
-  const roleIcon = role === "admin" ? <Shield className="size-4" /> : (role === "teacher" || role === "rop") ? <UserCheck className="size-4" /> : <GraduationCap className="size-4" />;
-  const roleLabel = role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : role === "rop" ? "Руководитель ОП" : role === "student" ? "Студент" : "-";
   const isStudent = effectiveRole === "student";
 
   return (
@@ -759,83 +438,19 @@ export default function App() {
           </button>
         </div>
       )}
-      {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-border bg-surface/90 backdrop-blur-xl">
-        <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center size-11 rounded-xl bg-primary shadow-md shadow-primary/25">
-                <TrendingUp className="size-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-semibold tracking-tight text-foreground">
-                  Карта компетенций
-                </h1>
-                <p className="text-xs text-muted-foreground">
-                  Сопоставление учебных программ с требованиями рынка труда
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400">
-                {roleIcon}
-                <span>{name || roleLabel}</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-primary-soft text-primary-soft-foreground font-medium">{roleLabel}</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setActiveTab("profile")}
-                title="Мой профиль"
-                className="cursor-pointer transition-colors duration-200 text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
-              >
-                <User className="size-4" />
-              </Button>
-              {canPreview && (
-                <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
-                  Просмотр как
-                  <select
-                    value={rolePreview ?? ""}
-                    onChange={(e) => setPreview(e.target.value || null)}
-                    className="h-8 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-1.5 text-xs text-gray-700 dark:text-slate-200"
-                  >
-                    <option value="">своя роль</option>
-                    <option value="admin">admin</option>
-                    <option value="teacher">teacher</option>
-                    <option value="rop">rop</option>
-                    <option value="student">student</option>
-                  </select>
-                </label>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={toggleTheme}
-                title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
-                className="text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100"
-              >
-                {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => { request<void>("/api/auth/logout", { method: "POST" }).catch((err) => reportError("app/App.tsx:logout", err)); try { localStorage.removeItem("rolePreview"); } catch (err) { reportError("app/App.tsx:785", err); } setRolePreview(null); logout(); }} className="text-gray-500 dark:text-slate-400 hover:text-red-600">
-                <LogOut className="size-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-      {previewActive && (
-        <div className="bg-amber-100 dark:bg-amber-950/40 border-b border-amber-300 dark:border-amber-800">
-          <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-3">
-            <p className="text-xs text-amber-800 dark:text-amber-200">
-              Предпросмотр интерфейса роли «{rolePreview}». API-права не меняются - данные чужих ролей могут быть недоступны.
-            </p>
-            <Button variant="ghost" size="sm" onClick={() => setPreview(null)} className="h-7 text-xs text-amber-800 dark:text-amber-200">
-              Сбросить
-            </Button>
-          </div>
-        </div>
-      )}
+      <AppHeader
+        name={name}
+        role={role}
+        canPreview={canPreview}
+        rolePreview={rolePreview}
+        onPreviewChange={setPreview}
+        previewActive={previewActive}
+        onResetPreview={() => setPreview(null)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onOpenProfile={() => setActiveTab("profile")}
+        onLogout={handleLogout}
+      />
 
       {/* Main Content */}
       <main className="flex-1 w-full max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -865,64 +480,7 @@ export default function App() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="inline-flex h-11 items-center justify-center gap-1 rounded-xl border border-border bg-muted/70 p-1 shadow-xs">
-            <NavGroup
-              title="Работа"
-              activeTab={activeTab}
-              onSelect={setActiveTab}
-              items={[
-                { value: "vacancies", label: "Вакансии", Icon: Briefcase },
-                ...(effectiveRole === "student"
-                  ? []
-                  : [{ value: "data", label: "Результаты", Icon: Database }]),
-                ...(effectiveRole === "admin"
-                  ? [{ value: "visualization", label: "Визуализация", Icon: BarChart3 }]
-                  : []),
-              ]}
-            />
-            <NavGroup
-              title="Анализ"
-              activeTab={activeTab}
-              onSelect={setActiveTab}
-              items={[
-                { value: "predictions", label: "Прогнозы", Icon: TrendingUp },
-                { value: "articles", label: "Аналитика рынка", Icon: LineChart },
-                { value: "scientific-trends", label: "Научные тренды", Icon: FolderOpen },
-                { value: "publications", label: "Публикации ЮФУ", Icon: BookOpen },
-                ...(effectiveRole === "student"
-                  ? [{ value: "data", label: "Результаты", Icon: Database }]
-                  : []),
-                ...(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin"
-                  ? [{ value: "teacher", label: "Преподавательский анализ", Icon: BarChart3 }]
-                  : []),
-                ...(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin"
-                  ? [{ value: "students", label: "Студенты", Icon: GraduationCap }]
-                  : []),
-              ]}
-            />
-            <NavGroup
-              title="Система"
-              activeTab={activeTab}
-              onSelect={setActiveTab}
-              items={[
-                ...(effectiveRole === "admin"
-                  ? [
-                      { value: "monitoring", label: "Мониторинг", Icon: Activity },
-                      { value: "logs", label: "Логи", Icon: FileText },
-                      { value: "admin", label: "Админ", Icon: Shield },
-                    ]
-                  : []),
-                ...(effectiveRole === "student" || effectiveRole === "admin"
-                  ? [{ value: "student", label: "Мои запросы", Icon: History }]
-                  : []),
-                ...((effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin")
-                  ? [{ value: "taxonomy", label: "Таксономия", Icon: BookOpen }]
-                  : []),
-                { value: "profile", label: "Мой профиль", Icon: User },
-                { value: "help", label: "Помощь", Icon: HelpCircle },
-              ]}
-            />
-          </TabsList>
+          <AppNavTabs activeTab={activeTab} effectiveRole={effectiveRole} onSelect={setActiveTab} />
 
           {/* Pipeline progress */}
           {pipelineStep && (
@@ -950,265 +508,33 @@ export default function App() {
           {/* Data Tab */}
           <TabsContent value="data">
             <ErrorBoundary scope="data">
-              <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
-                <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-10 h-10 bg-emerald-600 rounded-lg">
-                      <Database className="size-5 text-white" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">
-                        Результаты
-                      </CardTitle>
-                      <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
-                        Просмотр профилей, рекомендаций и статистики
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6 space-y-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">
-                      Профиль компетенций
-                    </Label>
-                    <Select value={profile} onValueChange={handleProfileChange}>
-                      <SelectTrigger className="h-11 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {profilesList.map((p) => (
-                          <SelectItem key={p} value={p}>
-                            <div className="flex items-center gap-2">
-                              <Award className={`size-4 ${p === profile ? "text-emerald-600" : "text-gray-400 dark:text-slate-500"}`} />
-                              <span>{profileLabel(p)}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                    <Button
-                      onClick={loadRecommendations}
-                      disabled={loading}
-                      className="h-11 bg-blue-700 hover:bg-blue-800 text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
-                    >
-                      <Search className="mr-2 size-4" />
-                      Показать сохранённые
-                    </Button>
-                    <Button
-                      onClick={loadProfileDetail}
-                      disabled={loading || isStudent}
-                      title={isStudent ? "Только для преподавателя" : undefined}
-                      className="h-11 bg-emerald-600 hover:bg-emerald-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
-                    >
-                      <FileText className="mr-2 size-4" />
-                      Профиль
-                    </Button>
-                    <Button
-                      onClick={loadRecommendations}
-                      disabled={loading || isStudent}
-                      title={isStudent ? "Только для преподавателя" : undefined}
-                      className="h-11 bg-blue-600 hover:bg-blue-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
-                    >
-                      <Sparkles className="mr-2 size-4" />
-                      Рекомендации
-                    </Button>
-                    <Button
-                      onClick={loadMarket}
-                      disabled={loading || isStudent}
-                      title={isStudent ? "Только для преподавателя" : undefined}
-                      variant="outline"
-                      className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                    >
-                      <BarChart3 className="mr-2 size-4" />
-                      Рынок
-                    </Button>
-                    <Button
-                      onClick={loadSummary}
-                      disabled={loading || isStudent}
-                      title={isStudent ? "Только для преподавателя" : undefined}
-                      variant="outline"
-                      className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                    >
-                      <FileText className="mr-2 size-4" />
-                      Сводка
-                    </Button>
-                    <Button
-                      onClick={runGapAnalysis}
-                      disabled={loading || gapRunning || isStudent}
-                      title={isStudent ? "Только для преподавателя" : undefined}
-                      className="h-11 bg-amber-600 hover:bg-amber-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
-                    >
-                      <Zap className="mr-2 size-4" />
-                      Запустить gap-анализ
-                    </Button>
-                  </div>
-                  {gapRunning && (
-                    <p className="text-sm text-amber-700 dark:text-amber-300">{gapMsg || "Выполняется..."}</p>
-                  )}
-                  {!isStudent && (
-                  <div className="space-y-2 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-                    <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">
-                      Целевая профессия для сравнения
-                    </Label>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <Select value={targetProfession} onValueChange={setTargetProfession}>
-                        <SelectTrigger className="h-11 flex-1 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600">
-                          <SelectValue placeholder="Выберите профессию..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {professionsList.map((p) => (
-                            <SelectItem key={p} value={p}>
-                              {p}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        onClick={compareWithProfession}
-                        disabled={loading || !targetProfession}
-                        className="h-11 bg-violet-600 hover:bg-violet-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:outline-none sm:w-auto w-full"
-                      >
-                        <Briefcase className="mr-2 size-4" />
-                        Сравнить с профессией
-                      </Button>
-                    </div>
-                  </div>
-                  )}
-                  <p className="text-xs text-gray-500 dark:text-slate-400">
-                    Последняя подгрузка результатов [{profile}]: {(() => {
-                      const iso = resultLoadedAt[profile];
-                      if (!iso) return "ещё не подгружались";
-                      const d = new Date(iso);
-                      return isNaN(d.getTime()) ? iso : d.toLocaleString("ru-RU");
-                    })()}
-                  </p>
-                  {(() => {
-                    const g = (lastResult as any)?.generated_at;
-                    if (typeof g !== "string") return null;
-                    const age = Date.now() - new Date(g).getTime();
-                    if (isNaN(age) || age < 7 * 864e5) return null;
-                    const days = Math.floor(age / 864e5);
-                    return <span className="ml-2 px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200">данные устарели ({days} дн.)</span>;
-                  })()}
-
-                  <div className="flex flex-wrap items-center gap-2 no-print">
-                    <Button
-                      onClick={handleDownloadPdf}
-                      disabled={isStudent}
-                      title={isStudent ? "Только для преподавателя" : undefined}
-                      variant="outline"
-                      size="sm"
-                      className="border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50 gap-1.5"
-                    >
-                      <Download className="size-3.5" />
-                      Отчёт (PDF)
-                    </Button>
-                    <Button
-                      onClick={handlePrintReport}
-                      variant="outline"
-                      size="sm"
-                      title="Печать текущей вкладки в PDF через браузер"
-                      className="border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-900/50 gap-1.5"
-                    >
-                      <Download className="size-3.5" />
-                      Печать / PDF (браузер)
-                    </Button>
-                  </div>
-
-                  {lastResult && (() => {
-                    const d = lastResult as Record<string, unknown>;
-                    if (d.recommendations || d.closest_roles) {
-                      return (
-                        <>
-                          {(d as any).focus_mode && (d as any).target_profession && (
-                            <Card className="border-2 border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/20 mb-4">
-                              <CardContent className="pt-5">
-                                <div className="flex items-center gap-3 mb-3">
-                                  <div className="p-2 bg-violet-600 rounded-lg">
-                                    <Briefcase className="size-5 text-white" />
-                                  </div>
-                                  <div>
-                                    <div className="font-bold text-gray-900 dark:text-slate-100">
-                                      Фокус: {(d as any).target_profession} · профиль {String((d as any).profile || "")}
-                                    </div>
-                                    <div className="text-xs text-gray-500 dark:text-slate-400">
-                                      {((d as any).target_domains || []).join(", ")}
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                                  <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
-                                    <div className="text-2xl font-bold text-violet-700 dark:text-violet-300">{Number((d as any).profession_coverage || 0).toFixed(1)}%</div>
-                                    <div className="text-xs text-gray-500 dark:text-slate-400">покрытие профессии</div>
-                                  </div>
-                                  <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
-                                    <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{Number((d as any).coverage_strict ?? (d as any).skill_coverage ?? 0).toFixed(1)}%</div>
-                                    <div className="text-xs text-gray-500 dark:text-slate-400">навыки: {(d as any).skill_strict_has ?? "-"} из {(d as any).skill_strict_total ?? "-"}</div>
-                                  </div>
-                                  <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
-                                    <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{Number((d as any).readiness_score || 0).toFixed(1)}%</div>
-                                    <div className="text-xs text-gray-500 dark:text-slate-400">готовность</div>
-                                  </div>
-                                  <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
-                                    <div className="text-2xl font-bold text-slate-700 dark:text-slate-200">{Number((d as any).domain_coverage_score || 0).toFixed(1)}%</div>
-                                    <div className="text-xs text-gray-500 dark:text-slate-400">покрытие доменов</div>
-                                  </div>
-                                </div>
-                                {(d as any).krm_note && (
-                                  <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">{String((d as any).krm_note)}</p>
-                                )}
-                              </CardContent>
-                            </Card>
-                          )}
-                          <RecommendationsReport data={lastResult as any} />
-                        </>
-                      );
-                    }
-                    if (d.evaluations && Array.isArray(d.profiles)) {
-                      return <SummaryReport data={lastResult as any} />;
-                    }
-                    if (Array.isArray((d as any).skills) && typeof (d as any).total === "number") {
-                      return <MarketView data={lastResult as any} />;
-                    }
-                    if (Array.isArray((d as any).skills) && typeof (d as any).profile_name === "string") {
-                      return <ProfileView data={lastResult as any} />;
-                    }
-                    const msg = d.message as string | undefined;
-                    if (msg && (msg.includes("не найдены") || msg.includes("not found"))) {
-                      return (
-                        <Card className="border-2 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
-                          <CardContent className="pt-6 text-center py-12">
-                            <AlertCircle className="size-12 text-amber-400 mx-auto mb-4" />
-                            <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-200 mb-2">{msg}</h3>
-                            <p className="text-sm text-amber-600 mb-4">Запустите gap-анализ для расчёта покрытия</p>
-                             <Button
-                               onClick={runGapAnalysis}
-                               disabled={gapRunning || isStudent}
-                               title={isStudent ? "Только для преподавателя" : undefined}
-                               className="bg-amber-600 hover:bg-amber-700"
-                             >
-                              <Zap className="size-4 mr-2" />
-                              Запустить gap-анализ
-                            </Button>
-                            {gapRunning && (
-                              <p className="text-sm text-amber-700 dark:text-amber-300 mt-3">{gapMsg || "Выполняется..."}</p>
-                            )}
-                          </CardContent>
-                        </Card>
-                      );
-                    }
-                    return <DataViewer data={lastResult} />;
-                  })()}
-                </CardContent>
-              </Card>
+              <DataTab
+                profile={profile}
+                profilesList={profilesList}
+                onProfileChange={handleProfileChange}
+                loading={loading}
+                isStudent={isStudent}
+                gapRunning={gapRunning}
+                gapMsg={gapMsg}
+                onLoadRecommendations={loadRecommendations}
+                onLoadProfileDetail={loadProfileDetail}
+                onLoadMarket={loadMarket}
+                onLoadSummary={loadSummary}
+                onRunGapAnalysis={runGapAnalysis}
+                professionsList={professionsList}
+                targetProfession={targetProfession}
+                onTargetProfessionChange={setTargetProfession}
+                onCompareWithProfession={compareWithProfession}
+                resultLoadedAt={resultLoadedAt}
+                lastResult={lastResult}
+                onDownloadPdf={handleDownloadPdf}
+                onPrintReport={handlePrintReport}
+              />
             </ErrorBoundary>
           </TabsContent>
 
           {/* Visualization Tab */}
-          {effectiveRole === "admin" && (
+          {isTabAllowedForRole("visualization", effectiveRole) && (
             <TabsContent value="visualization">
               <ErrorBoundary scope="visualization">
                 <Suspense fallback={<TabSpinner />}>
@@ -1252,7 +578,7 @@ export default function App() {
               </Suspense>
             </ErrorBoundary>
           </TabsContent>
-          {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
+          {isTabAllowedForRole("taxonomy", effectiveRole) && (
             <TabsContent value="taxonomy">
               <ErrorBoundary scope="taxonomy">
                 <Suspense fallback={<TabSpinner />}>
@@ -1261,7 +587,7 @@ export default function App() {
               </ErrorBoundary>
             </TabsContent>
           )}
-          {effectiveRole === "admin" && (
+          {isTabAllowedForRole("monitoring", effectiveRole) && (
             <TabsContent value="monitoring">
               <ErrorBoundary scope="monitoring">
                 <Suspense fallback={<TabSpinner />}>
@@ -1270,7 +596,7 @@ export default function App() {
               </ErrorBoundary>
             </TabsContent>
           )}
-          {effectiveRole === "admin" && (
+          {isTabAllowedForRole("logs", effectiveRole) && (
             <TabsContent value="logs">
               <ErrorBoundary scope="logs">
                 <Suspense fallback={<TabSpinner />}>
@@ -1279,7 +605,7 @@ export default function App() {
               </ErrorBoundary>
             </TabsContent>
           )}
-          {effectiveRole === "admin" && (
+          {isTabAllowedForRole("admin", effectiveRole) && (
             <TabsContent value="admin">
               <ErrorBoundary scope="admin">
                 <Suspense fallback={<TabSpinner />}>
@@ -1288,7 +614,7 @@ export default function App() {
               </ErrorBoundary>
             </TabsContent>
           )}
-          {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
+          {isTabAllowedForRole("teacher", effectiveRole) && (
             <TabsContent value="teacher">
               <ErrorBoundary scope="teacher">
                 <Suspense fallback={<TabSpinner />}>
@@ -1297,7 +623,7 @@ export default function App() {
               </ErrorBoundary>
             </TabsContent>
           )}
-          {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
+          {isTabAllowedForRole("students", effectiveRole) && (
             <TabsContent value="students">
               <ErrorBoundary scope="students">
                 <Suspense fallback={<TabSpinner />}>
@@ -1306,7 +632,7 @@ export default function App() {
               </ErrorBoundary>
             </TabsContent>
           )}
-          {(effectiveRole === "student" || effectiveRole === "admin") && (
+          {isTabAllowedForRole("student", effectiveRole) && (
             <TabsContent value="student">
               <ErrorBoundary scope="student">
                 <Suspense fallback={<TabSpinner />}>

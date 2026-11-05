@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "../api";
+import { Skeleton } from "../../design";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { MetricsGlossary } from "./MetricsGlossary";
 import { TaxonomyBrowser } from "./TaxonomyBrowser";
@@ -579,8 +580,30 @@ export function TeacherDashboard() {
 
   if (loading) {
     return (
-      <div className="p-10 text-gray-500">
-        Загрузка...
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900 md:flex-row"
+        style={{ height: "calc(100vh - 100px)", fontFamily: "system-ui, -apple-system, sans-serif" }}
+      >
+        <span className="sr-only">Загрузка...</span>
+        <div className="w-full shrink-0 space-y-2.5 overflow-hidden border-b border-gray-200 p-4 dark:border-slate-700 md:w-[380px] md:min-w-[380px] md:border-b-0 md:border-r">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-6 w-28" />
+            <Skeleton className="h-8 w-24" />
+          </div>
+          <Skeleton className="h-7 w-full" />
+          <Skeleton className="h-8 w-full" />
+          {Array.from({ length: 8 }, (_, i) => (
+            <Skeleton key={`disc-skeleton-${i}`} className="h-10 w-full" />
+          ))}
+        </div>
+        <div className="flex-1 space-y-3 overflow-hidden p-6">
+          <Skeleton className="h-6 w-64" />
+          {Array.from({ length: 5 }, (_, i) => (
+            <Skeleton key={`card-skeleton-${i}`} className="h-16 w-full" />
+          ))}
+        </div>
       </div>
     );
   }
