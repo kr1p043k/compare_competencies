@@ -8,13 +8,15 @@
 
 | Метод | Путь | Роль | Побочный эффект | Аудит |
 |---|---|---|---|---|
-| POST | /auth/login | public | токен сессии либо 2FA-challenge | нет |
+| POST | /auth/login | public | токен сессии; 2FA-challenge только при включённом флаге | нет |
 | POST | /auth/2fa/setup | admin | создать секрет TOTP | auth.2fa.setup |
 | POST | /auth/2fa/confirm | admin | включить 2FA, вернуть 10 кодов | auth.2fa.enabled |
 | POST | /auth/2fa/verify | admin | проверить код, выдать токен | auth.2fa.login |
 | POST | /auth/2fa/recovery | admin | вход по recovery-коду (одноразовый) | auth.2fa.recovery_used |
-| POST | /auth/2fa/disable | admin | отключить 2FA | auth.2fa.disabled |
+| POST | /auth/2fa/disable | admin | отключить 2FA (409, если флаг выключен) | auth.2fa.disabled |
 | POST | /auth/2fa/recovery-codes/rotate | admin | перевыпустить recovery-коды | auth.2fa.recovery_rotate |
+| GET | /admin/security/settings | admin | флаг 2FA + счётчики админов | нет |
+| PUT | /admin/security/settings | admin | включить/выключить 2FA сразу | admin.security.settings |
 | GET | /admin/users | admin | чтение списка (q, role, is_active) | нет |
 | POST | /admin/users/create | admin | создать пользователя | admin.user.create |
 | GET | /admin/users/{id} | admin | карточка: поля, сессии, 2FA | нет |
@@ -68,6 +70,15 @@
 - Индексы: `idx_audit_created`, `idx_audit_action_created`, `idx_audit_actor`, `idx_audit_target`, автоиндекс `actor_id`.
 - Retention: `DEFAULT_AUDIT_DAYS = 730`; `python -m src.cli retention --audit-days 730`
   (dry-run; удаление с `--apply`). Шаг `audit_logs` пропускается без таблицы.
+
+## Настройки безопасности
+
+Глобальный рубильник 2FA живёт в `data/settings/security.json`
+(`{"two_factor_enabled": false}` по умолчанию). Модуль `src/security_settings.py`
+читает файл с кэшем по mtime, пишет атомарно (tempfile + os.replace) и при битом
+JSON возвращает дефолты, а не падает: логин не должен ломаться из-за опечатки в
+файле. Флаг проверяется на каждом входе, поэтому включение и выключение работают
+без перезапуска API.
 
 ## Операционные риски
 

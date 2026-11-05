@@ -58,6 +58,19 @@ describe("LoginPage", () => {
     });
   });
 
+  it("вход без challenge зовёт onLogin один раз и не открывает шаг кода", async () => {
+    const user = userEvent.setup();
+    requestMock.mockResolvedValue({ token: "tok-plain", role: "admin", name: "Иван Петров" });
+    render(<LoginPage onLogin={onLogin} />);
+
+    await submitCredentials(user);
+
+    await waitFor(() => expect(onLogin).toHaveBeenCalledWith("tok-plain", "admin", "Иван Петров"));
+    expect(onLogin).toHaveBeenCalledTimes(1);
+    // 2FA выключена: шаг с кодом не появляется, форма остаётся обычной.
+    expect(screen.queryByLabelText(/Код из приложения/)).toBeNull();
+  });
+
   it("ответ totp_required открывает шаг с кодом и не вызывает onLogin", async () => {
     const user = userEvent.setup();
     requestMock.mockResolvedValue(CHALLENGE);
