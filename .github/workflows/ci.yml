@@ -128,7 +128,7 @@ jobs:
       # build, while normal noise (new module without tests) does not.
       # Target is 70%; the gap is tracked in the coverage backlog.
       - name: Tests
-        run: pytest tests -q --ignore=tests/load --cov=src --cov-report=term-missing --cov-fail-under=65
+        run: pytest tests -q --ignore=tests/load --cov=src --cov-report=term-missing --cov-fail-under=70
         env:
           DATABASE_URL: postgresql+asyncpg://user:pass@localhost:5432/test
           HH_ACCESS_TOKEN: ""

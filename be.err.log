@@ -1,0 +1,15 @@
+env vars loaded: 12
+Importing plotly failed. Interactive plots will not work.
+INFO:     Started server process [4304]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8100 (Press CTRL+C to quit)
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 3765.81it/s]
+[1mXLMRobertaModel LOAD REPORT[0m from: sentence-transformers/paraphrase-multilingual-mpnet-base-v2
+Key                     | Status     |  | 
+------------------------+------------+--+-
+embeddings.position_ids | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+Batches:   0%|          | 0/6 [00:00<?, ?it/s]Batches:  17%|█▋        | 1/6 [00:03<00:16,  3.23s/it]Batches:  33%|███▎      | 2/6 [00:05<00:10,  2.65s/it]Batches:  50%|█████     | 3/6 [00:07<00:07,  2.49s/it]Batches:  67%|██████▋   | 4/6 [00:09<00:04,  2.24s/it]Batches:  83%|████████▎ | 5/6 [00:10<00:01,  1.86s/it]Batches: 100%|██████████| 6/6 [00:11<00:00,  1.51s/it]Batches: 100%|██████████| 6/6 [00:11<00:00,  1.94s/it]

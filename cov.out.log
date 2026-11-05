@@ -1,0 +1,595 @@
+........................................................................ [  2%]
+......................sss...................s........................... [  4%]
+........................................................................ [  6%]
+........................................................................ [  8%]
+..................s..ssss...s.sss..ss..ss.....s...s...........sss....... [ 10%]
+...s..ss................................................................ [ 12%]
+........................................................................ [ 14%]
+........................................................................ [ 16%]
+........................................................................ [ 18%]
+............s........................................................... [ 20%]
+..................ssss.............................................X.... [ 22%]
+........................................................................ [ 24%]
+........................................................................ [ 26%]
+........................................................................ [ 28%]
+..................................................................ss...x [ 30%]
+.x...................................................................... [ 32%]
+........................................................................ [ 34%]
+........................................................................ [ 36%]
+........................................................................ [ 38%]
+........................................................................ [ 40%]
+........................................................................ [ 42%]
+........................................................................ [ 44%]
+...........................................x...............xx........... [ 46%]
+........................................................................ [ 48%]
+........................................x............................... [ 50%]
+........................................................................ [ 52%]
+........................................................................ [ 54%]
+................................................xx...................... [ 56%]
+........................................................................ [ 58%]
+........................................................................ [ 60%]
+........................................................................ [ 62%]
+........................................................................ [ 64%]
+........................................................................ [ 66%]
+........................................................................ [ 68%]
+........................................................................ [ 70%]
+...................ss..s......s......................................... [ 72%]
+...............................s........................................ [ 75%]
+........................................................................ [ 77%]
+................................................................ssssssss [ 79%]
+ssssssssssssssssssssssssssssssssssssssssssssssssssss.................... [ 81%]
+........................................................................ [ 83%]
+........................................................................ [ 85%]
+........................................................................ [ 87%]
+........................................................................ [ 89%]
+..........s.s........................................................... [ 91%]
+........................................................................ [ 93%]
+........................................................................ [ 95%]
+........................................................................ [ 97%]
+........................................................................ [ 99%]
+.......................                                                  [100%]
+============================== warnings summary ===============================
+..\..\..\..\..\..\максим\AppData\Local\Programs\Python\Python312\Lib\site-packages\_pytest\config\__init__.py:2185: 3 warnings
+tests/analyzers/comparison/test_engines.py: 24 warnings
+tests/analyzers/gap/test_user_levels.py: 2 warnings
+tests/analyzers/test_action_map_docs_v35.py: 3 warnings
+tests/analyzers/test_action_map_v43.py: 3 warnings
+tests/analyzers/test_adaptive_threshold_exp2.py: 6 warnings
+tests/analyzers/test_analyzers.py: 5 warnings
+tests/analyzers/test_comparator.py: 59 warnings
+tests/analyzers/test_coverage_analyzer.py: 12 warnings
+tests/analyzers/test_coverage_analyzer_ext.py: 7 warnings
+tests/analyzers/test_coverage_fringe.py: 4 warnings
+tests/analyzers/test_discipline_relevance.py: 6 warnings
+tests/analyzers/test_discipline_scope.py: 9 warnings
+tests/analyzers/test_domain_analyzers.py: 9 warnings
+tests/analyzers/test_emerging_cap_v39.py: 3 warnings
+tests/analyzers/test_emerging_dir_v42.py: 1 warning
+tests/analyzers/test_fringe_shadow_v36.py: 4 warnings
+tests/analyzers/test_gap_analyzer.py: 7 warnings
+tests/analyzers/test_hybrid_matcher.py: 23 warnings
+tests/analyzers/test_iter3_coverage.py: 23 warnings
+tests/analyzers/test_market_embedding_store.py: 6 warnings
+tests/analyzers/test_market_synonyms_v32.py: 3 warnings
+tests/analyzers/test_market_top_coverage.py: 6 warnings
+tests/analyzers/test_market_weight_coverage.py: 6 warnings
+tests/analyzers/test_oct12_audit_fixes.py: 11 warnings
+tests/analyzers/test_profession_taxonomy.py: 64 warnings
+tests/analyzers/test_profile_evaluator.py: 66 warnings
+tests/analyzers/test_skill.py: 59 warnings
+tests/analyzers/test_skill_corellation.py: 19 warnings
+tests/analyzers/test_skill_level_analyzer.py: 11 warnings
+tests/analyzers/test_skill_matcher.py: 24 warnings
+tests/analyzers/test_skill_ontology.py: 22 warnings
+tests/analyzers/test_skill_taxonomy.py: 15 warnings
+tests/analyzers/test_sweep_pins.py: 3 warnings
+tests/analyzers/test_trend_analyzer.py: 15 warnings
+tests/analyzers/test_trend_no_alias_collapse.py: 4 warnings
+tests/analyzers/test_trends.py: 90 warnings
+tests/analyzers/test_vacancy_clustering.py: 53 warnings
+tests/analyzers/test_verb_lemma_v44.py: 6 warnings
+tests/api/test_2fa.py: 20 warnings
+tests/api/test_2fa_hardening.py: 7 warnings
+tests/api/test_academic_security.py: 16 warnings
+tests/api/test_admin_gaps2.py: 6 warnings
+tests/api/test_admin_guards.py: 34 warnings
+tests/api/test_admin_routes_coverage.py: 53 warnings
+tests/api/test_admin_users_pagination.py: 6 warnings
+tests/api/test_api.py: 20 warnings
+tests/api/test_audit_merged_zun.py: 5 warnings
+tests/api/test_auth_bruteforce.py: 7 warnings
+tests/api/test_forecast_coverage.py: 12 warnings
+tests/api/test_health.py: 3 warnings
+tests/api/test_krm_student.py: 14 warnings
+tests/api/test_llm_phase2.py: 16 warnings
+tests/api/test_logs_gaps.py: 2 warnings
+tests/api/test_misc_hardening.py: 2 warnings
+tests/api/test_pipeline_ownership.py: 12 warnings
+tests/api/test_pipeline_rest_coverage.py: 18 warnings
+tests/api/test_pipeline_steps.py: 12 warnings
+tests/api/test_pipeline_task_owner.py: 3 warnings
+tests/api/test_profiles_authz.py: 19 warnings
+tests/api/test_profiles_custom_v33.py: 4 warnings
+tests/api/test_profiles_custom_zun.py: 5 warnings
+tests/api/test_profiles_restore_v45.py: 2 warnings
+tests/api/test_profiles_self.py: 7 warnings
+tests/api/test_publications.py: 64 warnings
+tests/api/test_recommendation_audit.py: 10 warnings
+tests/api/test_report_pdf.py: 4 warnings
+tests/api/test_rpd_coverage.py: 10 warnings
+tests/api/test_rpd_owner.py: 10 warnings
+tests/api/test_rpd_owner_scope.py: 7 warnings
+tests/api/test_security_p0.py: 4 warnings
+tests/api/test_student_view.py: 5 warnings
+tests/api/test_subscriptions.py: 12 warnings
+tests/api/test_teacher_foundational.py: 10 warnings
+tests/api/test_teacher_meta_v32.py: 4 warnings
+tests/api/test_teacher_students_pagination.py: 5 warnings
+tests/api/test_token_hygiene.py: 11 warnings
+tests/api/test_trends_by_profession.py: 4 warnings
+tests/api/test_trends_coverage.py: 9 warnings
+tests/api/test_vacancies_filters_v45.py: 6 warnings
+tests/api/test_ws_origin.py: 8 warnings
+tests/api/test_zun_idor.py: 15 warnings
+tests/api/test_zun_idor_guard.py: 12 warnings
+tests/api/test_zun_links_v33.py: 5 warnings
+tests/api/test_zun_routes_coverage.py: 26 warnings
+tests/api/test_zun_scope_v41.py: 6 warnings
+tests/api_pkg/test_deps.py: 35 warnings
+tests/api_pkg/test_init.py: 13 warnings
+tests/api_pkg/test_n8n.py: 3 warnings
+tests/cli/test_map_ksa_to_skills.py: 7 warnings
+tests/domain/test_ports.py: 8 warnings
+tests/evaluation/test_evaluation_base.py: 20 warnings
+tests/evaluation/test_metrics.py: 42 warnings
+tests/evaluation/test_metrics_integration.py: 2 warnings
+tests/evaluation/test_report.py: 9 warnings
+tests/infrastructure/test_file_provider.py: 11 warnings
+tests/infrastructure/test_hh_provider.py: 10 warnings
+tests/labeling/test_golden_tripwire.py: 3 warnings
+tests/loaders/test_loaders.py: 16 warnings
+tests/loaders/test_rpd_loader.py: 23 warnings
+tests/ml/test_registry.py: 7 warnings
+tests/ml/test_tracker.py: 6 warnings
+tests/models/test_api_responses.py: 39 warnings
+tests/models/test_models.py: 105 warnings
+tests/models/test_teacher_analysis.py: 13 warnings
+tests/monitoring/test_gap_metrics.py: 13 warnings
+tests/monitoring/test_pipeline_metrics.py: 17 warnings
+tests/parsing/test_api.py: 79 warnings
+tests/parsing/test_bm25_ranker.py: 20 warnings
+tests/parsing/test_c1_regex_fix.py: 8 warnings
+tests/parsing/test_embedding_cache.py: 9 warnings
+tests/parsing/test_embedding_loader.py: 7 warnings
+tests/parsing/test_homoglyph_regression.py: 3 warnings
+tests/parsing/test_hybrid_weight_calculator.py: 9 warnings
+tests/parsing/test_hybrid_weight_calculator_extended.py: 16 warnings
+tests/parsing/test_hybrid_weights.py: 8 warnings
+tests/parsing/test_iter2_parser.py: 28 warnings
+tests/parsing/test_key_skills_junk.py: 3 warnings
+tests/parsing/test_p0_marker_regex.py: 7 warnings
+tests/parsing/test_p2_fulltext_idf.py: 3 warnings
+tests/parsing/test_p_length_whitelist.py: 4 warnings
+tests/parsing/test_sfu_annotation_parser.py: 24 warnings
+tests/parsing/test_skill_normalizer.py: 25 warnings
+tests/parsing/test_soft_skills.py: 11 warnings
+tests/parsing/test_utils.py: 51 warnings
+tests/parsing/test_vacancy_parser.py: 28 warnings
+tests/parsing/test_validation.py: 39 warnings
+tests/parsing/test_versioned_cache.py: 3 warnings
+tests/pipeline/test_builder.py: 10 warnings
+tests/pipeline/test_collector_force.py: 1 warning
+tests/pipeline/test_data_source_extended.py: 21 warnings
+tests/pipeline/test_e2e_pipeline.py: 29 warnings
+tests/pipeline/test_event_bus.py: 6 warnings
+tests/pipeline/test_gap_runner.py: 31 warnings
+tests/pipeline/test_helpers.py: 11 warnings
+tests/pipeline/test_level_builder_extended.py: 22 warnings
+tests/pipeline/test_metric_computer.py: 5 warnings
+tests/pipeline/test_metric_computer_extended.py: 8 warnings
+tests/pipeline/test_orchestrator.py: 10 warnings
+tests/pipeline/test_pipeline.py: 53 warnings
+tests/pipeline/test_prod_diag_v45.py: 13 warnings
+tests/pipeline/test_progress.py: 8 warnings
+tests/pipeline/test_progress_extended.py: 17 warnings
+tests/pipeline/test_recommendation_runner_extended.py: 12 warnings
+tests/pipeline/test_runner.py: 33 warnings
+tests/pipeline/test_runner_extended.py: 20 warnings
+tests/pipeline/test_save_batch_probe.py: 2 warnings
+tests/pipeline/test_scheduler.py: 15 warnings
+tests/pipeline/test_skill_extractor_extended.py: 16 warnings
+tests/pipeline/test_stage.py: 7 warnings
+tests/pipeline/test_stages.py: 21 warnings
+tests/pipeline/test_stages_extended.py: 17 warnings
+tests/pipeline/test_teacher_analysis_ksa.py: 5 warnings
+tests/pipeline/test_teacher_analysis_runner_coverage.py: 43 warnings
+tests/pipeline/test_versioning.py: 5 warnings
+tests/pipeline/test_weight_cleaner.py: 3 warnings
+tests/predictors/test_curriculum.py: 25 warnings
+tests/predictors/test_determinism_v15.py: 3 warnings
+tests/predictors/test_factory.py: 7 warnings
+tests/predictors/test_forecast.py: 17 warnings
+tests/predictors/test_ltr_contract.py: 9 warnings
+tests/predictors/test_ltr_recommendation_engine.py: 52 warnings
+tests/predictors/test_mape_honesty.py: 5 warnings
+tests/predictors/test_prophet_gather.py: 29 warnings
+tests/predictors/test_ranking_quality.py: 1 warning
+tests/predictors/test_recommendation_engine.py: 70 warnings
+tests/predictors/test_reranker.py: 25 warnings
+tests/predictors/test_rpd_tail_v38.py: 3 warnings
+tests/predictors/test_scope_v34.py: 3 warnings
+tests/predictors/test_shap_topk_alignment.py: 2 warnings
+tests/predictors/test_skill_forecast_ext.py: 10 warnings
+tests/predictors/test_teacher_recommendations_v10.py: 24 warnings
+tests/predictors/test_v37_ksa_shred.py: 5 warnings
+tests/predictors/test_weak_comp_recs_v32.py: 2 warnings
+tests/scoring/test_vacancy_quality_scorer.py: 32 warnings
+tests/scripts/test_check_clusters.py: 7 warnings
+tests/scripts/test_extend_it_skills.py: 36 warnings
+tests/scripts/test_train_clusters.py: 17 warnings
+tests/test_academic_trends_router.py: 40 warnings
+tests/test_article_categories.py: 4 warnings
+tests/test_article_edge.py: 12 warnings
+tests/test_article_errors.py: 6 warnings
+tests/test_article_stats.py: 8 warnings
+tests/test_artifacts.py: 8 warnings
+tests/test_audit_2026_10_12.py: 6 warnings
+tests/test_cache_invalidation.py: 11 warnings
+tests/test_cache_manager.py: 21 warnings
+tests/test_circuit_breaker.py: 4 warnings
+tests/test_clean_intake_data.py: 14 warnings
+tests/test_client_ip.py: 7 warnings
+tests/test_compare_intakes.py: 4 warnings
+tests/test_course_trends_client.py: 17 warnings
+tests/test_course_trends_normalize.py: 11 warnings
+tests/test_decorators.py: 6 warnings
+tests/test_dependency_drift.py: 7 warnings
+tests/test_di.py: 17 warnings
+tests/test_errors_frozen.py: 8 warnings
+tests/test_feature_flags.py: 2 warnings
+tests/test_fixes_c4c5c6_32.py: 13 warnings
+tests/test_hub_gate.py: 7 warnings
+tests/test_iter4_gap.py: 26 warnings
+tests/test_iter5_e2e.py: 8 warnings
+tests/test_krm_db_consistency.py: 8 warnings
+tests/test_krm_merge_scripts.py: 32 warnings
+tests/test_log_email_masking.py: 6 warnings
+tests/test_logging_config.py: 8 warnings
+tests/test_matcher_gaps.py: 7 warnings
+tests/test_monitoring.py: 6 warnings
+tests/test_n8n.py: 14 warnings
+tests/test_n8n_auth.py: 6 warnings
+tests/test_n8n_webhooks.py: 11 warnings
+tests/test_quick_coverage.py: 15 warnings
+tests/test_result.py: 22 warnings
+tests/test_retention_cli.py: 10 warnings
+tests/test_retry.py: 20 warnings
+tests/test_security_paths.py: 24 warnings
+tests/test_semantic_judge.py: 5 warnings
+tests/test_shap_integration.py: 4 warnings
+tests/test_silent_excepts_audit.py: 7 warnings
+tests/test_snapshots.py: 6 warnings
+tests/test_stability_blocks.py: 50 warnings
+tests/test_startup_more_coverage.py: 19 warnings
+tests/test_summary_builder.py: 8 warnings
+tests/test_summary_history.py: 5 warnings
+tests/test_teacher_scope_api.py: 6 warnings
+tests/test_teacher_scope_v41.py: 5 warnings
+tests/test_telegram_notify.py: 7 warnings
+tests/test_trends_cache.py: 5 warnings
+tests/test_utils.py: 21 warnings
+tests/test_utils_extended.py: 25 warnings
+tests/visualization/test_visualization.py: 62 warnings
+  C:\Users\максим\AppData\Local\Programs\Python\Python312\Lib\site-packages\_pytest\config\__init__.py:2185: PytestConfigWarning: Failed to import filter module 'pydantic.v1.deprecation': ignore::pydantic.v1.deprecation.PydanticDeprecatedSince20
+    warnings.warn(
+
+tests/analyzers/test_trends.py::TestTrendAnalyzerPlots::test_plot_timeline_empty_skills
+  C:\Users\291A~1\AppData\Local\Temp\opencode\wt-night2\src\analyzers\skills\trends.py:362: UserWarning: No artists with labels found to put in legend.  Note that artists whose label start with an underscore are ignored when legend() is called with no argument.
+    ax.legend(loc="upper left", fontsize=11, ncol=2, framealpha=0.9)
+
+tests/analyzers/test_vacancy_clustering.py: 10 warnings
+  C:\Users\максим\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\base.py:1336: ConvergenceWarning: Number of distinct clusters (2) found smaller than n_clusters (3). Possibly due to duplicate points in X.
+    return fit_method(estimator, *args, **kwargs)
+
+tests/analyzers/test_vacancy_clustering.py: 23 warnings
+  C:\Users\максим\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\base.py:1336: ConvergenceWarning: Number of distinct clusters (1) found smaller than n_clusters (2). Possibly due to duplicate points in X.
+    return fit_method(estimator, *args, **kwargs)
+
+tests/analyzers/test_vacancy_clustering.py: 23 warnings
+  C:\Users\максим\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\base.py:1336: ConvergenceWarning: Number of distinct clusters (1) found smaller than n_clusters (3). Possibly due to duplicate points in X.
+    return fit_method(estimator, *args, **kwargs)
+
+tests/analyzers/test_vacancy_clustering.py: 22 warnings
+  C:\Users\максим\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\base.py:1336: ConvergenceWarning: Number of distinct clusters (1) found smaller than n_clusters (4). Possibly due to duplicate points in X.
+    return fit_method(estimator, *args, **kwargs)
+
+tests/analyzers/test_vacancy_clustering.py::TestVacancyClusteringFull::test_compute_embeddings_with_empty_skills
+  C:\Users\максим\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\base.py:1336: ConvergenceWarning: Number of distinct clusters (2) found smaller than n_clusters (4). Possibly due to duplicate points in X.
+    return fit_method(estimator, *args, **kwargs)
+
+tests/api/test_admin_routes_coverage.py::test_scheduler_collect_now
+  C:\Users\291A~1\AppData\Local\Temp\opencode\wt-night2\src\api_pkg\routers\admin.py:1107: RuntimeWarning: coroutine '_run_collect_once' was never awaited
+    asyncio.create_task(_run_collect_once(force=True))
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/api/test_admin_routes_coverage.py::test_scheduler_gap_now
+  C:\Users\291A~1\AppData\Local\Temp\opencode\wt-night2\src\api_pkg\routers\admin.py:1118: RuntimeWarning: coroutine '_run_scheduled_gap' was never awaited
+    asyncio.create_task(_run_scheduled_gap())
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/cli/test_map_ksa_to_skills.py::TestMapKsaToSkills::test_tier_explicit_json_creates_links
+  C:\Users\291A~1\AppData\Local\Temp\opencode\wt-night2\src\cli\map_ksa_to_skills.py:119: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    session.add(CompetencySkill(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/cli/test_map_ksa_to_skills.py::TestMapKsaToSkills::test_tier_substring_finds_matches
+  C:\Users\291A~1\AppData\Local\Temp\opencode\wt-night2\src\cli\map_ksa_to_skills.py:173: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    session.add(CompetencySkill(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/pipeline/test_runner_extended.py: 9 warnings
+tests/pipeline/test_save_batch_probe.py: 2 warnings
+tests/pipeline/test_skill_extractor_extended.py: 2 warnings
+tests/pipeline/test_weight_cleaner.py: 1 warning
+tests/predictors/test_curriculum.py: 10 warnings
+tests/predictors/test_recommendation_engine.py: 1 warning
+tests/predictors/test_teacher_recommendations_v10.py: 6 warnings
+tests/predictors/test_v37_ksa_shred.py: 2 warnings
+tests/test_security_paths.py: 1 warning
+tests/test_startup_more_coverage.py: 1 warning
+tests/visualization/test_visualization.py: 1 warning
+  C:\Users\максим\AppData\Local\Programs\Python\Python312\Lib\site-packages\structlog\_base.py:173: UserWarning: Remove `format_exc_info` from your processor chain if you want pretty exceptions.
+    event_dict = proc(self._logger, method_name, event_dict)
+
+tests/test_startup_more_coverage.py::test_bootstrap_no_vacancy_files
+  C:\Users\291A~1\AppData\Local\Temp\opencode\wt-night2\src\api_pkg\startup.py:308: RuntimeWarning: coroutine '_noop_coro' was never awaited
+    asyncio.ensure_future(_periodic_housekeeping())
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_startup_more_coverage.py::test_bootstrap_no_vacancy_files
+  C:\Users\291A~1\AppData\Local\Temp\opencode\wt-night2\src\api_pkg\startup.py:310: RuntimeWarning: coroutine '_noop_coro' was never awaited
+    asyncio.ensure_future(_resolve_pipeline_errors_if_ready())
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=============================== tests coverage ================================
+_______________ coverage: platform win32, python 3.12.1-final-0 _______________
+
+Name                                                 Stmts   Miss  Cover
+------------------------------------------------------------------------
+src\__init__.py                                          4      0   100%
+src\analyzers\__init__.py                                9      0   100%
+src\analyzers\academic_gap.py                          334     90    73%
+src\analyzers\action_map.py                             48      7    85%
+src\analyzers\clustering\__init__.py                     0      0   100%
+src\analyzers\clustering\vacancy_clustering.py         327     75    77%
+src\analyzers\comparison\__init__.py                     4      0   100%
+src\analyzers\comparison\comparator.py                 105      6    94%
+src\analyzers\comparison\domain_analyzer.py             35      3    91%
+src\analyzers\comparison\embedding_comparator.py       244     27    89%
+src\analyzers\comparison\embedding_provider.py          54     13    76%
+src\analyzers\comparison\engines.py                     95      5    95%
+src\analyzers\comparison\hub_gate.py                    71     34    52%
+src\analyzers\comparison\market_embedding_store.py      24      1    96%
+src\analyzers\coverage_analyzer.py                     264     99    62%
+src\analyzers\discipline_relevance.py                  228    103    55%
+src\analyzers\discipline_scope.py                      141     62    56%
+src\analyzers\gap\__init__.py                            3      0   100%
+src\analyzers\gap\gap_analyzer.py                       46      2    96%
+src\analyzers\gap\profile_evaluator.py                 316     59    81%
+src\analyzers\hybrid_matcher.py                        157     39    75%
+src\analyzers\skill_cooccurrence.py                     59     10    83%
+src\analyzers\skill_matcher.py                         476    100    79%
+src\analyzers\skills\__init__.py                         6      0   100%
+src\analyzers\skills\profession_taxonomy.py            270     65    76%
+src\analyzers\skills\skill_correlation.py               89      5    94%
+src\analyzers\skills\skill_filter.py                   208      8    96%
+src\analyzers\skills\skill_level_analyzer.py            80      1    99%
+src\analyzers\skills\skill_ontology.py                 118      0   100%
+src\analyzers\skills\skill_taxonomy.py                  64      3    95%
+src\analyzers\skills\trends.py                         361    116    68%
+src\analyzers\trend_analyzer.py                         98      5    95%
+src\api_pkg\__init__.py                                210     36    83%
+src\api_pkg\client_ip.py                                38      2    95%
+src\api_pkg\deps.py                                     83     15    82%
+src\api_pkg\feature_flags.py                            57      7    88%
+src\api_pkg\n8n.py                                       3      0   100%
+src\api_pkg\request_logger.py                          241     44    82%
+src\api_pkg\routers\__init__.py                          0      0   100%
+src\api_pkg\routers\academic.py                        227     80    65%
+src\api_pkg\routers\academic_trends.py                  68      0   100%
+src\api_pkg\routers\admin.py                           661    114    83%
+src\api_pkg\routers\auth.py                            443     76    83%
+src\api_pkg\routers\clusters.py                         38      0   100%
+src\api_pkg\routers\comparison.py                       28     13    54%
+src\api_pkg\routers\forecast.py                        359    133    63%
+src\api_pkg\routers\health.py                           71     16    77%
+src\api_pkg\routers\history.py                          34     18    47%
+src\api_pkg\routers\krm_student.py                      92      5    95%
+src\api_pkg\routers\krm_teacher.py                     139     69    50%
+src\api_pkg\routers\llm.py                              27      7    74%
+src\api_pkg\routers\market.py                           40     14    65%
+src\api_pkg\routers\pipeline.py                        608    305    50%
+src\api_pkg\routers\profiles.py                        592    142    76%
+src\api_pkg\routers\publications.py                     59      0   100%
+src\api_pkg\routers\results.py                         144     76    47%
+src\api_pkg\routers\rpd.py                             321    192    40%
+src\api_pkg\routers\student.py                          32     10    69%
+src\api_pkg\routers\subscriptions.py                   109      6    94%
+src\api_pkg\routers\taxonomy.py                        106     65    39%
+src\api_pkg\routers\teacher.py                         648    327    50%
+src\api_pkg\routers\trends.py                          318     80    75%
+src\api_pkg\routers\trends_by_profession.py             55     16    71%
+src\api_pkg\routers\vacancies.py                       188    110    41%
+src\api_pkg\routers\zun.py                             632     98    84%
+src\api_pkg\routers\zun_schemas.py                      19      0   100%
+src\api_pkg\skill_suggestions.py                        42      3    93%
+src\api_pkg\startup.py                                 486    137    72%
+src\api_pkg\student_actions.py                          59     29    51%
+src\api_pkg\summary_builder.py                          27      0   100%
+src\api_pkg\user_keys.py                                 8      0   100%
+src\api_pkg\ws_origin.py                                28      4    86%
+src\artifacts.py                                        63      9    86%
+src\cache_bus.py                                        23      0   100%
+src\cache_manager.py                                   100      2    98%
+src\circuit_breaker.py                                  29      1    97%
+src\cli\__init__.py                                      0      0   100%
+src\cli\__main__.py                                     85     85     0%
+src\cli\backfill_market_snapshots.py                    69     69     0%
+src\cli\backup_db.py                                    30     18    40%
+src\cli\compute_competency_vectors.py                   38     38     0%
+src\cli\create_user.py                                  32     23    28%
+src\cli\dedup_disciplines.py                            24     24     0%
+src\cli\embeddings.py                                   34     25    26%
+src\cli\export_json.py                                  35     35     0%
+src\cli\export_results.py                               10     10     0%
+src\cli\export_vacancies.py                             19     19     0%
+src\cli\extend_skills.py                               166    144    13%
+src\cli\fix_rpd_data.py                                200    200     0%
+src\cli\forecast_audit.py                              106    106     0%
+src\cli\import_students.py                              64     55    14%
+src\cli\ingest_market_skills.py                        111    111     0%
+src\cli\map_ksa_to_skills.py                           296    171    42%
+src\cli\populate_parsed_skills.py                       79     79     0%
+src\cli\rebuild.py                                      17     17     0%
+src\cli\retention.py                                    50      8    84%
+src\cli\seed_db.py                                     198    198     0%
+src\cli\snapshot_professions.py                         36     36     0%
+src\cli\taxonomy_audit.py                              134    108    19%
+src\cli\teacher_analysis.py                             24     24     0%
+src\config.py                                          283      2    99%
+src\database.py                                         20      3    85%
+src\db.py                                               18      0   100%
+src\decorators.py                                       42      0   100%
+src\di.py                                               69      9    87%
+src\domain\__init__.py                                   3      0   100%
+src\domain\ports.py                                     36      0   100%
+src\errors.py                                           93      0   100%
+src\evaluation\__init__.py                               3      0   100%
+src\evaluation\base.py                                  80      5    94%
+src\evaluation\metrics.py                              207     13    94%
+src\evaluation\report.py                                37      0   100%
+src\feature_flags.py                                    21      0   100%
+src\ground_truth\__init__.py                             2      2     0%
+src\ground_truth\hh_proxy.py                            32     32     0%
+src\infrastructure\__init__.py                           3      0   100%
+src\infrastructure\course_trends.py                     49      0   100%
+src\infrastructure\course_trends_normalize.py          122     15    88%
+src\infrastructure\file_provider.py                     53      1    98%
+src\infrastructure\hh_provider.py                       38      2    95%
+src\infrastructure\hub_publications.py                 428     31    93%
+src\loaders\__init__.py                                  0      0   100%
+src\loaders\rpd_loader.py                              421    220    48%
+src\loaders\rpd_skill_cleaner.py                       111     35    68%
+src\loaders_student\__init__.py                          0      0   100%
+src\loaders_student\student_loader.py                  119     16    87%
+src\ml\__init__.py                                       0      0   100%
+src\ml\clusters.py                                     147    132    10%
+src\ml\registry.py                                      43      1    98%
+src\ml\tracker.py                                       57      1    98%
+src\model_registry.py                                   79     50    37%
+src\models\__init__.py                                   0      0   100%
+src\models\api_responses.py                            260      0   100%
+src\models\data_contracts.py                            84      0   100%
+src\models\enums.py                                     30      0   100%
+src\models\hh_responses.py                              72      0   100%
+src\models\krm_models.py                               366      0   100%
+src\models\market_metrics.py                            52      0   100%
+src\models\student.py                                   69      1    99%
+src\models\teacher_analysis.py                          79      0   100%
+src\models\vacancy.py                                  207     15    93%
+src\monitoring\__init__.py                               3      0   100%
+src\monitoring\gap_metrics.py                           83      1    99%
+src\monitoring\metrics.py                               63     16    75%
+src\monitoring\pipeline_metrics.py                      90      4    96%
+src\n8n\auth.py                                         24      0   100%
+src\n8n\webhooks.py                                    101     27    73%
+src\notifications\__init__.py                            2      0   100%
+src\notifications\system.py                            161     58    64%
+src\notifications\telegram.py                           22      0   100%
+src\parsing\__init__.py                                  7      0   100%
+src\parsing\api\__init__.py                              0      0   100%
+src\parsing\api\embedding_loader.py                     42      1    98%
+src\parsing\api\hh_api.py                              317     74    77%
+src\parsing\api\hh_api_async.py                        276     36    87%
+src\parsing\skills\__init__.py                           0      0   100%
+src\parsing\skills\bm25_ranker.py                      153     11    93%
+src\parsing\skills\hybrid_weight_calculator.py          83      7    92%
+src\parsing\skills\skill_embedding_cache.py             54      1    98%
+src\parsing\skills\skill_normalizer.py                 216     18    92%
+src\parsing\skills\skill_parser.py                     324     46    86%
+src\parsing\skills\skill_validator.py                  174     16    91%
+src\parsing\skills\vacancy_parser.py                   256     51    80%
+src\parsing\utils.py                                   334     51    85%
+src\pipeline\__init__.py                                 2      0   100%
+src\pipeline\background_collector.py                   451    337    25%
+src\pipeline\builder.py                                 41      0   100%
+src\pipeline\clean.py                                   68     19    72%
+src\pipeline\data_source.py                            163     18    89%
+src\pipeline\db_writer.py                              186     88    53%
+src\pipeline\event_bus.py                               41      1    98%
+src\pipeline\gap_runner.py                             203      2    99%
+src\pipeline\helpers.py                                150     40    73%
+src\pipeline\level_builder.py                           79      1    99%
+src\pipeline\metric_computer.py                         34      0   100%
+src\pipeline\orchestrator.py                            98      4    96%
+src\pipeline\pipeline_steps.py                         291     87    70%
+src\pipeline\progress.py                                41      2    95%
+src\pipeline\recommendation_runner.py                   56      0   100%
+src\pipeline\runner.py                                 471     46    90%
+src\pipeline\skill_extractor.py                        127      9    93%
+src\pipeline\stage.py                                   18      0   100%
+src\pipeline\stages.py                                 279     12    96%
+src\pipeline\teacher_analysis_runner.py                839    223    73%
+src\pipeline\versioning.py                              34      3    91%
+src\pipeline\weight_cleaner.py                          24      0   100%
+src\predictors\__init__.py                              12      2    83%
+src\predictors\base.py                                  11      1    91%
+src\predictors\curriculum_optimizer.py                  28      0   100%
+src\predictors\curriculum_recommender.py               357     35    90%
+src\predictors\factory.py                               43     11    74%
+src\predictors\ltr_recommendation_engine.py            695    360    48%
+src\predictors\models.py                                59      0   100%
+src\predictors\prophet_forecast.py                     469    159    66%
+src\predictors\recommendation_engine.py                480     80    83%
+src\predictors\reranker.py                             107      5    95%
+src\predictors\skill_forecast.py                       180     32    82%
+src\reports\pdf_report.py                              161    148     8%
+src\result.py                                           89     13    85%
+src\retry.py                                            83      2    98%
+src\scoring\__init__.py                                  0      0   100%
+src\scoring\vacancy_quality_scorer.py                  173     24    86%
+src\services\__init__.py                                 0      0   100%
+src\services\llm_cache.py                               89     44    51%
+src\services\llm_client.py                              41     26    37%
+src\services\llm_extract.py                            157     60    62%
+src\services\llm_recommend.py                          223     79    65%
+src\services\semantic_judge.py                          56      9    84%
+src\teacher_scope.py                                    27      0   100%
+src\text\__init__.py                                     0      0   100%
+src\text\ru_morph.py                                    43      7    84%
+src\utils.py                                           254     93    63%
+src\visualization\__init__.py                            7      0   100%
+src\visualization\_config.py                             6      0   100%
+src\visualization\_utils.py                             67      4    94%
+src\visualization\clusters.py                           56      3    95%
+src\visualization\correlation.py                        71     43    39%
+src\visualization\coverage.py                          143      1    99%
+src\visualization\importance.py                         51      0   100%
+src\visualization\orchestration.py                     192     31    84%
+src\visualization\radar.py                              31      0   100%
+------------------------------------------------------------------------
+TOTAL                                                28527   7970    72%
+========================== warnings summary (final) ===========================
+..\..\..\..\..\..\максим\AppData\Local\Programs\Python\Python312\Lib\site-packages\_pytest\config\__init__.py:2185
+  C:\Users\максим\AppData\Local\Programs\Python\Python312\Lib\site-packages\_pytest\config\__init__.py:2185: PytestConfigWarning: Failed to import filter module 'pydantic.v1.deprecation': ignore::pydantic.v1.deprecation.PydanticDeprecatedSince20
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+3443 passed, 99 skipped, 8 xfailed, 1 xpassed, 3677 warnings in 1240.44s (0:20:40)
