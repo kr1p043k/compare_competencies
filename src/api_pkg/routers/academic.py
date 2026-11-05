@@ -310,7 +310,9 @@ async def sso_login(body: SsoRequest, request: Request):
 
     # 2FA обязательна и для SSO: иначе владелец hub-JWT админа получал бы
     # полный токен, не зная TOTP (второй фактор обходился стороной).
-    if row["role"] == "admin":
+    from src.api_pkg.routers.auth import _totp_feature_enabled
+
+    if row["role"] == "admin" and _totp_feature_enabled():
         from src.api_pkg.routers.auth import _issue_challenge, _totp_state
 
         state = await _totp_state(pool, row["id"])

@@ -1117,3 +1117,32 @@ async def scheduler_gap_now(request: Request):
         raise HTTPException(status_code=409, detail="Планировщик уже выполняет задачу")
     asyncio.create_task(_run_scheduled_gap())
     return {"status": "started", "job": "gap"}
+
+# ---------- Feature flags (admin-only): включение функций без рестарта ----------
+
+
+class FeatureFlagPatch(BaseModel):
+    enabled: bool
+
+
+@router.get("/admin/features", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("60/minute")
+async def admin_features(request: Request):
+    """Состояние переключателей функций (2FA и прочие)."""
+    from src.api_pkg.feature_flags import all_flags
+
+    return {"features": all_flags()}
+
+
+@router.put("/admin/features/{flag}", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("20/minute")
+async def admin_set_feature(flag: str, body: FeatureFlagPatch, request: Request):
+    """Включить или выключить функцию на лету, без перезапуска сервиса."""
+    from src.api_pkg.feature_flags import all_flags, set_flag
+
+    try:
+        set_flag(flag, body.enabled)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Unknown feature '{flag}'") from None
+    logger.info("admin_feature_toggled", flag=flag, enabled=body.enabled, uid=getattr(request.state, "user_uid", None))
+    return {"features": all_flags()}

@@ -14,6 +14,7 @@ import { reportError } from "./../../lib/errors";
 import { ApiError, request } from "../../lib/api";
 import { PageHeader } from "./PageHeader";
 import { Skeleton } from "../../design";
+import { AdminTwoFactorCard } from "./AdminTwoFactorCard";
 
 export function AdminDashboard() {
   const RPD_STAGE_LABELS: Record<string, string> = {
@@ -1078,6 +1079,8 @@ export function AdminDashboard() {
               {schedMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{schedMsg}</span>}
             </CardContent>
           </Card>
+
+          <AdminTwoFactorCard />
 
           <Card>
             <CardHeader><CardTitle className="text-lg">Запуск вне расписания</CardTitle></CardHeader>

@@ -1194,12 +1194,18 @@ async def admin_student_skills(request: Request, email: str = ""):
 
 @router.get("/teacher/students", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("30/minute")
-async def teacher_students(request: Request):
+async def teacher_students(request: Request,
+                           limit: int = Query(100, ge=1, le=500),
+                           offset: int = Query(0, ge=0)):
     """Students (role=student) with self-profile stats for the Students tab."""
     try:
+        total = int(await get_pool().fetchval(
+            "SELECT COUNT(*) FROM users "
+            "WHERE role = 'student' AND is_active = true"))
         rows = await get_pool().fetch(
             "SELECT email, full_name FROM users "
-            "WHERE role = 'student' AND is_active = true ORDER BY email")
+            "WHERE role = 'student' AND is_active = true "
+            "ORDER BY email, id LIMIT $1 OFFSET $2", limit, offset)
     except Exception as exc:
         logger.warning("teacher_students_db_failed", error=str(exc))
         raise HTTPException(status_code=503, detail="User directory unavailable")
@@ -1237,7 +1243,7 @@ async def teacher_students(request: Request):
                 "competencies_count": 0,
                 "has_profile": False,
             })
-    return {"students": items, "total": len(items)}
+    return {"students": items, "total": total, "limit": limit, "offset": offset}
 
 
 @router.get(
