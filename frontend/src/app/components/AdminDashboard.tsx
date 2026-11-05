@@ -6,15 +6,24 @@ import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import {
   AlertCircle, RefreshCw, Users, FileText, Database,
-  Upload, Brain, BookOpen, Download, Clock, Activity, Shield,
+  Upload, Brain, BookOpen, Download, Clock, Activity, Shield, ShieldCheck, ScrollText,
 } from "lucide-react";
 import { logAction } from "../../lib/auth";
 import { reportError } from "./../../lib/errors";
 import { ApiError, request } from "../../lib/api";
 import { PageHeader } from "./PageHeader";
-import { Skeleton } from "../../design";
 import { AdminTwoFactorCard } from "./AdminTwoFactorCard";
+import { AdminUsersTab } from "./AdminUsersTab";
+import { AdminAuditTab } from "./AdminAuditTab";
 
 export function AdminDashboard() {
   const RPD_STAGE_LABELS: Record<string, string> = {
@@ -31,8 +40,6 @@ export function AdminDashboard() {
     if (!stage) return "...";
     return RPD_STAGE_LABELS[stage] ?? stage;
   };
-  const [users, setUsers] = useState<any[]>([]);
-  const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState("users");
@@ -41,6 +48,8 @@ export function AdminDashboard() {
   const [schedMsg, setSchedMsg] = useState("");
   const [schedInterval, setSchedInterval] = useState("12");
   const [schedBusy, setSchedBusy] = useState(false);
+  // подтверждение запуска задачи вне расписания (диалог вместо window.confirm)
+  const [confirmJob, setConfirmJob] = useState<{ job: string; label: string } | null>(null);
   const [health, setHealth] = useState<any>(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [healthMsg, setHealthMsg] = useState("");
@@ -83,8 +92,8 @@ export function AdminDashboard() {
       setSchedBusy(false);
     }
   };
-  const runSchedJob = async (job: string, label: string) => {
-    if (!window.confirm(`Запустить "${label}" вне расписания?`)) return;
+  const runSchedJob = async (job: string) => {
+    setConfirmJob(null);
     setSchedBusy(true);
     setSchedMsg("");
     try {
@@ -139,7 +148,6 @@ export function AdminDashboard() {
     const d = new Date(Number(ts) * 1000);
     return isNaN(d.getTime()) ? "-" : d.toLocaleString("ru-RU");
   };
-  const [logFilter, setLogFilter] = useState("all");
   const [seedLoading, setSeedLoading] = useState(false);
   const [embLoading, setEmbLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
@@ -149,11 +157,11 @@ export function AdminDashboard() {
   const [seedMsg, setSeedMsg] = useState("");
   const [embMsg, setEmbMsg] = useState("");
   const [exportMsg, setExportMsg] = useState("");
-  const [extMsg, setExtMsg] = useState("");
-  const [impMsg, setImpMsg] = useState("");
+  const [extMsg, setExtMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [impMsg, setImpMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [uncategorized, setUncategorized] = useState<any[]>([]);
   const [uncatLoading, setUncatLoading] = useState(false);
-  const [uncatMsg, setUncatMsg] = useState("");
+  const [uncatMsg, setUncatMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [uncatSelections, setUncatSelections] = useState<Record<string, string>>({});
   const [linkSkill, setLinkSkill] = useState<string | null>(null);
   const [compQuery, setCompQuery] = useState("");
@@ -196,16 +204,7 @@ export function AdminDashboard() {
       setLinkSaving(false);
     }
   };
-  const [newUserEmail, setNewUserEmail] = useState("");
-  const [newUserPass, setNewUserPass] = useState("");
-  const [newUserRole, setNewUserRole] = useState("teacher");
-  const [newUserName, setNewUserName] = useState("");
-  const [newUserDirs, setNewUserDirs] = useState<string[]>([]);
   const [directions, setDirections] = useState<any[]>([]);
-  const [editUser, setEditUser] = useState<string>("");
-  const [editUserDirs, setEditUserDirs] = useState<string[]>([]);
-  const [dirMsg, setDirMsg] = useState("");
-  const [userCreated, setUserCreated] = useState("");
   const [importJson, setImportJson] = useState("");
   const [rpdDir, setRpdDir] = useState("09.03.02");
   const [rpdFile, setRpdFile] = useState<File | null>(null);
@@ -222,13 +221,7 @@ export function AdminDashboard() {
   const loadData = async () => {
     setLoading(true); setError(null);
     try {
-      const [uData, lData, dData] = await Promise.all([
-        request<any>("/api/admin/users"),
-        request<any>("/api/admin/logs?limit=200"),
-        request<any>("/api/admin/directions"),
-      ]);
-      setUsers(uData.users || []);
-      setLogs(lData.logs || []);
+      const dData = await request<any>("/api/admin/directions");
       setDirections(Array.isArray(dData) ? dData : []);
     } catch (e: any) {
       setError(e.message);
@@ -290,7 +283,7 @@ export function AdminDashboard() {
             setRpdUploading(false);
             setRpdCollecting(false);
             try { sessionStorage.removeItem("rpdRunId"); } catch (err) { reportError("app/components/AdminDashboard.tsx:306", err); }
-            setRpdMsg(s.status === "completed" ? "Готово" : s.status === "cancelled" ? "Отменено пользователем" : `Ошибка: ${s.error || "unknown"}`);
+            setRpdMsg(s.status === "completed" ? "Готово" : s.status === "cancelled" ? "Отменено пользователем" : `Ошибка: ${s.error || "неизвестная ошибка"}`);
           } else {
             setTimeout(poll, 3000);
           }
@@ -379,15 +372,13 @@ export function AdminDashboard() {
     }
   }
 
-  const filteredLogs = logFilter === "all" ? logs : logs.filter((l) => l.user === logFilter);
-
-  const callAction = async (url: string, body: any, setMsg: (s: string) => void, setLoad: (b: boolean) => void) => {
-    setLoad(true); setMsg(""); logAction(url);
+  const callAction = async (url: string, body: any, setMsg: (s: string, ok: boolean) => void, setLoad: (b: boolean) => void) => {
+    setLoad(true); setMsg("", true); logAction(url);
     try {
       const d = await request<any>(url, { method: "POST", body });
-      setMsg(d?.message || d?.status || "Done");
+      setMsg(d?.message || d?.status || "Готово", true);
     } catch (e: any) {
-      setMsg("Error: " + e.message);
+      setMsg("Ошибка: " + e.message, false);
     } finally {
       setLoad(false);
     }
@@ -398,67 +389,27 @@ export function AdminDashboard() {
     setExportLoading(true); setExportMsg("");
     try {
       const d = await request<any>("/api/admin/export/db");
-      setExportMsg(d?.message || "Done");
-    } catch (e: any) { setExportMsg("Error: " + e.message); }
+      setExportMsg(d?.message || "Готово");
+    } catch (e: any) { setExportMsg("Ошибка: " + e.message); }
     finally { setExportLoading(false); }
   };
 
-  const createUser = async () => {
-    setUserCreated("");
-    try {
-      const d = await request<any>("/api/admin/users/create", {
-        method: "POST",
-        body: {
-          email: newUserEmail,
-          password: newUserPass,
-          role: newUserRole,
-          name: newUserName,
-          directions: newUserRole === "rop" ? newUserDirs : [],
-        },
-      });
-      setUserCreated(d.status === "ok" ? `User created: ${d.email}` : "Failed");
-      if (d.status === "ok") { setNewUserEmail(""); setNewUserPass(""); setNewUserName(""); setNewUserDirs([]); }
-    } catch (e: any) {
-      setUserCreated("Error: " + e.message);
-    }
-  };
-
-  const startEdit = (u: any) => {
-    setEditUser(u.id);
-    setEditUserDirs(u.directions || []);
-    setDirMsg("");
-  };
-
-  const saveDirections = async () => {
-    setDirMsg("");
-    try {
-      const d = await request<any>(`/api/admin/users/${editUser}/directions`, {
-        method: "PUT",
-        body: { directions: editUserDirs },
-      });
-      setDirMsg(d.status === "ok" ? "Сохранено" : "Ошибка");
-      loadData();
-    } catch (e: any) {
-      setDirMsg("Error: " + e.message);
-    }
-  };
-
   const importStudents = async () => {
-    setImpMsg("");
+    setImpMsg(null);
     try {
       const data = JSON.parse(importJson);
       const d = await request<any>("/api/admin/students/import", {
         method: "POST",
         body: data,
       });
-      setImpMsg(`Imported: ${d.imported || "?"} students`);
+      setImpMsg({ text: `Импортировано студентов: ${d.imported || "?"}`, ok: true });
     } catch (e: any) {
-      setImpMsg("Error: " + e.message);
+      setImpMsg({ text: "Ошибка: " + e.message, ok: false });
     }
   };
 
   const loadUncategorized = async () => {
-    setUncatLoading(true); setUncatMsg("");
+    setUncatLoading(true); setUncatMsg(null);
     try {
       const d = await request<any>("/api/admin/skills/uncategorized");
       setUncategorized(d.items || []);
@@ -466,14 +417,14 @@ export function AdminDashboard() {
       (d.items || []).forEach((it: any) => { sel[it.skill] = it.category; });
       setUncatSelections(sel);
     } catch (e: any) {
-      setUncatMsg("Ошибка: " + e.message);
+      setUncatMsg({ text: "Ошибка: " + e.message, ok: false });
     } finally {
       setUncatLoading(false);
     }
   };
 
   const applyCategorization = async () => {
-    setUncatMsg("");
+    setUncatMsg(null);
     const assignments = uncategorized.map((it) => ({
       skill: it.skill,
       category: uncatSelections[it.skill] || it.category,
@@ -483,10 +434,10 @@ export function AdminDashboard() {
         method: "POST",
         body: { assignments },
       });
-      setUncatMsg(`Распределено навыков: ${d.added}`);
+      setUncatMsg({ text: `Распределено навыков: ${d.added}`, ok: true });
       await loadUncategorized();
     } catch (e: any) {
-      setUncatMsg("Ошибка: " + e.message);
+      setUncatMsg({ text: "Ошибка: " + e.message, ok: false });
     }
   };
 
@@ -495,7 +446,7 @@ export function AdminDashboard() {
       <PageHeader
         icon={Shield}
         title="Администрирование"
-        description="Пользователи, планировщик, импорт данных и категории навыков."
+        description="Пользователи, аудит действий, планировщик, импорт данных и категории навыков."
       />
       <div className="flex items-center justify-between">
         <div>
@@ -517,7 +468,8 @@ export function AdminDashboard() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex-wrap">
           <TabsTrigger value="users"><Users className="size-4 mr-2" />Пользователи</TabsTrigger>
-          <TabsTrigger value="logs"><FileText className="size-4 mr-2" />Логи</TabsTrigger>
+          <TabsTrigger value="security"><ShieldCheck className="size-4 mr-2" />Безопасность</TabsTrigger>
+          <TabsTrigger value="audit"><ScrollText className="size-4 mr-2" />Аудит</TabsTrigger>
           <TabsTrigger value="db"><Database className="size-4 mr-2" />БД</TabsTrigger>
           <TabsTrigger value="import"><Upload className="size-4 mr-2" />Импорт</TabsTrigger>
           <TabsTrigger value="skills"><Brain className="size-4 mr-2" />Навыки</TabsTrigger>
@@ -525,210 +477,17 @@ export function AdminDashboard() {
           <TabsTrigger value="health"><Activity className="size-4 mr-2" />Проверка</TabsTrigger>
         </TabsList>
 
-        {/* ── Users tab ── */}
+        {/* ── Users tab (тело в компоненте AdminUsersTab) ── */}
         <TabsContent value="users" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Зарегистрированные пользователи</CardTitle></CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-gray-500 dark:text-slate-400">
-                      <th className="pb-2 font-medium">Имя</th>
-                      <th className="pb-2 font-medium">Логин</th>
-                      <th className="pb-2 font-medium">Роль</th>
-                      <th className="pb-2 font-medium">Направления</th>
-                      <th className="pb-2 font-medium text-right">Запросов</th>
-                    </tr>
-                  </thead>
-                  <tbody aria-busy={loading}>
-                    {loading &&
-                      Array.from({ length: 5 }, (_, i) => (
-                        <tr
-                          key={`users-skeleton-${i}`}
-                          aria-hidden="true"
-                          className="border-b border-gray-100 dark:border-slate-800"
-                        >
-                          <td className="py-2"><Skeleton className="h-4 w-28" /></td>
-                          <td className="py-2"><Skeleton className="h-4 w-24" /></td>
-                          <td className="py-2"><Skeleton className="h-5 w-20 rounded-full" /></td>
-                          <td className="py-2"><Skeleton className="h-4 w-32" /></td>
-                          <td className="py-2">
-                            <span className="flex justify-end"><Skeleton className="h-4 w-8" /></span>
-                          </td>
-                        </tr>
-                      ))}
-                    {users.map((u) => (
-                      <tr key={u.username} className="border-b border-gray-100 dark:border-slate-800">
-                        <td className="py-2 font-medium text-gray-900 dark:text-slate-100">{u.name}</td>
-                        <td className="py-2 text-gray-600 dark:text-slate-400">{u.username}</td>
-                        <td className="py-2">
-                          <Badge variant="outline" className={
-                            u.role === "admin" ? "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800" :
-                            u.role === "teacher" ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800" :
-                            u.role === "rop" ? "bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800" :
-                            "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800"
-                          }>
-                            {u.role === "admin" ? "Админ" : u.role === "teacher" ? "Преподаватель" : u.role === "rop" ? "РОП" : "Студент"}
-                          </Badge>
-                        </td>
-                        <td className="py-2">
-                          {u.role === "rop" ? (
-                            <span className="inline-flex items-center gap-1 flex-wrap">
-                              {(u.directions || []).slice(0, 3).map((d: string) => (
-                                <span key={d} className="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 font-mono">{d}</span>
-                              ))}
-                              {(u.directions || []).length > 3 && (
-                                <span className="text-xs text-gray-400 dark:text-slate-500">+{(u.directions || []).length - 3}</span>
-                              )}
-                              <button
-                                onClick={() => startEdit(u)}
-                                className="ml-1 text-xs text-violet-600 underline cursor-pointer bg-transparent border-0"
-                              >
-                                изм.
-                              </button>
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 dark:text-slate-500">-</span>
-                          )}
-                        </td>
-                        <td className="py-2 text-right text-gray-600 dark:text-slate-400">{u.total_requests}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Создать пользователя</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <Input placeholder="Электронная почта" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} />
-              <Input placeholder="Пароль" type="password" value={newUserPass} onChange={(e) => setNewUserPass(e.target.value)} />
-              <Input placeholder="ФИО" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} />
-              <select value={newUserRole} onChange={(e) => { setNewUserRole(e.target.value); setNewUserDirs([]); }}
-                className="w-full h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm">
-                <option value="teacher">Преподаватель</option>
-                <option value="admin">Администратор</option>
-                <option value="rop">Руководитель ОП</option>
-              </select>
-              {newUserRole === "rop" && (
-                <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 max-h-40 overflow-y-auto space-y-1">
-                  <div className="text-xs text-gray-500 dark:text-slate-400 font-medium">Направления</div>
-                  {directions.map((d) => (
-                    <label key={d.dir_code} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={newUserDirs.includes(d.dir_code)}
-                        onChange={(e) => setNewUserDirs((prev) => e.target.checked ? [...prev, d.dir_code] : prev.filter((x) => x !== d.dir_code))}
-                        className="accent-violet-600"
-                      />
-                      <span className="font-mono text-xs text-gray-600 dark:text-slate-400">{d.dir_code}</span>
-                      <span className="text-xs text-gray-500 dark:text-slate-400 truncate">{d.name}</span>
-                    </label>
-                  ))}
-                  {directions.length === 0 && <div className="text-xs text-gray-400 dark:text-slate-500">Направления не загружены</div>}
-                </div>
-              )}
-              <Button onClick={createUser}>Создать</Button>
-              {userCreated && <p className="text-sm text-green-600">{userCreated}</p>}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Направления РОП</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <select value={editUser} onChange={(e) => {
-                const u = users.find((x) => x.id === e.target.value);
-                setEditUser(e.target.value);
-                setEditUserDirs(u?.directions || []);
-                setDirMsg("");
-              }} className="w-full h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm">
-                <option value="">-- Выберите пользователя --</option>
-                {users.filter((u) => u.role === "rop").map((u) => (
-                  <option key={u.id} value={u.id}>{u.name} ({u.username})</option>
-                ))}
-              </select>
-              {editUser && (
-                <>
-                  <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 max-h-40 overflow-y-auto space-y-1">
-                    {directions.map((d) => (
-                      <label key={d.dir_code} className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={editUserDirs.includes(d.dir_code)}
-                          onChange={(e) => setEditUserDirs((prev) => e.target.checked ? [...prev, d.dir_code] : prev.filter((x) => x !== d.dir_code))}
-                          className="accent-violet-600"
-                        />
-                        <span className="font-mono text-xs text-gray-600 dark:text-slate-400">{d.dir_code}</span>
-                        <span className="text-xs text-gray-500 dark:text-slate-400 truncate">{d.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <Button onClick={saveDirections} className="bg-blue-700 hover:bg-blue-800 transition-colors">Сохранить</Button>
-                  {dirMsg && <p className="text-sm text-green-600">{dirMsg}</p>}
-                </>
-              )}
-            </CardContent>
-          </Card>
+          <AdminUsersTab />
         </TabsContent>
 
-        {/* ── Logs tab ── */}
-        <TabsContent value="logs" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">История запросов</CardTitle>
-                <select value={logFilter} onChange={(e) => setLogFilter(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm">
-                  <option value="all">Все пользователи</option>
-                  {users.map((u) => <option key={u.username} value={u.username}>{u.name}</option>)}
-                </select>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto max-h-96 overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-gray-500 dark:text-slate-400 sticky top-0 bg-white dark:bg-slate-950">
-                      <th className="pb-2 font-medium">Время</th>
-                      <th className="pb-2 font-medium">Пользователь</th>
-                      <th className="pb-2 font-medium">Метод</th>
-                      <th className="pb-2 font-medium">Путь</th>
-                      <th className="pb-2 font-medium">Действие/Детали</th>
-                      <th className="pb-2 font-medium text-right">Статус</th>
-                      <th className="pb-2 font-medium text-right">мс</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredLogs.toReversed().slice(0, 200).map((l, i) => (
-                      <tr key={i} className="border-b border-gray-100 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800">
-                        <td className="py-1.5 text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">{new Date(l.timestamp).toLocaleTimeString()}</td>
-                        <td className="py-1.5 text-gray-700 dark:text-slate-300">{l.user}</td>
-                        <td className="py-1.5">
-                          <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
-                            l.method === "GET" ? "bg-green-100 text-green-700" :
-                            l.method === "POST" ? "bg-blue-100 text-blue-700" :
-                             l.method === "AUDIT" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" :
-                            "bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300"
-                          }`}>{l.method}</span>
-                        </td>
-                        <td className="py-1.5 text-xs text-gray-600 dark:text-slate-400 max-w-xs truncate">{l.path}</td>
-                        <td className="py-1.5 text-xs text-gray-600 dark:text-slate-400 max-w-md truncate" title={l.detail || `${l.method} ${l.path}`}>{l.detail || `${l.method} ${l.path}`}</td>
-                        <td className="py-1.5 text-right">
-                          <span className={`text-xs font-mono ${
-                            l.status < 300 ? "text-green-600" : l.status < 400 ? "text-yellow-600" : "text-red-600"
-                          }`}>{l.status}</span>
-                        </td>
-                        <td className="py-1.5 text-right text-xs text-gray-500 dark:text-slate-400">{l.duration_ms.toFixed(0)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+        {/* ── Security tab (тело в компоненте AdminSecurityTab) ── */}
+        
+
+        {/* ── Audit tab (тело в компоненте AdminAuditTab) ── */}
+        <TabsContent value="audit" className="space-y-4">
+          <AdminAuditTab />
         </TabsContent>
 
         {/* ── DB tab ── */}
@@ -737,7 +496,7 @@ export function AdminDashboard() {
             <CardHeader><CardTitle className="text-lg"><Database className="size-4 inline mr-2" />Управление БД</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4">
-                <Button onClick={() => callAction("/api/admin/db/seed", { drop: false }, setSeedMsg, setSeedLoading)} disabled={seedLoading}>
+                <Button onClick={() => callAction("/api/admin/db/seed", { drop: false }, (s) => setSeedMsg(s), setSeedLoading)} disabled={seedLoading}>
                   {seedLoading ? "..." : "Заполнить БД"}
                 </Button>
                 <Button variant="outline" onClick={() => callAction("/api/admin/db/seed", { drop: true }, setSeedMsg, setSeedLoading)} disabled={seedLoading}>
@@ -746,10 +505,10 @@ export function AdminDashboard() {
                 {seedMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{seedMsg}</span>}
               </div>
               <div className="flex items-center gap-4">
-                <Button onClick={() => callAction("/api/admin/embeddings/generate", { force: false }, setEmbMsg, setEmbLoading)} disabled={embLoading}>
+                <Button onClick={() => callAction("/api/admin/embeddings/generate", { force: false }, (s) => setEmbMsg(s), setEmbLoading)} disabled={embLoading}>
                   <Brain className="size-4 mr-2" />{embLoading ? "..." : "Сгенерировать эмбеддинги"}
                 </Button>
-                <Button variant="outline" onClick={() => callAction("/api/admin/embeddings/generate", { force: true }, setEmbMsg, setEmbLoading)} disabled={embLoading}>
+                <Button variant="outline" onClick={() => callAction("/api/admin/embeddings/generate", { force: true }, (s) => setEmbMsg(s), setEmbLoading)} disabled={embLoading}>
                   Перегенерировать принудительно
                 </Button>
                 {embMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{embMsg}</span>}
@@ -761,7 +520,7 @@ export function AdminDashboard() {
                 {exportMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{exportMsg}</span>}
               </div>
               <div className="flex items-center gap-4">
-                <Button onClick={() => callAction("/api/admin/db/backup", {}, setBackupMsg, setBackupLoading)} disabled={backupLoading}>
+                <Button onClick={() => callAction("/api/admin/db/backup", {}, (s) => setBackupMsg(s), setBackupLoading)} disabled={backupLoading}>
                   {backupLoading ? "..." : "Бэкап БД (pg_dump)"}
                 </Button>
                 {backupMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{backupMsg}</span>}
@@ -852,7 +611,15 @@ export function AdminDashboard() {
 ]`}
               />
               <Button onClick={importStudents} disabled={!importJson}>Импортировать</Button>
-              {impMsg && <p className="text-sm text-green-600">{impMsg}</p>}
+              {impMsg && (
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className={impMsg.ok ? "text-sm text-green-600 dark:text-green-400" : "text-sm text-red-600 dark:text-red-400"}
+                >
+                  {impMsg.text}
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -909,10 +676,18 @@ export function AdminDashboard() {
             <CardHeader><CardTitle className="text-lg"><Brain className="size-4 inline mr-2" />Расширение таксономии</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-gray-500 dark:text-slate-400">Анализ вакансий и добавление новых навыков в it_skills.json</p>
-              <Button onClick={() => callAction("/api/admin/skills/extend", { yes: true }, setExtMsg, setExtLoading)} disabled={extLoading}>
+              <Button onClick={() => callAction("/api/admin/skills/extend", { yes: true }, (s, ok) => setExtMsg(s ? { text: s, ok } : null), setExtLoading)} disabled={extLoading}>
                 {extLoading ? "..." : "Анализировать и добавить"}
               </Button>
-              {extMsg && <p className="text-sm text-green-600">{extMsg}</p>}
+              {extMsg && (
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className={extMsg.ok ? "text-sm text-green-600 dark:text-green-400" : "text-sm text-red-600 dark:text-red-400"}
+                >
+                  {extMsg.text}
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -1029,7 +804,15 @@ export function AdminDashboard() {
                   )}
                   <div className="flex items-center gap-3">
                     <Button onClick={applyCategorization} className="bg-blue-700 hover:bg-blue-800 transition-colors">Применить категории</Button>
-                    {uncatMsg && <span className="text-sm text-green-600">{uncatMsg}</span>}
+                    {uncatMsg && (
+                      <span
+                        role="status"
+                        aria-live="polite"
+                        className={uncatMsg.ok ? "text-sm text-green-600 dark:text-green-400" : "text-sm text-red-600 dark:text-red-400"}
+                      >
+                        {uncatMsg.text}
+                      </span>
+                    )}
                   </div>
                 </>
               )}
@@ -1086,8 +869,19 @@ export function AdminDashboard() {
             <CardHeader><CardTitle className="text-lg">Запуск вне расписания</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center gap-3 flex-wrap">
-                <Button onClick={() => runSchedJob("collect", "сбор вакансий")} disabled={schedBusy}>Собрать сейчас</Button>
-                <Button variant="outline" onClick={() => runSchedJob("gap", "gap-анализ")} disabled={schedBusy}>Gap сейчас</Button>
+                <Button
+                  onClick={() => setConfirmJob({ job: "collect", label: "сбор вакансий" })}
+                  disabled={schedBusy}
+                >
+                  Собрать сейчас
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setConfirmJob({ job: "gap", label: "gap-анализ" })}
+                  disabled={schedBusy}
+                >
+                  Gap сейчас
+                </Button>
               </div>
               <p className="text-xs text-gray-500 dark:text-slate-400">Ручные запуски конвейера блокируются кодом 409, пока планировщик занят.</p>
             </CardContent>
@@ -1112,6 +906,26 @@ export function AdminDashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Подтверждение запуска задачи вне расписания (вместо window.confirm) */}
+      <Dialog open={confirmJob !== null} onOpenChange={(open) => !open && setConfirmJob(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Запуск вне расписания</DialogTitle>
+            <DialogDescription>
+              {confirmJob ? `Запустить «${confirmJob.label}» вне расписания?` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmJob(null)} disabled={schedBusy}>
+              Отмена
+            </Button>
+            <Button onClick={() => confirmJob && void runSchedJob(confirmJob.job)} disabled={schedBusy}>
+              Запустить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

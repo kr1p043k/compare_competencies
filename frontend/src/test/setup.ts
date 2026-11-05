@@ -41,3 +41,20 @@ if (!("ResizeObserver" in globalThis)) {
 if (!("IntersectionObserver" in globalThis)) {
   (globalThis as unknown as Record<string, unknown>).IntersectionObserver = ObserverStub;
 }
+
+// Radix Dialog/DropdownMenu под user-event работают с pointer capture:
+// в jsdom этого API нет, и открытое меню «зависает» в вечном ожидании
+// указателя, из-за чего падает весь прогон. Ставим заглушки только
+// при отсутствии настоящей реализации.
+if (typeof HTMLElement.prototype.hasPointerCapture !== "function") {
+  HTMLElement.prototype.hasPointerCapture = (): boolean => false;
+}
+if (typeof HTMLElement.prototype.setPointerCapture !== "function") {
+  HTMLElement.prototype.setPointerCapture = (): void => {};
+}
+if (typeof HTMLElement.prototype.releasePointerCapture !== "function") {
+  HTMLElement.prototype.releasePointerCapture = (): void => {};
+}
+if (typeof Element.prototype.scrollIntoView !== "function") {
+  Element.prototype.scrollIntoView = (): void => {};
+}

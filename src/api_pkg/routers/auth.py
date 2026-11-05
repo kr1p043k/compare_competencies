@@ -12,7 +12,7 @@ from typing import Any
 
 import structlog
 from cryptography.fernet import Fernet, InvalidToken
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 
@@ -599,11 +599,94 @@ async def me(request: Request):
         "SELECT email, role, full_name FROM users WHERE email = $1",
         user_data["u"],
     )
+    enabled = _totp_feature_enabled()
+    totp_enabled = False
+    totp_locked_until = None
+    if user_data["r"] == "admin":
+        # Таблица admin_totp может отсутствовать (старая БД): это не повод
+        # отдавать 503 на /auth/me, достаточно считать 2FA не настроенной.
+        try:
+            state = await _totp_state(pool, user_data["uid"])
+        except HTTPException:
+            state = None
+        if state:
+            totp_enabled = bool(state.get("confirmed"))
+            locked = state.get("locked_until")
+            totp_locked_until = locked.isoformat() if locked is not None else None
     return {
         "username": user_data["u"],
         "role": user_data["r"],
         "name": row["full_name"] if row else "",
+        "two_factor_enabled": enabled,
+        "totp_enabled": totp_enabled,
+        "totp_locked_until": totp_locked_until,
     }
+
+
+def _require_2fa_enabled() -> None:
+    """2FA выключена глобально: эндпоинты отвечают 409, а не работают втихую.
+
+    409, а не 404: админ должен понимать, что возможность есть, но рубильник
+    в панели сейчас в положении "выкл".
+    """
+    if not _totp_feature_enabled():
+        raise HTTPException(
+            status_code=403,
+            detail="Двухфакторная аутентификация выключена глобально: включите её на вкладке Безопасность",
+        )
+
+
+async def _check_totp_or_recovery(pool, user_id, state: dict, code: str) -> None:
+    """Единая проверка кода для 2FA-действий: блокировка, счётчик, recovery-коды.
+
+    Раньше disable проверял код "в лоб", без locked_until и без инкремента
+    failed_attempts, то есть был переборным оракулом в обход блокировки.
+    """
+    retry_in = int(state.get("retry_in") or 0)
+    if state.get("locked_until") is not None and retry_in > 0:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Слишком много неудачных попыток: повторите через {_humanize_seconds(retry_in)}.",
+            headers={"Retry-After": str(retry_in)},
+        )
+
+    secret = _decrypt_totp_secret(state["secret"])
+    ok = bool(secret) and _verify_totp(secret, code)
+    used_recovery = False
+    if not ok:
+        raw = state.get("recovery_codes") or []
+        codes: list[str] = json.loads(raw) if isinstance(raw, str) else list(raw)
+        target = _hash_recovery_code(code.strip())
+        if target in codes:
+            ok = True
+            used_recovery = True
+            remaining = [c for c in codes if c != target]
+            await pool.execute(
+                "UPDATE admin_totp SET recovery_codes = $2::jsonb WHERE user_id = $1",
+                user_id, json.dumps(remaining),
+            )
+
+    if not ok:
+        failures = int(state.get("failed_attempts") or 0) + 1
+        locked = failures >= _TOTP_MAX_FAILURES
+        await pool.execute(
+            """UPDATE admin_totp
+                  SET failed_attempts = $2,
+                      locked_until = CASE WHEN $3 THEN NOW() + ($4 || ' minutes')::interval
+                                          ELSE locked_until END
+                WHERE user_id = $1""",
+            user_id, failures, locked, str(_lockout_minutes_totp(failures)),
+        )
+        if locked:
+            logger.warning("totp_locked", uid=str(user_id), failures=failures)
+            raise HTTPException(status_code=429, detail="Слишком много неудачных попыток: подождите")
+        raise HTTPException(status_code=400, detail="Неверный код")
+
+    if not used_recovery:
+        await pool.execute(
+            "UPDATE admin_totp SET failed_attempts = 0, locked_until = NULL WHERE user_id = $1",
+            user_id,
+        )
 
 
 # ---------------- 2FA endpoints ----------------
@@ -680,7 +763,8 @@ async def totp_status(request: Request) -> TotpStatusResponse:
     )
 
 
-@router.post("/auth/2fa/setup", response_model=TotpSetupResponse)
+@router.post("/auth/2fa/setup", response_model=TotpSetupResponse,
+             dependencies=[Depends(_require_2fa_enabled)])
 @limiter.limit("10/minute")
 async def totp_setup(request: Request):
     """Начать настройку TOTP. Секрет показывается один раз."""
@@ -715,7 +799,7 @@ async def totp_setup(request: Request):
     )
 
 
-@router.post("/auth/2fa/confirm")
+@router.post("/auth/2fa/confirm", dependencies=[Depends(_require_2fa_enabled)])
 @limiter.limit("10/minute")
 async def totp_confirm(body: TotpCodeRequest, request: Request):
     """Подтвердить код и получить recovery-коды (единственный раз)."""
@@ -747,7 +831,7 @@ async def totp_confirm(body: TotpCodeRequest, request: Request):
     return {"status": "enabled", "recovery_codes": codes}
 
 
-@router.post("/auth/2fa/verify")
+@router.post("/auth/2fa/verify", dependencies=[Depends(_require_2fa_enabled)])
 @limiter.limit("10/minute")
 async def totp_verify(body: TotpChallengeRequest, request: Request):
     """Завершить вход: проверить TOTP по challenge_id и выдать токен."""
@@ -804,7 +888,7 @@ async def totp_verify(body: TotpChallengeRequest, request: Request):
     return await _issue_login_response(pool, row, request)
 
 
-@router.post("/auth/2fa/recovery")
+@router.post("/auth/2fa/recovery", dependencies=[Depends(_require_2fa_enabled)])
 @limiter.limit("10/minute")
 async def totp_recovery(body: TotpChallengeRequest, request: Request):
     """Вход по одноразовому recovery-коду (когда телефон недоступен)."""
@@ -846,7 +930,7 @@ async def totp_recovery(body: TotpChallengeRequest, request: Request):
     return await _issue_login_response(pool, row, request)
 
 
-@router.post("/auth/2fa/disable")
+@router.post("/auth/2fa/disable", dependencies=[Depends(_require_2fa_enabled)])
 @limiter.limit("10/minute")
 async def totp_disable(body: TotpCodeRequest, request: Request):
     """Отключить 2FA. Нужен действующий код или recovery-код."""
@@ -858,17 +942,33 @@ async def totp_disable(body: TotpCodeRequest, request: Request):
     if not state or not state.get("confirmed"):
         raise HTTPException(status_code=400, detail="2FA не настроена")
 
-    secret = _decrypt_totp_secret(state["secret"])
-    ok = bool(secret) and _verify_totp(secret, body.code)
-    if not ok:
-        codes = state.get("recovery_codes") or []
-        if isinstance(codes, str):
-            codes = json.loads(codes)
-        target = _hash_recovery_code(body.code.strip())
-        ok = any(hmac.compare_digest(c, target) for c in codes)
-    if not ok:
-        raise HTTPException(status_code=400, detail="Неверный код")
+    await _check_totp_or_recovery(pool, user["uid"], state, body.code)
 
     await pool.execute("DELETE FROM admin_totp WHERE user_id = $1", user["uid"])
     await audit_action(request, "auth.2fa.disabled", f"uid={user['uid']}")
     return {"status": "disabled"}
+
+
+@router.post("/auth/2fa/recovery-codes/rotate", dependencies=[Depends(_require_2fa_enabled)])
+@limiter.limit("5/minute")
+async def totp_recovery_rotate(body: TotpCodeRequest, request: Request):
+    """Перевыпустить резервные коды. Старые перестают работать сразу."""
+    user = await _require_authenticated(request)
+    pool = get_pool()
+    if pool is None:
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    state = await _totp_state(pool, user["uid"])
+    if not state or not state.get("confirmed"):
+        raise HTTPException(status_code=400, detail="2FA не настроена")
+
+    await _check_totp_or_recovery(pool, user["uid"], state, body.code)
+
+    new_codes = [secrets.token_hex(8) for _ in range(_RECOVERY_CODE_COUNT)]
+    hashes = [_hash_recovery_code(c) for c in new_codes]
+    await pool.execute(
+        "UPDATE admin_totp SET recovery_codes = $2::jsonb, failed_attempts = 0, locked_until = NULL "
+        "WHERE user_id = $1",
+        user["uid"], json.dumps(hashes),
+    )
+    await audit_action(request, "auth.2fa.recovery_rotate", f"uid={user['uid']}")
+    return {"recovery_codes": new_codes}

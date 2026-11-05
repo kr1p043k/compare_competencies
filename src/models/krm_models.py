@@ -8,7 +8,7 @@ from typing import Optional
 import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Boolean, CheckConstraint, Float, ForeignKey, Integer, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
@@ -46,7 +46,9 @@ class Vacancy(Base):
     parsed_skills: Mapped[list[str] | None] = mapped_column(sa.JSON())
     published_at: Mapped[datetime | None]
     alternate_url: Mapped[str | None] = mapped_column(Text)
-    pipeline_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True)
+    pipeline_run_id: Mapped[str | None]= mapped_column(
+        UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True,
+    )
     raw: Mapped[dict | None] = mapped_column(sa.JSON())
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
@@ -402,13 +404,17 @@ class Recommendation(Base):
     )
     # SET NULL - как в живой БД: удаление компетенции не стирает рекомендации.
     # CASCADE в модели терял данные на fresh-install (2026-10-12).
-    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="SET NULL"), index=True)
+    competency_id: Mapped[str | None]= mapped_column(
+        UUID, ForeignKey("competencies.id", ondelete="SET NULL"), index=True,
+    )
     user_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("users.id", ondelete="SET NULL"), index=True)
     direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"), index=True)
     suggestion: Mapped[str] = mapped_column(Text, nullable=False)
     suggestion_type: Mapped[str] = mapped_column(String(20), nullable=False)
     source: Mapped[str | None] = mapped_column(String(20))
-    llm_request_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("llm_recommendations.id", ondelete="SET NULL"), index=True)
+    llm_request_id: Mapped[str | None]= mapped_column(
+        UUID, ForeignKey("llm_recommendations.id", ondelete="SET NULL"), index=True,
+    )
     confidence: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
@@ -481,7 +487,9 @@ class StudentSkill(Base):
     proficiency: Mapped[float] = mapped_column(Float, default=0.0)
     achieved_level: Mapped[str | None] = mapped_column(String(10))
     direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="SET NULL"), index=True)
-    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="SET NULL"), index=True)
+    competency_id: Mapped[str | None]= mapped_column(
+        UUID, ForeignKey("competencies.id", ondelete="SET NULL"), index=True,
+    )
     assessed_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
@@ -551,7 +559,9 @@ class CoverageAnalysis(Base):
        index=True,
     )
     direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"), index=True)
-    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"), index=True)
+    competency_id: Mapped[str | None]= mapped_column(
+        UUID, ForeignKey("competencies.id", ondelete="CASCADE"), index=True,
+    )
     total_skills: Mapped[int] = mapped_column(Integer, default=0)
     market_matched_skills: Mapped[int] = mapped_column(Integer, default=0)
     coverage_ratio: Mapped[float] = mapped_column(Float, default=0.0)
@@ -605,11 +615,17 @@ class AnalysisResult(Base):
     __tablename__ = "analysis_results"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    pipeline_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True)
+    pipeline_run_id: Mapped[str | None]= mapped_column(
+        UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True,
+    )
     analysis_type: Mapped[str] = mapped_column(String(50), nullable=False)
     direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"), index=True)
-    discipline_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"), index=True)
-    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"), index=True)
+    discipline_id: Mapped[str | None]= mapped_column(
+        UUID, ForeignKey("disciplines.id", ondelete="CASCADE"), index=True,
+    )
+    competency_id: Mapped[str | None]= mapped_column(
+        UUID, ForeignKey("competencies.id", ondelete="CASCADE"), index=True,
+    )
     data: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
@@ -628,7 +644,9 @@ class TrendSnapshot(Base):
     __tablename__ = "trend_snapshots"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    pipeline_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True)
+    pipeline_run_id: Mapped[str | None]= mapped_column(
+        UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True,
+    )
     snapshot_date: Mapped[datetime] = mapped_column()
     skill_freq: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
     source: Mapped[str] = mapped_column(String(50), default="hh_vacancies")
@@ -683,11 +701,15 @@ class ProfileEvaluation(Base):
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     user_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("users.id", ondelete="SET NULL"), index=True)
-    discipline_id: Mapped[str] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False, index=True)
+    discipline_id: Mapped[str]= mapped_column(
+        UUID, ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
     evaluation_type: Mapped[str] = mapped_column(String(20), nullable=False)
     input_summary: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
     result_summary: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
-    llm_request_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("llm_recommendations.id", ondelete="SET NULL"), index=True)
+    llm_request_id: Mapped[str | None]= mapped_column(
+        UUID, ForeignKey("llm_recommendations.id", ondelete="SET NULL"), index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     __table_args__ = (
@@ -728,7 +750,9 @@ class Notification(Base):
     __tablename__ = "notifications"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    subscription_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("subscriptions.id", ondelete="CASCADE"), index=True)
+    subscription_id: Mapped[str | None]= mapped_column(
+        UUID, ForeignKey("subscriptions.id", ondelete="CASCADE"), index=True,
+    )
     user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
@@ -744,4 +768,37 @@ class Notification(Base):
     __table_args__ = (
         sa.Index("idx_notif_user_unread", "user_id", "is_read"),
         sa.Index("idx_notif_created", "created_at"),
+    )
+
+
+# ─── Audit Log (durable audit) ─────────────────────────────────────────────
+
+class AuditLog(Base):
+    """Журнал аудита (durable-хранилище поверх буфера request_logs).
+
+    request_logs чистится src/cli/retention.py, поэтому события аудита
+    дополнительно пишутся сюда (best-effort из request_logger.audit_action).
+    actor_id без FK: вставка не блокируется проверкой ссылочной целостности
+    и не требует SELECT по users; email/role дублируются денормализованно.
+    """
+    __tablename__ = "audit_logs"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    actor_id: Mapped[str | None] = mapped_column(UUID, index=True)
+    actor_email: Mapped[str | None] = mapped_column(Text)
+    actor_role: Mapped[str | None] = mapped_column(String(20))
+    action: Mapped[str] = mapped_column(String(100), nullable=False)
+    target_type: Mapped[str | None] = mapped_column(String(50))
+    target_id: Mapped[str | None] = mapped_column(String(100))
+    target: Mapped[str | None] = mapped_column(Text)
+    meta: Mapped[dict | None] = mapped_column(JSONB)
+    ip: Mapped[str | None] = mapped_column(String(45))
+    request_id: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
+
+    __table_args__ = (
+        sa.Index("idx_audit_created", "created_at"),
+        sa.Index("idx_audit_action_created", "action", "created_at"),
+        sa.Index("idx_audit_actor", "actor_email"),
+        sa.Index("idx_audit_target", "target_type", "target_id"),
     )
