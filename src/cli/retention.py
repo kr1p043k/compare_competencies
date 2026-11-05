@@ -44,6 +44,12 @@ def main(args: argparse.Namespace) -> int:
     vac_days = int(args.vacancies_days)
     log_days = int(args.logs_days)
     run_days = int(args.run_days)
+    # Защита от опечатки: --logs-days=-1 удалил бы почти всю таблицу.
+    for name, value in (("vacancies-days", vac_days), ("logs-days", log_days),
+                        ("run-days", run_days)):
+        if value < 1:
+            print(f"Ошибка: --{name} должен быть >= 1 (получено {value})")
+            return 2
 
     plan = [
         (

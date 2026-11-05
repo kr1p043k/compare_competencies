@@ -172,6 +172,15 @@ async def _issue_login_response(pool, user_row, request: Request) -> dict:
 
 
 async def _totp_state(pool, user_id) -> dict | None:
+    """Состояние 2FA пользователя.
+
+    Различаем два случая:
+      * строки нет -> None (2FA не настроена, вход по паролю);
+      * ошибка БД/таблицы -> TotpUnavailable (fail-closed).
+
+    Раньше любая ошибка трактовалась как «2FA не настроена», и сбой БД или
+    неприменённая миграция снимали второй фактор со всех админов.
+    """
     try:
         row = await pool.fetchrow(
             """SELECT secret, confirmed, recovery_codes, failed_attempts, locked_until,
@@ -179,16 +188,19 @@ async def _totp_state(pool, user_id) -> dict | None:
                  FROM admin_totp WHERE user_id = $1""",
             user_id,
         )
-    except Exception:
-        # Таблицы может не быть, если миграция ещё не применена - не блокируем
-        # вход админам, но и 2FA не считаем настроенной.
-        logger.warning("admin_totp_table_missing", exc_info=True)
-        return None
+    except Exception as exc:
+        # Fail-closed: без состояния 2FA админа вход запрещён, иначе сбой БД
+        # или неприменённая миграция снимают второй фактор.
+        logger.error("admin_totp_state_unavailable", error=str(exc))
+        raise HTTPException(
+            status_code=503, detail="2FA временно недоступна, попробуйте позже"
+        ) from exc
     return dict(row) if row else None
 
 
 def _lockout_minutes_totp(failures: int) -> int:
-    return min(_TOTP_LOCK_MINUTES, max(1, failures))
+    """Блокировка растёт с числом неудач: 3, 6, 9, 12, 15 минут (потолок)."""
+    return min(_TOTP_LOCK_MINUTES, max(1, failures * 3))
 
 
 def _humanize_seconds(seconds: int) -> str:
@@ -663,7 +675,9 @@ async def totp_confirm(body: TotpCodeRequest, request: Request):
     if secret is None or not _verify_totp(secret, body.code):
         raise HTTPException(status_code=400, detail="Неверный код")
 
-    codes = [secrets.token_hex(4) for _ in range(_RECOVERY_CODE_COUNT)]
+    # 8 байт (64 бита), а не 4: 32-битные коды вскрываются перебором при
+    # утечке БД вместе с SECRET_KEY (хэш выводится из него).
+    codes = [secrets.token_hex(8) for _ in range(_RECOVERY_CODE_COUNT)]
     hashes = [_hash_recovery_code(c) for c in codes]
     await pool.execute(
         """UPDATE admin_totp
@@ -753,11 +767,13 @@ async def totp_recovery(body: TotpChallengeRequest, request: Request):
     if isinstance(codes, str):
         codes = json.loads(codes)
     target = _hash_recovery_code(body.code.strip())
-    if target not in codes:
+    # Constant-time: обычный `in` по списку даёт пошаговую утечку.
+    matched = next((c for c in codes if hmac.compare_digest(c, target)), None)
+    if matched is None:
         raise HTTPException(status_code=401, detail="Неверный recovery-код")
 
     # Одноразовый: сразу удаляем использованный код.
-    remaining = [c for c in codes if c != target]
+    remaining = [c for c in codes if c != matched]
     await pool.execute(
         "UPDATE admin_totp SET recovery_codes = $2::jsonb, last_used_at = NOW() WHERE user_id = $1",
         user_id, json.dumps(remaining),
@@ -791,7 +807,8 @@ async def totp_disable(body: TotpCodeRequest, request: Request):
         codes = state.get("recovery_codes") or []
         if isinstance(codes, str):
             codes = json.loads(codes)
-        ok = _hash_recovery_code(body.code.strip()) in codes
+        target = _hash_recovery_code(body.code.strip())
+        ok = any(hmac.compare_digest(c, target) for c in codes)
     if not ok:
         raise HTTPException(status_code=400, detail="Неверный код")
 
