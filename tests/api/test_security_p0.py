@@ -32,3 +32,25 @@ def test_no_token_unauthorized():
     assert r1.status_code in (401, 422)
     r2 = client.get("/api/teacher/export/vacancies")
     assert r2.status_code == 401
+
+
+def test_export_rejects_bad_date_with_400_not_500(monkeypatch):
+    """Невалидная дата -> 400, а не 500.
+
+    Регресс: локальный `from fastapi import HTTPException` внутри функции делал
+    имя локальным для ВСЕЙ функции, и более ранний raise падал с
+    UnboundLocalError (500). Ловилось только живым smoke-прогоном всех GET.
+    """
+    from tests.conftest import open_all_gates
+
+    import src.api_pkg.routers.teacher as teacher
+
+    class _Pool:
+        async def fetch(self, *_a, **_kw):
+            return []
+
+    monkeypatch.setattr(teacher, "get_pool", lambda: _Pool())
+    app = open_all_gates(create_app(), role="admin")
+    client = TestClient(app, raise_server_exceptions=False)
+    r = client.get("/api/teacher/export/vacancies?date_from=2026-13-45")
+    assert r.status_code == 400, r.text

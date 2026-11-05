@@ -908,7 +908,10 @@ async def export_vacancies_excel(request: Request, search: str | None = None,
     pool = get_pool()
     for label, val in (("date_from", date_from), ("date_to", date_to)):
         if val and _parse_day(val) is None:
-            from fastapi import HTTPException
+            # HTTPException уже импортирован на уровне модуля. Локальный
+            # `from fastapi import HTTPException` внутри функции делал имя
+            # локальным для ВСЕЙ функции, и более ранний raise падал с
+            # UnboundLocalError (5xx на /teacher/export/vacancies).
             raise HTTPException(status_code=400, detail=f"{label} must be YYYY-MM-DD")
     where, params = build_vacancy_where(search=search, experience=experience,
                                         region=region, months=months,
