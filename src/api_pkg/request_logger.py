@@ -316,7 +316,8 @@ async def audit_action(request: Request, action: str, target: str = "") -> dict[
         _log_buffer.append(entry)
         # В структурированный лог (файлы, сборщики) email не пишем: аудит
         # хранит полный адрес в буфере и БД, где он нужен для атрибуции, а
-        # внешние логи - это утечка персональных данных. Маскируем домен.
+        # внешние логи - это утечка персональных данных. mask_email маскирует
+        # ЛОКАЛЬНУЮ часть (логин), домен сохраняет: ivanov@sfedu.ru -> i***@sfedu.ru.
         logger.info("audit", action=action, target=target[:200],
                     actor=mask_email(email), role=role)
         return {"actor_email": email, "actor_role": role, "action": action, "target": target, "detail": detail}

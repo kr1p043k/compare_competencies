@@ -18,6 +18,7 @@ from slowapi.util import get_remote_address
 from src import Err, Ok, config
 from src.api_pkg import deps
 from src.api_pkg.routers.auth import require_any_role, user_error_detail
+from src.api_pkg.user_keys import self_profile_name
 from src.models.api_responses import (
     DeadSkillsResponse,
     MissingSkillsResponse,
@@ -716,12 +717,14 @@ async def dead_skills(
 
 
 def _self_profile_name(email: str) -> tuple[str, str]:
-    """Личный профиль пользователя: (имя профиля, путь к файлу)."""
-    import re
+    """Личный профиль пользователя: (имя профиля, путь к файлу).
+
+    Имя строится общим хелпером ``user_keys.self_profile_name`` - той же
+    функцией, что и в guards результатов/KRM, поэтому совпадение точное.
+    """
     from pathlib import Path
 
-    safe = re.sub(r"[^a-z0-9_]", "_", (email or "anon").strip().lower())[:40] or "anon"
-    name = f"self_{safe}"
+    name = self_profile_name(email)
     return name, str(Path(config.DATA_DIR) / "students" / f"{name}_competency.json")
 
 

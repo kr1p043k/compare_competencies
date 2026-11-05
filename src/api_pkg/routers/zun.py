@@ -36,7 +36,6 @@ from typing import Any
 import numpy as np
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
-from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -44,7 +43,6 @@ from src import config
 from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.zun_schemas import (
     CompetencyIn,
-    ScopeChange,
     ScopePut,
     SkillLinkIn,
     ZUNIn,
@@ -66,8 +64,6 @@ CATEGORIES = ("УК", "ОПК", "ПК", "ППК", "ИП", "ВПК")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 RESULT_TEACHER = PROJECT_ROOT / "data" / "result" / "teacher"
-
-
 
 
 # ---------- helpers ----------
@@ -98,6 +94,7 @@ async def _direction_ids(pool, dir_code: str) -> list[str]:
 
 # ---------- доступ к направлению (защита от IDOR) ----------
 
+
 async def _current_user(request: Request) -> dict[str, Any]:
     """Текущий пользователь или 401 (как krm_teacher._current_user)."""
     from src.api_pkg.routers.auth import get_current_user
@@ -126,12 +123,8 @@ async def _ensure_dir_access(user: dict[str, Any], dir_code: str) -> None:
     _validate_dir_code(dir_code)
     allow = await _user_dir_codes(user)
     if dir_code not in allow:
-        logger.warning(
-            "zun_access_denied", uid=user.get("uid"), role=user.get("r"), dir_code=dir_code
-        )
-        raise HTTPException(
-            status_code=403, detail=f"Доступ к направлению '{dir_code}' запрещён"
-        )
+        logger.warning("zun_access_denied", uid=user.get("uid"), role=user.get("r"), dir_code=dir_code)
+        raise HTTPException(status_code=403, detail=f"Доступ к направлению '{dir_code}' запрещён")
 
 
 async def _require_dir_access(request: Request, dir_code: str) -> None:
@@ -227,8 +220,9 @@ async def _latest_coverage_subq(pool, dir_ids: list[str]) -> dict[str, dict]:
             "total_skills": r["total_skills"],
             "matched_skills": r["market_matched_skills"],
             "coverage_ratio": round(float(r["coverage_ratio"]), 4),
-            "weighted_coverage": (round(float(r["weighted_coverage"]), 4)
-                                  if r["weighted_coverage"] is not None else None),
+            "weighted_coverage": (
+                round(float(r["weighted_coverage"]), 4) if r["weighted_coverage"] is not None else None
+            ),
             "analysis_date": r["analysis_date"].isoformat() if r["analysis_date"] else None,
         }
         for r in rows
@@ -300,6 +294,7 @@ async def zun_directions(request: Request):
 async def zun_my_directions(request: Request):
     """Мои направления (по правам)."""
     from src.api_pkg.routers.auth import get_current_user
+
     user = await get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -328,9 +323,7 @@ async def zun_stats(request: Request, dir_code: str = "09.03.02"):
     if not dir_ids:
         raise HTTPException(status_code=404, detail=f"Direction '{dir_code}' not found")
 
-    dirs = await pool.fetch(
-        "SELECT code, name, profile FROM directions WHERE code=$1 ORDER BY profile", dir_code
-    )
+    dirs = await pool.fetch("SELECT code, name, profile FROM directions WHERE code=$1 ORDER BY profile", dir_code)
     rows = await pool.fetch(
         """SELECT
                 COUNT(DISTINCT disc.id) AS total_disciplines,
@@ -450,8 +443,8 @@ async def zun_disciplines(
             "coverage_ratio": cov.get(str(r["id"]), {}).get("coverage_ratio"),
             "weighted_coverage": cov.get(str(r["id"]), {}).get("weighted_coverage"),
             "coverage_level": _coverage_level(
-                cov.get(str(r["id"]), {}).get("coverage_ratio"),
-                cov.get(str(r["id"]), {}).get("weighted_coverage")),
+                cov.get(str(r["id"]), {}).get("coverage_ratio"), cov.get(str(r["id"]), {}).get("weighted_coverage")
+            ),
         }
         for r in rows
     ]
@@ -591,7 +584,8 @@ async def zun_discipline_by_name(request: Request, discipline_name: str, dir_cod
         """SELECT id FROM disciplines
            WHERE direction_id = ANY($1::uuid[]) AND name = $2
            ORDER BY name LIMIT 1""",
-        dir_ids, discipline_name,
+        dir_ids,
+        discipline_name,
     )
     if not row:
         # fuzzy: drop spaces, lowercase
@@ -708,6 +702,7 @@ async def _semantic_cache_items(pool, dir_ids: list[str]) -> tuple[list[dict], n
         return items, np.zeros((0, 0))
     try:
         from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
+
         prov = EmbeddingProviderFactory.get()
         texts = [it["original_text"] for it in items]
         embs = prov.encode(texts, show_progress_bar=False)
@@ -738,14 +733,17 @@ async def zun_search_semantic(
     if not dir_ids:
         raise HTTPException(status_code=404, detail=f"Direction '{dir_code}' not found")
 
-    max_created = await pool.fetchval(
-        """SELECT MAX(k.created_at)::text
+    max_created = (
+        await pool.fetchval(
+            """SELECT MAX(k.created_at)::text
            FROM ksa_entries k
            JOIN competencies c ON c.id = k.competency_id
            JOIN disciplines disc ON disc.id = c.discipline_id
            WHERE disc.direction_id = ANY($1::uuid[])""",
-        dir_ids,
-    ) or ""
+            dir_ids,
+        )
+        or ""
+    )
 
     cache = _SEM_CACHE.get(dir_code)
     if cache is not None and (time.time() - cache[0]) <= _SEM_TTL and cache[3] == max_created:
@@ -764,6 +762,7 @@ async def zun_search_semantic(
 
     try:
         from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
+
         prov = EmbeddingProviderFactory.get()
         qemb = prov.encode([q.strip()], show_progress_bar=False)[0]
         qn = qemb / (np.linalg.norm(qemb) + 1e-9)
@@ -1001,9 +1000,7 @@ async def zun_analyze_results(
         _validate_uuid(discipline_id, "discipline_id")
         if not base.resolve().is_relative_to(RESULT_TEACHER.resolve()):
             raise HTTPException(status_code=400, detail="Invalid path")
-        disc = await get_pool().fetchrow(
-            "SELECT name FROM disciplines WHERE id=$1", discipline_id
-        )
+        disc = await get_pool().fetchrow("SELECT name FROM disciplines WHERE id=$1", discipline_id)
         if not disc:
             raise HTTPException(status_code=404, detail="Discipline not found")
         safe = _safe_filename(disc["name"])
@@ -1019,8 +1016,7 @@ async def zun_analyze_results(
 
 @router.get("/teacher/zun/competencies/search")
 @limiter.limit("60/minute")
-async def zun_search_competencies(request: Request, q: str = "", dir_code: str = "09.03.02",
-                                  limit: int = 20):
+async def zun_search_competencies(request: Request, q: str = "", dir_code: str = "09.03.02", limit: int = 20):
     """Lightweight competency picker: [{id, code, discipline_name}]."""
     _validate_dir_code(dir_code)
     limit = max(1, min(int(limit or 20), 50))
@@ -1033,10 +1029,11 @@ async def zun_search_competencies(request: Request, q: str = "", dir_code: str =
            JOIN directions d ON d.id = d2.direction_id
            WHERE d.code = $1 AND (c.code ILIKE $2 OR d2.name ILIKE $2)
            ORDER BY d2.name, c.code LIMIT $3""",
-        dir_code, like, limit,
+        dir_code,
+        like,
+        limit,
     )
-    return {"items": [{"id": str(r["id"]), "code": r["code"],
-                       "discipline_name": r["discipline_name"]} for r in rows]}
+    return {"items": [{"id": str(r["id"]), "code": r["code"], "discipline_name": r["discipline_name"]} for r in rows]}
 
 
 @router.get("/teacher/zun/scope")
@@ -1045,22 +1042,26 @@ async def zun_get_scope(request: Request, dir_code: str = "09.03.02"):
     """Scope state for UI checkboxes: effective per-discipline + methodology list."""
     from src.pipeline.teacher_analysis_runner import SCOPE_EXCLUDED
     from src.teacher_scope import effective_in_scope, load_scope_overrides, scope_source
+
     _validate_dir_code(dir_code)
     pool = get_pool()
-    names = [r["name"] for r in await pool.fetch(
-        """SELECT d2.name FROM disciplines d2
+    names = [
+        r["name"]
+        for r in await pool.fetch(
+            """SELECT d2.name FROM disciplines d2
            JOIN directions d ON d.id = d2.direction_id
-           WHERE d.code = $1 ORDER BY 1""", dir_code)]
+           WHERE d.code = $1 ORDER BY 1""",
+            dir_code,
+        )
+    ]
     over = await load_scope_overrides(pool, dir_code)
     return {
         "dir_code": dir_code,
         "disciplines": [
-            {"name": n, "in_scope": effective_in_scope(n, over),
-             "source": scope_source(n, over)} for n in names],
+            {"name": n, "in_scope": effective_in_scope(n, over), "source": scope_source(n, over)} for n in names
+        ],
         "methodology_excluded": sorted(SCOPE_EXCLUDED),
     }
-
-
 
 
 @router.put("/teacher/zun/scope")
@@ -1073,10 +1074,15 @@ async def zun_put_scope(request: Request, body: ScopePut):
     if not changes:
         raise HTTPException(status_code=400, detail="changes must not be empty")
     pool = get_pool()
-    known = {r["name"] for r in await pool.fetch(
-        """SELECT d2.name FROM disciplines d2
+    known = {
+        r["name"]
+        for r in await pool.fetch(
+            """SELECT d2.name FROM disciplines d2
            JOIN directions d ON d.id = d2.direction_id
-           WHERE d.code = $1""", body.dir_code)}
+           WHERE d.code = $1""",
+            body.dir_code,
+        )
+    }
     cleaned = []
     for c in changes:
         name = (c.discipline_name or "").strip()
@@ -1091,11 +1097,12 @@ async def zun_put_scope(request: Request, body: ScopePut):
                VALUES ($1, $2, $3, NOW())
                ON CONFLICT (direction_code, discipline_name)
                DO UPDATE SET included = EXCLUDED.included, updated_at = NOW()""",
-            body.dir_code, name, included,
+            body.dir_code,
+            name,
+            included,
         )
     logger.info("scope_updated", dir_code=body.dir_code, updated=len(cleaned))
-    await audit_action(request, "zun.scope.put",
-                       f"dir={body.dir_code} updated={len(cleaned)}")
+    await audit_action(request, "zun.scope.put", f"dir={body.dir_code} updated={len(cleaned)}")
     return {"dir_code": body.dir_code, "updated": len(cleaned)}
 
 
@@ -1132,7 +1139,9 @@ async def zun_add_entry(request: Request, competency_id: str, body: ZUNIn):
     dup = await pool.fetchrow(
         """SELECT 1 FROM ksa_entries
            WHERE competency_id = $1 AND ksa_type = $2 AND original_text = $3""",
-        competency_id, body.ksa_type, text,
+        competency_id,
+        body.ksa_type,
+        text,
     )
     if dup:
         raise HTTPException(status_code=409, detail="KSA entry already exists")
@@ -1145,17 +1154,17 @@ async def zun_add_entry(request: Request, competency_id: str, body: ZUNIn):
         """INSERT INTO ksa_entries (competency_id, ksa_type, original_text, cleaned_text, sort_order, parse_version_id)
            VALUES ($1, $2::ksa_type, $3, $3, $4, NULL)
            RETURNING id""",
-        competency_id, body.ksa_type, text, sort,
+        competency_id,
+        body.ksa_type,
+        text,
+        sort,
     )
     logger.info("zun_entry_added", ksa_id=str(ksa_id), competency_id=competency_id, ksa_type=body.ksa_type)
-    await audit_action(request, "zun.entry.add",
-                       f"ksa={ksa_id} comp={competency_id} type={body.ksa_type}")
+    await audit_action(request, "zun.entry.add", f"ksa={ksa_id} comp={competency_id} type={body.ksa_type}")
     return {"ksa_id": str(ksa_id), "ksa_type": body.ksa_type, "text": text}
 
 
 _COMP_CODE_RE = re.compile("^(УК|ОПК|ПК|ППК|ИП|ВПК)[- ]([0-9]+(?:\\.[0-9]+)*)$")
-
-
 
 
 @router.post("/teacher/zun/disciplines/{discipline_id}/competencies", status_code=201)
@@ -1166,8 +1175,7 @@ async def zun_add_competency(request: Request, discipline_id: str, body: Compete
     code = (body.code or "").strip().upper()
     m = _COMP_CODE_RE.match(code)
     if not m:
-        raise HTTPException(status_code=400,
-                            detail="code must match УК|ОПК|ПК|ППК|ИП|ВПК + number, e.g. ПК-2.1")
+        raise HTTPException(status_code=400, detail="code must match УК|ОПК|ПК|ППК|ИП|ВПК + number, e.g. ПК-2.1")
     category, number = m.group(1), m.group(2)
     name = (body.name or "").strip()
     if len(name) > 500:
@@ -1181,26 +1189,28 @@ async def zun_add_competency(request: Request, discipline_id: str, body: Compete
     if not disc:
         raise HTTPException(status_code=404, detail="Discipline not found")
     await _ensure_discipline_access(request, pool, discipline_id)
-    dup = await pool.fetchrow(
-        "SELECT 1 FROM competencies WHERE discipline_id = $1 AND code = $2",
-        discipline_id, code)
+    dup = await pool.fetchrow("SELECT 1 FROM competencies WHERE discipline_id = $1 AND code = $2", discipline_id, code)
     if dup:
         raise HTTPException(status_code=409, detail="Competency code already exists in discipline")
     sort = await pool.fetchval(
-        "SELECT COALESCE(MAX(sort_order), 0) + 1 FROM competencies WHERE discipline_id = $1",
-        discipline_id)
+        "SELECT COALESCE(MAX(sort_order), 0) + 1 FROM competencies WHERE discipline_id = $1", discipline_id
+    )
     comp_id = await pool.fetchval(
         """INSERT INTO competencies
              (discipline_id, code, category, number, name, description, sort_order, parse_version_id)
            VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), $7, NULL)
            RETURNING id""",
-        discipline_id, code, category, number, name, description, sort)
+        discipline_id,
+        code,
+        category,
+        number,
+        name,
+        description,
+        sort,
+    )
     logger.info("zun_competency_added", competency_id=str(comp_id), code=code)
-    await audit_action(request, "zun.competency.add",
-                       f"comp={comp_id} code={code} disc={discipline_id}")
+    await audit_action(request, "zun.competency.add", f"comp={comp_id} code={code} disc={discipline_id}")
     return {"competency_id": str(comp_id), "code": code, "category": category}
-
-
 
 
 _CS_KSA_TYPES = ("knowledge", "abilities", "skills", "flat")
@@ -1249,7 +1259,9 @@ async def zun_link_skill(request: Request, competency_id: str, body: SkillLinkIn
            JOIN skills s ON s.id = cs.skill_id
            WHERE cs.competency_id = $1 AND cs.ksa_type = $2
              AND cs.parse_version_id IS NULL AND LOWER(s.name) = LOWER($3)""",
-        competency_id, body.ksa_type, name,
+        competency_id,
+        body.ksa_type,
+        name,
     )
     if dup:
         raise HTTPException(status_code=409, detail="Skill already linked to competency")
@@ -1257,14 +1269,15 @@ async def zun_link_skill(request: Request, competency_id: str, body: SkillLinkIn
         """INSERT INTO competency_skills
              (competency_id, skill_id, ksa_type, source_text, match_type, parse_version_id)
            VALUES ($1, $2, $3, $4, 'exact', NULL)""",
-        competency_id, skill_id, body.ksa_type, f"admin-link:{name}",
+        competency_id,
+        skill_id,
+        body.ksa_type,
+        f"admin-link:{name}",
     )
     await pool.execute("UPDATE competencies SET updated_at = NOW() WHERE id = $1", competency_id)
     logger.info("zun_skill_linked", competency_id=competency_id, skill=name)
-    await audit_action(request, "zun.skill.link",
-                       f"comp={competency_id} skill={name} type={body.ksa_type}")
-    return {"skill_id": str(skill_id), "skill_name": name,
-            "ksa_type": body.ksa_type, "match_type": "exact"}
+    await audit_action(request, "zun.skill.link", f"comp={competency_id} skill={name} type={body.ksa_type}")
+    return {"skill_id": str(skill_id), "skill_name": name, "ksa_type": body.ksa_type, "match_type": "exact"}
 
 
 @router.patch("/teacher/zun/entries/{ksa_id}")
@@ -1282,7 +1295,8 @@ async def zun_patch_entry(request: Request, ksa_id: str, body: ZUNPatch):
     row = await pool.fetchrow(
         """UPDATE ksa_entries SET original_text = $1, cleaned_text = $1, updated_at = NOW()
            WHERE id = $2 RETURNING id, ksa_type, competency_id""",
-        text, ksa_id,
+        text,
+        ksa_id,
     )
     if not row:
         raise HTTPException(status_code=404, detail="KSA entry not found")
@@ -1325,14 +1339,22 @@ async def zun_analyze(request: Request, background_tasks: BackgroundTasks, dir_c
     async def _run():
         try:
             proc = await asyncio.create_subprocess_exec(
-                sys.executable, "-m", "src.cli", "teacher-analysis",
-                "--direction", dir_code,
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                sys.executable,
+                "-m",
+                "src.cli",
+                "teacher-analysis",
+                "--direction",
+                dir_code,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=PROJECT_ROOT,
             )
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=2400)
-            logger.info("zun_teacher_analysis_done", returncode=proc.returncode,
-                        stderr=stderr.decode("utf-8", errors="ignore")[-500:])
+            logger.info(
+                "zun_teacher_analysis_done",
+                returncode=proc.returncode,
+                stderr=stderr.decode("utf-8", errors="ignore")[-500:],
+            )
         except TimeoutError:
             logger.error("zun_teacher_analysis_timeout", dir_code=dir_code)
             if proc and proc.returncode is None:
@@ -1378,9 +1400,7 @@ async def _import_direction(pool, dir_code: str, dry_run: bool) -> dict:
     krm = json.loads(krm_path.read_text(encoding="utf-8"))
     container = krm.get(dir_code)
     if container is None or not isinstance(container, dict) or "disciplines" not in container:
-        container = next(
-            (v for v in krm.values() if isinstance(v, dict) and "disciplines" in v), None
-        )
+        container = next((v for v in krm.values() if isinstance(v, dict) and "disciplines" in v), None)
     if container is None:
         raise HTTPException(status_code=400, detail="No disciplines container in KRM file")
     disciplines_raw = container.get("disciplines", {}) or {}
@@ -1389,9 +1409,7 @@ async def _import_direction(pool, dir_code: str, dry_run: bool) -> dict:
     if not dirs:
         raise HTTPException(status_code=404, detail=f"Direction '{dir_code}' not found in DB")
     dir_ids = [str(d["id"]) for d in dirs]
-    disc_rows = await pool.fetch(
-        "SELECT id, name FROM disciplines WHERE direction_id = ANY($1::uuid[])", dir_ids
-    )
+    disc_rows = await pool.fetch("SELECT id, name FROM disciplines WHERE direction_id = ANY($1::uuid[])", dir_ids)
     disc_map = {r["name"]: str(r["id"]) for r in disc_rows}
     comp_rows = await pool.fetch(
         """SELECT id, discipline_id, code FROM competencies
@@ -1417,7 +1435,8 @@ async def _import_direction(pool, dir_code: str, dry_run: bool) -> dict:
                 # gap-fill: if category already has entries for this competency in DB - skip
                 existing_type = await pool.fetchval(
                     "SELECT EXISTS (SELECT 1 FROM ksa_entries WHERE competency_id=$1 AND ksa_type=$2::ksa_type)",
-                    comp_id, kt,
+                    comp_id,
+                    kt,
                 )
                 if existing_type and not dry_run:
                     skipped_gap += len(texts)
@@ -1429,7 +1448,9 @@ async def _import_direction(pool, dir_code: str, dry_run: bool) -> dict:
                     dup = await pool.fetchval(
                         """SELECT EXISTS (SELECT 1 FROM ksa_entries
                                          WHERE competency_id=$1 AND ksa_type=$2::ksa_type AND original_text=$3)""",
-                        comp_id, kt, text,
+                        comp_id,
+                        kt,
+                        text,
                     )
                     if dup:
                         skipped_dup += 1
@@ -1444,7 +1465,10 @@ async def _import_direction(pool, dir_code: str, dry_run: bool) -> dict:
                     await pool.execute(
                         """INSERT INTO ksa_entries (competency_id, ksa_type, original_text, cleaned_text, sort_order, parse_version_id)
                            VALUES ($1, $2::ksa_type, $3, $3, $4, NULL)""",  # noqa: E501
-                        comp_id, kt, text, sort,
+                        comp_id,
+                        kt,
+                        text,
+                        sort,
                     )
                     inserted += 1
 
@@ -1466,6 +1490,5 @@ async def zun_import(request: Request, dir_code: str, dry_run: bool = False):
     pool = get_pool()
     result = await _import_direction(pool, dir_code, dry_run=dry_run)
     if not dry_run and isinstance(result, dict) and result.get("inserted"):
-        await audit_action(request, "zun.import",
-                           f"dir={dir_code} inserted={result.get('inserted')}")
+        await audit_action(request, "zun.import", f"dir={dir_code} inserted={result.get('inserted')}")
     return result

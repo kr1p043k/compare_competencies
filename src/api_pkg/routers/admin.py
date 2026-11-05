@@ -390,7 +390,7 @@ async def admin_users(
     async with async_session_factory() as session:
         total = int((await session.execute(text("SELECT COUNT(*) FROM users"))).scalar_one())
         result = await session.execute(
-            text("SELECT * FROM users ORDER BY created_at LIMIT :limit OFFSET :offset"),
+            text("SELECT * FROM users ORDER BY created_at, id LIMIT :limit OFFSET :offset"),
             {"limit": limit, "offset": offset},
         )
         users = result.fetchall()

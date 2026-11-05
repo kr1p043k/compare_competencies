@@ -18,6 +18,7 @@ from src.api_pkg.routers.krm_teacher import (
     _load_krm_direction,
     _validate_dir_code,
 )
+from src.api_pkg.user_keys import self_profile_keys
 from src.models.student import StudentProfile
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 
@@ -79,8 +80,7 @@ async def krm_student_competencies(
 
     user = await get_current_user(request) or {}
     username = str(user.get("u") or user.get("username") or "")
-    safe = "".join(ch if ch.isalnum() else "_" for ch in username.lower())
-    own_profiles = {f"self_{safe}", f"self_{safe.replace('.', '_')}"}
+    own_profiles = self_profile_keys(username)
 
     if not profile:
         # Профиль студента выводится self_<username в нижнем регистре>.
