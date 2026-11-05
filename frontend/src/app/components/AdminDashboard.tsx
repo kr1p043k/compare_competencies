@@ -481,9 +481,12 @@ export function AdminDashboard() {
         <TabsContent value="users" className="space-y-4">
           <AdminUsersTab />
         </TabsContent>
-
-        {/* ── Security tab (тело в компоненте AdminSecurityTab) ── */}
         
+
+        {/* ── Security tab: глобальный рубильник 2FA (AdminTwoFactorCard) ── */}
+        <TabsContent value="security" className="space-y-4">
+          <AdminTwoFactorCard />
+        </TabsContent>
 
         {/* ── Audit tab (тело в компоненте AdminAuditTab) ── */}
         <TabsContent value="audit" className="space-y-4">
@@ -862,8 +865,6 @@ export function AdminDashboard() {
               {schedMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{schedMsg}</span>}
             </CardContent>
           </Card>
-
-          <AdminTwoFactorCard />
 
           <Card>
             <CardHeader><CardTitle className="text-lg">Запуск вне расписания</CardTitle></CardHeader>

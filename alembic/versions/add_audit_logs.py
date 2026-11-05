@@ -14,7 +14,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from alembic import op
 
 revision: str = "add_audit_logs"
-down_revision: str | None = "add_admin_totp"
+down_revision: str | None = "trend_precomputed"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
