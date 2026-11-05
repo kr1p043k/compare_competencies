@@ -77,21 +77,26 @@ async def krm_student_competencies(
             raise HTTPException(status_code=404, detail="Нет доступных направлений")
         direction = allowed[0]
 
+    user = await get_current_user(request) or {}
+    username = str(user.get("u") or user.get("username") or "")
+    safe = "".join(ch if ch.isalnum() else "_" for ch in username.lower())
+    own_profiles = {f"self_{safe}", f"self_{safe.replace('.', '_')}"}
+
     if not profile:
-        # Профиль студента называется self_<username с заменой символов>.
-        user = await get_current_user(request) or {}
-        username = str(user.get("u") or user.get("username") or "")
-        safe = "".join(ch if ch.isalnum() else "_" for ch in username.lower())
-        candidates = [f"self_{safe}", f"self_{safe.replace('.', '_')}"]
-        profile = next((c for c in candidates if c in profiles), None) or (
-            next(iter(profiles)) if profiles else ""
-        )
+        # Профиль студента выводится self_<username в нижнем регистре>.
+        profile = next((c for c in own_profiles if c in profiles), None) or ""
         if not profile:
+            # Раньше здесь брался произвольный профиль (next(iter(profiles))):
+            # при отсутствии своего студент видел чужие компетенции.
             raise HTTPException(status_code=404, detail="Профиль не найден")
 
     _validate_dir_code(direction)
     if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")
+
+    # Студент читает только свой профиль; чужой существующий -> 403.
+    if (user.get("r") or user.get("role")) == "student" and profile not in own_profiles:
+        raise HTTPException(status_code=403, detail="Доступ к чужому профилю запрещён")
     student = profiles[profile]
     student_norms = {_norm(s) for s in (student.skills or []) if _norm(s)}
 
