@@ -5,6 +5,20 @@ _is_skill_like_ksa, quality average computation.
 import pytest
 
 
+@pytest.fixture(scope="module")
+def shared_gap_analyzer():
+    """One analyzer for the slow, read-only ``analyze`` assertions below.
+
+    Building an AcademicGapAnalyzer rehydrates the ~260 MB
+    ``skill_embeddings.json``, so a fresh instance per test paid that cost four
+    times over (~40 s each). These tests only read the result, so sharing one
+    instance for the module is safe.
+    """
+    from src.analyzers.academic_gap import AcademicGapAnalyzer
+
+    return AcademicGapAnalyzer()
+
+
 class TestLoadKrm:
     def test_load_krm_structure(self):
         from src.analyzers.academic_gap import _load_krm
@@ -156,12 +170,10 @@ class TestTopicFilterRelevance:
     COMP_MARKET_THRESHOLD as the competency branch.
     """
 
-    def test_topic_items_meet_comp_threshold(self):
-        from src.analyzers.academic_gap import (
-            COMP_MARKET_THRESHOLD,
-            AcademicGapAnalyzer,
-        )
-        a = AcademicGapAnalyzer()
+    def test_topic_items_meet_comp_threshold(self, shared_gap_analyzer):
+        from src.analyzers.academic_gap import COMP_MARKET_THRESHOLD
+
+        a = shared_gap_analyzer
         out = a.analyze("Мультимедиа технологии")
         assert out["detailed_analysis"], "no competencies analyzed"
         checked = 0
@@ -173,10 +185,9 @@ class TestTopicFilterRelevance:
                     checked += 1
         assert checked > 0, "no topic-branch items to check"
 
-    def test_far_competency_gets_no_topic_items(self):
+    def test_far_competency_gets_no_topic_items(self, shared_gap_analyzer):
         """A competency with no market-relevant skills gets empty topic block."""
-        from src.analyzers.academic_gap import AcademicGapAnalyzer
-        a = AcademicGapAnalyzer()
+        a = shared_gap_analyzer
         out = a.analyze("Мультимедиа технологии")
         by_code = {d["code"]: d for d in out["detailed_analysis"]}
         # УК-3 has 10 generic skills; pre-filter it received all 10 global items
@@ -186,11 +197,10 @@ class TestTopicFilterRelevance:
                            if s.get("source") == "topic"]
             assert len(topic_items) <= 2, [s["skill"] for s in topic_items]
 
-    def test_category_mismatched_topic_items_dropped(self):
+    def test_category_mismatched_topic_items_dropped(self, shared_gap_analyzer):
         """Category gate: zustand (Frontend) must not hang on competencies
         without frontend categories, even at high comp-sim."""
-        from src.analyzers.academic_gap import AcademicGapAnalyzer
-        a = AcademicGapAnalyzer()
+        a = shared_gap_analyzer
         assert a._get_taxonomy_cats() is not None
         out = a.analyze("нейросетевые методы обработки изображений")
         by_code = {d["code"]: d for d in out["detailed_analysis"]}
@@ -210,9 +220,8 @@ class TestTopicFilterRelevance:
 class TestTopicFilterStats:
     """Замеры фильтра: структура, арифметика, разделение kept/dropped."""
 
-    def test_stats_present_and_consistent(self):
-        from src.analyzers.academic_gap import AcademicGapAnalyzer
-        a = AcademicGapAnalyzer()
+    def test_stats_present_and_consistent(self, shared_gap_analyzer):
+        a = shared_gap_analyzer
         out = a.analyze("нейросетевые методы обработки изображений")
         st = out.get("topic_filter_stats")
         assert isinstance(st, dict) and st["candidates"] > 0
