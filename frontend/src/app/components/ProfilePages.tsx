@@ -15,7 +15,7 @@ import {
   X,
   CheckCircle2,
   ChevronDown,
-  GraduationCap,  Cpu,  Layers,  Search,
+  GraduationCap, Cpu, Layers, Search,
   Database,
 } from "lucide-react";
 import { useAuth } from "../../lib/auth";
@@ -25,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { request } from "../../lib/api";
 import { reportError } from "../../lib/errors";
 import { PageHeader, Skeleton, ErrorState, EmptyState } from "../../design";
+import { AdminSecurity } from "./AdminSecurity";
 
 type AccountProps = { displayName?: string; email?: string };
 
@@ -158,6 +159,7 @@ export function AdminProfilePage({ displayName, email, onNavigate }: AccountProp
           </Button>
         </CardContent>
       </Card>
+      <AdminSecurity />
     </div>
   );
 }
@@ -411,7 +413,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
           technologies_suggest: Array.isArray(d.technologies_suggest) ? d.technologies_suggest : [],
         });
       } catch (e: any) {
-        if (!cancelled) setOptionsError("Не удалось загрузить опции своих профилей (" + (e?.message || "Не удалось загрузить опции своих профилейB") + ")");
+        if (!cancelled) setOptionsError("Не удалось загрузить опции своих профилей (" + (e?.message || "Не удалось загрузить опции своих профилей") + ")");
       } finally {
         if (!cancelled) setOptionsLoading(false);
       }
@@ -489,7 +491,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       return;
     }
     if (compCodes.includes(code) || newComps.some((d) => d.code === code)) {
-      setCreateError("Компетенция" + code + " уже добавлена");
+      setCreateError(`Компетенция ${code} уже добавлена`);
       return;
     }
     setCreateError(null);
@@ -559,7 +561,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       setCpTech("");
       setTriedCreate(false);
     } catch (e: any) {
-      setCreateError(e?.message || "Не удалось загрузить опции своих профилей0");
+      setCreateError(e?.message || "Не удалось создать профиль");
     } finally {
       setCreating(false);
     }

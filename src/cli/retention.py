@@ -28,6 +28,9 @@ logger = structlog.get_logger(__name__)
 DEFAULT_VACANCY_DAYS = 730
 DEFAULT_LOG_DAYS = 90
 DEFAULT_RUN_DAYS = 365
+#: Аудит действий живёт дольше логов: он нужен для разбора инцидентов и
+#: проверок, но и он не должен расти вечно (в записях есть email и IP).
+DEFAULT_AUDIT_DAYS = 730
 
 
 def _to_sync_dsn(url: str) -> str:
@@ -44,12 +47,13 @@ def main(args: argparse.Namespace) -> int:
     vac_days = int(args.vacancies_days)
     log_days = int(args.logs_days)
     run_days = int(args.run_days)
-    # Защита от опечатки: --logs-days=-1 удалил бы почти всю таблицу.
+    # Отрицательные значения: --logs-days=-1 удаляло бы всё, включая свежее.
     for name, value in (("vacancies-days", vac_days), ("logs-days", log_days),
                         ("run-days", run_days)):
         if value < 1:
-            print(f"Ошибка: --{name} должен быть >= 1 (получено {value})")
+            print(f"Ошибка: --{name} должно быть >= 1 (получено {value})")
             return 2
+    audit_days = int(getattr(args, "audit_days", DEFAULT_AUDIT_DAYS))
 
     plan = [
         (
@@ -75,6 +79,15 @@ def main(args: argparse.Namespace) -> int:
             "DELETE FROM pipeline_runs "
             f"WHERE started_at < NOW() - INTERVAL '{run_days} days'",
         ),
+        (
+            # Таблицы может не быть до миграции add_audit_logs: тогда COUNT упадёт,
+            # поэтому шаг пропускается при отсутствии relation (см. ниже).
+            "audit_logs",
+            "SELECT COUNT(*) FROM audit_logs "
+            f"WHERE created_at < NOW() - INTERVAL '{audit_days} days'",
+            "DELETE FROM audit_logs "
+            f"WHERE created_at < NOW() - INTERVAL '{audit_days} days'",
+        ),
     ]
 
     conn = psycopg2.connect(dsn)
@@ -83,7 +96,14 @@ def main(args: argparse.Namespace) -> int:
         cur = conn.cursor()
         total = 0
         for table, count_sql, delete_sql in plan:
-            cur.execute(count_sql)
+            try:
+                cur.execute(count_sql)
+            except psycopg2.errors.UndefinedTable:
+                # Миграция ещё не применена (например, audit_logs на старой базе) -
+                # шаг пропускаем, а не роняем всю чистку.
+                conn.rollback()
+                print(f"{table:16} пропущено: таблицы нет")
+                continue
             n = int(cur.fetchone()[0])
             total += n
             print(f"{table:16} к удалению: {n}")
@@ -107,5 +127,6 @@ def build_parser(sub) -> None:
     p.add_argument("--vacancies-days", type=int, default=DEFAULT_VACANCY_DAYS)
     p.add_argument("--logs-days", type=int, default=DEFAULT_LOG_DAYS)
     p.add_argument("--run-days", type=int, default=DEFAULT_RUN_DAYS)
+    p.add_argument("--audit-days", type=int, default=DEFAULT_AUDIT_DAYS)
     p.add_argument("--apply", action="store_true", help="Реально удалить (без флага - dry-run)")
     p.set_defaults(func=lambda a: main(a))
