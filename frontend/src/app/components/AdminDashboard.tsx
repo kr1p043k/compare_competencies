@@ -13,6 +13,7 @@ import { logAction } from "../../lib/auth";
 import { reportError } from "./../../lib/errors";
 import { ApiError, request } from "../../lib/api";
 import { PageHeader } from "./PageHeader";
+import { Skeleton } from "../../design";
 
 export function AdminDashboard() {
   const RPD_STAGE_LABELS: Record<string, string> = {
@@ -539,7 +540,23 @@ export function AdminDashboard() {
                       <th className="pb-2 font-medium text-right">Запросов</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody aria-busy={loading}>
+                    {loading &&
+                      Array.from({ length: 5 }, (_, i) => (
+                        <tr
+                          key={`users-skeleton-${i}`}
+                          aria-hidden="true"
+                          className="border-b border-gray-100 dark:border-slate-800"
+                        >
+                          <td className="py-2"><Skeleton className="h-4 w-28" /></td>
+                          <td className="py-2"><Skeleton className="h-4 w-24" /></td>
+                          <td className="py-2"><Skeleton className="h-5 w-20 rounded-full" /></td>
+                          <td className="py-2"><Skeleton className="h-4 w-32" /></td>
+                          <td className="py-2">
+                            <span className="flex justify-end"><Skeleton className="h-4 w-8" /></span>
+                          </td>
+                        </tr>
+                      ))}
                     {users.map((u) => (
                       <tr key={u.username} className="border-b border-gray-100 dark:border-slate-800">
                         <td className="py-2 font-medium text-gray-900 dark:text-slate-100">{u.name}</td>

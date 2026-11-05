@@ -8,6 +8,7 @@ import { BarChart3, Activity, TrendingUp, AlertCircle, RefreshCw, Server, Cpu, B
 import { request } from "../../lib/api";
 import { reportError } from "./../../lib/errors";
 import { PageHeader } from "./PageHeader";
+import { Skeleton } from "../../design";
 
 interface MetricSample {
   name: string;
@@ -395,7 +396,52 @@ function MonitoringTabBase() {
       )}
 
       {loading && !metrics && (
-        <div className="text-center py-12 text-gray-500 dark:text-slate-400">Загрузка метрик...</div>
+        <div role="status" aria-live="polite" className="space-y-4">
+          <span className="sr-only">Загрузка метрик...</span>
+          <Card className="border-blue-200 dark:border-blue-800">
+            <CardHeader className="pb-2">
+              <Skeleton className="h-4 w-32" />
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+                {Array.from({ length: 4 }, (_, i) => (
+                  <div key={`health-${i}`}>
+                    <Skeleton className="mb-1.5 h-3 w-24" />
+                    <Skeleton className="h-7 w-16" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Card key={`stat-${i}`}>
+                <CardHeader className="pb-2">
+                  <Skeleton className="h-4 w-28" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-7 w-12" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <Card>
+            <CardHeader>
+              <Skeleton className="mb-1 h-5 w-40" />
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {Array.from({ length: 6 }, (_, i) => (
+                <div
+                  key={`stage-${i}`}
+                  className="flex items-center justify-between border-b border-gray-100 py-2 last:border-0 dark:border-slate-800"
+                >
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* ─── Subscriptions ───────────────────────────────── */}

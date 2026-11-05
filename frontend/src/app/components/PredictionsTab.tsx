@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  TrendingUp, TrendingDown, Sparkles,
+  TrendingUp, TrendingDown,
   ChevronDown, ChevronUp, AlertCircle, CalendarDays,
 } from "lucide-react";
+import { Skeleton } from "../../design";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -186,9 +187,20 @@ export function PredictionsTab() {
             </CardHeader>
             <CardContent className="p-6">
               {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Sparkles className="size-6 text-blue-500" />
-                  <span className="ml-3 text-gray-600 dark:text-slate-400">Загрузка прогнозов...</span>
+                <div role="status" aria-live="polite" className="space-y-2">
+                  <span className="sr-only">Загрузка прогнозов...</span>
+                  {Array.from({ length: 6 }, (_, i) => (
+                    <div
+                      key={`forecast-skeleton-${i}`}
+                      className="flex items-center gap-3 rounded-lg border border-gray-100 p-3 dark:border-slate-800"
+                    >
+                      <Skeleton className="size-6 shrink-0 rounded-full" />
+                      <Skeleton className="h-4 max-w-52 flex-1" />
+                      <Skeleton className="h-4 w-12" />
+                      <Skeleton className="h-5 w-20 rounded-full" />
+                      <Skeleton className="size-4 shrink-0" />
+                    </div>
+                  ))}
                 </div>
               ) : error ? (
                 <div className="flex items-center gap-3 py-8 text-red-600">
