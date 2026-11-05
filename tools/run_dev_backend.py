@@ -35,4 +35,9 @@ print(f"env vars loaded: {load_env(ENV_SOURCE)}", file=sys.stderr)
 
 import uvicorn  # noqa: E402
 
-uvicorn.run("src.api_pkg:app", host="127.0.0.1", port=8000, log_level="info")
+uvicorn.run(
+    "src.api_pkg:app",
+    host="127.0.0.1",
+    port=int(os.environ.get("PORT", "8000")),
+    log_level="info",
+)
