@@ -43,15 +43,7 @@ type ArticlesResponse = {
 type Program = { pid: string; label: string; n_courses?: number; avg_coverage?: number };
 
 function bearerHeaders(): Record<string, string> {
-  try {
-    const stored = localStorage.getItem("auth");
-    if (stored) {
-      const token = (JSON.parse(stored) as { token?: string }).token;
-      if (token) return { Authorization: `Bearer ${token}` };
-    }
-  } catch (err) {
-    reportError("app/components/ArticlesPanel.tsx:48", err);
-  }
+  // Сессия в HttpOnly-cookie: токена в JS больше нет, браузер приложит сам.
   return {};
 }
 

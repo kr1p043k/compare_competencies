@@ -23,17 +23,6 @@ function sendLog(level: string, message: string, data?: Record<string, unknown>)
   } catch {}
 }
 
-function getAuthToken(): string | null {
-  try {
-    const stored = localStorage.getItem("auth");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.token || null;
-    }
-  } catch {}
-  return null;
-}
-
 let fetchOriginal: typeof globalThis.fetch | null = null;
 
 export function initApiLogger() {
@@ -43,7 +32,6 @@ export function initApiLogger() {
   globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const t0 = performance.now();
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    const token = getAuthToken();
     const origHeaders: Record<string, string> = {};
     if (init?.headers) {
       const h = init.headers;
@@ -55,14 +43,13 @@ export function initApiLogger() {
         Object.assign(origHeaders, h);
       }
     }
-    if (token && !url.includes("/api/auth/")) {
-      origHeaders["Authorization"] = `Bearer ${token}`;
-    }
-    const newInit: RequestInit = { ...init, headers: origHeaders };
+    // Токена в JS нет: сессию прикладывает браузер из HttpOnly-cookie. Явно
+    // просим её отправить, чтобы перехватчик не менял поведение fetch.
+    const newInit: RequestInit = { ...init, headers: origHeaders, credentials: init?.credentials ?? "same-origin" };
     try {
       const res = await orig(input, newInit);
       const elapsed = performance.now() - t0;
-      if (res.status === 401 && token && !url.includes("/api/auth/login")) {
+      if (res.status === 401 && !url.includes("/api/auth/login")) {
         handleUnauthorized();
       }
       if (elapsed > 1000 || !res.ok) {

@@ -108,13 +108,7 @@ function uniqueTrends(list: ParsedTrend[]): ParsedTrend[] {
 }
 
 function bearerHeaders(): Record<string, string> {
-  const stored = localStorage.getItem("auth");
-  if (stored) {
-    try {
-      const token = (JSON.parse(stored) as { token?: string }).token;
-      if (token) return { Authorization: `Bearer ${token}` };
-    } catch (err) { reportError("app/components/ScientificTrendsTab.tsx:112", err); }
-  }
+  // Сессия в HttpOnly-cookie: токена в JS больше нет, браузер приложит сам.
   return {};
 }
 

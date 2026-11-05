@@ -109,7 +109,7 @@ class TestSsoRequiresTotp:
         from src.api_pkg.routers.academic import SsoRequest
 
         request = _fake_request()
-        result = await acad.sso_login(SsoRequest(token=_hub_token()), request)
+        result = await acad.sso_login(SsoRequest(token=_hub_token()), request, _response())
 
         assert result["status"] == "totp_required", result
         assert "token" not in result, "SSO РЅРµ РґРѕР»Р¶РµРЅ РІС‹РґР°РІР°С‚СЊ С‚РѕРєРµРЅ РІ РѕР±С…РѕРґ 2FA"
@@ -163,8 +163,15 @@ class TestSsoRequiresTotp:
 
         from src.api_pkg.routers.academic import SsoRequest
 
-        result = await acad.sso_login(SsoRequest(token=_hub_token()), _fake_request())
+        result = await acad.sso_login(SsoRequest(token=_hub_token()), _fake_request(), _response())
         assert result.get("token"), "Р°РґРјРёРЅ Р±РµР· 2FA РґРѕР»Р¶РµРЅ РІС…РѕРґРёС‚СЊ РєР°Рє СЂР°РЅСЊС€Рµ"
+
+
+def _response():
+    """Пустой Response: sso_login ставит в него HttpOnly-cookie."""
+    from starlette.responses import Response
+
+    return Response()
 
 
 def _hub_token(username: str = "boss") -> str:
