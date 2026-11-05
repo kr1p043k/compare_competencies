@@ -15,6 +15,9 @@ import src.api_pkg.routers.auth as auth_mod
 import src.api_pkg.routers.krm_student as krm_student_mod
 from src.api_pkg import create_app, deps
 from src.models.student import StudentProfile
+from tests.conftest import unique_email
+
+KRM_EMAIL = unique_email("krm")
 
 
 def _override_auth(app, path: str, method: str = "GET"):
@@ -128,7 +131,7 @@ def _mock_client(
     async def _fake_user(_request):
         if not user:
             return None
-        return {"uid": "u-1", "u": "s@example.com", "r": role}
+        return {"uid": "u-1", "u": KRM_EMAIL, "r": role}
 
     monkeypatch.setattr(auth_mod, "get_current_user", _fake_user)
     if dirs is not None:

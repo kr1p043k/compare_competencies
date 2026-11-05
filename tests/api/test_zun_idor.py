@@ -12,18 +12,28 @@
 """
 import uuid
 
+import pytest
 from fastapi.testclient import TestClient
 
 import src.api_pkg.routers.auth as auth_mod
 import src.api_pkg.routers.zun as zun_mod
 from src.api_pkg import create_app
+from tests.conftest import unique_email
 
 COMP_ID = str(uuid.uuid4())
+TEACHER_EMAIL = unique_email("zun-teacher")
+ADMIN_EMAIL = unique_email("zun-admin")
 DISC_ID = str(uuid.uuid4())
 KSA_ID = str(uuid.uuid4())
 
 OWN = "09.03.02"
 FOREIGN = "01.03.01"
+
+
+@pytest.fixture(autouse=True)
+def _reset_zun_limiter():
+    zun_mod.limiter.reset()
+    yield
 
 
 class FakePool:
@@ -88,7 +98,8 @@ def _make_client(monkeypatch, pool, role="teacher", dirs=(OWN,)):
     app = create_app()
 
     async def _fake_user(_request):
-        return {"uid": "u-1", "u": f"{role}@example.com", "r": role, "t": None}
+        email = ADMIN_EMAIL if role == "admin" else TEACHER_EMAIL
+        return {"uid": "u-1", "u": email, "r": role, "t": None}
 
     async def _fake_dirs(_user):
         return list(dirs)
@@ -265,7 +276,7 @@ def test_unauthorized_when_no_session(monkeypatch):
 
 # ------------------------------------------------------- анализ направления
 
-def test_analyze_foreign_direction_403(monkeypatch):
+def test_analyze_foreign_direction_403_via_query(monkeypatch):
     """Запуск ZUN-анализа чужого направления запрещён."""
     client = _make_client(monkeypatch, FakePool(FOREIGN))
     r = client.post(f"/api/teacher/zun/analyze?dir_code={FOREIGN}")
@@ -300,7 +311,7 @@ def test_analyze_own_direction_starts(monkeypatch):
     assert r.json().get("status") == "started"
 
 
-def test_analyze_results_foreign_direction_403(monkeypatch, tmp_path):
+def test_analyze_results_foreign_direction_403_via_query(monkeypatch, tmp_path):
     """Результаты анализа чужого направления не читаются."""
     monkeypatch.setattr(zun_mod, "RESULT_TEACHER", tmp_path)
     client = _make_client(monkeypatch, FakePool(FOREIGN))

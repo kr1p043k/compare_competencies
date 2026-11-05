@@ -1,9 +1,11 @@
 # tests/conftest.py
 import contextlib
 import logging
+import os
 import random
 import sys
 import types
+import uuid
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -43,6 +45,21 @@ def _ensure_optional_module(name: str, attrs: dict | None = None) -> types.Modul
 
 _ensure_optional_module("cv2")
 _ensure_optional_module("shap", {"TreeExplainer": MagicMock()})
+
+
+def unique_email(prefix: str = "user") -> str:
+    """Return a process-unique email safe for parallel test runs.
+
+    Combines a descriptive prefix, the current PID and a random fragment so
+    multiple simultaneous pytest processes never share the same test identity
+    against the shared database.
+    """
+    return f"{prefix}-{os.getpid()}-{uuid.uuid4().hex[:8]}@example.test"
+
+
+def unique_uid() -> str:
+    """Return a fresh UUID for test users/entities."""
+    return str(uuid.uuid4())
 
 
 RANDOM_SEED = 12345

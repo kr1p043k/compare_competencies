@@ -3,18 +3,19 @@
 Real TestClient/ASGI, isolated tmp DATA_DIR, auth bypass like v33 sibling.
 """
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+import src.api_pkg.routers.zun as _zun_mod
 from src import config
 from src.api_pkg import create_app, deps
+from src.models.student import StudentProfile
+from tests.conftest import unique_email
 
-import pytest as _pytest
-import src.api_pkg.routers.zun as _zun_mod
 
-
-@_pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def _allow_all_dirs(monkeypatch):
     """IDOR-guard проверяется в tests/api/test_zun_idor.py.
 
@@ -30,7 +31,8 @@ def _allow_all_dirs(monkeypatch):
     monkeypatch.setattr(_zun_mod, "_ensure_discipline_access", _allow)
     monkeypatch.setattr(_zun_mod, "_ensure_ksa_access", _allow)
 
-from src.models.student import StudentProfile
+
+SELF_EMAIL = unique_email("custom-zun")
 
 
 @pytest.fixture()
@@ -127,21 +129,23 @@ def test_custom_zun_validations(isolated):
     })
     assert r.status_code == 422, r.text
     # ZUN too long (>300) -> 422
-    r = c.post("/api/profiles/custom", json={
-        "name": "longzun", "new_competencies": [{"code": "PK-3", "knowledge": ["y" * 301], "abilities": [], "skills": []}],
-    })
+    long_entry = [{"code": "PK-3", "knowledge": ["y" * 301], "abilities": [], "skills": []}]
+    r = c.post("/api/profiles/custom", json={"name": "longzun", "new_competencies": long_entry})
     assert r.status_code == 422, r.text
     # unknown base -> 404
-    r = c.post("/api/profiles/custom", json={"name": "nobase", "target_level": "middle", "base": "ghost", "competency_codes": ["UK-1"]})
+    r = c.post("/api/profiles/custom", json={
+        "name": "nobase", "target_level": "middle", "base": "ghost", "competency_codes": ["UK-1"],
+    })
     assert r.status_code == 404, r.text
     # duplicate profile -> 409
-    assert c.post("/api/profiles/custom", json={"name": "dup2", "target_level": "middle", "skills": ["a"]}).status_code == 201
-    assert c.post("/api/profiles/custom", json={"name": "dup2", "target_level": "middle", "skills": ["a"]}).status_code == 409
+    dup_payload = {"name": "dup2", "target_level": "middle", "skills": ["a"]}
+    assert c.post("/api/profiles/custom", json=dup_payload).status_code == 201
+    assert c.post("/api/profiles/custom", json=dup_payload).status_code == 409
 
 
 def test_self_technologies_roundtrip(isolated, monkeypatch):
     async def fake_user(request):
-        return {"u": "testuser@example.com", "r": "student"}
+        return {"u": SELF_EMAIL, "r": "student"}
 
     import src.api_pkg.routers.auth as authmod
     monkeypatch.setattr(authmod, "get_current_user", fake_user)
@@ -159,8 +163,10 @@ def test_self_technologies_roundtrip(isolated, monkeypatch):
     assert r.status_code == 200
     assert r.json()["technologies"] == ["python"]
     # old per-user file without technologies key defaults to []
-    (isolated / "students" / "self_testuser_example_com_competency.json").write_text(
-        json.dumps({"skills": ["sql"]}), encoding="utf-8")
+    from src.api_pkg.routers.profiles import _self_profile_name
+
+    _, old_path = _self_profile_name(SELF_EMAIL)
+    Path(old_path).write_text(json.dumps({"skills": ["sql"]}), encoding="utf-8")
     got = c.get("/api/profiles/self").json()
     assert got["technologies"] == [] and got["skills"] == ["sql"]
 
@@ -184,7 +190,8 @@ def test_custom_options_shape(isolated):
     assert "UK-1" in codes and "PK-9" in codes
     assert codes["PK-9"]["title"] == "T" and codes["PK-9"]["skills_count"] >= 1
     assert codes["UK-1"]["skills_count"] == 2
-    assert set(body["technologies_suggest"][:4]) == {"python", "sql", "docker", "git"} or "python" in body["technologies_suggest"]
+    top4 = body["technologies_suggest"][:4]
+    assert set(top4) == {"python", "sql", "docker", "git"} or "python" in body["technologies_suggest"]
     assert len(body["technologies_suggest"]) <= 30
 
 

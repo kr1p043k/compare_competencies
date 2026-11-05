@@ -13,6 +13,10 @@ from starlette.requests import Request
 
 from src.api_pkg.routers import academic
 from src.api_pkg.routers import auth as auth_mod
+from tests.conftest import unique_email, unique_uid
+
+SSO_EMAIL = unique_email("sso")
+SSO_UID = unique_uid()
 
 
 def _request() -> Request:
@@ -38,8 +42,8 @@ class _Pool:
 
     async def fetchrow(self, sql, *args):
         return {
-            "id": "11111111-1111-1111-1111-111111111111",
-            "email": "adm@sfedu.ru",
+            "id": SSO_UID,
+            "email": SSO_EMAIL,
             "role": self.role,
             "full_name": "Admin",
         }
@@ -54,7 +58,7 @@ class _Response:
     text = "ok"
 
     def json(self):
-        return {"email": "adm@sfedu.ru", "sub": "1", "username": "adm"}
+        return {"email": SSO_EMAIL, "sub": "1", "username": "adm"}
 
 
 class _Client:

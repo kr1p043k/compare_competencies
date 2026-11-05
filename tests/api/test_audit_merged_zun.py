@@ -10,13 +10,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api_pkg import create_app
-
-import pytest as _pytest
 import src.api_pkg.routers.zun as _zun_mod
+from src.api_pkg import create_app
+from src.api_pkg import request_logger as rl
+from tests.conftest import unique_email, unique_uid
 
 
-@_pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def _allow_all_dirs(monkeypatch):
     """IDOR-guard проверяется в tests/api/test_zun_idor.py.
 
@@ -33,10 +33,7 @@ def _allow_all_dirs(monkeypatch):
     monkeypatch.setattr(_zun_mod, "_ensure_ksa_access", _allow)
 
 
-
-from src.api_pkg import request_logger as rl
-
-ADMIN = {"uid": "00000000-0000-0000-0000-000000000001", "u": "admin@t.local", "r": "admin"}
+ADMIN = {"uid": unique_uid(), "u": unique_email("audit-admin"), "r": "admin"}
 
 
 @pytest.fixture(autouse=True)
@@ -139,7 +136,7 @@ def test_zun_scope_put_audits(actor):
     assert r.status_code == 200, r.text
     rows = [e for e in rl._log_buffer if e.method == "AUDIT"]
     assert len(rows) == 1 and rows[0].detail.startswith("zun.scope.put")
-    assert "admin@t.local" in rows[0].detail
+    assert ADMIN["u"] in rows[0].detail
 
 
 def test_zun_entry_add_delete_audit(actor):
@@ -159,4 +156,4 @@ def test_zun_entry_add_delete_audit(actor):
     details = [e.detail for e in rl._log_buffer if e.method == "AUDIT"]
     assert any((d or "").startswith("zun.entry.add") for d in details)
     assert any((d or "").startswith("zun.entry.delete") for d in details)
-    assert all("admin@t.local" in (d or "") for d in details)
+    assert all(ADMIN["u"] in (d or "") for d in details)

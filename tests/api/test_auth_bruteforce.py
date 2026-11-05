@@ -25,14 +25,14 @@ from httpx import ASGITransport, AsyncClient
 from starlette.requests import Request as StarletteRequest
 
 from src.api_pkg import create_app
-from tests.conftest import open_all_gates
+from tests.conftest import open_all_gates, unique_email
 
 TEST_DB_URL = os.environ.get(
     "TEST_DATABASE_URL",
     "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies",
 )
 
-EMAIL = "test.bruteforce@compare-competencies.local"
+EMAIL = unique_email("bruteforce")
 PASSWORD = "Brute_Force_Test_123"
 FULL_NAME = "Brute Force Test"
 LOCKOUT_THRESHOLD = 5
@@ -183,7 +183,7 @@ async def test_endpoint_sets_retry_after_before_app_handler(env: dict[str, Any])
 
 
 async def test_unknown_email_returns_401_without_lockout_row(env: dict[str, Any]) -> None:
-    unknown = "nobody.bruteforce@compare-competencies.local"
+    unknown = unique_email("bruteforce-unknown")
     r = await env["client"].post(
         "/api/auth/login", json={"email": unknown, "password": "whatever"}
     )

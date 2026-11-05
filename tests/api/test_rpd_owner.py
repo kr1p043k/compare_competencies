@@ -18,11 +18,14 @@ import src.api_pkg.routers.auth as auth_mod
 import src.api_pkg.routers.zun as zun_mod
 import src.database as database_mod
 from src.api_pkg import create_app
+from tests.conftest import unique_email
 
 OWN = "09.03.02"
 FOREIGN = "01.03.02"  # есть в YANDEX_COVERED, поэтому collect идёт до 400-coverage
 RUN_ID = str(uuid.uuid4())
 TEACHER_UID = "u-1"
+TEACHER_EMAIL = unique_email("rpd-teacher")
+ADMIN_EMAIL = unique_email("rpd-admin")
 
 
 class FakeRun:
@@ -58,7 +61,8 @@ def _make_client(monkeypatch, *, run=None, role="teacher", dirs=(OWN,)):
     app = create_app()
 
     async def _fake_user(_request):
-        return {"uid": TEACHER_UID, "u": f"{role}@example.com", "r": role, "t": None}
+        email = ADMIN_EMAIL if role == "admin" else TEACHER_EMAIL
+        return {"uid": TEACHER_UID, "u": email, "r": role, "t": None}
 
     async def _fake_dirs(_user):
         return list(dirs)

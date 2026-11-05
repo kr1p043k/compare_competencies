@@ -15,9 +15,10 @@ from src import config
 from src.api_pkg import create_app
 from src.api_pkg import request_logger as rl
 from src.api_pkg.routers import teacher as t
+from tests.conftest import unique_email, unique_uid
 
-ADMIN = {"uid": "00000000-0000-0000-0000-000000000001", "u": "admin@t.local", "r": "admin"}
-TEACHER = {"uid": "00000000-0000-0000-0000-000000000002", "u": "teacher@t.local", "r": "teacher"}
+ADMIN = {"uid": unique_uid(), "u": unique_email("audit-admin"), "r": "admin"}
+TEACHER = {"uid": unique_uid(), "u": unique_email("audit-teacher"), "r": "teacher"}
 
 
 @pytest.fixture()
@@ -79,8 +80,8 @@ def test_krm_add_writes_audit_with_actor(iso, actor):
     assert r.status_code == 200, r.text
     rows = _audits("krm.recommendation.add")
     assert len(rows) == 1
-    assert rows[0].user_email == "teacher@t.local"
-    assert "teacher@t.local" in (rows[0].detail or "") and "(teacher)" in (rows[0].detail or "")
+    assert rows[0].user_email == TEACHER["u"]
+    assert TEACHER["u"] in (rows[0].detail or "") and "(teacher)" in (rows[0].detail or "")
     assert "discipline=Math" in (rows[0].detail or "")
     assert "add graphs" in (rows[0].detail or "")
 
@@ -95,7 +96,7 @@ def test_krm_delete_writes_audit_with_target(iso, actor):
     assert len(rows) == 1
     assert "index=0" in (rows[0].detail or "")
     assert "drop this" in (rows[0].detail or "")
-    assert "teacher@t.local" in (rows[0].detail or "")
+    assert TEACHER["u"] in (rows[0].detail or "")
 
 
 def test_foundational_add_delete_audit(iso, actor):
@@ -106,7 +107,7 @@ def test_foundational_add_delete_audit(iso, actor):
     dels = _audits("krm.foundational.delete")
     assert len(adds) == 1 and "skill=python" in (adds[0].detail or "")
     assert len(dels) == 1 and "skill=python" in (dels[0].detail or "")
-    assert adds[0].user_email == "admin@t.local"
+    assert adds[0].user_email == ADMIN["u"]
 
 
 def test_seed_auto_writes_audit(iso, actor, monkeypatch):
@@ -139,8 +140,8 @@ def test_suggest_writes_audit(iso, actor):
     rows = _audits("skills.suggest")
     assert len(rows) == 1
     assert "skill=go" in (rows[0].detail or "")
-    assert rows[0].user_email == "teacher@t.local"
-    assert r.json()["suggestion"]["created_by"] == "teacher@t.local"
+    assert rows[0].user_email == TEACHER["u"]
+    assert r.json()["suggestion"]["created_by"] == TEACHER["u"]
 
 
 def test_approve_reject_audit_and_decider(iso, actor):
@@ -158,8 +159,8 @@ def test_approve_reject_audit_and_decider(iso, actor):
     assert r.status_code == 200, r.text
 
     by_id = {s["id"]: s for s in load_all()}
-    assert by_id[sid1]["decided_by"] == "admin@t.local"
-    assert by_id[sid2]["decided_by"] == "admin@t.local"
+    assert by_id[sid1]["decided_by"] == ADMIN["u"]
+    assert by_id[sid2]["decided_by"] == ADMIN["u"]
 
     ap = _audits("skills.suggestion.approve")
     rj = _audits("skills.suggestion.reject")
@@ -182,7 +183,7 @@ def test_categorize_and_whitelist_audit(iso, actor):
     wl = _audits("skills.whitelist.add")
     assert len(cat) == 1 and "added=1" in (cat[0].detail or "") and "go" in (cat[0].detail or "")
     assert len(wl) == 1 and "added=1" in (wl[0].detail or "")
-    assert all("admin@t.local" in (e.detail or "") for e in cat + wl)
+    assert all(ADMIN["u"] in (e.detail or "") for e in cat + wl)
 
 
 def test_audit_readable_via_admin_logs(iso, actor):
@@ -198,7 +199,7 @@ def test_audit_readable_via_admin_logs(iso, actor):
     logs = r.json()["logs"]
     assert len(logs) == 1
     assert logs[0]["method"] == "AUDIT"
-    assert logs[0]["user"] == "teacher@t.local"
+    assert logs[0]["user"] == TEACHER["u"]
     assert logs[0]["detail"] and "visible via logs" in logs[0]["detail"]
     # unfiltered view carries the entry too
     all_logs = c.get("/api/admin/logs?limit=100").json()["logs"]

@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 import src.db as db
 from src import config
 from src.api_pkg import create_app, deps
+from tests.conftest import unique_email
 
 TOKEN = "correct-metrics-token"
 
@@ -96,7 +97,7 @@ class TestMetricsToken:
         import src.api_pkg.routers.auth as auth
 
         async def _admin(_request):
-            return {"uid": "u-a", "u": "admin@example.com", "r": "admin", "t": None}
+            return {"uid": "u-a", "u": unique_email("health-admin"), "r": "admin", "t": None}
 
         monkeypatch.setattr(auth, "get_current_user", _admin)
         monkeypatch.setattr(config.settings, "METRICS_TOKEN", None)

@@ -1,25 +1,24 @@
 """Teacher/ROP view of student skills (live local PG + TestClient, real DB).
 
-Verification accounts (created here, deleted after):
-  student: test.student@compare-competencies.local / Student_Test_123
-  viewer:  test.teacher.view@compare-competencies.local / Teacher_View_123
+Verification accounts are created per process and deleted after the module.
 Password hashes are generated per-row with pgcrypto
 crypt(<pw>, gen_salt('bf', 6)) ($2a$06$ - same scheme as existing rows);
 no hash is copied or reused.
 Cleanup: sessions + user rows deleted, self files unlinked.
 """
+import contextlib
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from src.api_pkg import create_app
-import contextlib
+from tests.conftest import unique_email
 
-STUDENT_EMAIL = "test.student@compare-competencies.local"
+STUDENT_EMAIL = unique_email("student")
 STUDENT_PW = "Student_Test_123"
 STUDENT_NAME = "Test Student"
-TEACHER_EMAIL = "test.teacher.view@compare-competencies.local"
+TEACHER_EMAIL = unique_email("teacher-viewer")
 TEACHER_PW = "Teacher_View_123"
 TEACHER_NAME = "Test Teacher Viewer"
 SKILLS = ["Python", "SQL", "Docker"]
@@ -177,5 +176,5 @@ def test_guards_student_403_anon_401_unknown_404(auth):
     r = c.get("/api/admin/students/skills", params={"email": STUDENT_EMAIL})
     assert r.status_code == 401, r.text
     r = c.get("/api/admin/students/skills",
-              params={"email": "nobody@compare-competencies.local"}, headers=auth["tt"])
+              params={"email": unique_email("student-nobody")}, headers=auth["tt"])
     assert r.status_code == 404, r.text

@@ -16,6 +16,7 @@ from fastapi import HTTPException
 from starlette.requests import Request
 
 from src.api_pkg.routers import krm_teacher, zun
+from tests.conftest import unique_email
 
 OWN_DIR = "09.03.02"
 OTHER_DIR = "01.03.01"
@@ -73,8 +74,8 @@ def as_user(monkeypatch):
     return _set
 
 
-TEACHER = {"uid": "u-t", "u": "t@example.local", "r": "teacher"}
-ADMIN = {"uid": "u-a", "u": "a@example.local", "r": "admin"}
+TEACHER = {"uid": "u-t", "u": unique_email("zun-guard-teacher"), "r": "teacher"}
+ADMIN = {"uid": "u-a", "u": unique_email("zun-guard-admin"), "r": "admin"}
 
 
 async def test_require_dir_access_allows_own(as_user):

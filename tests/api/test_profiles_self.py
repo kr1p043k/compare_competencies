@@ -5,8 +5,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.api_pkg import create_app, deps
+from tests.conftest import unique_email, unique_uid
 
-STUDENT = {"uid": "00000000-0000-0000-0000-000000000009", "u": "stud@t.local", "r": "student"}
+STUDENT = {"uid": unique_uid(), "u": unique_email("profiles-self"), "r": "student"}
 
 
 @pytest.fixture()
@@ -94,7 +95,7 @@ def test_patch_logs_student_history(actor, iso):
     r = c.patch("/api/profiles/self", json={"add_skills": ["Go"]})
     assert r.status_code == 200, r.text
     hits = [e for e in sa._action_buffer
-            if e.get("action_type") == "profile_edit" and e.get("username") == "stud@t.local"]
+            if e.get("action_type") == "profile_edit" and e.get("username") == STUDENT["u"]]
     assert len(hits) == 1
     assert "added=1" in hits[0].get("result_ref", "")
     sa._action_buffer.clear()
@@ -107,9 +108,9 @@ async def test_history_chain_buffer_fallback():
 
     sa._action_buffer.clear()
     try:
-        sa.log_action(username="stud@t.local", action_type="analysis",
+        sa.log_action(username=STUDENT["u"], action_type="analysis",
                       profession="DS", profile="base")
-        got = await sa.get_actions(username="stud@t.local", limit=10)
+        got = await sa.get_actions(username=STUDENT["u"], limit=10)
         assert any(e.get("action_type") == "analysis" for e in got)
     finally:
         sa._action_buffer.clear()

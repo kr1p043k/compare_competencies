@@ -16,8 +16,9 @@ from fastapi.testclient import TestClient
 
 import src.api_pkg.routers.subscriptions as subs_mod
 import src.database as database_mod
+from tests.conftest import unique_email
 
-USER = {"uid": "u-1", "u": "u@example.com", "r": "teacher"}
+USER = {"uid": "u-1", "u": unique_email("subscriptions"), "r": "teacher"}
 _MISSING = object()
 
 

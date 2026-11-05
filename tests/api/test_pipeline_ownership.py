@@ -13,6 +13,7 @@ import src.api_pkg.routers.auth as auth_mod
 import src.api_pkg.routers.pipeline as pl
 from src.api_pkg import create_app
 from src.models.api_responses import PipelineTaskStatus
+from tests.conftest import unique_email
 
 TASK = "full-cycle-2026-11-03-owner-test"
 
@@ -45,7 +46,7 @@ def _client(monkeypatch, uid: str, role: str = "teacher"):
     app = create_app()
 
     async def _user(_request):
-        return {"uid": uid, "u": f"{uid}@example.com", "r": role, "t": None}
+        return {"uid": uid, "u": unique_email(f"pipe-{uid}"), "r": role, "t": None}
 
     monkeypatch.setattr(auth_mod, "get_current_user", _user)
     # Не писать в реальный data/cache/pipeline_tasks.json
