@@ -554,6 +554,129 @@ class HubPublicationsClient:
             "total_scanned": sum(len(items) for items in pages_data),
         }
 
+    async def deep_search(
+        self,
+        query: str,
+        type_id: int | None = None,
+        creator_id: int | None = None,
+        max_pages: int = 500,
+        on_progress: Any = None,
+    ) -> dict[str, Any]:
+        """Фоновый «глубокий» поиск: последовательно читает до ``max_pages`` страниц.
+
+        В отличие от ``search_publications`` (максимум ``_MAX_SCAN_PAGES`` для
+        интерактивного запроса) не ограничен ``_MAX_SCAN_PAGES``: предел задаёт
+        вызывающий (роутер — ``max_pages <= 500``). Страницы читаются чанками по
+        ``_SCAN_CONCURRENCY`` параллельно, как в ``_scan``, но чанки идут
+        последовательно, чтобы между ними можно было сообщить прогресс и
+        остановиться по сигналу отмены.
+
+        ``on_progress(scanned_pages, total_pages, matches)`` вызывается после
+        первого прочитанного ока и после каждого чанка. Может быть обычной
+        функцией или корутиной (если корутина — ``await``). Возврат ``False`` из
+        ``on_progress`` останавливает сканирование: снаружи это сигнал отмены.
+
+        Отдельная упавшая страница не роняет весь скан: у хаба есть дыры в
+        нумерации страниц, поэтому сбой (404/5xx/сеть) логируем и идём дальше.
+        Возвращает ``{matches, scanned_pages, total_scanned, total_pages,
+        truncated, elapsed_ms}``; ``total_pages`` — из заголовка ``Num-Pages``
+        первой страницы (0, если хаб его не прислал).
+        """
+        started = time.monotonic()
+        needle = query.casefold().strip()
+        pages = max(1, max_pages)
+
+        def pack(
+            matches: list[dict[str, Any]],
+            scanned_pages: int,
+            total_scanned: int,
+            total_pages: int,
+            truncated: bool,
+        ) -> dict[str, Any]:
+            return {
+                "matches": matches,
+                "scanned_pages": scanned_pages,
+                "total_scanned": total_scanned,
+                "total_pages": total_pages,
+                "truncated": truncated,
+                "elapsed_ms": int((time.monotonic() - started) * 1000),
+            }
+
+        try:
+            first_meta, first_items = await self._fetch_raw(1, _MAX_PAGE_SIZE, type_id, creator_id)
+        except HubNotFoundError:
+            # Пустая выдача (например, неизвестный type_id) - не ошибка.
+            return pack([], 0, 0, 0, False)
+
+        total_pages = first_meta["num_pages"]
+        target = pages if not total_pages else min(pages, total_pages)
+
+        matches: list[dict[str, Any]] = []
+        total_scanned = 0
+
+        def collect(items: list[dict[str, Any]]) -> None:
+            nonlocal total_scanned
+            total_scanned += len(items)
+            for raw in items:
+                if _matches(raw, needle):
+                    matches.append(normalize_publication(raw, self.base_url))
+
+        async def emit_progress(scanned_pages: int) -> bool:
+            """:returns: ``False`` если надо остановиться (сигнал отмены)."""
+            if on_progress is None:
+                return True
+            if asyncio.iscoroutinefunction(on_progress):
+                outcome = await on_progress(scanned_pages, total_pages, len(matches))
+            else:
+                outcome = on_progress(scanned_pages, total_pages, len(matches))
+            return outcome is not False
+
+        collect(first_items)
+        scanned_pages = 1
+        if target <= 1 or not await emit_progress(scanned_pages):
+            truncated = total_pages == 0 or scanned_pages < total_pages
+            return pack(matches, scanned_pages, total_scanned, total_pages, truncated)
+
+        semaphore = asyncio.Semaphore(_SCAN_CONCURRENCY)
+
+        async def fetch(page: int) -> tuple[int, list[dict[str, Any]], bool]:
+            """(page, items, exhausted): страница, записи, признак конца корпуса."""
+            async with semaphore:
+                try:
+                    _, items = await self._fetch_raw(page, _MAX_PAGE_SIZE, type_id, creator_id)
+                except HubNotFoundError:
+                    # Дыра в нумерации: если итоговая длина корпуса неизвестна,
+                    # 404 означает конец; иначе просто пропускаем страницу.
+                    logger.info("hub_publications_deep_search_gap", page=page)
+                    return page, [], total_pages == 0
+                except HubUnavailableError as exc:
+                    logger.warning(
+                        "hub_publications_deep_search_page_failed", page=page, error=str(exc)
+                    )
+                    return page, [], False
+            return page, items, bool(not items and total_pages == 0)
+
+        page = 2
+        exhausted = False
+        cancelled = False
+        while page <= target and not exhausted and not cancelled:
+            current = list(range(page, min(page + _SCAN_CONCURRENCY, target + 1)))
+            results = await asyncio.gather(*(fetch(p) for p in current))
+            for _page, items, is_exhausted in results:
+                scanned_pages += 1
+                if is_exhausted:
+                    exhausted = True
+                    break
+                collect(items)
+            if not exhausted:
+                cancelled = not await emit_progress(scanned_pages)
+            page = current[-1] + 1
+
+        # «Не весь корпус»: либо длина корпуса неизвестна (total_pages == 0),
+        # либо мы остановились раньше заявленного конца (лимит страниц/отмена/дыра).
+        truncated = total_pages == 0 or scanned_pages < total_pages
+        return pack(matches, scanned_pages, total_scanned, total_pages, truncated)
+
     async def get_publication(
         self,
         publication_id: int,

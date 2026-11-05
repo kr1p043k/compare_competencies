@@ -28,6 +28,26 @@ interface TypesResponse {
   exact?: boolean;
   total?: number;
 }
+interface DeepSearchProgress {
+  scanned_pages: number;
+  total_pages: number;
+  pct: number;
+}
+interface DeepSearchStatus {
+  job_id: string;
+  status: "running" | "done" | "error" | "cancelled";
+  progress: DeepSearchProgress;
+  matches: Publication[];
+  total: number;
+  total_scanned: number;
+  truncated: boolean;
+  elapsed_ms: number;
+  error: string | null;
+}
+interface DeepSearchStart {
+  job_id: string;
+  status: string;
+}
 
 export function PublicationsTab() {
   const [query, setQuery] = useState("");
@@ -52,6 +72,12 @@ export function PublicationsTab() {
   const [searchData, setSearchData] = useState<SearchResponse | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
+  // Глубокий поиск — фоновая задача: обычный запрос читает лишь первые
+  // страницы корпуса, поэтому явная кнопка запускает скан на сотни страниц
+  // с прогрессом и возможностью отмены.
+  const [deepJob, setDeepJob] = useState<DeepSearchStatus | null>(null);
+  const [deepStarting, setDeepStarting] = useState(false);
+  const [deepError, setDeepError] = useState("");
 
   // Живой поиск по уже загруженным записям: сеть не трогаем.
   useEffect(() => {
@@ -161,9 +187,6 @@ export function PublicationsTab() {
   useEffect(() => {
     if (searchError) setError(searchError);
   }, [searchError]);
-  const totalFilteredPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, totalFilteredPages);
-  const visibleItems = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
   const canLoadMore = !applied && numPages > 0 && nextPage <= numPages && !loadingMore;
 
   const resetAll = () => {
@@ -172,7 +195,72 @@ export function PublicationsTab() {
     setTypeId("");
     setPage(1);
     setReload((n) => n + 1);
+    setDeepJob(null);
+    setDeepError("");
   };
+
+  // Запуск глубокого поиска. Сервер отвечает сразу (202) и сканирует корпус
+  // в фоне: полный проход не укладывается в обычный запрос.
+  const startDeepSearch = useCallback(async () => {
+    const q = applied || query.trim();
+    if (q.length < 2) return;
+    setDeepStarting(true);
+    setDeepError("");
+    setDeepJob(null);
+    try {
+      const params = new URLSearchParams({ q, max_pages: "500" });
+      if (typeId) params.set("type_id", typeId);
+      const started = await api<DeepSearchStart>(
+        `/publications/deep-search?${params}`,
+        { method: "POST" },
+      );
+      setDeepJob({
+        job_id: started.job_id,
+        status: "running",
+        progress: { scanned_pages: 0, total_pages: 0, pct: 0 },
+        matches: [],
+        total: 0,
+        total_scanned: 0,
+        truncated: false,
+        elapsed_ms: 0,
+        error: null,
+      });
+    } catch (e: unknown) {
+      setDeepError(errorText(e));
+    } finally {
+      setDeepStarting(false);
+    }
+  }, [applied, query, typeId]);
+
+  const cancelDeepSearch = useCallback(async () => {
+    if (!deepJob) return;
+    try {
+      await api(`/publications/deep-search/${deepJob.job_id}`, { method: "DELETE" });
+    } catch {
+      // Отмена best-effort: если задача уже завершилась, это не ошибка.
+    }
+  }, [deepJob]);
+
+  // Опрос статуса, пока задача выполняется.
+  useEffect(() => {
+    if (!deepJob || deepJob.status !== "running") return;
+    const jobId = deepJob.job_id;
+    const id = setInterval(() => {
+      api<DeepSearchStatus>(`/publications/deep-search/${jobId}`)
+        .then((d) => setDeepJob(d))
+        .catch((e: unknown) => {
+          setDeepError(errorText(e));
+          clearInterval(id);
+        });
+    }, 1500);
+    return () => clearInterval(id);
+  }, [deepJob]);
+
+  const deepActive = deepJob !== null;
+  const shownItems = deepActive ? (deepJob?.matches ?? []) : filtered;
+  const shownPages = Math.max(1, Math.ceil(shownItems.length / pageSize));
+  const shownSafePage = Math.min(page, shownPages);
+  const visibleShown = shownItems.slice((shownSafePage - 1) * pageSize, shownSafePage * pageSize);
 
   return (
     <div className="space-y-6">
@@ -208,7 +296,71 @@ export function PublicationsTab() {
               className="border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800">
               <RotateCcw className="size-4" />Сбросить
             </Button>
+            {/* Глубокий поиск: обычный поиск читает первые страницы корпуса,
+                этот сканирует до 500 страниц в фоне и показывает прогресс. */}
+            <Button
+              onClick={startDeepSearch}
+              disabled={deepStarting || query.trim().length < 2 || deepJob?.status === "running"}
+              title="Просканировать значительно больше страниц корпуса (дольше)"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              {deepStarting ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+              Глубокий поиск
+            </Button>
           </div>
+
+          {deepError ? (
+            <Alert className="border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+              <AlertTitle>Глубокий поиск не запустился</AlertTitle>
+              <AlertDescription>{deepError}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          {deepJob ? (
+            <div className="rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/30 p-3 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-indigo-800 dark:text-indigo-200">
+                  {deepJob.status === "running"
+                    ? "Глубокий поиск выполняется…"
+                    : deepJob.status === "done"
+                      ? "Глубокий поиск завершён"
+                      : deepJob.status === "cancelled"
+                        ? "Глубокий поиск отменён"
+                        : "Глубокий поиск завершился с ошибкой"}
+                </span>
+                <span className="text-xs text-indigo-700 dark:text-indigo-300">
+                  просмотрено {deepJob.progress.scanned_pages.toLocaleString("ru-RU")}
+                  {deepJob.progress.total_pages > 0
+                    ? ` из ${deepJob.progress.total_pages.toLocaleString("ru-RU")}`
+                    : ""} страниц
+                  {deepJob.progress.pct > 0 ? ` (${deepJob.progress.pct.toFixed(0)}%)` : ""}
+                  {" · "}совпадений: {deepJob.total.toLocaleString("ru-RU")}
+                </span>
+              </div>
+              <div className="h-2 w-full rounded bg-indigo-200 dark:bg-indigo-900 overflow-hidden">
+                <div
+                  className="h-full bg-indigo-600 transition-all"
+                  style={{ width: `${Math.min(100, deepJob.progress.pct)}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-indigo-700 dark:text-indigo-300">
+                <span>
+                  Записей просмотрено: {deepJob.total_scanned.toLocaleString("ru-RU")}
+                  {deepJob.truncated ? " (корпус не дочитан до конца)" : ""}
+                </span>
+                {deepJob.status === "running" ? (
+                  <Button variant="outline" size="sm" onClick={cancelDeepSearch}>Отменить</Button>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => { setDeepJob(null); setDeepError(""); }}>
+                    Скрыть
+                  </Button>
+                )}
+              </div>
+              {deepJob.error ? (
+                <p className="text-xs text-red-700 dark:text-red-300">{deepJob.error}</p>
+              ) : null}
+            </div>
+          ) : null}
 
           <Alert className="border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
             <Info className="size-4" />
@@ -266,24 +418,26 @@ export function PublicationsTab() {
                   : `Загружено ${loaded.length.toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")}`}
                 {typesExact ? "" : " · счётчики типов приблизительные"}
               </p>
-              {visibleItems.length === 0 ? (
+              {visibleShown.length === 0 ? (
                 <EmptyState
                   icon={<Info className="size-8" />}
                   title="Совпадений не найдено"
-                  description={`Просмотрено ${(searchData?.total_scanned ?? 0).toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")} записей. Уточните запрос или выберите тип публикации.`}
+                  description={`Просмотрено ${(deepActive ? deepJob?.total_scanned ?? 0 : searchData?.total_scanned ?? 0).toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")} записей. Уточните запрос или выберите тип публикации.`}
                   action={
-                    <Button variant="outline" size="sm" onClick={loadMore} disabled={!canLoadMore}>
-                      {loadingMore ? <Loader2 className="size-4 animate-spin" /> : null}Загрузить ещё
-                    </Button>
+                    !deepActive ? (
+                      <Button variant="outline" size="sm" onClick={loadMore} disabled={!canLoadMore}>
+                        {loadingMore ? <Loader2 className="size-4 animate-spin" /> : null}Загрузить ещё
+                      </Button>
+                    ) : undefined
                   }
                 />
               ) : (
                 <>
                   <ul role="list" className="space-y-3">
-                    {visibleItems.map((p) => <li key={p.id}><PublicationCard pub={p} onOpen={setDetailId} /></li>)}
+                    {visibleShown.map((p) => <li key={p.id}><PublicationCard pub={p} onOpen={setDetailId} /></li>)}
                   </ul>
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <PaginationBar page={safePage} totalPages={totalFilteredPages} pageSize={pageSize}
+                    <PaginationBar page={shownSafePage} totalPages={shownPages} pageSize={pageSize}
                       onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1); }} />
                     <Button variant="outline" size="sm" onClick={loadMore} disabled={!canLoadMore}
                       className="border-gray-300 dark:border-slate-600">
