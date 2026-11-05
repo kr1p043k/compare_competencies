@@ -23,6 +23,7 @@ import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response
 
 from src.api_pkg import create_app
 from tests.conftest import open_all_gates
@@ -177,7 +178,7 @@ async def test_endpoint_sets_retry_after_before_app_handler(env: dict[str, Any])
     )
     fn = getattr(authmod.login, "__wrapped__", authmod.login)
     with pytest.raises(HTTPException) as excinfo:
-        await fn(authmod.LoginRequest(email=EMAIL, password=PASSWORD), _raw_request())
+        await fn(authmod.LoginRequest(email=EMAIL, password=PASSWORD), _raw_request(), Response())
     assert excinfo.value.status_code == 429
     assert (excinfo.value.headers or {}).get("Retry-After")
 

@@ -174,7 +174,10 @@ def test_guards_student_403_anon_401_unknown_404(auth):
     r = c.get("/api/admin/students/skills", params={"email": STUDENT_EMAIL},
               headers=auth["st"])
     assert r.status_code == 403, r.text
-    r = c.get("/api/admin/students/skills", params={"email": STUDENT_EMAIL})
+    # Отдельный клиент: у общего уже есть cookie от логинов выше, и запрос
+    # без заголовка перестал бы быть анонимным.
+    anon = TestClient(create_app(), raise_server_exceptions=False)
+    r = anon.get("/api/admin/students/skills", params={"email": STUDENT_EMAIL})
     assert r.status_code == 401, r.text
     r = c.get("/api/admin/students/skills",
               params={"email": "nobody@compare-competencies.local"}, headers=auth["tt"])

@@ -8,7 +8,6 @@
 """
 from __future__ import annotations
 
-import json
 import secrets
 
 import pytest
@@ -17,14 +16,6 @@ from fastapi import HTTPException
 import src.api_pkg.routers.auth as auth_mod
 
 FLAG_TOTP_2FA = "totp_2fa_enabled"
-
-
-@pytest.fixture(autouse=True)
-def _totp_feature_on(monkeypatch, tmp_path):
-    """Autouse: TOTP 2FA включена в отдельном временном features-файле."""
-    features_file = tmp_path / "features.json"
-    features_file.write_text(json.dumps({FLAG_TOTP_2FA: True}), encoding="utf-8")
-    monkeypatch.setattr("src.api_pkg.feature_flags._FEATURES_PATH", features_file)
 
 
 class TestTotpFailClosed:
@@ -227,7 +218,7 @@ class TestSsoRequiresTotp:
 
         from src.api_pkg.routers.academic import SsoRequest
 
-        result = await acad.sso_login(SsoRequest(token=_hub_token()), _fake_request())
+        result = await acad.sso_login(SsoRequest(token=_hub_token()), _fake_request(), _response())
         assert result.get("token"), "при выключенном флаге SSO выдаёт токен"
         assert "challenge_id" not in result
 

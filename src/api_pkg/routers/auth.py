@@ -195,8 +195,9 @@ def _consume_enroll(token: str | None) -> str | None:
 
 
 def _two_factor_disabled() -> HTTPException:
+    """Рубильник выключен: эндпоинт есть, но настройкой запрещён."""
     return HTTPException(
-        status_code=404,
+        status_code=403,
         detail="Двухфакторная аутентификация отключена администратором",
     )
 
@@ -661,11 +662,82 @@ async def me(request: Request):
         "SELECT email, role, full_name FROM users WHERE email = $1",
         user_data["u"],
     )
+    totp_enabled = False
+    totp_locked_until = None
+    try:
+        state = await _totp_state(pool, user_data["uid"])
+        if state:
+            totp_enabled = bool(state.get("confirmed"))
+            locked = state.get("locked_until")
+            totp_locked_until = locked.isoformat() if locked is not None else None
+    except Exception as exc:
+        # Таблицы admin_totp может не быть до первой настройки 2FA.
+        logger.warning("me_totp_state_unavailable", error=str(exc)[:200])
     return {
         "username": user_data["u"],
         "role": user_data["r"],
         "name": row["full_name"] if row else "",
+        "totp_enabled": totp_enabled,
+        # Панель показывает «заблокировано до», если код вводили неверно много раз.
+        "totp_locked_until": totp_locked_until,
     }
+
+
+async def _check_totp_or_recovery(
+    pool, user_id, state: dict, code: str, invalid_status: int = 400
+) -> None:
+    """Проверить код 2FA: TOTP или recovery, с блокировкой после N ошибок.
+
+    Вызывается из входа (verify) и из отключения (disable), поэтому живёт
+    отдельно: иначе логика блокировки дублируется и расходится. Поднимает
+    429 при блокировке и 400 при неверном коде.
+    """
+    retry_in = int(state.get("retry_in") or 0)
+    if state.get("locked_until") is not None and retry_in > 0:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Слишком много неверных кодов. Повторите через {_humanize_seconds(retry_in)}.",
+            headers={"Retry-After": str(retry_in)},
+        )
+
+    secret = _decrypt_totp_secret(state["secret"])
+    ok = bool(secret) and _verify_totp(secret, code)
+    used_recovery = False
+
+    if not ok:
+        raw = state.get("recovery_codes") or []
+        codes: list[str] = json.loads(raw) if isinstance(raw, str) else list(raw)
+        target = _hash_recovery_code(code.strip())
+        if target in codes:
+            ok = True
+            used_recovery = True
+            remaining = [c for c in codes if c != target]
+            await pool.execute(
+                "UPDATE admin_totp SET recovery_codes = $2::jsonb WHERE user_id = $1",
+                user_id, json.dumps(remaining),
+            )
+
+    if not ok:
+        failures = int(state.get("failed_attempts") or 0) + 1
+        locked = failures >= _TOTP_MAX_FAILURES
+        await pool.execute(
+            """UPDATE admin_totp
+                  SET failed_attempts = $2,
+                      locked_until = CASE WHEN $3 THEN NOW() + ($4 || ' minutes')::interval
+                                          ELSE locked_until END
+                WHERE user_id = $1""",
+            user_id, failures, locked, str(_lockout_minutes_totp(failures)),
+        )
+        if locked:
+            logger.warning("totp_locked", uid=str(user_id), failures=failures)
+            raise HTTPException(status_code=429, detail="Слишком много неверных кодов")
+        raise HTTPException(status_code=invalid_status, detail="Неверный код")
+
+    if not used_recovery:
+        await pool.execute(
+            "UPDATE admin_totp SET failed_attempts = 0, locked_until = NULL WHERE user_id = $1",
+            user_id,
+        )
 
 
 # ---------------- 2FA endpoints ----------------
@@ -764,10 +836,17 @@ async def totp_status(request: Request):
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     enabled = await get_two_factor_enabled(pool)
     state = await _totp_state(pool, user["uid"])
+    confirmed = bool(state and state.get("confirmed"))
     return {
+        # Каноничные имена.
         "enabled": enabled,
-        "enrolled": bool(state and state.get("confirmed")),
+        "enrolled": confirmed,
         "available": True,
+        # Совместимость: панель админ-консоли и её тесты читают эти имена.
+        # Значения те же самые, дублирование только в именах полей.
+        "globally_enabled": enabled,
+        "configured": state is not None,
+        "confirmed": confirmed,
     }
 
 
@@ -876,30 +955,7 @@ async def totp_verify(body: TotpChallengeRequest, request: Request, response: Re
     if not state or not state.get("confirmed"):
         raise HTTPException(status_code=401, detail="2FA не настроена")
 
-    lock = state.get("locked_until")
-    if lock is not None and state.get("retry_in", 0) and state["retry_in"] > 0:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Слишком много неверных кодов. Повторите через {_humanize_seconds(state['retry_in'])}.",
-            headers={"Retry-After": str(state["retry_in"])},
-        )
-
-    secret = _decrypt_totp_secret(state["secret"])
-    if secret is None or not _verify_totp(secret, body.code):
-        failures = int(state.get("failed_attempts") or 0) + 1
-        locked = failures >= _TOTP_MAX_FAILURES
-        await pool.execute(
-            """UPDATE admin_totp
-                  SET failed_attempts = $2,
-                      locked_until = CASE WHEN $3 THEN NOW() + ($4 || ' minutes')::interval
-                                          ELSE locked_until END
-                WHERE user_id = $1""",
-            user_id, failures, locked, str(_lockout_minutes_totp(failures)),
-        )
-        if locked:
-            logger.warning("totp_locked", uid=user_id, failures=failures)
-            raise HTTPException(status_code=429, detail="Слишком много неверных кодов")
-        raise HTTPException(status_code=401, detail="Неверный код")
+    await _check_totp_or_recovery(pool, user_id, state, body.code, invalid_status=401)
 
     row = await pool.fetchrow(
         "SELECT id, email, role, full_name FROM users WHERE id = $1 AND is_active = true",

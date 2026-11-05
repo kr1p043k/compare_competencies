@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import contextlib
-import json
 import os
 import socket
 import urllib.parse
@@ -31,7 +30,6 @@ TEST_DB_URL = os.environ.get(
 # чужой confirmed-TOTP). PID делает учётку по-настоящему своей.
 EMAIL = f"totp-admin-{os.getpid()}@example.test"
 PASSWORD = "Totp_Test_Password_123"
-FLAG_TOTP_2FA = "totp_2fa_enabled"
 
 
 def _db_reachable() -> bool:
@@ -71,27 +69,13 @@ async def _make_admin(pool: asyncpg.Pool) -> None:
     )
 
 
-@pytest.fixture(autouse=True)
-def _totp_feature_on(monkeypatch, tmp_path):
-    """Autouse: TOTP 2FA включена в отдельном временном features-файле."""
-    features_file = tmp_path / "features.json"
-    features_file.write_text(json.dumps({FLAG_TOTP_2FA: True}), encoding="utf-8")
-    monkeypatch.setattr("src.api_pkg.feature_flags._FEATURES_PATH", features_file)
-
-
 @pytest.fixture()
 async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
     import src.db as dbmod
 
     # Эти тесты проверяют сам TOTP-поток, поэтому мастер-переключатель
     # считаем включённым. Поведение при выключенном флаге - в test_2fa_toggle.py.
-    async def _enabled(_pool: Any) -> bool:
-        return True
-
-    monkeypatch.setattr(auth_mod, "get_two_factor_enabled", _enabled)
-
     old = dbmod.pool
-    real_two_factor_enabled = auth_mod.two_factor_enabled
     try:
         pool = await asyncpg.create_pool(TEST_DB_URL, min_size=1, max_size=2, command_timeout=30)
     except Exception:  # pragma: no cover
@@ -101,10 +85,12 @@ async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
     with contextlib.suppress(Exception):
         auth_mod.limiter._storage.reset()
     await auth_mod._ensure_totp_table(pool)
+    # 2FA включена на время тестов: флаг пишется в app_settings напрямую.
+    from src.api_pkg.security_settings import set_two_factor_enabled
+    await set_two_factor_enabled(pool, True)
     await _make_admin(pool)
     # 2FA теперь за глобальным рубильником (по умолчанию выключен): эти тесты
     # проверяют поведение включённой 2FA, поэтому флаг включаем точечно.
-    auth_mod.two_factor_enabled = lambda: True
 
     app = create_app()
     try:
@@ -113,7 +99,6 @@ async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
     finally:
         await _drop_user(pool)
         dbmod.pool = old
-        auth_mod.two_factor_enabled = real_two_factor_enabled
         await pool.close()
 
 
@@ -174,8 +159,9 @@ async def _enable(client: AsyncClient, token: str) -> tuple[str, list[str]]:
 
 
 async def _set_totp_feature(client: AsyncClient, token: str, enabled: bool) -> None:
+    """Переключить 2FA через реальный рубильник (флаг в app_settings)."""
     r = await client.put(
-        "/api/admin/features/totp_2fa_enabled",
+        "/api/admin/security/2fa/settings",
         json={"enabled": enabled},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -210,15 +196,16 @@ async def test_setup_requires_auth(env):
     assert r.status_code == 401, r.text
 
 
-async def test_setup_allows_teacher(env):
+async def test_setup_forbidden_for_teacher(env):
     """2FA теперь доступна всем ролям, не только админу."""
     pool = env["pool"]
     await pool.execute("UPDATE users SET role = 'teacher' WHERE lower(email) = $1", EMAIL)
     client = env["client"]
     token = await _admin_token(client)
     r = await client.post("/api/auth/2fa/setup", headers={"Authorization": f"Bearer {token}"})
-    assert r.status_code == 200, r.text
-    assert r.json()["secret"]
+    # Рубильник админский: преподаватель не настраивает себе второй фактор,
+    # иначе получит код, который система у него никогда не спросит.
+    assert r.status_code == 403, r.text
 
 
 # ---------------------------------------------------------------- confirm
@@ -453,19 +440,25 @@ async def test_status_reflects_global_flag(env):
     assert off.json()["globally_enabled"] is False
 
 
-async def test_admin_features_toggle(env):
+async def test_admin_toggle_endpoint_roundtrip(env):
     """PUT /admin/features/totp_2fa_enabled переключает флаг, GET отражает."""
     client = env["client"]
     token = await _admin_token(client)
 
-    r = await client.get("/api/admin/features", headers={"Authorization": f"Bearer {token}"})
+    r = await client.get(
+        "/api/admin/security/2fa/settings", headers={"Authorization": f"Bearer {token}"}
+    )
     assert r.status_code == 200, r.text
-    assert r.json()["features"][FLAG_TOTP_2FA]["enabled"] is True
+    assert r.json()["enabled"] is True
 
     await _set_totp_feature(client, token, False)
-    r = await client.get("/api/admin/features", headers={"Authorization": f"Bearer {token}"})
-    assert r.json()["features"][FLAG_TOTP_2FA]["enabled"] is False
+    r = await client.get(
+        "/api/admin/security/2fa/settings", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert r.json()["enabled"] is False
 
     await _set_totp_feature(client, token, True)
-    r = await client.get("/api/admin/features", headers={"Authorization": f"Bearer {token}"})
-    assert r.json()["features"][FLAG_TOTP_2FA]["enabled"] is True
+    r = await client.get(
+        "/api/admin/security/2fa/settings", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert r.json()["enabled"] is True

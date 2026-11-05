@@ -73,7 +73,7 @@ async def test_policy_reports_on(flag_on: None) -> None:
 async def test_setup_is_disabled_when_switch_off(flag_off: None) -> None:
     async with _app_client() as client:
         resp = await client.post("/api/auth/2fa/setup", json={})
-    assert resp.status_code == 404, resp.text
+    assert resp.status_code == 403, resp.text
     assert "отключена" in resp.json()["detail"]
 
 
@@ -81,7 +81,7 @@ async def test_setup_is_disabled_when_switch_off(flag_off: None) -> None:
 async def test_confirm_is_disabled_when_switch_off(flag_off: None) -> None:
     async with _app_client() as client:
         resp = await client.post("/api/auth/2fa/confirm", json={"code": "123456"})
-    assert resp.status_code == 404, resp.text
+    assert resp.status_code == 403, resp.text
 
 
 @pytest.mark.asyncio
@@ -91,7 +91,7 @@ async def test_verify_is_disabled_when_switch_off(flag_off: None) -> None:
             "/api/auth/2fa/verify",
             json={"challenge_id": "x" * 16, "code": "123456"},
         )
-    assert resp.status_code == 404, resp.text
+    assert resp.status_code == 403, resp.text
 
 
 @pytest.mark.asyncio
@@ -101,7 +101,7 @@ async def test_recovery_is_disabled_when_switch_off(flag_off: None) -> None:
             "/api/auth/2fa/recovery",
             json={"challenge_id": "x" * 16, "code": "abcdef"},
         )
-    assert resp.status_code == 404, resp.text
+    assert resp.status_code == 403, resp.text
 
 
 @pytest.mark.asyncio
@@ -130,5 +130,5 @@ def test_enroll_id_expires(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_disabled_error_shape() -> None:
     exc = auth_mod._two_factor_disabled()
     assert isinstance(exc, HTTPException)
-    assert exc.status_code == 404
+    assert exc.status_code == 403
     assert "отключена" in exc.detail
