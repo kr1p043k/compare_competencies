@@ -41,11 +41,6 @@ class TestSkillParserExtended:
         assert "python" in texts
         assert "django" in texts
 
-    @pytest.mark.xfail(
-        reason="_marker_search отдаёт навыки только из первого сегмента после маркера "
-               "и фильтрует по узкому TECH_SKILLS: список из 4 разделителей даёт < 3",
-        strict=False,
-    )
     def test_marker_search_multiple_delimiters(self):
         parser = SkillParser()
         text = "Требования: Python\n• SQL\n- Git\n* Docker"
