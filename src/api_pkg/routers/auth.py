@@ -4,17 +4,29 @@ import base64
 import hashlib
 import hmac
 import json
+import secrets
+import struct
 import time
+import urllib.parse
 from typing import Any
 
 import structlog
+from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 
 from src import config
 from src.api_pkg.client_ip import client_ip
+from src.api_pkg.request_logger import audit_action
 from src.db import get_pool
+
+try:
+    import pyotp
+    _PYOTP_AVAILABLE = True
+except ImportError:  # pragma: no cover - RFC 6238 stdlib fallback
+    pyotp = None  # type: ignore[assignment]
+    _PYOTP_AVAILABLE = False
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["auth"])
@@ -44,6 +56,139 @@ _FAILURE_WINDOW = "1 hour"
 #: Целевая стоимость bcrypt. Исторические хеши в БД — cost 6 (подбираются
 #: на GPU тысячами в секунду), при успешном входе молча перехешируем.
 _TARGET_BCRYPT_COST = 12
+
+
+
+
+# ---------------- TOTP 2FA для роли admin ----------------
+#
+# Секрет TOTP - такой же секрет, как пароль: без шифрования он даёт полный
+# доступ к аккаунту. Шифруем Fernet-ключом, производным от SECRET_KEY (как
+# hub-JWT в academic.py). Recovery-коды храним только хэшами.
+
+_TOTP_ISSUER = "Compare Competencies"
+_TOTP_FERNET_SALT = b"compare-online/admin-totp/v1"
+_TOTP_CHALLENGE_TTL = 300  # 5 минут на ввод кода
+_TOTP_MAX_FAILURES = 5
+_TOTP_LOCK_MINUTES = 15
+_RECOVERY_CODE_COUNT = 10
+
+#: challenge_id -> (user_id, expires_at). Живёт в памяти процесса: пережить
+#: рестарт не обязан — пользователь просто начнёт вход заново.
+_totp_challenges: dict[str, tuple[str, float]] = {}
+
+
+def _totp_fernet() -> Fernet:
+    key = base64.urlsafe_b64encode(
+        hashlib.sha256(SECRET_KEY.encode() + _TOTP_FERNET_SALT).digest()
+    )
+    return Fernet(key)
+
+
+def _encrypt_totp_secret(secret: str) -> str:
+    return _totp_fernet().encrypt(secret.encode()).decode()
+
+
+def _decrypt_totp_secret(stored: str) -> str | None:
+    try:
+        return _totp_fernet().decrypt(stored.encode()).decode()
+    except (InvalidToken, ValueError):
+        return None
+
+
+def _hash_recovery_code(code: str) -> str:
+    return hashlib.sha256(f"{code}:{SECRET_KEY}".encode()).hexdigest()
+
+
+def _generate_totp_secret() -> str:
+    if _PYOTP_AVAILABLE:
+        return pyotp.random_base32()
+    return base64.b32encode(secrets.token_bytes(20)).decode().rstrip("=")
+
+
+def _totp_now(secret: str) -> str:
+    """Текущий TOTP-код (для тестов и восстановления)."""
+    if _PYOTP_AVAILABLE:
+        return pyotp.TOTP(secret).now()
+    # RFC 6238: 30-секундные окна, 6 цифр, SHA-1.
+    counter = int(time.time()) // 30
+    digest = hmac.new(
+        base64.b32decode(secret + "=" * (-len(secret) % 8)),
+        struct.pack(">Q", counter),
+        hashlib.sha1,
+    ).digest()
+    offset = digest[-1] & 0x0F
+    binary = struct.unpack(">I", digest[offset:offset + 4])[0] & 0x7FFFFFFF
+    return f"{binary % 1_000_000:06d}"
+
+
+def _verify_totp(secret: str, code: str) -> bool:
+    code = (code or "").strip().replace(" ", "")
+    if not code:
+        return False
+    if _PYOTP_AVAILABLE:
+        # valid_window=1: допускаем соседнее окно на рассинхрон часов.
+        return bool(pyotp.TOTP(secret).verify(code, valid_window=1))
+    return hmac.compare_digest(_totp_now(secret), code)
+
+
+def _issue_challenge(user_id: str) -> str:
+    now = time.time()
+    # подчистить истёкшие, чтобы словарь не рос
+    for token, (_uid, exp) in list(_totp_challenges.items()):
+        if exp <= now:
+            _totp_challenges.pop(token, None)
+    token = secrets.token_urlsafe(32)
+    _totp_challenges[token] = (user_id, now + _TOTP_CHALLENGE_TTL)
+    return token
+
+
+def _consume_challenge(token: str) -> str | None:
+    """Вернуть user_id по challenge_id и удалить его (одноразовый)."""
+    entry = _totp_challenges.pop(token or "", None)
+    if not entry:
+        return None
+    user_id, exp = entry
+    if exp <= time.time():
+        return None
+    return user_id
+
+
+async def _issue_login_response(pool, user_row, request: Request) -> dict:
+    """Выдать сессию и токен (общий финал login и 2FA-verify)."""
+    token = _make_token(str(user_row["id"]), user_row["email"], user_row["role"])
+    await pool.execute(
+        """INSERT INTO sessions (user_id, token_hash, ip_address, user_agent)
+           VALUES ($1, $2, $3, $4)""",
+        user_row["id"], _hash_token(token), client_ip(request),
+        request.headers.get("User-Agent", ""),
+    )
+    return {
+        "token": token,
+        "role": user_row["role"],
+        "name": user_row["full_name"],
+        "username": user_row["email"],
+    }
+
+
+async def _totp_state(pool, user_id) -> dict | None:
+    try:
+        row = await pool.fetchrow(
+            """SELECT secret, confirmed, recovery_codes, failed_attempts, locked_until,
+                      GREATEST(0, CEIL(EXTRACT(EPOCH FROM (locked_until - NOW()))))::int AS retry_in
+                 FROM admin_totp WHERE user_id = $1""",
+            user_id,
+        )
+    except Exception:
+        # Таблицы может не быть, если миграция ещё не применена - не блокируем
+        # вход админам, но и 2FA не считаем настроенной.
+        logger.warning("admin_totp_table_missing", exc_info=True)
+        return None
+    return dict(row) if row else None
+
+
+def _lockout_minutes_totp(failures: int) -> int:
+    return min(_TOTP_LOCK_MINUTES, max(1, failures))
 
 
 def _humanize_seconds(seconds: int) -> str:
@@ -321,6 +466,19 @@ async def login(body: LoginRequest, request: Request):
             await _register_failed_login(pool, email, ip)
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
+        # 2FA: у админа с подтверждённым TOTP пароля мало. Токен не выдаём,
+        # возвращаем одноразовый challenge - код проверит /auth/2fa/verify.
+        if row["role"] == "admin":
+            state = await _totp_state(pool, row["id"])
+            if state and state.get("confirmed"):
+                challenge = _issue_challenge(str(row["id"]))
+                logger.info("login_totp_required", email=row["email"], ip=ip)
+                return {
+                    "status": "totp_required",
+                    "challenge_id": challenge,
+                    "expires_in": _TOTP_CHALLENGE_TTL,
+                }
+
         token = _make_token(str(row["id"]), row["email"], row["role"])
 
         token_hash = _hash_token(token)
@@ -412,3 +570,231 @@ async def me(request: Request):
         "role": user_data["r"],
         "name": row["full_name"] if row else "",
     }
+
+
+# ---------------- 2FA endpoints ----------------
+
+class TotpSetupResponse(BaseModel):
+    otpauth_uri: str
+    secret: str
+
+
+class TotpCodeRequest(BaseModel):
+    code: str = Field(min_length=4, max_length=32)
+
+
+class TotpChallengeRequest(BaseModel):
+    challenge_id: str = Field(min_length=8, max_length=128)
+    code: str = Field(min_length=4, max_length=32)
+
+
+async def _require_admin(request: Request) -> dict:
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if user.get("r") != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return user
+
+
+async def _ensure_totp_table(pool) -> None:
+    """Локальная страховка: таблица нужна и до применения миграции."""
+    await pool.execute(
+        """CREATE TABLE IF NOT EXISTS admin_totp (
+               user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+               secret TEXT NOT NULL,
+               confirmed BOOLEAN NOT NULL DEFAULT false,
+               created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+               last_used_at TIMESTAMPTZ,
+               recovery_codes JSONB,
+               failed_attempts INTEGER NOT NULL DEFAULT 0,
+               locked_until TIMESTAMPTZ
+           )"""
+    )
+
+
+@router.post("/auth/2fa/setup", response_model=TotpSetupResponse)
+@limiter.limit("10/minute")
+async def totp_setup(request: Request):
+    """Начать настройку TOTP. Секрет показывается один раз."""
+    user = await _require_admin(request)
+    pool = get_pool()
+    if pool is None:
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    await _ensure_totp_table(pool)
+
+    state = await _totp_state(pool, user["uid"])
+    if state and state.get("confirmed"):
+        raise HTTPException(
+            status_code=409, detail="2FA уже настроена; сначала отключите её"
+        )
+
+    secret = _generate_totp_secret()
+    await pool.execute(
+        """INSERT INTO admin_totp (user_id, secret, confirmed, failed_attempts)
+           VALUES ($1, $2, false, 0)
+           ON CONFLICT (user_id) DO UPDATE
+              SET secret = EXCLUDED.secret, confirmed = false,
+                  recovery_codes = NULL, failed_attempts = 0, locked_until = NULL""",
+        user["uid"], _encrypt_totp_secret(secret),
+    )
+    label = urllib.parse.quote(user["u"])
+    issuer = urllib.parse.quote(_TOTP_ISSUER)
+    await audit_action(request, "auth.2fa.setup", f"uid={user['uid']}")
+    return TotpSetupResponse(
+        otpauth_uri=f"otpauth://totp/{issuer}:{label}?secret={secret}&issuer={issuer}",
+        secret=secret,
+    )
+
+
+@router.post("/auth/2fa/confirm")
+@limiter.limit("10/minute")
+async def totp_confirm(body: TotpCodeRequest, request: Request):
+    """Подтвердить код и получить recovery-коды (единственный раз)."""
+    user = await _require_admin(request)
+    pool = get_pool()
+    if pool is None:
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    state = await _totp_state(pool, user["uid"])
+    if not state:
+        raise HTTPException(status_code=400, detail="Сначала вызовите /auth/2fa/setup")
+
+    secret = _decrypt_totp_secret(state["secret"])
+    if secret is None or not _verify_totp(secret, body.code):
+        raise HTTPException(status_code=400, detail="Неверный код")
+
+    codes = [secrets.token_hex(4) for _ in range(_RECOVERY_CODE_COUNT)]
+    hashes = [_hash_recovery_code(c) for c in codes]
+    await pool.execute(
+        """UPDATE admin_totp
+              SET confirmed = true, recovery_codes = $2::jsonb,
+                  last_used_at = NOW(), failed_attempts = 0, locked_until = NULL
+            WHERE user_id = $1""",
+        user["uid"], json.dumps(hashes),
+    )
+    await audit_action(request, "auth.2fa.enabled", f"uid={user['uid']}")
+    return {"status": "enabled", "recovery_codes": codes}
+
+
+@router.post("/auth/2fa/verify")
+@limiter.limit("10/minute")
+async def totp_verify(body: TotpChallengeRequest, request: Request):
+    """Завершить вход: проверить TOTP по challenge_id и выдать токен."""
+    pool = get_pool()
+    if pool is None:
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+    user_id = _consume_challenge(body.challenge_id)
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Challenge истёк или неверен")
+
+    state = await _totp_state(pool, user_id)
+    if not state or not state.get("confirmed"):
+        raise HTTPException(status_code=401, detail="2FA не настроена")
+
+    lock = state.get("locked_until")
+    if lock is not None and state.get("retry_in", 0) and state["retry_in"] > 0:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Слишком много неверных кодов. Повторите через {_humanize_seconds(state['retry_in'])}.",
+            headers={"Retry-After": str(state["retry_in"])},
+        )
+
+    secret = _decrypt_totp_secret(state["secret"])
+    if secret is None or not _verify_totp(secret, body.code):
+        failures = int(state.get("failed_attempts") or 0) + 1
+        locked = failures >= _TOTP_MAX_FAILURES
+        await pool.execute(
+            """UPDATE admin_totp
+                  SET failed_attempts = $2,
+                      locked_until = CASE WHEN $3 THEN NOW() + ($4 || ' minutes')::interval
+                                          ELSE locked_until END
+                WHERE user_id = $1""",
+            user_id, failures, locked, str(_lockout_minutes_totp(failures)),
+        )
+        if locked:
+            logger.warning("totp_locked", uid=user_id, failures=failures)
+            raise HTTPException(status_code=429, detail="Слишком много неверных кодов")
+        raise HTTPException(status_code=401, detail="Неверный код")
+
+    row = await pool.fetchrow(
+        "SELECT id, email, role, full_name FROM users WHERE id = $1 AND is_active = true",
+        user_id,
+    )
+    if row is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    await pool.execute(
+        "UPDATE admin_totp SET last_used_at = NOW(), failed_attempts = 0 WHERE user_id = $1",
+        user_id,
+    )
+    await audit_action(request, "auth.2fa.login", f"uid={user_id}")
+    logger.info("user_logged_in_2fa", email=row["email"], role=row["role"])
+    return await _issue_login_response(pool, row, request)
+
+
+@router.post("/auth/2fa/recovery")
+@limiter.limit("10/minute")
+async def totp_recovery(body: TotpChallengeRequest, request: Request):
+    """Вход по одноразовому recovery-коду (когда телефон недоступен)."""
+    pool = get_pool()
+    if pool is None:
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+    user_id = _consume_challenge(body.challenge_id)
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Challenge истёк или неверен")
+
+    state = await _totp_state(pool, user_id)
+    if not state or not state.get("confirmed"):
+        raise HTTPException(status_code=401, detail="2FA не настроена")
+
+    codes = state.get("recovery_codes") or []
+    if isinstance(codes, str):
+        codes = json.loads(codes)
+    target = _hash_recovery_code(body.code.strip())
+    if target not in codes:
+        raise HTTPException(status_code=401, detail="Неверный recovery-код")
+
+    # Одноразовый: сразу удаляем использованный код.
+    remaining = [c for c in codes if c != target]
+    await pool.execute(
+        "UPDATE admin_totp SET recovery_codes = $2::jsonb, last_used_at = NOW() WHERE user_id = $1",
+        user_id, json.dumps(remaining),
+    )
+    row = await pool.fetchrow(
+        "SELECT id, email, role, full_name FROM users WHERE id = $1 AND is_active = true",
+        user_id,
+    )
+    if row is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    await audit_action(request, "auth.2fa.recovery_used", f"uid={user_id}")
+    logger.warning("user_logged_in_recovery_code", email=row["email"])
+    return await _issue_login_response(pool, row, request)
+
+
+@router.post("/auth/2fa/disable")
+@limiter.limit("10/minute")
+async def totp_disable(body: TotpCodeRequest, request: Request):
+    """Отключить 2FA. Нужен действующий код или recovery-код."""
+    user = await _require_admin(request)
+    pool = get_pool()
+    if pool is None:
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    state = await _totp_state(pool, user["uid"])
+    if not state or not state.get("confirmed"):
+        raise HTTPException(status_code=400, detail="2FA не настроена")
+
+    secret = _decrypt_totp_secret(state["secret"])
+    ok = bool(secret) and _verify_totp(secret, body.code)
+    if not ok:
+        codes = state.get("recovery_codes") or []
+        if isinstance(codes, str):
+            codes = json.loads(codes)
+        ok = _hash_recovery_code(body.code.strip()) in codes
+    if not ok:
+        raise HTTPException(status_code=400, detail="Неверный код")
+
+    await pool.execute("DELETE FROM admin_totp WHERE user_id = $1", user["uid"])
+    await audit_action(request, "auth.2fa.disabled", f"uid={user['uid']}")
+    return {"status": "disabled"}
