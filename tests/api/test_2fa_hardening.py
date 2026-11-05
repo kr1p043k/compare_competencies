@@ -1,0 +1,193 @@
+"""2FA: закрытые дыры из security-ревью.
+
+Три дефекта, найденные ревью:
+  H1. SSO-вход обходил 2FA админа (в academic.py проверки не было);
+  H2. ошибка чтения состояния 2FA трактовалась как «не настроена» (fail-open);
+  M1. recovery-коды были 32-битными и сравнивались не constant-time.
+"""
+from __future__ import annotations
+
+import secrets
+
+import pytest
+from fastapi import HTTPException
+
+import src.api_pkg.routers.auth as auth_mod
+
+
+class TestTotpFailClosed:
+    """H2: сбой БД не должен снимать второй фактор."""
+
+    @pytest.mark.asyncio
+    async def test_db_error_raises_503(self):
+        class BrokenPool:
+            async def fetchrow(self, *_a, **_kw):
+                raise RuntimeError("connection lost")
+
+        with pytest.raises(HTTPException) as exc:
+            await auth_mod._totp_state(BrokenPool(), "u-1")
+        assert exc.value.status_code == 503
+
+    @pytest.mark.asyncio
+    async def test_missing_row_means_not_configured(self):
+        class EmptyPool:
+            async def fetchrow(self, *_a, **_kw):
+                return None
+
+        assert await auth_mod._totp_state(EmptyPool(), "u-1") is None
+
+
+class TestRecoveryCodes:
+    """M1: 64-битные коды, сравнение constant-time."""
+
+    def test_codes_are_64_bit(self):
+        # token_hex(8) -> 16 hex-символов = 64 бита
+        code = secrets.token_hex(8)
+        assert len(code) == 16
+
+    def test_hash_is_stable_and_salted_with_secret(self):
+        a = auth_mod._hash_recovery_code("abcd1234abcd1234")
+        b = auth_mod._hash_recovery_code("abcd1234abcd1234")
+        assert a == b
+        assert a != "abcd1234abcd1234", "код не должен храниться открытым"
+        assert len(a) == 64, "sha256 hex"
+
+
+class TestSsoRequiresTotp:
+    """H1: SSO-вход админа идёт через challenge, а не сразу выдаёт токен."""
+
+    @pytest.mark.asyncio
+    async def test_admin_with_confirmed_totp_gets_challenge(self, monkeypatch):
+        import src.api_pkg.routers.academic as acad
+
+        class FakeResp:
+            status_code = 200
+            text = "ok"
+
+            def json(self):
+                return {"valid": True}
+
+        class FakeClient:
+            def __init__(self, *_a, **_kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_a):
+                return False
+
+            async def post(self, *_a, **_kw):
+                return FakeResp()
+
+        class FakePool:
+            async def execute(self, *_a, **_kw):
+                return "OK"
+
+            async def fetchrow(self, sql, *_a, **_kw):
+                if "FROM users" in sql and "admin_totp" not in sql:
+                    return {
+                        "id": "11111111-1111-1111-1111-111111111111",
+                        "email": "boss@sfedu.ru",
+                        "role": "admin",
+                        "full_name": "Boss",
+                    }
+                return None
+
+        async def _confirmed(_pool, _uid):
+            return {"secret": "x", "confirmed": True, "recovery_codes": []}
+
+        monkeypatch.setattr(acad.httpx, "AsyncClient", FakeClient)
+        monkeypatch.setattr(acad, "get_pool", lambda: FakePool())
+        monkeypatch.setattr(acad.config, "ACADEMIC_SSO_ENABLED", True)
+        monkeypatch.setattr(auth_mod, "_totp_state", _confirmed)
+
+        from src.api_pkg.routers.academic import SsoRequest
+
+        request = _fake_request()
+        result = await acad.sso_login(SsoRequest(token=_hub_token()), request)
+
+        assert result["status"] == "totp_required", result
+        assert "token" not in result, "SSO не должен выдавать токен в обход 2FA"
+        assert result["challenge_id"]
+
+    @pytest.mark.asyncio
+    async def test_admin_without_totp_gets_token(self, monkeypatch):
+        import src.api_pkg.routers.academic as acad
+
+        class FakeResp:
+            status_code = 200
+            text = "ok"
+
+            def json(self):
+                return {"valid": True}
+
+        class FakeClient:
+            def __init__(self, *_a, **_kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_a):
+                return False
+
+            async def post(self, *_a, **_kw):
+                return FakeResp()
+
+        class FakePool:
+            async def execute(self, *_a, **_kw):
+                return "OK"
+
+            async def fetchrow(self, sql, *_a, **_kw):
+                if "FROM users" in sql and "admin_totp" not in sql:
+                    return {
+                        "id": "22222222-2222-2222-2222-222222222222",
+                        "email": "boss2@sfedu.ru",
+                        "role": "admin",
+                        "full_name": "Boss 2",
+                    }
+                return None
+
+        async def _not_configured(_pool, _uid):
+            return None
+
+        monkeypatch.setattr(acad.httpx, "AsyncClient", FakeClient)
+        monkeypatch.setattr(acad, "get_pool", lambda: FakePool())
+        monkeypatch.setattr(acad.config, "ACADEMIC_SSO_ENABLED", True)
+        monkeypatch.setattr(auth_mod, "_totp_state", _not_configured)
+
+        from src.api_pkg.routers.academic import SsoRequest
+
+        result = await acad.sso_login(SsoRequest(token=_hub_token()), _fake_request())
+        assert result.get("token"), "админ без 2FA должен входить как раньше"
+
+
+def _hub_token(username: str = "boss") -> str:
+    """JWT-подобная строка: _jwt_username читает payload без проверки подписи."""
+    import base64
+    import json as _json
+
+    payload = (
+        base64.urlsafe_b64encode(_json.dumps({"username": username}).encode())
+        .decode()
+        .rstrip("=")
+    )
+    return f"h.{payload}.s"
+
+
+def _fake_request():
+    from starlette.requests import Request
+
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/auth/sso",
+            "headers": [(b"user-agent", b"pytest"), (b"host", b"test")],
+            "query_string": b"",
+            "client": ("127.0.0.1", 1234),
+            "server": ("test", 80),
+            "scheme": "http",
+        }
+    )

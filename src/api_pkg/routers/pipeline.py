@@ -822,11 +822,20 @@ async def run_pipeline_action_sync(
 )
 @limiter.limit("30/minute")
 async def get_active_pipeline_task(request: Request):
-    """Активная задача пайплайна."""
-    for t in pipeline_tasks.values():
-        if t.status == "running":
-            return t
-    return None
+    """Активная задача пайплайна.
+
+    Детали (output/logs) отдаём только владельцу и админу - как в
+    /pipeline/task/{id}: иначе любой teacher читал работодателей и регионы
+    чужого сбора.
+    """
+    active = next((t for t in pipeline_tasks.values() if t.status == "running"), None)
+    if active is None:
+        return None
+    role = await _current_role(request)
+    uid = await _current_uid(request)
+    if role == "admin" or (active.owner_uid is not None and active.owner_uid == uid):
+        return active
+    return active.model_copy(update={"output": None, "logs": []})
 
 
 @router.get(
@@ -1012,7 +1021,14 @@ async def pipeline_ws(websocket: WebSocket):
     # подпись, но и активную сессию в БД (resolve_session): иначе logout и
     # деактивация не действуют на открытом сокете до истечения токена.
     try:
+        from src import config as _config
         from src.api_pkg.routers.auth import resolve_session
+        from src.api_pkg.ws_origin import reject_if_bad_origin
+
+        # CSWSH: сторонний сайт не должен открывать сокет от имени пользователя.
+        if reject_if_bad_origin(websocket, _config.ALLOWED_ORIGINS):
+            await websocket.close(code=4003, reason="Forbidden origin")
+            return
 
         eff_token = (
             websocket.cookies.get("token", "")

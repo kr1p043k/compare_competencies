@@ -308,6 +308,21 @@ async def sso_login(body: SsoRequest, request: Request):
             detail="Учётная запись ЮФУ не найдена в системе. Обратитесь к администратору.",
         )
 
+    # 2FA обязательна и для SSO: иначе владелец hub-JWT админа получал бы
+    # полный токен, не зная TOTP (второй фактор обходился стороной).
+    if row["role"] == "admin":
+        from src.api_pkg.routers.auth import _issue_challenge, _totp_state
+
+        state = await _totp_state(pool, row["id"])
+        if state and state.get("confirmed"):
+            challenge = _issue_challenge(str(row["id"]))
+            logger.info("sso_totp_required", username=username)
+            return {
+                "status": "totp_required",
+                "challenge_id": challenge,
+                "expires_in": 300,
+            }
+
     token = _make_token(str(row["id"]), row["email"], row["role"])
     token_hash = _hash_token(token)
     ip = client_ip(request)

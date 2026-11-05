@@ -358,8 +358,8 @@ python -m src.cli rebuild                              # пересборка д
 # 4. API
 uvicorn src.api_pkg:app --host 0.0.0.0 --port 8000 --reload
 
-# 5. Фронтенд (отдельный терминал)
-cd frontend && npm install && npx vite
+# 5. Фронтенд (отдельный терминал, http://localhost:3000)
+cd frontend && npm install && npm run dev
 ```
 
 ## Запуск через Docker
@@ -498,7 +498,7 @@ Match Score = (skill_coverage + market_coverage + readiness) / 3
 ## Тестирование
 
 ```bash
-pytest --cov=src --cov-report=term --ignore=tests/api/test_api.py
+pytest tests
 ```
 
 - 1900+ тестов, 74% покрытие (0 failed), 79 skipped
