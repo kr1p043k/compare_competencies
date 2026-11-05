@@ -1,7 +1,7 @@
 """n8n webhook router - приём callback'ов от n8n."""
 
 import hmac
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
@@ -61,10 +61,10 @@ async def webhook_student_created(body: StudentCreatedBody, request: Request):
     WEBHOOK_STORE.mkdir(parents=True, exist_ok=True)
     record = {
         "event": "student-created",
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "data": body.model_dump(),
     }
-    path = WEBHOOK_STORE / f"student_{body.profile_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    path = WEBHOOK_STORE / f"student_{body.profile_name}_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
     atomic_write_json(record, path)
     logger.info("n8n_webhook_student_created", profile=body.profile_name)
     return {"ok": True, "profile": body.profile_name}
@@ -77,10 +77,10 @@ async def webhook_pipeline_completed(body: PipelineCompletedBody, request: Reque
     WEBHOOK_STORE.mkdir(parents=True, exist_ok=True)
     record = {
         "event": "pipeline-completed",
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "data": body.model_dump(),
     }
-    path = WEBHOOK_STORE / f"pipeline_{body.task_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    path = WEBHOOK_STORE / f"pipeline_{body.task_id}_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
     atomic_write_json(record, path)
     logger.info("n8n_webhook_pipeline_completed", task_id=body.task_id, status=body.status)
     return {"ok": True, "task_id": body.task_id}
@@ -93,10 +93,10 @@ async def webhook_alert(body: AlertBody, request: Request):
     WEBHOOK_STORE.mkdir(parents=True, exist_ok=True)
     record = {
         "event": "alert",
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "data": body.model_dump(),
     }
-    path = WEBHOOK_STORE / f"alert_{body.type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    path = WEBHOOK_STORE / f"alert_{body.type}_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
     atomic_write_json(record, path)
     logger.info("n8n_webhook_alert", type=body.type, severity=body.severity, message=body.message[:100])
     return {"ok": True}

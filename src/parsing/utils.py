@@ -7,7 +7,7 @@ import re
 import time
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -622,7 +622,7 @@ def print_top_competencies(comp_counter: Counter, top_n: int = 20) -> None:
 
 def date_chunks(days: int, chunk_size: int = 5) -> list[tuple[str, str]]:
     """Разбивает период поиска на интервалы. Возвращает (date_from, date_to) в YYYY-MM-DD."""
-    end_date = datetime.now()
+    end_date = datetime.now(UTC)
     chunks = []
     for offset in range(0, days, chunk_size):
         to_date = end_date - timedelta(days=offset)

@@ -1,6 +1,6 @@
 """DataSource - загружает вакансии из кэша или через API hh.ru."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Protocol
 
 import structlog
@@ -120,7 +120,7 @@ class HhDataSource(DataSourceProtocol):
         # Инкрементальный сбор: определить период с даты последнего запуска
         date_from = getattr(self.args, '_date_from', None)
         if isinstance(date_from, str) and date_from:  # guard non-string (e.g. mocks)
-            delta = (datetime.now() - datetime.strptime(date_from, "%Y-%m-%d")).days
+            delta = (datetime.now(UTC) - datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=UTC)).days
             if 1 <= delta <= 30:
                 self.args.period = delta
                 console_info(f"Инкрементальный сбор: {delta} дней (с {date_from})")

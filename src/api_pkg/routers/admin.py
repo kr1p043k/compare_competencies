@@ -5,7 +5,7 @@ import io
 import json
 import shutil
 import zipfile
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -151,7 +151,7 @@ async def whitelist_backup(request: Request):
     """Бэкап whitelist в файл."""
     backup_dir = config.DATA_DIR / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     backup_path = backup_dir / f"it_skills_backup_{ts}.json"
     shutil.copy2(IT_SKILLS_PATH, backup_path)
     skills = _load_whitelist()
@@ -230,7 +230,7 @@ async def admin_trigger_pipeline(
             status_code=400,
             detail=f"Unknown action: {body.action}. Valid: {', '.join(action_map.keys())}",
         )
-    task_id = f"{action.value}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    task_id = f"{action.value}_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}"
     background_tasks.add_task(
         run_pipeline_task,
         action,

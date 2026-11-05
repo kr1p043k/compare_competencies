@@ -5,7 +5,7 @@ import math
 import re
 import sys
 from collections import Counter
-from datetime import datetime
+from datetime import UTC, datetime
 
 import structlog
 
@@ -180,13 +180,13 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
     if save_report:
         report_dir = config.REPORTS_DIR
         report_dir.mkdir(parents=True, exist_ok=True)
-        report_path = report_dir / f"cluster_report_{level}_{datetime.now():%Y%m%d_%H%M%S}.json"
+        report_path = report_dir / f"cluster_report_{level}_{datetime.now(UTC):%Y%m%d_%H%M%S}.json"
         report = {
             "level": level,
             "total_vacancies": len(prepared),
             "num_clusters": len(clusters_out),
             "clusters": clusters_out,
-            "generated_at": str(datetime.now()),
+            "generated_at": str(datetime.now(UTC)),
         }
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report, f, ensure_ascii=False, indent=2)
