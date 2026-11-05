@@ -57,7 +57,7 @@ def _evict_locked(now: float) -> None:
 def get_cached(task: str, key: str) -> Any | None:
     """Return L1 cached value for (task, key) or None on miss/expiry."""
     now = time.time()
-    ckey = "{}:{}".format(task, key)
+    ckey = f"{task}:{key}"
     with _LOCK:
         hit = _CACHE.get(ckey)
         if hit is None:
@@ -72,7 +72,7 @@ def get_cached(task: str, key: str) -> Any | None:
 def put_cached(task: str, key: str, value: Any, ttl_s: float = _TTL_S) -> None:
     """Store L1 value for (task, key) with TTL (seconds)."""
     now = time.time()
-    ckey = "{}:{}".format(task, key)
+    ckey = f"{task}:{key}"
     with _LOCK:
         _evict_locked(now)
         _CACHE[ckey] = (now + max(1.0, float(ttl_s)), value)

@@ -54,7 +54,7 @@ def _evict_locked(now: float) -> None:
 def get_cached(task: str, key: str) -> Any | None:
     """Return L1 cached value for (task, key) or None on miss/expiry."""
     now = time.time()
-    ckey = "{}:{}".format(task, key)
+    ckey = f"{task}:{key}"
     with _LOCK:
         hit = _CACHE.get(ckey)
         if hit is None:
@@ -69,7 +69,7 @@ def get_cached(task: str, key: str) -> Any | None:
 def put_cached(task: str, key: str, value: Any, ttl_s: float = _TTL_S) -> None:
     """Store L1 value for (task, key) with TTL (seconds)."""
     now = time.time()
-    ckey = "{}:{}".format(task, key)
+    ckey = f"{task}:{key}"
     with _LOCK:
         _evict_locked(now)
         _CACHE[ckey] = (now + max(1.0, float(ttl_s)), value)
@@ -142,13 +142,13 @@ def _build_prompt(context_txt: str, items: list[dict]) -> str:
         base_txt = "\n".join(lines)
     prompt = (
         "Pere-ranzhiruy i obyasni rekomendacii. Otvet TOLKO JSON-obektom "
-        '{{"recommendations": [{{"skill": ..., "reason": ...}}]}}. '
+        '{"recommendations": [{"skill": ..., "reason": ...}]}. '
         "Imya skill - STROGO iz spiska nizhe, doslovno. Novye navyki zaprescheny. "
         "Poryadok - po prioritetu. Reason - 1 fraza.\n"
-        "Kontekst: {}\n"
-        "Spisok:\n{}\n"
+        f"Kontekst: {ctx}\n"
+        f"Spisok:\n{base_txt}\n"
         "JSON:"
-    ).format(ctx, base_txt)
+    )
     return prompt[:_PROMPT_BUDGET]
 
 
@@ -226,7 +226,7 @@ def _timeout_s() -> float:
 
 def _cache_key(ns: str, context_txt: str, valid: list[dict]) -> str:
     sig = "|".join(
-        "{}={}".format(_norm(_skill_of(r)), _score_of(r)) for r in valid[:_MAX_BASE_ITEMS]
+        f"{_norm(_skill_of(r))}={_score_of(r)}" for r in valid[:_MAX_BASE_ITEMS]
     )
     return hashlib.sha256((ns + "::" + _fit(context_txt, 400) + "::" + sig).encode("utf-8")).hexdigest()
 
@@ -335,7 +335,7 @@ def enhance_teacher_recs(
     try:
         if base_recs is None:
             return {}
-        ctx = "Disciplina: {}. Probely: {}".format(_fit(discipline, 200), _fit(gaps, 800))
+        ctx = f"Disciplina: {_fit(discipline, 200)}. Probely: {_fit(gaps, 800)}"
         return _enhance_core("teacher", ctx, base_recs, client, use_cache)
     except Exception:
         logger.exception("teacher_recs_failed", discipline=discipline)
