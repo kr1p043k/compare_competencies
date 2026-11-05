@@ -45,6 +45,27 @@ class RecommendationOut(RecommendationIn):
 
 # ---------- helpers ----------
 
+def _cleanup_old_exports(reports_dir, max_age_hours: int = 24) -> None:
+    """Удалить выгрузки вакансий старше max_age_hours.
+
+    Файлы создаются на каждый экспорт с уникальным именем и раньше не
+    удалялись никогда: каталог отчётов рос мегабайтами. Ошибка чистки не
+    должна ломать саму выгрузку.
+    """
+    import time as _time
+
+    deadline = _time.time() - max_age_hours * 3600
+    try:
+        for old in reports_dir.glob("vacancies_export_*.xlsx"):
+            try:
+                if old.stat().st_mtime < deadline:
+                    old.unlink()
+            except OSError:
+                logger.debug("export_cleanup_skip", file=str(old), exc_info=True)
+    except OSError:
+        logger.debug("export_cleanup_failed", exc_info=True)
+
+
 def _load_json(path) -> dict | list:
     if not path.exists():
         return {}
@@ -957,6 +978,10 @@ async def export_vacancies_excel(request: Request, search: str | None = None,
     # Уникальное имя: два одновременных экспорта писали в один и тот же файл
     # vacancies_export.xlsx и могли отдать друг другу чужой результат.
     import uuid as _uuid
+
+    # Старые выгрузки никто не удалял: каждая занимает мегабайты и копится
+    # вечно. Чистим то, что старше суток (скачать файл успевают за минуты).
+    _cleanup_old_exports(config.REPORTS_DIR, max_age_hours=24)
 
     excel_path = config.REPORTS_DIR / f"vacancies_export_{_uuid.uuid4().hex[:12]}.xlsx"
     df.to_excel(excel_path, index=False, engine="openpyxl")

@@ -999,6 +999,12 @@ async def admin_logs_ws(websocket: WebSocket):
     """
     try:
         from src.api_pkg.routers.auth import resolve_session
+        from src.api_pkg.ws_origin import reject_if_bad_origin
+
+        # CSWSH: сторонний сайт не должен открывать сокет от имени админа.
+        if reject_if_bad_origin(websocket, config.ALLOWED_ORIGINS):
+            await websocket.close(code=4003, reason="Forbidden origin")
+            return
 
         eff_token = (
             websocket.cookies.get("token", "")

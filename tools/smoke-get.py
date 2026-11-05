@@ -10,6 +10,7 @@
 HTTPException внутри функции делал имя локальным для всей функции).
 """
 import argparse
+import os
 import time
 
 import requests
@@ -47,10 +48,15 @@ def wait_health(base: str, attempts: int = 60) -> bool:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="http://127.0.0.1:8000")
-    ap.add_argument("--email", default="admin@compare-competencies.local")
-    ap.add_argument("--password", default="admin")
+    ap.add_argument("--email", default=os.environ.get("SMOKE_EMAIL", ""))
+    ap.add_argument("--password", default=os.environ.get("SMOKE_PASSWORD", ""))
     ap.add_argument("--timeout", type=int, default=40)
     args = ap.parse_args()
+
+    # Учётные данные не храним в репозитории: только аргументы или окружение.
+    if not args.email or not args.password:
+        print("Укажите --email/--password или SMOKE_EMAIL/SMOKE_PASSWORD")
+        return 2
 
     if not wait_health(args.base):
         print("API не поднялся")

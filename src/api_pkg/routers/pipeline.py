@@ -1021,7 +1021,14 @@ async def pipeline_ws(websocket: WebSocket):
     # подпись, но и активную сессию в БД (resolve_session): иначе logout и
     # деактивация не действуют на открытом сокете до истечения токена.
     try:
+        from src import config as _config
         from src.api_pkg.routers.auth import resolve_session
+        from src.api_pkg.ws_origin import reject_if_bad_origin
+
+        # CSWSH: сторонний сайт не должен открывать сокет от имени пользователя.
+        if reject_if_bad_origin(websocket, _config.ALLOWED_ORIGINS):
+            await websocket.close(code=4003, reason="Forbidden origin")
+            return
 
         eff_token = (
             websocket.cookies.get("token", "")
