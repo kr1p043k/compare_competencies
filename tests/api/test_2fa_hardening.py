@@ -8,12 +8,23 @@
 """
 from __future__ import annotations
 
+import json
 import secrets
 
 import pytest
 from fastapi import HTTPException
 
 import src.api_pkg.routers.auth as auth_mod
+
+FLAG_TOTP_2FA = "totp_2fa_enabled"
+
+
+@pytest.fixture(autouse=True)
+def _totp_feature_on(monkeypatch, tmp_path):
+    """Autouse: TOTP 2FA включена в отдельном временном features-файле."""
+    features_file = tmp_path / "features.json"
+    features_file.write_text(json.dumps({FLAG_TOTP_2FA: True}), encoding="utf-8")
+    monkeypatch.setattr("src.api_pkg.feature_flags._FEATURES_PATH", features_file)
 
 
 class TestTotpFailClosed:
@@ -165,6 +176,60 @@ class TestSsoRequiresTotp:
 
         result = await acad.sso_login(SsoRequest(token=_hub_token()), _fake_request())
         assert result.get("token"), "Р°РґРјРёРЅ Р±РµР· 2FA РґРѕР»Р¶РµРЅ РІС…РѕРґРёС‚СЊ РєР°Рє СЂР°РЅСЊС€Рµ"
+
+    @pytest.mark.asyncio
+    async def test_admin_with_confirmed_totp_gets_token_when_flag_off(self, monkeypatch):
+        """Kill-switch: при выключенном флаге SSO выдаёт токен, а не challenge."""
+        import src.api_pkg.routers.academic as acad
+
+        class FakeResp:
+            status_code = 200
+            text = "ok"
+
+            def json(self):
+                return {"valid": True}
+
+        class FakeClient:
+            def __init__(self, *_a, **_kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_a):
+                return False
+
+            async def post(self, *_a, **_kw):
+                return FakeResp()
+
+        class FakePool:
+            async def execute(self, *_a, **_kw):
+                return "OK"
+
+            async def fetchrow(self, sql, *_a, **_kw):
+                if "FROM users" in sql and "admin_totp" not in sql:
+                    return {
+                        "id": "33333333-3333-3333-3333-333333333333",
+                        "email": "boss3@sfedu.ru",
+                        "role": "admin",
+                        "full_name": "Boss 3",
+                    }
+                return None
+
+        async def _confirmed(_pool, _uid):
+            return {"secret": "x", "confirmed": True, "recovery_codes": []}
+
+        monkeypatch.setattr(acad.httpx, "AsyncClient", FakeClient)
+        monkeypatch.setattr(acad, "get_pool", lambda: FakePool())
+        monkeypatch.setattr(acad.config, "ACADEMIC_SSO_ENABLED", True)
+        monkeypatch.setattr(auth_mod, "_totp_state", _confirmed)
+        monkeypatch.setattr("src.api_pkg.feature_flags.is_enabled", lambda _flag: False)
+
+        from src.api_pkg.routers.academic import SsoRequest
+
+        result = await acad.sso_login(SsoRequest(token=_hub_token()), _fake_request())
+        assert result.get("token"), "при выключенном флаге SSO выдаёт токен"
+        assert "challenge_id" not in result
 
 
 def _hub_token(username: str = "boss") -> str:

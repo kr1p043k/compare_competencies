@@ -15,10 +15,15 @@ from src.pipeline.stage import PipelineStage
 # Fixtures
 # =====================================================================
 
+_UNSET = object()
+
+
 @pytest.fixture
 def mock_stage():
     """Returns a factory that creates named MagicMock stages."""
-    def _make(name: str, return_value=Ok({})):
+    def _make(name: str, return_value=_UNSET):
+        if return_value is _UNSET:
+            return_value = Ok({})
         s = MagicMock(spec=PipelineStage)
         s.name = name
         s.run.return_value = return_value

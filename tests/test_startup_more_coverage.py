@@ -7,7 +7,6 @@ import asyncio
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, mock_open
-from unittest.mock import patch
 
 import pytest
 
@@ -414,16 +413,16 @@ def test_warmup_background_prophet_fit_fails(warmup_mocks, raw_file, tmp_path, m
     import src.database as db_mod
     monkeypatch.setattr(db_mod, "async_session_factory", FakeSession)
 
-    from src.result import Err
-
     class BrokenEngine:
         def __init__(self):
             self._models = {}
 
         async def fit_async(self, *_a, **_kw):
-            # Настоящий Err: startup сопоставляет результат через `case Err(e)`,
-            # и поддельный объект не попадёт ни в одну ветку.
-            return Err(RuntimeError("fit failed"))
+            # startup.py разбирает результат через match ... case Err(e),
+            # поэтому нужен настоящий Err, а не объект с is_err().
+            from src import Err
+
+            return Err('prophet fit failed')
 
     monkeypatch.setattr(pf_mod, "ProphetForecastEngine", BrokenEngine)
     deps.prophet_engine = "unset"

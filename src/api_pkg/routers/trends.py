@@ -231,7 +231,7 @@ def _resolve_canonical_key(
             case _:
                 pass
     except Exception:
-        pass
+        logger.debug("swallowed_exception", exc_info=True)
     if len(skill_name) >= 3:
         try:
             from rapidfuzz import fuzz as rp_fuzz
@@ -240,7 +240,7 @@ def _resolve_canonical_key(
             if matches and matches[0][1] >= 85:
                 return matches[0][0]
         except ImportError:
-            pass
+            logger.debug("swallowed_exception", exc_info=True)
     if inverted_index and mapping:
         key = skill_name.lower().strip()
         if key in inverted_index:

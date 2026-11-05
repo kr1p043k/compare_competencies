@@ -55,8 +55,7 @@ async def _pool():
         _loop_pools[loop] = p
         return p
     except Exception:
-        pass
-
+        logger.debug("swallowed_exception", exc_info=True)
     p = await asyncpg.create_pool(
         DATABASE_URL,
         min_size=DB_POOL_MIN,

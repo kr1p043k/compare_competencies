@@ -569,13 +569,17 @@ def _setup_approve(monkeypatch, tmp_path, suggestion, taxonomy_data, skills_data
     monkeypatch.setattr(suggestions_mod, "load_all", lambda: [suggestion])
     monkeypatch.setattr(suggestions_mod, "decide", lambda sid, approved, decided_by: {"id": sid, "status": "approved"})
     monkeypatch.setattr(taxonomy_mod, "load_taxonomy", lambda: taxonomy_data)
-    # Redirect the module paths BEFORE writing: these are real files under
-    # data/reference/, and writing to them here used to wipe the shipped data
-    # whenever this test module ran.
-    monkeypatch.setattr(admin_mod, "IT_SKILLS_PATH", _ensure_it_skills(tmp_path))
-    monkeypatch.setattr(taxonomy_mod, "TAXONOMY_PATH", _ensure_taxonomy(tmp_path))
-    admin_mod.IT_SKILLS_PATH.write_text(json.dumps(skills_data), encoding="utf-8")
-    taxonomy_mod.TAXONOMY_PATH.write_text(json.dumps(taxonomy_data), encoding="utf-8")
+    # Писать надо в tmp-пути, а не в атрибуты модулей: на момент вызова
+    # _setup_approve фикстура _admin_client ещё не применила monkeypatch,
+    # поэтому атрибут указывает на РЕАЛЬНЫЙ файл справочника и затирал его.
+    skills_path = _ensure_it_skills(tmp_path)
+    taxonomy_path = _ensure_taxonomy(tmp_path)
+    skills_path.write_text(json.dumps(skills_data), encoding="utf-8")
+    taxonomy_path.write_text(json.dumps(taxonomy_data), encoding="utf-8")
+    # admin.py импортирует TAXONOMY_PATH внутри обработчика, поэтому патчим
+    # и модуль-источник, иначе запись уйдёт в реальный справочник.
+    monkeypatch.setattr(admin_mod, "IT_SKILLS_PATH", skills_path)
+    monkeypatch.setattr(taxonomy_mod, "TAXONOMY_PATH", taxonomy_path)
 
 
 def test_admin_skills_approve(monkeypatch, tmp_path):

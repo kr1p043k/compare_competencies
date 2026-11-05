@@ -16,6 +16,7 @@ from src import config
 from src.api_pkg import deps
 from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.api_pkg.summary_builder import build_summary_payload, load_recommendations_from_disk
+from src.api_pkg.user_keys import self_profile_keys
 from src.models.student import StudentProfile
 
 logger = structlog.get_logger("api")
@@ -41,10 +42,8 @@ async def _require_student_profile(request: Request, profile: str) -> None:
     if (user.get("r") or user.get("role")) != "student":
         return
     username = str(user.get("u") or user.get("username") or "")
-    safe = "".join(ch if ch.isalnum() else "_" for ch in username.lower())
-    for candidate in (f"self_{safe}", f"self_{safe.replace('.', '_')}"):
-        if candidate == profile:
-            return
+    if profile in self_profile_keys(username):
+        return
     raise HTTPException(status_code=403, detail="Доступ к чужому профилю запрещён")
 
 
@@ -74,8 +73,7 @@ async def get_results_summary(
     self_key: str | None = None
     if role == "student":
         username = str(user.get("u") or user.get("username") or "")
-        safe = "".join(ch if ch.isalnum() else "_" for ch in username.lower())
-        for candidate in (f"self_{safe}", f"self_{safe.replace('.', '_')}"):
+        for candidate in self_profile_keys(username):
             if candidate in evaluations:
                 self_key = candidate
                 break
@@ -117,7 +115,7 @@ async def get_results_summary(
                     detail=await user_error_detail(
                         request, str(e), "Не удалось прочитать результаты анализа. Попробуйте позже."
                     ),
-                )
+                ) from None
 
     return {
         "message": "Результаты анализа не найдены. Запустите gap-анализ.",
@@ -158,7 +156,7 @@ async def get_recommendations_result(
             raise HTTPException(
                 status_code=500,
                 detail=await user_error_detail(request, str(e), "Не удалось прочитать рекомендации. Попробуйте позже."),
-            )
+            ) from None
 
     return {
         "profile": profile,
@@ -196,7 +194,7 @@ async def get_report_pdf(
         raise HTTPException(
             status_code=500,
             detail=await user_error_detail(request, str(e), "Не удалось собрать PDF. Попробуйте позже."),
-        )
+        ) from None
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

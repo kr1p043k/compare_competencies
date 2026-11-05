@@ -277,7 +277,7 @@ async def actor_from_request(request: Request) -> tuple[str, str]:
         if isinstance(user, dict) and user.get("u"):
             return str(user.get("u")), str(user.get("r") or "?")
     except Exception:
-        pass
+        logger.debug("swallowed_exception", exc_info=True)
     try:
         from src.api_pkg.routers.auth import _decode_token
         auth = request.headers.get("Authorization", "")
@@ -286,7 +286,7 @@ async def actor_from_request(request: Request) -> tuple[str, str]:
             if isinstance(data, dict) and data.get("u"):
                 return str(data.get("u")), str(data.get("r") or "?")
     except Exception:
-        pass
+        logger.debug("swallowed_exception", exc_info=True)
     state_user: Any = getattr(request.state, "user", None)
     if isinstance(state_user, str) and state_user:
         return state_user, "?"
@@ -403,10 +403,12 @@ async def audit_action(request: Request, action: str, target: str = "") -> dict[
             detail=detail,
         )
         _log_buffer.append(entry)
-        # In the request log keep the email masked; the durable audit_logs table
-        # needs the real actor and has its own retention.
+        # В структурированном логе (ссылки, выгрузки) email не светим: пишем
+        # маску, чтобы по журналу нельзя было деанонимизировать актора.
         logger.info("audit", action=action, target=target[:200],
                     actor=mask_email(email), role=role)
+        # Durable-копия: буфер в памяти чистится retention-ом, а audit_logs
+        # переживает рестарт и не теряется при выгрузке.
         await _persist_audit_log(request, action, target, email, role)
         return {"actor_email": email, "actor_role": role, "action": action, "target": target, "detail": detail}
     except Exception as exc:

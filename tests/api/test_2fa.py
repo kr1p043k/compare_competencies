@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import socket
 import urllib.parse
@@ -27,6 +28,7 @@ TEST_DB_URL = os.environ.get(
 
 EMAIL = "totp-admin@example.test"
 PASSWORD = "Totp_Test_Password_123"
+FLAG_TOTP_2FA = "totp_2fa_enabled"
 
 
 def _db_reachable() -> bool:
@@ -64,6 +66,14 @@ async def _make_admin(pool: asyncpg.Pool) -> None:
            VALUES ($1, crypt($2, gen_salt('bf', 10)), 'admin', 'TOTP Admin', true)""",
         EMAIL, PASSWORD,
     )
+
+
+@pytest.fixture(autouse=True)
+def _totp_feature_on(monkeypatch, tmp_path):
+    """Autouse: TOTP 2FA включена в отдельном временном features-файле."""
+    features_file = tmp_path / "features.json"
+    features_file.write_text(json.dumps({FLAG_TOTP_2FA: True}), encoding="utf-8")
+    monkeypatch.setattr("src.api_pkg.feature_flags._FEATURES_PATH", features_file)
 
 
 @pytest.fixture()
@@ -160,6 +170,15 @@ async def _enable(client: AsyncClient, token: str) -> tuple[str, list[str]]:
     return secret, confirm.json()["recovery_codes"]
 
 
+async def _set_totp_feature(client: AsyncClient, token: str, enabled: bool) -> None:
+    r = await client.put(
+        "/api/admin/features/totp_2fa_enabled",
+        json={"enabled": enabled},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200, r.text
+
+
 # ------------------------------------------------------------------ setup
 
 async def test_setup_returns_uri_and_secret(env):
@@ -188,14 +207,15 @@ async def test_setup_requires_auth(env):
     assert r.status_code == 401, r.text
 
 
-async def test_setup_forbidden_for_teacher(env):
-    """Роль из БД: не-админ получает 403."""
+async def test_setup_allows_teacher(env):
+    """2FA теперь доступна всем ролям, не только админу."""
     pool = env["pool"]
     await pool.execute("UPDATE users SET role = 'teacher' WHERE lower(email) = $1", EMAIL)
     client = env["client"]
     token = await _admin_token(client)
     r = await client.post("/api/auth/2fa/setup", headers={"Authorization": f"Bearer {token}"})
-    assert r.status_code == 403, r.text
+    assert r.status_code == 200, r.text
+    assert r.json()["secret"]
 
 
 # ---------------------------------------------------------------- confirm
@@ -387,3 +407,62 @@ async def test_disable_wrong_code_400(env):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 400, r.text
+
+
+# --------------------------------------------------------- feature flag
+
+async def test_login_with_totp_flag_off_returns_token(env):
+    """Kill-switch: при выключенном флаге TOTP-пользователь входит как обычно."""
+    client = env["client"]
+    token = await _admin_token(client)
+    await _enable(client, token)
+    await _set_totp_feature(client, token, False)
+
+    r = await _login(client)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body.get("token"), "при выключенном флаге пароля достаточно"
+    assert "challenge_id" not in body
+
+
+async def test_setup_flag_off_returns_403(env):
+    """Kill-switch: настройка 2FA недоступна пока флаг выключен."""
+    client = env["client"]
+    token = await _admin_token(client)
+    await _set_totp_feature(client, token, False)
+
+    r = await client.post("/api/auth/2fa/setup", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 403, r.text
+
+
+async def test_status_reflects_global_flag(env):
+    """GET /auth/2fa/status показывает globally_enabled по состоянию флага."""
+    client = env["client"]
+    token = await _admin_token(client)
+
+    on = await client.get("/api/auth/2fa/status", headers={"Authorization": f"Bearer {token}"})
+    assert on.status_code == 200, on.text
+    assert on.json()["globally_enabled"] is True
+
+    await _set_totp_feature(client, token, False)
+    off = await client.get("/api/auth/2fa/status", headers={"Authorization": f"Bearer {token}"})
+    assert off.status_code == 200, off.text
+    assert off.json()["globally_enabled"] is False
+
+
+async def test_admin_features_toggle(env):
+    """PUT /admin/features/totp_2fa_enabled переключает флаг, GET отражает."""
+    client = env["client"]
+    token = await _admin_token(client)
+
+    r = await client.get("/api/admin/features", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200, r.text
+    assert r.json()["features"][FLAG_TOTP_2FA]["enabled"] is True
+
+    await _set_totp_feature(client, token, False)
+    r = await client.get("/api/admin/features", headers={"Authorization": f"Bearer {token}"})
+    assert r.json()["features"][FLAG_TOTP_2FA]["enabled"] is False
+
+    await _set_totp_feature(client, token, True)
+    r = await client.get("/api/admin/features", headers={"Authorization": f"Bearer {token}"})
+    assert r.json()["features"][FLAG_TOTP_2FA]["enabled"] is True

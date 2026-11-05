@@ -251,8 +251,7 @@ class VacancyParser:
                     case _:
                         pass
             except Exception:
-                pass
-
+                logger.debug("swallowed_exception", exc_info=True)
             row = {
                 "Вакансия": vac_name,
                 "Компания": employer_name,
@@ -326,8 +325,7 @@ class VacancyParser:
                     case _:
                         pass
             except Exception:
-                pass
-
+                logger.debug("swallowed_exception", exc_info=True)
             print(f"{i}. {vac_name} @ {employer_name} ({area_name})")
             if all_skills:
                 print(f"   Навыки: {', '.join(all_skills[:5])}")

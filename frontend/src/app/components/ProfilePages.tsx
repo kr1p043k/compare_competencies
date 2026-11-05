@@ -19,6 +19,7 @@ import {
   Database,
 } from "lucide-react";
 import { useAuth } from "../../lib/auth";
+import { TwoFactorCard } from "./TwoFactorCard";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -86,6 +87,7 @@ export function AdminProfilePage({ displayName, email, onNavigate }: AccountProp
         description="Учётная запись, дисциплины и уведомления администратора."
       />
       <AccountCard displayName={displayName} email={email} roleLabel="Администратор" />
+      <TwoFactorCard />
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2 text-foreground">
@@ -192,6 +194,7 @@ export function TeacherProfilePage({ displayName, email, onNavigate }: AccountPr
         description="Учётная запись, дисциплины и уведомления преподавателя."
       />
       <AccountCard displayName={displayName} email={email} roleLabel="Преподаватель" />
+      <TwoFactorCard />
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2 text-foreground">
@@ -740,6 +743,8 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
           {selfError && <ErrorState description={selfError} onRetry={() => void loadAll()} />}
         </CardContent>
       </Card>
+
+      <TwoFactorCard />
 
       {/* KPI cards row */}
       {loading ? (

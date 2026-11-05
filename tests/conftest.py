@@ -1,5 +1,6 @@
 # tests/conftest.py
 import contextlib
+import json
 import logging
 import sys
 from datetime import datetime
@@ -23,6 +24,84 @@ from src.models.student import StudentProfile
 from src.models.vacancy import Area, Employer, KeySkill, Vacancy
 from src.parsing.skills.skill_validator import SkillValidator
 
+REFERENCE_DIR = Path(__file__).parent.parent / "data" / "reference"
+
+
+def _count_json_entries(path: Path) -> int:
+    """Возвращает количество записей верхнего уровня в JSON-файле."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return 1
+    if isinstance(data, (list, dict)):
+        return len(data)
+    return 1
+
+
+def _snapshot_reference_dir(reference_dir: Path) -> dict[Path, dict]:
+    snapshots = {}
+    for path in reference_dir.rglob("*"):
+        if path.is_file() and path.suffix == ".json":
+            stat = path.stat()
+            snapshots[path] = {
+                "size": stat.st_size,
+                "mtime": stat.st_mtime,
+                "entries": _count_json_entries(path),
+            }
+    return snapshots
+
+
+def _check_reference_against_snapshot(snapshots: dict[Path, dict]) -> list[str]:
+    violations = []
+    for path, snap in snapshots.items():
+        if not path.exists():
+            violations.append(
+                f"{path}: файл исчез (было {snap['entries']} записей, размер {snap['size']})"
+            )
+            continue
+        stat = path.stat()
+        if stat.st_size < snap["size"]:
+            entries_now = _count_json_entries(path)
+            violations.append(
+                f"{path}: уменьшился с {snap['entries']} до {entries_now} записей "
+                f"(размер {snap['size']} -> {stat.st_size})"
+            )
+    return violations
+
+
+def assert_reference_intact(
+    reference_dir: Path | str | None = None,
+    snapshots: dict[Path, dict] | None = None,
+) -> None:
+    """Проверяет целостность справочных данных в data/reference.
+
+    Правило: тесты никогда не пишут в поставляемые reference-файлы.
+    Если файл уменьшился или исчез — падение с понятным сообщением.
+    """
+    ref = Path(reference_dir) if reference_dir else REFERENCE_DIR
+    snaps = snapshots if snapshots is not None else _snapshot_reference_dir(ref)
+    violations = _check_reference_against_snapshot(snaps)
+    assert not violations, (
+        "Справочные файлы data/reference были повреждены во время тестов:\n"
+        + "\n".join(violations)
+    )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def guard_reference_data():
+    """Сессионная защита data/reference: фиксирует размер+mtime+записи в начале
+    и падает на teardown, если какой-либо reference-файл уменьшился или исчез.
+    """
+    snapshots = _snapshot_reference_dir(REFERENCE_DIR)
+    yield snapshots
+    violations = _check_reference_against_snapshot(snapshots)
+    if violations:
+        pytest.exit(
+            "\nОШИБКА: справочные файлы data/reference были повреждены во время тестов:\n"
+            + "\n".join(violations),
+            returncode=99,
+        )
+
 
 @pytest.fixture(autouse=True)
 def mock_sleep():
@@ -38,8 +117,8 @@ def mock_sleeps():
 def pytest_configure(config):
     """Глобальный мок SentenceTransformer для всех тестов."""
     mock_model = MagicMock()
-    _VEC = np.linspace(0, 1, 384)
-    mock_model.encode.side_effect = lambda texts, **kw: np.tile(_VEC, (len(texts), 1))
+    _vec = np.linspace(0, 1, 384)
+    mock_model.encode.side_effect = lambda texts, **kw: np.tile(_vec, (len(texts), 1))
     mock_model.eval.return_value = mock_model
     mock_model.get_sentence_embedding_dimension.return_value = 384
 

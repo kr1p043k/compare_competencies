@@ -14,7 +14,9 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from alembic import op
 
 revision: str = "add_audit_logs"
-down_revision: str | None = "add_admin_totp"
+# Продолжаем цепочку после app_settings (она уже идёт за trend_precomputed),
+# чтобы миграция не создавала ещё одну голову в и без того разветвлённом графе.
+down_revision: str | None = "app_settings"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

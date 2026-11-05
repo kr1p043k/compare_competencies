@@ -18,6 +18,7 @@ from slowapi.util import get_remote_address
 from src import Err, Ok, config
 from src.api_pkg import deps
 from src.api_pkg.routers.auth import require_any_role, user_error_detail
+from src.api_pkg.user_keys import self_profile_name
 from src.models.api_responses import (
     DeadSkillsResponse,
     MissingSkillsResponse,
@@ -307,7 +308,7 @@ async def create_custom_profile(request: Request, body: CustomProfileIn):
             level = ExperienceLevel((body.target_level or "middle").strip().lower())
         except ValueError:
             raise HTTPException(status_code=400,
-                                detail="target_level must be junior|middle|senior")
+                                detail="target_level must be junior|middle|senior") from None
         is_new = bool(body.base is not None or body.competency_codes or body.new_competencies or body.technologies)
         codes_old = list(dict.fromkeys(c.strip() for c in (body.competencies or [])
                                        if c and isinstance(c, str) and c.strip()))[:200]
@@ -551,7 +552,7 @@ async def _build_focused_profession_view(
         raise HTTPException(
             status_code=500,
             detail=await user_error_detail(request, str(e), "Не удалось пересчитать рекомендации. Попробуйте позже."),
-        )
+        ) from None
     match gen:
         case Ok(rec_result):
             pass
@@ -716,12 +717,14 @@ async def dead_skills(
 
 
 def _self_profile_name(email: str) -> tuple[str, str]:
-    """Личный профиль пользователя: (имя профиля, путь к файлу)."""
-    import re
+    """Личный профиль пользователя: (имя профиля, путь к файлу).
+
+    Имя строится общим хелпером ``user_keys.self_profile_name`` - той же
+    функцией, что и в guards результатов/KRM, поэтому совпадение точное.
+    """
     from pathlib import Path
 
-    safe = re.sub(r"[^a-z0-9_]", "_", (email or "anon").strip().lower())[:40] or "anon"
-    name = f"self_{safe}"
+    name = self_profile_name(email)
     return name, str(Path(config.DATA_DIR) / "students" / f"{name}_competency.json")
 
 
@@ -825,7 +828,7 @@ async def patch_self_profile(request: Request, body: SelfProfilePatch):
             level = ExperienceLevel(body.target_level.strip().lower())
         except ValueError:
             raise HTTPException(status_code=400,
-                                detail="target_level must be junior|middle|senior")
+                                detail="target_level must be junior|middle|senior") from None
         data["target_level"] = level.value
 
     skills = list(data.get("skills", []))

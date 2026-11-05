@@ -416,7 +416,7 @@ def _enhance_disciplines_with_gap_analysis(
                     ls = enh.get("ltr_and_shap", {})
                     d["shap_count"] = len(ls.get("shap_values", {}))
                 except Exception:
-                    pass
+                    logger.debug("swallowed_exception", exc_info=True)
         # C6 fix: flag only if at least one discipline was actually enhanced
         dir_summary["has_enhanced_gap"] = enhanced_total > 0
 
@@ -765,8 +765,7 @@ async def run_teacher_analysis(
             profession_taxonomy = json.loads(prof_path.read_text(encoding="utf-8")).get("professions", {})
             logger.info("profession_taxonomy_loaded", professions=len(profession_taxonomy))
     except Exception:
-        pass
-
+        logger.debug("swallowed_exception", exc_info=True)
     dir_code = direction["code"]
     # v34 scope (+v41 UI overrides): drop out-of-scope before any analysis/averaging.
     from src.teacher_scope import effective_in_scope, load_scope_overrides
@@ -1308,7 +1307,7 @@ async def run_teacher_analysis(
                         )[:5]
                     ]
             except Exception:
-                pass
+                logger.debug("swallowed_exception", exc_info=True)
     # C6 fix: flag only if at least one discipline JSON has enhanced data
     _has_enh = False
     for _d in dir_summary.get("disciplines", []):
@@ -1320,7 +1319,7 @@ async def run_teacher_analysis(
                     _has_enh = True
                     break
             except Exception:
-                pass
+                logger.debug("swallowed_exception", exc_info=True)
     dir_summary["has_enhanced_gap"] = _has_enh
 
     # Частичный прогон (фильтр по дисциплине) не должен затирать сводку

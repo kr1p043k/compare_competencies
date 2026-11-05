@@ -313,5 +313,5 @@ def flush_system_errors_sync() -> None:
         asyncio.get_running_loop()
         return  # loop уже запущен - сброс произойдёт через create_task
     except RuntimeError:
-        pass
+        logger.debug("swallowed_exception", exc_info=True)
     asyncio.run(_flush_to_db())

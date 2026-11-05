@@ -48,8 +48,10 @@ def main(args: argparse.Namespace) -> int:
     log_days = int(args.logs_days)
     run_days = int(args.run_days)
     # Отрицательные значения: --logs-days=-1 удаляло бы всё, включая свежее.
+    audit_days = int(getattr(args, "audit_days", DEFAULT_AUDIT_DAYS))
+    # Защита от опечатки: отрицательные значения удалили бы почти всю таблицу.
     for name, value in (("vacancies-days", vac_days), ("logs-days", log_days),
-                        ("run-days", run_days)):
+                        ("run-days", run_days), ("audit-days", audit_days)):
         if value < 1:
             print(f"Ошибка: --{name} должно быть >= 1 (получено {value})")
             return 2

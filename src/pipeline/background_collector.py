@@ -181,7 +181,7 @@ async def _wait_until_ready(timeout_s: int = 7200) -> bool:
             if _deps.is_ready:
                 return True
         except Exception:
-            pass
+            logger.debug("swallowed_exception", exc_info=True)
         await asyncio.sleep(15)
         waited += 15
     return False
@@ -585,7 +585,7 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
         after = await pool.fetchval("SELECT COUNT(*) FROM vacancies") or 0
         logger.info("collect_done", before=before, after=after, new=after - before, collected=len(all_vacancies))
     except Exception:
-        pass
+        logger.debug("swallowed_exception", exc_info=True)
     try:
         from src.pipeline.db_writer import complete_pipeline_run, create_pipeline_run
         _rid = await create_pipeline_run("data-collection")

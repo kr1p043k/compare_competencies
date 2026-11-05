@@ -4,7 +4,6 @@ Focuses on idempotency, not-found branches, active/list endpoints, cancel,
 and WebSocket auth. No subprocess / real DB / network.
 """
 
-import asyncio
 import json
 import time
 from unittest.mock import MagicMock
@@ -232,9 +231,8 @@ def test_gap_progress_with_file_returns_data(monkeypatch, tmp_path):
 def test_pipeline_ws_rejects_without_token(monkeypatch):
     monkeypatch.setattr("src.api_pkg.startup.run_startup", _fake_startup)
     client = TestClient(create_app(), raise_server_exceptions=False)
-    with pytest.raises(WebSocketDisconnect) as exc_ctx:
-        with client.websocket_connect("/api/pipeline/ws"):
-            pass
+    with pytest.raises(WebSocketDisconnect) as exc_ctx, client.websocket_connect("/api/pipeline/ws"):
+        pass
     assert exc_ctx.value.code == 4001
 
 
@@ -245,9 +243,10 @@ def test_pipeline_ws_rejects_invalid_token(monkeypatch):
     monkeypatch.setattr("src.api_pkg.startup.run_startup", _fake_startup)
     monkeypatch.setattr("src.api_pkg.routers.auth.resolve_session", _reject)
     client = TestClient(create_app(), raise_server_exceptions=False)
-    with pytest.raises(WebSocketDisconnect) as exc_ctx:
-        with client.websocket_connect("/api/pipeline/ws", headers={"Authorization": "Bearer bad"}):
-            pass
+    with pytest.raises(WebSocketDisconnect) as exc_ctx, client.websocket_connect(
+        "/api/pipeline/ws", headers={"Authorization": "Bearer bad"}
+    ):
+        pass
     assert exc_ctx.value.code == 4001
 
 
@@ -263,11 +262,13 @@ def test_pipeline_ws_accepts_valid_token_and_sends_progress(monkeypatch, tmp_pat
     monkeypatch.setattr("src.api_pkg.routers.auth.resolve_session", _resolve)
     monkeypatch.setattr(pl, "PIPELINE_PROGRESS_FILE", path)
     monkeypatch.setattr(pl, "GAP_PROGRESS_FILE", tmp_path / "gap.json")
-    monkeypatch.setattr(asyncio, "sleep", lambda *_a, **_k: (_ for _ in ()).throw(WebSocketDisconnect))
-
     client = TestClient(create_app(), raise_server_exceptions=False)
-    with client.websocket_connect("/api/pipeline/ws", headers={"Authorization": "Bearer valid-token"}) as ws:
-        # receive_text в TestClient синхронный: сервер успевает отправить первый
-        # кадр прогресса до того, как asyncio.sleep поднимет WebSocketDisconnect.
+    with client.websocket_connect(
+        "/api/pipeline/ws", headers={"Authorization": "Bearer valid-token"}
+    ) as ws:
+        # Обработчик отдаёт прогресс сразу и только потом уходит в sleep(2).
+        # Достаточно прочитать одно сообщение: выход из контекста закрывает
+        # сокет, и серверный цикл завершается по WebSocketDisconnect.
         data = json.loads(ws.receive_text())
         assert data["pct"] == 12
+        assert data["message"] == "m"

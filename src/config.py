@@ -237,6 +237,12 @@ class Settings(BaseSettings):
     ACADEMIC_EMAIL_DOMAIN: str = "sfedu.ru"
     ACADEMIC_SSO_ENABLED: bool = True
 
+    # ---------- двухфакторная аутентификация (TOTP) ----------
+    # Глобальный выключатель: пока False, второй фактор не запрашивается ни при
+    # входе, ни при SSO, даже если пользователь его настроил. Так фича не мешает
+    # работе, пока её не включат осознанно. Значение по умолчанию - выключено.
+    TOTP_2FA_ENABLED: bool = False
+
     # ---------- hub.sfedu.ru: публикации (публичный API хаба ЮФУ) ----------
     HUB_API_BASE: str = "https://hub.sfedu.ru"
     # Токен нужен только для карточки /api/assets/{id}/; список публикаций открыт.
@@ -481,6 +487,7 @@ ACADEMIC_API_BASE = settings.ACADEMIC_API_BASE
 ACADEMIC_TRENDS_API_BASE = settings.ACADEMIC_TRENDS_API_BASE
 ACADEMIC_EMAIL_DOMAIN = settings.ACADEMIC_EMAIL_DOMAIN
 ACADEMIC_SSO_ENABLED = settings.ACADEMIC_SSO_ENABLED
+TOTP_2FA_ENABLED = settings.TOTP_2FA_ENABLED
 
 HUB_API_BASE = settings.HUB_API_BASE
 HUB_API_TOKEN = settings.HUB_API_TOKEN
