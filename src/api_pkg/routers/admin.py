@@ -1,6 +1,7 @@
 """Admin: whitelist management, student profiles, pipeline, Excel export."""
 
 import asyncio
+import contextlib
 import io
 import json
 import shutil
@@ -21,7 +22,6 @@ from src.api_pkg import deps
 from src.api_pkg.request_logger import actor_from_request, audit_action, get_logs_by_user
 from src.api_pkg.routers.auth import require_any_role
 from src.parsing.utils import load_it_skills
-import contextlib
 
 logger = structlog.get_logger("api")
 

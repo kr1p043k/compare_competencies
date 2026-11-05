@@ -646,10 +646,9 @@ async def get_recommendations(
         cfg = prof_taxonomy.get_profile_target(profile) or {}
         domains = cfg.get("target_domains", [])
         precomputed = None
-        if domains:
-            if not student.target_profession:
-                with contextlib.suppress(Exception):
-                    student.target_profession = cfg.get("target_profession", "")
+        if domains and not student.target_profession:
+            with contextlib.suppress(Exception):
+                student.target_profession = cfg.get("target_profession", "")
 
         # evaluate_profile + generate_recommendations - синхронный CPU-расчёт;
         # считаем в потоке, чтобы не держать event loop (ср. строку 515).

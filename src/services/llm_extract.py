@@ -19,11 +19,12 @@ import contextlib
 import hashlib
 import json
 import re
-import structlog
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
+
+import structlog
 
 try:  # DB-backed shared cache (parallel worker): get_cached(task, model, prompt)
     from src.services.llm_cache import (  # type: ignore
@@ -56,7 +57,7 @@ def _evict_locked(now: float) -> None:
 def get_cached(task: str, key: str) -> Any | None:
     """Return L1 cached value for (task, key) or None on miss/expiry."""
     now = time.time()
-    ckey = "%s:%s" % (task, key)
+    ckey = "{}:{}".format(task, key)
     with _LOCK:
         hit = _CACHE.get(ckey)
         if hit is None:
@@ -71,7 +72,7 @@ def get_cached(task: str, key: str) -> Any | None:
 def put_cached(task: str, key: str, value: Any, ttl_s: float = _TTL_S) -> None:
     """Store L1 value for (task, key) with TTL (seconds)."""
     now = time.time()
-    ckey = "%s:%s" % (task, key)
+    ckey = "{}:{}".format(task, key)
     with _LOCK:
         _evict_locked(now)
         _CACHE[ckey] = (now + max(1.0, float(ttl_s)), value)
@@ -131,10 +132,10 @@ def _build_prompt(description: str, vocab_slice: list[str]) -> str:
         "Izvleki navyki iz opisaniya. Otvet TOLKO JSON-spiskom strok. "
         "Kazhdoe imya - STROGO iz slovarya nizhe, doslovno, bez izmeneniy. "
         "Nichego ne vydumyvay. Esli sovpadeniy net - verni [].\n"
-        "Slovar: %s\n"
-        "Opisanie: %s\n"
+        "Slovar: {}\n"
+        "Opisanie: {}\n"
         "JSON:"
-    ) % (", ".join(names), desc)
+    ).format(", ".join(names), desc)
     return prompt[:_PROMPT_BUDGET]
 
 

@@ -40,10 +40,9 @@ def find_skills(text: str) -> set[str]:
         if entry in tl:
             found.add(entry)
             continue
-        if any(c in entry for c in ("-", "(", ")")):
-            if entry in tl:
-                found.add(entry)
-                continue
+        if any(c in entry for c in ("-", "(", ")")) and entry in tl:
+            found.add(entry)
+            continue
         entry_tokens = set(entry.split())
         overlap = entry_tokens & text_tokens
         if len(overlap) >= len(entry_tokens):
