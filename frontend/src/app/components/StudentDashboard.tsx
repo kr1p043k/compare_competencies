@@ -5,6 +5,7 @@ import { RefreshCw, AlertCircle, MapPin, Briefcase, FileText } from "lucide-reac
 import { Button } from "./ui/button";
 import { SelfProfileEditor } from "./SelfProfileEditor";
 import { StudentKrm } from "./StudentKrm";
+import { StudentStartHere } from "./StudentStartHere";
 import { request } from "../../lib/api";
 import { reportError } from "../../lib/errors";
 
@@ -31,6 +32,7 @@ export function StudentDashboard({ onNavigate }: { onNavigate?: (tab: string) =>
 
   return (
     <div className="space-y-6">
+      <StudentStartHere onNavigate={onNavigate} />
       <StudentKrm onNavigate={onNavigate} />
       <div className="flex items-center justify-between">
         <div>

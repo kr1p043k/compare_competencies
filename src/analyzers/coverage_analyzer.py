@@ -474,7 +474,11 @@ class CoverageAnalyzer:
             weighted_coverage=weighted,
             # Консервативный уровень: min(ratio, weighted). Иначе ratio 0.55
             # при weighted 0.33 даёт лживый HIGH (пример: Мультимедиа).
-            coverage_level=coverage_level(min(ratio, weighted)),
+            # Нет навыков - это не «нулевое покрытие», а отсутствие данных:
+            # 0% и 0 разрывов одновременно читаются как противоречие и портят
+            # среднее по направлению.
+            coverage_level=("no_data" if total == 0
+                            else coverage_level(min(ratio, weighted))),
             top_matched=deduped_top,
             matched_market=[m.market_match for m in matched_list if m.market_match],
             ksa_types=dict(ksa_types or {}),

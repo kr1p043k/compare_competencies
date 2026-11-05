@@ -39,12 +39,39 @@ async def get_results_summary(
     request: Request,
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
-    """Сводка результатов анализа."""
+    """Сводка результатов анализа.
+
+    Студенту отдаём только его собственный профиль: `base`/`dc`/`top_dc` - это
+    архетипы, и «58% соответствия» от архетипа студент читает как оценку себя,
+    хотя к нему она отношения не имеет. Преподавателю нужны все профили.
+    """
+    from src.api_pkg.routers.auth import get_current_user
+
+    user = await get_current_user(request) or {}
+    role = user.get("r") or user.get("role")
+
     evaluations = build_summary_payload(load_recommendations_from_disk())
+
+    self_key: str | None = None
+    if role == "student":
+        username = str(user.get("u") or user.get("username") or "")
+        safe = "".join(ch if ch.isalnum() else "_" for ch in username.lower())
+        for candidate in (f"self_{safe}", f"self_{safe.replace('.', '_')}"):
+            if candidate in evaluations:
+                self_key = candidate
+                break
+        if self_key:
+            evaluations = {self_key: evaluations[self_key]}
+        else:
+            # Своего профиля ещё нет: показывать чужие архетипы нельзя, иначе
+            # студент примет их за собственную оценку.
+            evaluations = {}
+
     if evaluations:
         return {
             "evaluations": evaluations,
             "profiles": list(evaluations.keys()),
+            "self_profile": self_key,
         }
 
     for summary_path in (
@@ -53,7 +80,17 @@ async def get_results_summary(
     ):
         if summary_path.exists():
             try:
-                return await asyncio.to_thread(_read_json, summary_path)
+                data = await asyncio.to_thread(_read_json, summary_path)
+                if role == "student" and isinstance(data, dict):
+                    evals = data.get("evaluations")
+                    if isinstance(evals, dict):
+                        data["evaluations"] = (
+                            {self_key: evals[self_key]} if self_key in evals else {}
+                        )
+                    # Список профилей тоже не должен раскрывать архетипы:
+                    # иначе UI нарисует выбор base/dc/top_dc.
+                    data["profiles"] = [self_key] if self_key else []
+                return data
             except Exception as e:
                 logger.warning("results_summary_read_failed", path=str(summary_path), error=str(e))
                 raise HTTPException(
@@ -65,7 +102,7 @@ async def get_results_summary(
 
     return {
         "message": "Результаты анализа не найдены. Запустите gap-анализ.",
-        "profiles": list(profiles.keys()),
+        "profiles": ([self_key] if self_key else []) if role == "student" else list(profiles.keys()),
     }
 
 

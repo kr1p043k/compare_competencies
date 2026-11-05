@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { api } from "../api";
 import { useTheme } from "../../lib/theme";
 import { AnalysisPanel } from "./AnalysisPanel";
+import { MetricsGlossary } from "./MetricsGlossary";
 import { TaxonomyBrowser } from "./TaxonomyBrowser";
 import CompetencyTrendsPanel from "./CompetencyTrendsPanel";
 import { reportError } from "./../../lib/errors";
@@ -55,7 +56,7 @@ type DirectionAnalysis = {
   top_emerging_across_all: { skill: string; frequency: number }[];
   recommendations: { type: string; priority: string; message: string }[];
   trends: { rising: any[]; declining: any[] };
-  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; coverage_level: string; gaps: number; emerging: number; market_top_coverage?: number; market_top_total?: number; market_top_reliable?: boolean; market_top_source?: string; years?: number[] }[];
+  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; coverage_level: string; gaps: number; emerging: number; emerging_growth?: number; emerging_growth_skills?: { skill: string; change_pct: number | null }[]; market_top_coverage?: number; market_top_total?: number; market_top_reliable?: boolean; market_top_source?: string; years?: number[] }[];
   generated_at: string;
 };
 
@@ -844,6 +845,30 @@ export function TeacherDashboard() {
               <div className="text-gray-500 dark:text-slate-400 mt-0.5">
                 {analysis.total_disciplines} {plural(analysis.total_disciplines, "дисциплина", "дисциплины", "дисциплин")}, {analysis.total_gaps_across_all} {plural(analysis.total_gaps_across_all, "пробел", "пробела", "пробелов")}
               </div>
+              {/* Источник рынка и достоверность: процент без них читается как
+                  точный, хотя derived/relevance - это вычисленный знаменатель. */}
+              {(() => {
+                const src: Record<string, number> = {};
+                let unreliable = 0;
+                for (const d of analysis.disciplines ?? []) {
+                  const s = d.market_top_source || "n/a";
+                  src[s] = (src[s] || 0) + 1;
+                  if (d.market_top_reliable === false) unreliable += 1;
+                }
+                const parts = Object.entries(src)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([k, n]) => `${k}: ${n}`);
+                if (!parts.length) return null;
+                return (
+                  <div className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">
+                    источник рынка — {parts.join(", ")}
+                    {unreliable > 0 && ` · недостоверно (мало навыков): ${unreliable}`}
+                  </div>
+                );
+              })()}
+              <div className="mt-2">
+                <MetricsGlossary compact />
+              </div>
             </div>
           )}
 
@@ -1255,14 +1280,33 @@ export function TeacherDashboard() {
                         )}
                       </span>
                       {r.a ? (
+                        r.a.coverage_level === "no_data" ? (
+                          <span className="text-xs text-gray-500 dark:text-slate-400"
+                                title="По дисциплине нет навыков для анализа: 0% покрытия при нулевых разрывах - это отсутствие данных, а не результат">
+                            нет данных
+                          </span>
+                        ) : (
                         <div className="flex gap-3">
                           <span className={`font-semibold ${covTextClass(r.a.coverage_ratio)}`}>{(r.a.coverage_ratio * 100).toFixed(1)}%</span>
                           {r.a.weighted_coverage != null && (
                             <span className={`text-xs ${covTextClass(r.a.weighted_coverage)}`} title="Взвешенное покрытие (качество)">Кач.:{(r.a.weighted_coverage * 100).toFixed(0)}%</span>
                           )}
                           <span className="text-red-600" title="Пробелов">{r.a.gaps} пр.</span>
-                          <span className="text-blue-600" title="Новые навыки рынка">{r.a.emerging} нов.</span>
+                          <span
+                            className="text-blue-600"
+                            title={
+                              r.a.emerging_growth_skills?.length
+                                ? "Растущие навыки рынка, которых нет в дисциплине: "
+                                  + r.a.emerging_growth_skills
+                                      .map((g) => g.skill + (g.change_pct != null ? ` +${g.change_pct.toFixed(0)}%` : ""))
+                                      .join(", ")
+                                : "Растущие навыки рынка, которых нет в дисциплине"
+                            }
+                          >
+                            {r.a.emerging_growth ?? r.a.emerging} раст.
+                          </span>
                         </div>
+                        )
                       ) : (
                         <span className="text-xs text-gray-400">вне учёта</span>
                       )}

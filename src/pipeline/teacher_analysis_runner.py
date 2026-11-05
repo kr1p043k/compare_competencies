@@ -1109,22 +1109,27 @@ async def run_teacher_analysis(
             message="No disciplines were successfully analyzed",
         ))
 
+    # Дисциплины без навыков (total_skills == 0) не участвуют в средних:
+    # это не «0% покрытия», а отсутствие данных, и иначе одна такая запись
+    # обнуляет честную среднюю по направлению.
+    _with_data = [(dn, r) for dn, r in discipline_reports if r.discipline.total_skills > 0]
+    _base = _with_data or discipline_reports
     avg_market_top = round(
-        sum(r.discipline.market_top_coverage for _, r in discipline_reports) / len(discipline_reports), 4
-    ) if discipline_reports else 0
+        sum(r.discipline.market_top_coverage for _, r in _base) / len(_base), 4
+    ) if _base else 0
     avg_market_weight = round(
-        sum(r.discipline.market_weight_coverage for _, r in discipline_reports) / len(discipline_reports), 4
-    ) if discipline_reports else 0
+        sum(r.discipline.market_weight_coverage for _, r in _base) / len(_base), 4
+    ) if _base else 0
     avg_cov = round(
-        sum(r.discipline.coverage_ratio for _, r in discipline_reports) / len(discipline_reports), 4
-    ) if discipline_reports else 0
+        sum(r.discipline.coverage_ratio for _, r in _base) / len(_base), 4
+    ) if _base else 0
     # C4 fix: quality-weighted average (accounts for match confidence, not just binary count)
     avg_quality = round(
-        sum(r.discipline.weighted_coverage for _, r in discipline_reports) / len(discipline_reports), 4
-    ) if discipline_reports else 0
+        sum(r.discipline.weighted_coverage for _, r in _base) / len(_base), 4
+    ) if _base else 0
     # v25: honest average over strong (exact+fuzzy) matches only
     avg_strong = round(
-        sum(r.discipline.strong_coverage for _, r in discipline_reports) / len(discipline_reports), 4
+        sum(r.discipline.strong_coverage for _, r in _base) / len(_base), 4
     ) if discipline_reports else 0
 
     # Direction-level emerging: skills not found in ANY discipline (giants capped, v42).
@@ -1149,6 +1154,41 @@ async def run_teacher_analysis(
             {"skill": s, "frequency": f}
             for s, f, _ in direction_emerging_result.unwrap()
         ]
+
+    # "Новое" = растёт спрос, а не просто часто встречается. Раньше блок
+    # назывался emerging, но показывал топ по частоте: e-commerce/swagger
+    # висели там месяцами и одинаково у всех дисциплин. Здесь берём реальную
+    # динамику по срезам рынка (SnapshotTrendAnalyzer) и оставляем только
+    # навыки, которых нет в плане.
+    growth_map: dict[str, dict] = {}
+    try:
+        rising_all = trend_analyzer.get_rising(200).unwrap_or([])
+    except Exception:
+        rising_all = []
+    for item in rising_all or []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("skill") or "").strip()
+        if not name:
+            continue
+        growth_map[name.lower()] = item
+
+    if growth_map and direction_emerging:
+        growth_emerging = []
+        for e in direction_emerging:
+            key = str(e.get("skill") or "").lower()
+            g = growth_map.get(key)
+            if g is None:
+                continue
+            growth_emerging.append({
+                "skill": e["skill"],
+                "frequency": e["frequency"],
+                "change_pct": g.get("change_pct"),
+                "basis": "рост спроса",
+            })
+        growth_emerging.sort(key=lambda x: (x.get("change_pct") or 0), reverse=True)
+        if growth_emerging:
+            direction_emerging = growth_emerging[:15]
 
     _years = _load_discipline_years(dir_code)
     summary = DirectionSummary(
@@ -1243,6 +1283,30 @@ async def run_teacher_analysis(
                 d["avg_semantic_similarity"] = sc.get("avg_semantic_similarity", 0)
                 ls = enh.get("ltr_and_shap", {})
                 d["shap_scores"] = ls.get("ltr_scores", [])
+                # Число «новых» навыков у дисциплины: не размер топ-10 (он был
+                # одинаков у всех и ничего не значил), а сколько растущих
+                # рыночных навыков реально отсутствует в этой дисциплине.
+                # Учитываем оба списка: разрывы внутри плана и навыки, которых
+                # нет нигде в плане, - иначе счётчик всегда 0.
+                # Считаем только по релевантным дисциплине навыкам
+                # (market_top_missing): общий список «нет нигде в плане»
+                # одинаков у всех и снова дал бы константу.
+                metrics_here = disc_data.get("metrics") or {}
+                relevant_missing = {str(s).strip().lower()
+                                    for s in (metrics_here.get("market_top_missing") or [])}
+                relevant_missing.discard("")
+                if growth_map:
+                    grown = [skill for skill in relevant_missing if skill in growth_map]
+                    d["emerging_growth"] = len(grown)
+                    d["emerging_growth_skills"] = [
+                        {"skill": growth_map[skill]["skill"],
+                         "change_pct": growth_map[skill].get("change_pct")}
+                        for skill in sorted(
+                            grown,
+                            key=lambda s: growth_map[s].get("change_pct") or 0,
+                            reverse=True,
+                        )[:5]
+                    ]
             except Exception:
                 pass
     # C6 fix: flag only if at least one discipline JSON has enhanced data

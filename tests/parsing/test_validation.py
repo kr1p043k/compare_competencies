@@ -41,7 +41,11 @@ class TestSkillParserExtended:
         assert "python" in texts
         assert "django" in texts
 
-    @pytest.mark.xfail(reason="Broken by _normalize_for_matching homoglyph replacement", strict=False)
+    @pytest.mark.xfail(
+        reason="_marker_search отдаёт навыки только из первого сегмента после маркера "
+               "и фильтрует по узкому TECH_SKILLS: список из 4 разделителей даёт < 3",
+        strict=False,
+    )
     def test_marker_search_multiple_delimiters(self):
         parser = SkillParser()
         text = "Требования: Python\n• SQL\n- Git\n* Docker"
@@ -308,7 +312,6 @@ class TestSkillValidatorExtended:
         assert report["rejected"] == 1
         assert "Пустой" in report["rejection_reasons"]  # вместо "Слишком короткий"
 
-    @pytest.mark.xfail(reason="Broken by _normalize_for_matching homoglyph replacement", strict=False)
     def test_regex_search_multiple_patterns(self):
         """Строки 40, 43-45, 48: несколько regex паттернов"""
         parser = SkillParser()
@@ -334,7 +337,6 @@ class TestSkillValidatorExtended:
         found = any("full stack" in s.text for s in skills)
         assert found or len(skills) == 0  # может не найти из-за границ слов
 
-    @pytest.mark.xfail(reason="Broken by _normalize_for_matching homoglyph replacement", strict=False)
     def test_marker_search_ignores_short_long_lines(self):
         """Строка 243: line length check"""
         parser = SkillParser()

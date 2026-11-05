@@ -50,11 +50,45 @@ async def krm_directions(request: Request):
 @limiter.limit("30/minute")
 async def krm_student_competencies(
     request: Request,
-    direction: str = Query(..., description="Код направления, напр. 09.03.02"),
-    profile: str = Query(..., description="Профиль студента (base/dc/top_dc/кастом)"),
+    direction: str | None = Query(None, description="Код направления; по умолчанию - доступное студенту"),
+    profile: str | None = Query(None, description="Профиль; по умолчанию - свой"),
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
-    """Сводка: компетенции КРМ направления + компетенции студента, дубли - один раз."""
+    """Сводка: компетенции КРМ направления + компетенции студента, дубли - один раз.
+
+    `direction` и `profile` необязательны. Раньше без них эндпоинт отвечал 422:
+    студент не знает свой код направления (09.03.02) и имя профиля
+    (self_<email>), а именно он и открывает эту страницу первым.
+    """
+    from src.api_pkg.routers.auth import get_current_user
+
+    if not direction:
+        user = await get_current_user(request) or {}
+        allowed: list[str] = []
+        try:
+            from src.api_pkg.routers.krm_teacher import _user_directions
+
+            allowed = await _user_directions(user)
+        except Exception:
+            allowed = []
+        if not allowed:
+            allowed = [d["dir_code"] for d in _list_all_dirs()]
+        if not allowed:
+            raise HTTPException(status_code=404, detail="Нет доступных направлений")
+        direction = allowed[0]
+
+    if not profile:
+        # Профиль студента называется self_<username с заменой символов>.
+        user = await get_current_user(request) or {}
+        username = str(user.get("u") or user.get("username") or "")
+        safe = "".join(ch if ch.isalnum() else "_" for ch in username.lower())
+        candidates = [f"self_{safe}", f"self_{safe.replace('.', '_')}"]
+        profile = next((c for c in candidates if c in profiles), None) or (
+            next(iter(profiles)) if profiles else ""
+        )
+        if not profile:
+            raise HTTPException(status_code=404, detail="Профиль не найден")
+
     _validate_dir_code(direction)
     if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")

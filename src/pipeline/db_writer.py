@@ -66,13 +66,19 @@ async def _pool():
     return p
 
 
-async def create_pipeline_run(action: str) -> str:
+async def create_pipeline_run(
+    action: str,
+    owner_id: str | None = None,
+    direction_code: str | None = None,
+) -> str:
+    """Создаёт запись запуска, привязывая её к владельцу и направлению."""
     pool = await _pool()
     rid = str(uuid.uuid4())
     await pool.execute(
-        """INSERT INTO pipeline_runs (id, action, status, started_at)
-           VALUES ($1, $2, 'started', NOW())""",
-        rid, action,
+        """INSERT INTO pipeline_runs
+             (id, action, status, started_at, owner_id, direction_code)
+           VALUES ($1, $2, 'started', NOW(), $3, $4)""",
+        rid, action, owner_id, direction_code,
     )
     return rid
 
