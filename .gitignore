@@ -87,3 +87,8 @@ docs/pentest-*.md
 
 # Рабочие аудиты и заметки: только локально
 NOTES-*.md
+
+# локальные прогоны покрытия
+cov.out.log
+cov.err.log
+run_cov.cmd
