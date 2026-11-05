@@ -25,6 +25,11 @@ from datetime import date
 
 import psycopg
 
+try:  # запуск как файла
+    from _dsn import resolve_dsn  # noqa: E402
+except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
+    from scripts._dsn import resolve_dsn  # noqa: E402
+
 DEFAULT_DSN = ""  # значение берётся из --dsn / DATABASE_URL / .env
 
 UNIQUE_INDEX = """
@@ -55,10 +60,6 @@ freqs as (
 select f.period, f.skill, f.frequency, t.n_vac,
        f.frequency::double precision / nullif(t.n_vac, 0) as weight
 from freqs f join totals t using (period)
-try:  # запуск как файла
-    from _dsn import resolve_dsn  # noqa: E402
-except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
-    from scripts._dsn import resolve_dsn  # noqa: E402
 order by f.period, f.frequency desc
 """
 

@@ -29,6 +29,11 @@ from pathlib import Path
 
 import psycopg
 
+try:  # запуск как файла
+    from _dsn import resolve_dsn  # noqa: E402
+except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
+    from scripts._dsn import resolve_dsn  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 REFERENCE = ROOT / "data" / "reference"
 DEFAULT_DSN = ""  # значение берётся из --dsn / DATABASE_URL / .env
@@ -53,10 +58,6 @@ order by c.code, s.name
 KSA = """
 select c.code, k.ksa_type::text, k.cleaned_text
 from competencies c
-try:  # запуск как файла
-    from _dsn import resolve_dsn  # noqa: E402
-except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
-    from scripts._dsn import resolve_dsn  # noqa: E402
 join ksa_entries k on k.competency_id = c.id
 where c.discipline_id = (select id from disciplines where name = %s limit 1)
   and c.code is not null
