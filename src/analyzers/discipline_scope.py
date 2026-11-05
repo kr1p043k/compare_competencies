@@ -28,6 +28,9 @@ from src import config
 
 logger = structlog.get_logger(__name__)
 
+#: одно предупреждение на процесс, а не на каждый навык.
+_EMBED_WARNED = False
+
 OVERRIDES_PATH = config.REFERENCE_DIR / "discipline_market_scope.json"
 
 # Neighbour expansion for the derived scope.
@@ -78,7 +81,14 @@ def neighbours(
         return []
     try:
         vector = provider.encode([skill], show_progress_bar=False)[0]
-    except Exception:
+    except Exception as exc:
+        # Пустой профиль означает, что scope придётся брать по названию
+        # дисциплины - заметно менее точно. Раньше это происходило молча.
+        global _EMBED_WARNED
+        if not _EMBED_WARNED:
+            _EMBED_WARNED = True
+            logger.warning("scope_embedding_encode_failed", skill=str(skill)[:80],
+                           error=str(exc)[:200])
         return []
     norm = float(np.linalg.norm(vector))
     if norm == 0:

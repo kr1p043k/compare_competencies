@@ -13,6 +13,9 @@ from src.utils import clip01
 
 logger = structlog.get_logger(__name__)
 
+#: чтобы предупреждение о морфологии не повторялось на каждый навык.
+_LEMMA_WARNED = False
+
 NORMALIZE_RE = re.compile(r"[^\w\s\-/]")
 # Market-навыки, чей смысл убит NORMALIZE_RE при нормализации РПД
 # (c++ -> c, c# -> c, .net -> net). Для emerging-проверки ищем stripped-ядро
@@ -581,7 +584,15 @@ class SkillMatcher:
             return None
         try:
             from src.text.ru_morph import lemma_key as _lkey
-        except Exception:
+        except Exception as exc:
+            # Без морфологии лемматическое сопоставление выключено целиком:
+            # навыки с другими окончаниями перестают совпадать, покрытие тихо
+            # занижается. Сообщаем один раз, чтобы не спамить на каждый навык.
+            global _LEMMA_WARNED
+            if not _LEMMA_WARNED:
+                _LEMMA_WARNED = True
+                logger.warning("ru_morph_unavailable_lemma_matching_disabled",
+                               error=str(exc)[:200])
             return None
         ln = _lkey(n)
         if not ln:
@@ -686,9 +697,11 @@ class SkillMatcher:
             # and   _word_match(rn, mn) == rn word inside mn
             qpat = _word_pattern(mn)
             skip = False
-            if rpd_pats:
-                if any(p.search(mn) for p in rpd_pats) or any(qpat.search(rn) for rn in rpd_normalized):
-                    skip = True
+            if rpd_pats and (
+                any(p.search(mn) for p in rpd_pats)
+                or any(qpat.search(rn) for rn in rpd_normalized)
+            ):
+                skip = True
             mn_folds: set[str] = set()
             mn_fold_pats: list = []
             if not skip and rpd_fold_pats:

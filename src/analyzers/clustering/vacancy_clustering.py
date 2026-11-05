@@ -190,7 +190,11 @@ class VacancyClusterer:
                     score = silhouette_score(x[idx], labels[idx], metric="cosine")
                 else:
                     score = silhouette_score(x, labels, metric="cosine")
-            except Exception:
+            except Exception as exc:
+                # Вариант k выпадает из выбора модели: без записи в лог
+                # итоговое число кластеров выглядит обоснованным, хотя
+                # часть кандидатов не оценивалась.
+                logger.warning("kmeans_silhouette_failed", k=k, error=str(exc)[:200])
                 continue
             logger.debug("kmeans_silhouette", k=k, silhouette=round(score, 4))
             if score > best_score:
