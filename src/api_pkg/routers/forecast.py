@@ -158,7 +158,7 @@ async def _get_forecast_engine() -> Result[ProphetForecastEngine | SkillForecast
         engine = SkillForecastEngine()
         try:
             result = await asyncio.wait_for(asyncio.to_thread(engine.fit, freqs), timeout=_FORECAST_FIT_TIMEOUT_S)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("skill_forecast_fit_timeout")
             return Err(DomainError("Forecast engine fit timed out"))
         except Exception as e:

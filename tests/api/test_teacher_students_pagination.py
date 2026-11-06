@@ -25,9 +25,8 @@ class FakePool:
 
 
 def _client(monkeypatch, pool):
-    from tests.conftest import open_all_gates
-
     import src.api_pkg.routers.teacher as t
+    from tests.conftest import open_all_gates
 
     app = create_app()
     open_all_gates(app, role="teacher")

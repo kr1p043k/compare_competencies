@@ -17,6 +17,7 @@ from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
+
 # shap/cv2 не установлены в CI, но подтягиваются при импорте app.
 class _StubModule(types.ModuleType):
     """Модуль-заглушка: атрибуты - MagicMock, сам объект - настоящий ModuleType."""

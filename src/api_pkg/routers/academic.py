@@ -24,11 +24,8 @@ from slowapi.util import get_remote_address
 from src import config
 from src.api_pkg.client_ip import client_ip
 from src.api_pkg.routers.auth import (
-    _TOTP_CHALLENGE_TTL,
     _hash_token,
-    _issue_challenge,
     _make_token,
-    _totp_state,
     get_current_user,
     require_any_role,
 )

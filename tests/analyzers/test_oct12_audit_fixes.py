@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Audit fixes 2026-10-12: subagent findings verified by experiment, then fixed."""
 from unittest.mock import MagicMock
 

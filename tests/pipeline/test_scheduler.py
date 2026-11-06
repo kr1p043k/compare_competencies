@@ -1,6 +1,6 @@
 """Scheduler tests: settings persistence, due logic, busy guard, profiles override."""
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest  # noqa: E402
 

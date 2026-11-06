@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+
 class _StubModule(types.ModuleType):
     """Настоящий модуль, чьи атрибуты - MagicMock.
 

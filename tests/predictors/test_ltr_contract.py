@@ -7,9 +7,6 @@ on: candidate resolution order, ensemble scoring, and the evaluator/LTR blend.
 
 from __future__ import annotations
 
-import sys
-from unittest.mock import MagicMock
-
 import numpy as np
 import pandas as pd
 import pytest

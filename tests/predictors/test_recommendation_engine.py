@@ -98,7 +98,6 @@ class TestInit:
     def test_init_with_llm_keys(self, monkeypatch):
         monkeypatch.setattr(config, "YC_API_KEY", SecretStr("test-key"))
         monkeypatch.setattr(config, "YC_FOLDER_ID", "test-folder")
-        import sys
         import types
         from unittest.mock import MagicMock
 

@@ -128,7 +128,7 @@ async def test_krm_discipline_detail_returns_200():
         from httpx import ASGITransport, AsyncClient
 
         from src.api_pkg import create_app
-        from tests.conftest import open_all_gates, all_route_paths
+        from tests.conftest import open_all_gates
         app = open_all_gates(create_app())
         async with AsyncClient(transport=ASGITransport(app=app),
                                base_url="http://t") as c:

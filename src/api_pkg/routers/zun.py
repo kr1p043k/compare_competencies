@@ -41,6 +41,7 @@ from slowapi.util import get_remote_address
 
 from src import config
 from src.api_pkg.request_logger import audit_action
+from src.api_pkg.routers.auth import require_any_role
 from src.api_pkg.routers.zun_schemas import (
     CompetencyIn,
     ScopePut,
@@ -48,7 +49,6 @@ from src.api_pkg.routers.zun_schemas import (
     ZUNIn,
     ZUNPatch,
 )
-from src.api_pkg.routers.auth import require_any_role
 from src.db import get_pool
 from src.utils import clip01
 

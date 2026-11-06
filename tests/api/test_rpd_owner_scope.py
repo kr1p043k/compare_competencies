@@ -5,10 +5,9 @@ dir_code, owner_id): a set direction wins, otherwise the owner is compared,
 admin always passes.
 """
 
-from starlette.requests import Request
-
 import pytest
 from fastapi import HTTPException
+from starlette.requests import Request
 
 from src.api_pkg.routers import krm_teacher, rpd, zun
 

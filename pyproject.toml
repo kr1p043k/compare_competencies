@@ -68,11 +68,19 @@ target-version = "py311"
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
-# FastAPI: Depends(...) в значении по умолчанию — это контракт, а не ошибка.
+# FastAPI: Depends(...) в значении по умолчанию — контракт, а не ошибка.
 "src/api_pkg/routers/*.py" = ["B008"]
 # Тесты: имена моков с большой буквы, распаковка в match, длинные фикстуры,
-# импорты после патча sys.modules (заглушки обязаны идти первыми).
-"tests/**/*.py" = ["N806", "F841", "E501", "E402"]
+# импорты после патча sys.modules, вложенные with для моков.
+"tests/**/*.py" = ["N806", "F841", "E501", "E402", "SIM117"]
+# CLI и загрузчики: окружение (dotenv, кодировка консоли, sys.path) обязано
+# быть настроено до импорта src — E402 здесь ожидаем.
+"src/cli/*.py" = ["E402"]
+"src/pipeline/teacher_analysis_runner.py" = ["E402"]
+"src/pipeline/helpers.py" = ["E402"]
+"src/loaders_student/student_loader.py" = ["E402"]
+# ML: матрица признаков традиционно называется X.
+"src/predictors/ltr_recommendation_engine.py" = ["N806"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

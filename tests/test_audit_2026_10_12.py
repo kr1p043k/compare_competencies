@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Audit fixes 2026-10-12 evening: schema/model drift, LTR features, blend, cache."""
 import pytest
 from sqlalchemy.dialects.postgresql import dialect as PG

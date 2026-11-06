@@ -239,7 +239,7 @@ def validate_safe_path_result(user_path: str | Path, base_dir: Path | None = Non
 
 def extract_date_from_filename(filepath: Path) -> datetime | None:
     """Извлекает дату из имени freq_*.json.
-    
+
     Поддерживает форматы:
       freq_2026-04-15.json         -> 2026-04-15
       freq_2026-04-15-120000.json  -> 2026-04-15 12:00:00
@@ -258,7 +258,7 @@ def extract_date_from_filename(filepath: Path) -> datetime | None:
 
 def build_inverted_skill_index(mapping: dict[str, list[str]]) -> dict[str, set[str]]:
     """Строит inverted index: skill_keyword -> set(competency_codes).
-    
+
     Из mapping {competency_code: [keyword1, keyword2, ...]} делает
     {keyword1: {comp_code}, keyword2: {comp_code}, ...}
     """

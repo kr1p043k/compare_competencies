@@ -13,13 +13,10 @@ retraining or after touching the ranker:
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
-
 from sklearn.metrics import ndcg_score  # noqa: E402
 from sklearn.model_selection import StratifiedShuffleSplit  # noqa: E402
 

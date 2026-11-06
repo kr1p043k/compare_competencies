@@ -37,7 +37,7 @@ def _read_json(path: Path) -> Any:
 def _available_ram_bytes() -> int | None:
     """Доступная память из /proc/meminfo (Linux). None — если узнать нельзя."""
     try:
-        with open("/proc/meminfo", "r", encoding="utf-8") as f:
+        with open("/proc/meminfo", encoding="utf-8") as f:
             for line in f:
                 if line.startswith("MemAvailable:"):
                     parts = line.split()
