@@ -111,27 +111,38 @@ const PROBE = `(() => {
 
   await c.send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
 
-  // Логин через API + инъекция сессии в localStorage: клик по форме зависит
-  // от таймингов React, а ключ хранения фиксирован (см. lib/auth.tsx).
+  // Логин через API из Node, затем cookie ставим прямо в браузер через CDP.
+  // Логин в контексте страницы ненадёжен: reload во время evaluate рвёт
+  // соединение ("Inspected target navigated or closed").
+  const loginEmail = process.env.SMOKE_EMAIL || "admin@compare-competencies.local";
+  if (!process.env.SMOKE_PASSWORD) {
+    console.error("Укажите SMOKE_PASSWORD (пароль админа) в окружении");
+    process.exit(1);
+  }
   const loginRes = await fetch("http://localhost:8000/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "admin@compare-competencies.local", password: "admin" }),
+    body: JSON.stringify({ email: loginEmail, password: process.env.SMOKE_PASSWORD }),
   });
   if (!loginRes.ok) { console.error("login API failed:", loginRes.status); process.exit(1); }
   const session = await loginRes.json();
+  if (!session.token) {
+    console.error("login API не выдал токен:", JSON.stringify(session));
+    process.exit(1);
+  }
   console.log("login API ok, role =", session.role);
 
+  await c.send("Network.setCookie", {
+    name: "token",
+    value: session.token,
+    domain: "localhost",
+    path: "/",
+    httpOnly: true,
+    sameSite: "Lax",
+  });
+
   await c.send("Page.navigate", { url: APP });
-  await sleep(2500);
-  await c.evaluate(`localStorage.setItem("auth", ${JSON.stringify(JSON.stringify({
-    token: session.token,
-    role: session.role,
-    name: session.name,
-    username: session.username ?? null,
-  }))})`);
-  await c.send("Page.reload", { ignoreCache: true });
-  await sleep(6000);
+  await sleep(7000);
 
   const whoami = await c.evaluate(`document.body.innerText.slice(0, 80).replace(/\\n+/g, " | ")`);
   console.log("after reload:", whoami);
