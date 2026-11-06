@@ -82,6 +82,9 @@ class Settings(BaseSettings):
     # пока включён, новые пользователи не могут подключить второй фактор, но
     # те, кто уже подключил, продолжают его проходить (флаг не обходит защиту).
     TWO_FACTOR_ENABLED: bool = False
+    # Ограничитель частоты. Выключать только для нагрузочных замеров:
+    # иначе результат измеряет работу лимитера, а не сервера.
+    RATELIMIT_ENABLED: bool = True
     # Канал второго фактора. Сейчас реализован только TOTP (приложение-
     # аутентификатор). "email"/"sms" - задел: значения принимаются, но
     # отправка кода не реализована, /auth/2fa/status вернёт available=false
@@ -493,6 +496,7 @@ ACADEMIC_API_BASE = settings.ACADEMIC_API_BASE
 ACADEMIC_TRENDS_API_BASE = settings.ACADEMIC_TRENDS_API_BASE
 ACADEMIC_EMAIL_DOMAIN = settings.ACADEMIC_EMAIL_DOMAIN
 TWO_FACTOR_ENABLED = settings.TWO_FACTOR_ENABLED
+RATELIMIT_ENABLED = settings.RATELIMIT_ENABLED
 TWO_FACTOR_METHOD = settings.TWO_FACTOR_METHOD
 SUPPORT_EMAIL = settings.SUPPORT_EMAIL
 ACADEMIC_SSO_ENABLED = settings.ACADEMIC_SSO_ENABLED

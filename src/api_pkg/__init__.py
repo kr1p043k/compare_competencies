@@ -69,7 +69,7 @@ def _rate_limit_key(request: Request) -> str:
     return f"ip:{client_ip(request)}"
 
 
-limiter = Limiter(key_func=_rate_limit_key)
+limiter = Limiter(key_func=_rate_limit_key, enabled=config.RATELIMIT_ENABLED)
 
 
 def create_app() -> FastAPI:
