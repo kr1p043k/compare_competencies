@@ -9,7 +9,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import importlib.util
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -34,10 +36,17 @@ def _load_snapshot() -> Any:
     global _snapshot_module
     if _snapshot_module is None:
         script = _ROOT / "scripts" / "snapshot_summary.py"
-        spec = importlib.util.spec_from_file_location("snapshot_summary", script)
-        assert spec is not None and spec.loader is not None
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        with contextlib.suppress(ValueError):
+            sys.path.remove(str(script.parent))
+        sys.path.insert(0, str(script.parent))
+        try:
+            spec = importlib.util.spec_from_file_location("snapshot_summary", script)
+            assert spec is not None and spec.loader is not None
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        finally:
+            with contextlib.suppress(ValueError):
+                sys.path.remove(str(script.parent))
         _snapshot_module = module
     return _snapshot_module
 

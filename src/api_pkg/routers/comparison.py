@@ -7,7 +7,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import importlib.util
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -26,14 +28,23 @@ _compare_module: Any = None
 
 
 def _load_compare() -> Any:
-    """Ленивая загрузка скрипта сравнения (как `test_krm_merge_scripts._load`)."""
     global _compare_module
-    if _compare_module is None:
+    if _compare_module is not None:
+        return _compare_module
+
+    scripts_dir = str(_SCRIPT.parent)
+    with contextlib.suppress(ValueError):
+        sys.path.remove(scripts_dir)
+    sys.path.insert(0, scripts_dir)
+    try:
         spec = importlib.util.spec_from_file_location("compare_intakes", _SCRIPT)
         assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        _compare_module = module
+    finally:
+        with contextlib.suppress(ValueError):
+            sys.path.remove(scripts_dir)
+    _compare_module = module
     return _compare_module
 
 
