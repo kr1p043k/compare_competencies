@@ -22,9 +22,13 @@ def login(base: str, email: str, password: str, attempts: int = 40,
           totp_secret: str = "") -> str | None:
     """Вход с учётом 2FA.
 
-    Если у админа включён TOTP, /auth/login отвечает 200 и объектом
-    {status: totp_required, challenge_id} без токена - тогда нужен второй шаг
-    с кодом. totp_secret берётся из TOTP_SECRET (или --totp-secret).
+    Ответы /auth/login при включённом мастер-переключателе:
+      * token - обычный вход;
+      * {status: totp_required, challenge_id} - нужен код из TOTP
+        (totp_secret берётся из TOTP_SECRET или --totp-secret);
+      * {status: totp_setup_required, enroll_id} - админ ещё не подключил
+        TOTP. Настраиваем автоматически: setup -> confirm, подтверждение
+        сразу отдаёт токен.
     """
     for _ in range(attempts):
         try:
@@ -57,10 +61,48 @@ def login(base: str, email: str, password: str, attempts: int = 40,
                         return v.json().get("token")
                     print(f"2fa verify: {v.status_code} {v.text[:200]}")
                     return None
+                if body.get("status") == "totp_setup_required":
+                    # Смоук не должен молча падать: админ ещё не подключил
+                    # второй фактор, настраиваем его тем же путём, что человек.
+                    return _enroll_and_login(base, body.get("enroll_id"))
         except Exception:
             pass
         time.sleep(3)
     return None
+
+
+def _enroll_and_login(base: str, enroll_id: str | None) -> str | None:
+    """Первичная настройка TOTP по одноразовому пропуску из /auth/login."""
+    if not enroll_id:
+        print("2fa: сервер требует настройку, но не выдал enroll_id")
+        return None
+    try:
+        import pyotp
+    except ImportError:
+        print("2fa: нужен pyotp для автонастройки (pip install pyotp)")
+        return None
+
+    setup = requests.post(
+        f"{base}/api/auth/2fa/setup", json={"enroll_id": enroll_id}, timeout=10
+    )
+    if setup.status_code != 200:
+        print(f"2fa setup: {setup.status_code} {setup.text[:200]}")
+        return None
+    secret = setup.json().get("secret")
+    if not secret:
+        print("2fa setup: в ответе нет secret")
+        return None
+
+    confirm = requests.post(
+        f"{base}/api/auth/2fa/confirm",
+        json={"code": pyotp.TOTP(secret).now(), "enroll_id": enroll_id},
+        timeout=10,
+    )
+    if confirm.status_code != 200:
+        print(f"2fa confirm: {confirm.status_code} {confirm.text[:200]}")
+        return None
+    print("2fa: админ подключён автоматически, второй фактор включён")
+    return confirm.json().get("token")
 
 
 def wait_health(base: str, attempts: int = 60) -> bool:

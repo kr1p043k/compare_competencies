@@ -61,23 +61,51 @@
 
 ---
 
-## 2FA для администраторов
+## 2FA: мастер-переключатель и подключение
 
-Новые эндпоинты (TOTP, секрет и recovery-коды в `admin_totp`):
+2FA управляется **одним флагом на всю систему**, по умолчанию выключенным.
+Флаг хранится в таблице `app_settings` (ключ `security.two_factor`), а не в
+`.env` и не в JSON-файле: переключение действует сразу на все процессы и
+переживает деплой.
 
 | Метод | Роут | Назначение |
 |-------|------|------------|
-| POST | `/api/auth/2fa/setup` | создать секрет, вернуть `otpauth_uri` и `secret` |
+| GET | `/api/auth/2fa/policy` | **без авторизации**: `{"enabled": bool}` для экрана входа |
+| GET | `/api/auth/2fa/status` | состояние текущего пользователя |
+| GET | `/api/admin/security/2fa/settings` | `{"enabled": bool, "enrolled_admins": int}` |
+| PUT | `/api/admin/security/2fa/settings` | включить/выключить: `{"enabled": true}` |
+| POST | `/api/auth/2fa/setup` | создать секрет, вернуть `otpauth_uri`, `secret`, `enroll_id` |
 | POST | `/api/auth/2fa/confirm` | подтвердить код, вернуть `recovery_codes` (одноразовые) |
 | POST | `/api/auth/2fa/verify` | завершить вход по `challenge_id` + TOTP-код |
 | POST | `/api/auth/2fa/recovery` | вход по одноразовому recovery-коду |
 | POST | `/api/auth/2fa/disable` | отключить 2FA (нужен TOTP- или recovery-код) |
 
-**Изменение поведения входа.** Если у admin включена 2FA, `POST /api/auth/login`
-больше не возвращает токен сразу: вместо него приходит `challenge_id` (TTL 5
-минут) и `expires_in`. Токен выдаёт только `/auth/2fa/verify` (или
-`/auth/2fa/recovery`). Подробности - в `docs/RUNBOOK.md`, раздел «2FA
-администратора».
+`GET /api/auth/2fa/status` отдаёт поля в двух именованиях одновременно:
+`globally_enabled`/`configured`/`confirmed` (исходные) и
+`enabled`/`enrolled`/`available` (то, что читает админка).
+
+**Выключение не удаляет подключения.** При повторном включении те же
+пользователи снова получают запрос кода.
+
+**Изменение поведения входа.** Когда переключатель включён:
+
+| Кто | Ответ `POST /api/auth/login` |
+|---|---|
+| подключил TOTP | `{"status": "totp_required", "challenge_id": ..., "expires_in": 300}` |
+| админ без TOTP | `{"status": "totp_setup_required", "enroll_id": ..., "expires_in": 600}` |
+| не админ без TOTP | обычный токен (иначе включение заперло бы всех сразу) |
+
+`enroll_id` - одноразовый пропуск на настройку без сессии: `setup` и `confirm`
+принимают его в теле запроса. Успешный `confirm` по пропуску сразу возвращает
+`token` вместе с `recovery_codes`.
+
+**Пока переключатель выключен**, все `/api/auth/2fa/*` отвечают `404` с
+`{"detail": "Двухфакторная аутентификация отключена администратором"}`, а вход
+одношаговый для всех - включая тех, кто уже подключил TOTP.
+
+**Ломающее:** клиенты, которые всегда ждали `token` от `/auth/login`, должны
+обработать `status`-ответы выше (это уже делают `LoginPage` и `smoke-get.py`).
+Подробности - в `docs/RUNBOOK.md`, раздел «2FA администратора».
 
 ---
 
