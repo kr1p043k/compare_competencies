@@ -9,7 +9,7 @@ import os
 import re
 import sys
 from collections import Counter
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -1267,7 +1267,7 @@ async def run_teacher_analysis(
         },
         "disciplines": summary.disciplines,
         "target_professions": list(profession_taxonomy.keys())[:10],
-        "generated_at": datetime.now().isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
     # - merge enhanced data from per-discipline JSONs into summary -
@@ -1352,7 +1352,7 @@ async def run_teacher_analysis(
             "total_gaps_across_all": len(all_gaps),
             "partial": True,
             "disciplines": [dn for dn, _ in discipline_reports],
-            "generated_at": datetime.now().isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         })
 
     try:
@@ -1379,7 +1379,7 @@ async def run_teacher_analysis(
             "scope_custom": {k: _scope_over[k] for k in sorted(_scope_over)},
             "flags": _active_flags(),
             "git_sha": _git_sha_short(),
-            "generated_at": datetime.now().isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
         (out_dir / "_report_meta.json").write_text(
             json.dumps(_meta, ensure_ascii=False, indent=1), encoding="utf-8")

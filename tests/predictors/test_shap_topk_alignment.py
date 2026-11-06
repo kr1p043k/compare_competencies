@@ -5,13 +5,9 @@
 Плюс SHAP считался на всех ~200 кандидатах вместо показанных 15.
 """
 
-import sys
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-
-sys.modules.setdefault("shap", MagicMock())
-sys.modules.setdefault("cv2", MagicMock())
 
 from tests.predictors.test_ltr_recommendation_engine import (  # noqa: E402,F811
     engine_with_mocks,  # noqa: F401,F811  (re-export fixture)

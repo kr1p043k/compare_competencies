@@ -14,9 +14,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-sys.modules.setdefault("shap", MagicMock())
-sys.modules.setdefault("cv2", MagicMock())
-
 from src import config  # noqa: E402
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
 

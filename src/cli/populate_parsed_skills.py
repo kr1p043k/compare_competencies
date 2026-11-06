@@ -110,10 +110,7 @@ async def _populate(run_id: str, force_all: bool) -> None:
 
                     if texts:
                         norm_result = SkillNormalizer.normalize_batch(texts)
-                        if norm_result.is_ok():
-                            normed = norm_result.unwrap()
-                        else:
-                            normed = texts
+                        normed = norm_result.unwrap() if norm_result.is_ok() else texts
                         normed = [s for s in dict.fromkeys(normed) if s and s.strip()]
                     else:
                         normed = []

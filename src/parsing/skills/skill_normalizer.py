@@ -354,8 +354,8 @@ class SkillNormalizer:
         """Ключ инвалидации кэша: mtime + размер skill_taxonomy.json."""
         """Version key for cache invalidation: mtime + size of taxonomy files."""
         try:
-            from pathlib import Path as _P
-            tax = _P(__file__).resolve().parent.parent.parent.parent / "data" / "reference" / "skill_taxonomy.json"
+            from pathlib import Path as _Path
+            tax = _Path(__file__).resolve().parent.parent.parent.parent / "data" / "reference" / "skill_taxonomy.json"
             st = tax.stat()
             return f"{st.st_mtime_ns}:{st.st_size}"
         except Exception:

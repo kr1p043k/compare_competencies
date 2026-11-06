@@ -1,7 +1,9 @@
 """Results summary, recommendations files, images."""
 
 import asyncio
+import copy
 import json
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -25,9 +27,37 @@ router = APIRouter(tags=["results"])
 limiter = Limiter(key_func=get_remote_address)
 
 
+# Кэш распарсенных result-файлов по (path, mtime_ns, size). result/*/_full_...json
+# перечитываются на каждый запрос; кэшируем по версии файла и отдаём копии,
+# чтобы per-user мутации не попали в кэш и не утекли между пользователями.
+_json_cache: dict[str, tuple[int, int, Any]] = {}
+_json_cache_lock = threading.Lock()
+
+
+def _reset_results_cache() -> None:
+    with _json_cache_lock:
+        _json_cache.clear()
+
+
 def _read_json(path: Path) -> Any:
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    """Прочитать+распарсить JSON, кэшируя по (path, mtime_ns, size).
+
+    Каждый вызов возвращает глубокую копию: вызывающие мутируют результат
+    (фильтр студента `data["evaluations"]`, `payload["generated_at"]`), и копия
+    не даёт протечь правкам одного запроса в кэш и в чужие ответы.
+    """
+    key = str(path)
+    st = path.stat()  # прежняя семантика: отсутствие файла - ошибка, выше есть exists-проверки
+    sig = (st.st_mtime_ns, st.st_size)
+    with _json_cache_lock:
+        cached = _json_cache.get(key)
+    if cached is None or cached[0] != sig[0] or cached[1] != sig[1]:
+        with open(path, encoding="utf-8") as f:
+            parsed = json.load(f)
+        with _json_cache_lock:
+            _json_cache[key] = (sig[0], sig[1], parsed)
+        cached = (sig[0], sig[1], parsed)
+    return copy.deepcopy(cached[2])
 
 
 async def _require_student_profile(request: Request, profile: str) -> None:

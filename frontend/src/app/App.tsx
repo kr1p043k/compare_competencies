@@ -54,6 +54,24 @@ function TabSpinner() {
   );
 }
 
+// Fallback вкладки «Аналитика рынка»: в её графе recharts (vendor-charts),
+// поэтому до догрузки чанка вместо графиков показываем layout-скелетон.
+// ArticlesPage - React.lazy (см. объявление ниже), стилистика фолбэка
+// повторяет сетку графиков AnalyticsCharts, пропсы самой вкладки не меняются.
+function TabSkeleton() {
+  return (
+    <div className="space-y-4" role="status" aria-live="polite">
+      <span className="sr-only">Загружается аналитика рынка…</span>
+      <Skeleton className="h-8 w-72" />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Skeleton className="h-72 w-full" />
+        <Skeleton className="h-72 w-full" />
+      </div>
+      <Skeleton className="h-40 w-full" />
+    </div>
+  );
+}
+
 // Тяжёлые списки под React.memo: не перерисовываются от ререндеров App
 // (health-poll, статусы, шаги пайплайна), только от собственного стейта.
 const MemoPredictionsTab = memo(PredictionsTab);
@@ -551,7 +569,7 @@ export default function App() {
           </TabsContent>
           <TabsContent value="articles">
             <ErrorBoundary scope="articles">
-              <Suspense fallback={<TabSpinner />}>
+              <Suspense fallback={<TabSkeleton />}>
                 <ArticlesPage onStartGapAnalysis={() => { runGapAnalysis(); setActiveTab("data"); }} />
               </Suspense>
             </ErrorBoundary>

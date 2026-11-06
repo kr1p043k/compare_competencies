@@ -24,6 +24,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+import structlog
+
 try:  # DB-backed shared cache (parallel worker): get_cached(task, model, prompt)
     from src.services.llm_cache import (  # type: ignore
         get_cached as _db_get_cached,
@@ -34,6 +36,8 @@ try:  # DB-backed shared cache (parallel worker): get_cached(task, model, prompt
     _DB_CACHE = True
 except Exception:
     _DB_CACHE = False
+
+logger = structlog.get_logger(__name__)
 
 # L1 in-memory cache (spec fallback names: get_cached/put_cached).
 _CACHE: dict[str, tuple[float, Any]] = {}
@@ -53,7 +57,7 @@ def _evict_locked(now: float) -> None:
 def get_cached(task: str, key: str) -> Any | None:
     """Return L1 cached value for (task, key) or None on miss/expiry."""
     now = time.time()
-    ckey = "%s:%s" % (task, key)
+    ckey = f"{task}:{key}"
     with _LOCK:
         hit = _CACHE.get(ckey)
         if hit is None:
@@ -68,7 +72,7 @@ def get_cached(task: str, key: str) -> Any | None:
 def put_cached(task: str, key: str, value: Any, ttl_s: float = _TTL_S) -> None:
     """Store L1 value for (task, key) with TTL (seconds)."""
     now = time.time()
-    ckey = "%s:%s" % (task, key)
+    ckey = f"{task}:{key}"
     with _LOCK:
         _evict_locked(now)
         _CACHE[ckey] = (now + max(1.0, float(ttl_s)), value)
@@ -80,11 +84,12 @@ def _model_of(client: Any) -> str:
         if m:
             return str(m)
     except Exception:
-        pass
+        logger.warning("llm_model_attr_unavailable", exc_info=True)
     try:
         from src import config as _cfg
         return str(getattr(_cfg, "OLLAMA_MODEL", "") or "gpt-oss:120b")
     except Exception:
+        logger.warning("llm_model_config_unavailable", exc_info=True)
         return "gpt-oss:120b"
 
 
@@ -127,10 +132,10 @@ def _build_prompt(description: str, vocab_slice: list[str]) -> str:
         "Izvleki navyki iz opisaniya. Otvet TOLKO JSON-spiskom strok. "
         "Kazhdoe imya - STROGO iz slovarya nizhe, doslovno, bez izmeneniy. "
         "Nichego ne vydumyvay. Esli sovpadeniy net - verni [].\n"
-        "Slovar: %s\n"
-        "Opisanie: %s\n"
+        "Slovar: {}\n"
+        "Opisanie: {}\n"
         "JSON:"
-    ) % (", ".join(names), desc)
+    ).format(", ".join(names), desc)
     return prompt[:_PROMPT_BUDGET]
 
 
@@ -138,12 +143,14 @@ def _parse_json_list(text: str) -> list[str]:
     try:
         data = json.loads(text)
     except Exception:
+        logger.warning("llm_parse_json_failed", exc_info=True)
         m = _JSON_ARRAY_RE.search(text or "")
         if not m:
             return []
         try:
             data = json.loads(m.group(0))
         except Exception:
+            logger.warning("llm_parse_json_regex_failed", exc_info=True)
             return []
     if not isinstance(data, list):
         return []
@@ -169,6 +176,7 @@ def _chat_guarded(client: Any, messages: list[dict[str, str]], timeout_s: float)
     try:
         return resp.choices[0].message.content or ""
     except Exception:
+        logger.warning("llm_chat_content_unavailable", exc_info=True)
         return ""
 
 
@@ -209,6 +217,7 @@ def extract_skills(
             try:
                 raw_hit = _db_get_cached("extract", model, prompt)
             except Exception:
+                logger.warning("llm_db_cache_get_failed", model=model, exc_info=True)
                 raw_hit = None
             if isinstance(raw_hit, str) and raw_hit.strip():
                 result = _validate(_parse_json_list(raw_hit), vocab)
@@ -228,4 +237,5 @@ def extract_skills(
                     _db_put_cached("extract", model, prompt, text)
         return result
     except Exception:
+        logger.exception("skills_extract_failed")
         return []

@@ -226,6 +226,7 @@ class SkillParser:
     SKILL_MARKERS = [
         "ключевые навыки",
         "ключевые компетенции",
+        "навыки",
         "требования",
         "требования к кандидату",
         "необходимые навыки",
@@ -516,32 +517,40 @@ class SkillParser:
                     r"(?<!\w)(?:" + "|".join(re.escape(t) for t in techs) + r")(?!\w)")
                 SkillParser._MARKER_PATTERN = (key, marker_pat)
 
-            for marker in self.SKILL_MARKERS:
-                # P0: маркеры свернуть так же, как текст (кириллица иначе
-                # никогда не совпадала со свёрнутым текстом).
-                marker_norm = _normalize_for_matching(marker)
-                if marker_norm not in text_norm:
-                    continue
-                parts = text_norm.split(marker_norm)
-                if len(parts) < 2:
-                    continue
-                after_marker = parts[1][:600]
-                lines = re.split(r"[\n,•\-*;]", after_marker)
-                for line in lines:
-                    line = line.strip()
-                    if len(line) <= 3 or len(line) >= 100:
+            # Все маркеры в одном alternation (longest-first): берём регион
+            # после КАЖДОГО вхождения маркера (C2 fix: было `parts[1][:600]` -
+            # только первый сегмент после первого вхождения + обрезка до 600),
+            # до следующего маркера или конца текста.
+            marker_norms = sorted(
+                {_normalize_for_matching(marker) for marker in self.SKILL_MARKERS},
+                key=len, reverse=True,
+            )
+            heading_pat = re.compile("|".join(re.escape(m) for m in marker_norms))
+            # Разделители: `·` (U+00B7) наравне с `•` (U+2022) - был пропущен.
+            separators = re.compile(r"[\n,•·\-*;]")
+
+            for heading in heading_pat.finditer(text_norm):
+                region_start = heading.end()
+                next_heading = heading_pat.search(text_norm, region_start)
+                region_end = next_heading.start() if next_heading else len(text_norm)
+                region = text_norm[region_start:region_end]
+                for token in separators.split(region):
+                    token = token.strip()
+                    # min 2 символа: выровнено с фильтром `len(t) >= 2` в techs
+                    # (было <= 3 - терялись `sql`, `git`, `go`).
+                    if len(token) < 2 or len(token) >= 100:
                         continue
                     # Фильтрация локаций
-                    if any(p.search(line) for p in LOCATION_PATTERNS):
+                    if any(p.search(token) for p in LOCATION_PATTERNS):
                         continue
                     # Фильтрация аббревиатур
-                    if ABBREV_RE.match(line):
+                    if ABBREV_RE.match(token):
                         continue
                     # Извлекаем только отдельные навыки из строки, не всю строку
-                    for m in marker_pat.finditer(line):
+                    for m in marker_pat.finditer(token):
                         tech = m.group(0)
                         start = max(0, m.start() - 50)
-                        context = line[start:m.end() + 50]
+                        context = token[start:m.end() + 50]
                         if any(neg in context for neg in _negation_norms):
                             continue
                         skills.append(ExtractedSkill(text=tech, source=source, raw_match=tech, confidence=0.8))

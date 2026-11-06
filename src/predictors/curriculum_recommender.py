@@ -37,7 +37,7 @@ def _resolve_sync_dsn() -> str:
         if dsn:
             return dsn
     except Exception:
-        logger.debug("swallowed_exception", exc_info=True)
+        logger.warning("sync_dsn_config_unavailable", exc_info=True)
     return _to_sync_dsn(os.environ.get("DATABASE_URL", "") or os.environ.get(
         "TEST_DATABASE_URL", ""))
 
@@ -122,7 +122,7 @@ def _norm_msg(msg: str) -> str:
         if key:
             return key
     except Exception:
-        logger.debug("swallowed_exception", exc_info=True)
+        logger.warning("norm_msg_lemmatize_failed", exc_info=True)
     return _PUNCT_WS.sub(" ", (msg or "").casefold()).strip()
 
 
@@ -148,7 +148,7 @@ def _exact_demand(skills: list[str]) -> tuple[dict[str, int], dict[str, str]]:
                     norms[s] = r.unwrap().strip().lower()
                     variants.add(norms[s])
             except Exception:
-                logger.debug("swallowed_exception", exc_info=True)
+                logger.warning("exact_demand_normalize_failed", exc_info=True)
         dsn = _resolve_sync_dsn()
         if not dsn or psycopg2 is None:
             return out, norms
@@ -180,6 +180,7 @@ def _gap_hints(gaps: list[str], truly_missing) -> dict[str, tuple[str, int, int]
     try:
         from src.analyzers.skill_matcher import sig_lemmas
     except Exception:
+        logger.warning("gap_hints_skill_matcher_unavailable", exc_info=True)
         return {}
     pool = [
         (m.skill_name, getattr(m, "frequency", 0) or 0)
@@ -191,12 +192,14 @@ def _gap_hints(gaps: list[str], truly_missing) -> dict[str, tuple[str, int, int]
     try:
         pool_sig = [(nm, fq, sig_lemmas(nm)) for nm, fq in pool]
     except Exception:
+        logger.warning("gap_hints_pool_sig_failed", exc_info=True)
         return {}
     hints: dict[str, tuple[str, int, int]] = {}
     for g in gaps or []:
         try:
             gs = sig_lemmas(g)
         except Exception:
+            logger.warning("gap_hints_gap_sig_failed", exc_info=True)
             continue
         if not gs:
             continue

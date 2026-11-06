@@ -111,13 +111,23 @@ async def save_coverage_from_json(json_path: Path | None = None, run_id: str | N
     count = 0
 
     async with pool.acquire() as conn:
+        # Один запрос на все дисциплины вместо N row-lookup'ов внутри цикла записи.
+        dns = [disc_name.lower().replace("_", " ") for disc_name in report]
+        rows = await conn.fetch(
+            "SELECT id, LOWER(name) AS lowered FROM disciplines WHERE LOWER(name) = ANY($1::text[])",
+            dns,
+        )
+        id_by_name: dict[str, int] = {}
+        for row in rows:
+            # setdefault сохраняет первое совпадение, как fetchrow в прежнем цикле.
+            id_by_name.setdefault(row["lowered"], row["id"])
+
         for disc_name, disc_data in report.items():
             dn = disc_name.lower().replace("_", " ")
-            disc_row = await conn.fetchrow("SELECT id FROM disciplines WHERE LOWER(name)=$1", dn)
-            if not disc_row:
+            disc_id = id_by_name.get(dn)
+            if disc_id is None:
                 continue
 
-            disc_id = disc_row["id"]
             skills = disc_data.get("skills", [])
             market_skills = disc_data.get("market_skills", [])
 

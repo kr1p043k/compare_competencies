@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { VacancyCard } from "./VacancyCard";
 import { VacancyDetailPanel } from "./VacancyDetailPanel";
@@ -128,6 +128,10 @@ interface VacanciesListProps {
   pipelinePeriod?: number;
   canRunPipeline?: boolean;
 }
+
+// Строки списка не перерисовываются от ререндеров VacanciesList
+// (health-poll и статусы пайплайна дёргают App сверху): React.memo обёртка.
+const MemoVacancyCard = memo(VacancyCard);
 
 export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onStartPipeline, pipelineMaxPages, pipelinePeriod, canRunPipeline = true }: VacanciesListProps) {
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
@@ -314,7 +318,31 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
 
   const totalPages = Math.ceil(total / itemsPerPage);
 
-  const allCityOptions = [...new Set([...HH_REGIONS, ...availableCities])];
+  // Отдаваемый сервером список уже отфильтрован/отсортирован под текущие
+  // фильтры: мемоизируем производные (склейка городов и массив строк),
+  // чтобы каждый ререндер не пересобирал их заново.
+  const allCityOptions = useMemo(
+    () => [...new Set([...HH_REGIONS, ...availableCities])],
+    [availableCities],
+  );
+
+  // Стабильный колбэк + useMemo на массив строк: вместе с memo(VacancyCard)
+  // исключает перерисовку карточек при ререндерах родителя.
+  const openVacancy = useCallback((v: Vacancy) => {
+    setDrawerVacancy(v);
+  }, []);
+  const vacancyRows = useMemo(
+    () =>
+      vacancies.map((vacancy) => (
+        <MemoVacancyCard
+          key={vacancy.id}
+          vacancy={vacancy}
+          variant={viewMode === "list" ? "list" : "grid"}
+          onOpen={openVacancy}
+        />
+      )),
+    [vacancies, viewMode, openVacancy],
+  );
 
   return (
     <div className="space-y-6">
@@ -351,7 +379,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     <CardDescription>Выберите профессию и города для поиска</CardDescription>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setShowPipelineSetup(false)} title="Свернуть настройки">
+                <Button variant="ghost" size="icon" onClick={() => setShowPipelineSetup(false)} title="Свернуть настройки" aria-label="Свернуть настройки">
                   <ChevronUp className="size-4" />
                 </Button>
               </div>
@@ -680,6 +708,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   variant={viewMode === "grid" ? "default" : "outline"}
                   size="icon"
                   onClick={() => setViewMode("grid")}
+                  aria-label="Отображение: сетка"
+                  aria-pressed={viewMode === "grid"}
                   className={`size-9 ${viewMode === "grid" ? "bg-card text-white hover:bg-muted dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
                 >
                   <LayoutGrid className="size-4" />
@@ -688,6 +718,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   variant={viewMode === "list" ? "default" : "outline"}
                   size="icon"
                   onClick={() => setViewMode("list")}
+                  aria-label="Отображение: список"
+                  aria-pressed={viewMode === "list"}
                   className={`size-9 ${viewMode === "list" ? "bg-card text-white hover:bg-muted dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
                 >
                   <List className="size-4" />
@@ -728,7 +760,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     </div>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setFilterOpen(false)} title="Закрыть">
+                <Button variant="ghost" size="icon" onClick={() => setFilterOpen(false)} title="Закрыть" aria-label="Закрыть фильтры">
                   <X className="size-4" />
                 </Button>
               </div>
@@ -1109,14 +1141,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 : "flex flex-col gap-2"
             }
           >
-            {vacancies.map((vacancy) => (
-              <VacancyCard
-                key={vacancy.id}
-                vacancy={vacancy}
-                variant={viewMode === "list" ? "list" : "grid"}
-                onOpen={(v) => setDrawerVacancy(v)}
-              />
-            ))}
+            {vacancyRows}
           </div>
 
           <VacancyDetailPanel vacancy={drawerVacancy} onClose={() => setDrawerVacancy(null)} />
@@ -1134,6 +1159,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 size="icon"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1 || loading}
+                aria-label="Предыдущая страница"
                 className="size-10"
               >
                 <ChevronLeft className="size-4" />
@@ -1174,6 +1200,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 size="icon"
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages || loading}
+                aria-label="Следующая страница"
                 className="size-10"
               >
                 <ChevronRight className="size-4" />

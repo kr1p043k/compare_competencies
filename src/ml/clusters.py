@@ -5,7 +5,7 @@ import math
 import re
 import sys
 from collections import Counter
-from datetime import datetime
+from datetime import UTC, datetime
 
 import structlog
 
@@ -120,7 +120,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
         return False
 
     labels_list = list(clusterer.labels_) if hasattr(clusterer, "labels_") else []
-    unique_labels = sorted(set(l for l in labels_list if l >= 0))
+    unique_labels = sorted(set(label for label in labels_list if label >= 0))
     logger.info("clustering_completed", clusters=len(unique_labels))
 
     _CLUSTER_STOP = frozenset({
@@ -145,7 +145,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
     cluster_skill_freqs: list[Counter] = []
     cluster_sizes: list[int] = []
     for cl_id in unique_labels:
-        indices = [i for i, l in enumerate(labels_list) if l == cl_id]
+        indices = [i for i, label in enumerate(labels_list) if label == cl_id]
         cluster_sizes.append(len(indices))
         cluster_vacs = [prepared[i] for i in indices]
         cf: Counter = Counter()
@@ -180,13 +180,13 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
     if save_report:
         report_dir = config.REPORTS_DIR
         report_dir.mkdir(parents=True, exist_ok=True)
-        report_path = report_dir / f"cluster_report_{level}_{datetime.now():%Y%m%d_%H%M%S}.json"
+        report_path = report_dir / f"cluster_report_{level}_{datetime.now(UTC):%Y%m%d_%H%M%S}.json"
         report = {
             "level": level,
             "total_vacancies": len(prepared),
             "num_clusters": len(clusters_out),
             "clusters": clusters_out,
-            "generated_at": str(datetime.now()),
+            "generated_at": str(datetime.now(UTC)),
         }
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report, f, ensure_ascii=False, indent=2)

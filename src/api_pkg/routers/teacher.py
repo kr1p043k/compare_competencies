@@ -87,6 +87,23 @@ def _norm_skill(skill: str) -> str:
     return " ".join((skill or "").lower().split())
 
 
+# Первый символ, с которого внешняя строка в Excel/LibreOffice трактуется как
+# формула (formula injection). Кавычка впереди превращает такое значение в текст.
+_EXCEL_DANGEROUS_PREFIX = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _excel_safe(value: str | int | float | None) -> str | int | float | None:
+    """Нейтрализовать formula injection для строки перед записью в .xlsx.
+
+    Ячейка, начинающаяся с `=`, `+`, `-`, `@`, таба или `\r`, при открытии файла
+    становится живой формулой. Префикс `'` заставляет Excel хранить её как текст.
+    Числа и None не трогаем.
+    """
+    if isinstance(value, str) and value.startswith(_EXCEL_DANGEROUS_PREFIX):
+        return "'" + value
+    return value
+
+
 def _load_foundational() -> list[str]:
     try:
         data = _load_json(_foundational_path())
@@ -973,11 +990,16 @@ async def export_vacancies_excel(request: Request, search: str | None = None,
                        for s in (skills or []) if s]
         skills_str = ", ".join(skill_names[:15])
         exp_text = _classify_experience(vac.get("experience"), vac.get("name") or "")
-        rows.append({"ID": str(vac.get("hh_id") or ""), "Название": vac.get("name") or "",
-                     "Работодатель": vac.get("employer_name") or "", "Город": vac.get("area_name") or "",
+        # Все текстовые колонки с внешними данными (hh.ru) пропускаем через
+        # _excel_safe, чтобы строка `=CMD(...)` не стала формулой при открытии.
+        # Числовые поля оставляем как есть (порядок и имена колонок не меняем).
+        rows.append({"ID": _excel_safe(str(vac.get("hh_id") or "")),
+                     "Название": _excel_safe(vac.get("name") or ""),
+                     "Работодатель": _excel_safe(vac.get("employer_name") or ""),
+                     "Город": _excel_safe(vac.get("area_name") or ""),
                      "Зарплата от": vac.get("salary_from"), "Зарплата до": vac.get("salary_to"),
-                     "Опыт": exp_text, "Навыки": skills_str,
-                     "Ссылка": vac.get("alternate_url") or ""})
+                     "Опыт": _excel_safe(exp_text), "Навыки": _excel_safe(skills_str),
+                     "Ссылка": _excel_safe(vac.get("alternate_url") or "")})
     if not rows:
         raise HTTPException(status_code=404, detail="No vacancies match filters")
     df = pd.DataFrame(rows)

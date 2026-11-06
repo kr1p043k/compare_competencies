@@ -1,12 +1,8 @@
 """Scheduler tests: settings persistence, due logic, busy guard, profiles override."""
-import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest  # noqa: E402
-
-sys.modules.setdefault("shap", MagicMock())
-sys.modules.setdefault("cv2", MagicMock())
 
 import src.pipeline.background_collector as sched  # noqa: E402
 from src.pipeline.background_collector import (  # noqa: E402

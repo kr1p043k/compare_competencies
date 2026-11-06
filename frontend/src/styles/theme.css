@@ -115,7 +115,9 @@
   --accent: #172554;
   --accent-foreground: #bfdbfe;
 
-  --destructive: #f87171;
+  /* #fb8f8f: контраст на --card (#111a2c) = 7.80:1 (было #f87171, 6.29:1),
+   * при этом белый текст на dark:bg-destructive/60 остаётся >= 4.5:1 (4.88). */
+  --destructive: #fb8f8f;
   --destructive-foreground: #1f1215;
   --success: #34d399;
   --success-soft: #052e22;

@@ -16,10 +16,7 @@ class _Entry:
     def resolve(self) -> Any:
         if self._singleton and self._resolved:
             return self._instance
-        if self._factory is not None:
-            val = self._factory()
-        else:
-            val = self._instance
+        val = self._factory() if self._factory is not None else self._instance
         if self._singleton:
             self._instance = val
             self._resolved = True

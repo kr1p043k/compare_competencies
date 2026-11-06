@@ -8,7 +8,7 @@ import contextlib
 import json
 import logging
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import matplotlib.dates as mdates
@@ -64,7 +64,7 @@ class TrendAnalyzer:
                 frequencies = filtered
                 logger.info("snapshot_filtered", skills_count=len(frequencies))
 
-            ref = as_of or datetime.now()
+            ref = as_of or datetime.now(UTC)
             month = ref.strftime("%Y-%m")
             day = ref.strftime("%Y-%m-%d")
 

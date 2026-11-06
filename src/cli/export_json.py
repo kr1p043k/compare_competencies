@@ -61,7 +61,7 @@ async def main() -> None:
             data = []
             for row in rows:
                 d = {}
-                for col in inspect(model).columns.keys():
+                for col in inspect(model).columns:
                     val = getattr(row, col)
                     if isinstance(val, datetime):
                         d[col] = val.isoformat()

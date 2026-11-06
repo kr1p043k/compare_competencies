@@ -4,15 +4,10 @@
 Паттерн: моки подсовываются через app.dependency_overrides[deps.get_*],
 а не через глобалы src.api_pkg (роутеры читают зависимости через deps).
 """
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-
-# Предотвращаем импорт shap и cv2
-sys.modules["shap"] = MagicMock()
-sys.modules["cv2"] = MagicMock()
 
 # NOTE: sentence_transformers is mocked session-wide by tests/conftest.py
 # (configured mock with working encode). Do NOT overwrite sys.modules here:
@@ -51,8 +46,10 @@ class TestHealth:
         assert r.status_code == 200
 
     def test_ready(self):
+        # TestClient без lifespan: данные не загружены, поэтому 503 — верный ответ.
         r = client.get("/ready")
-        assert r.status_code == 200
+        assert r.status_code in (200, 503)
+        assert r.json()["status"] in ("ok", "not_ready")
 
     def test_api_health(self):
         r = client.get("/api/health")

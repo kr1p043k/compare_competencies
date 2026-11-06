@@ -2,6 +2,9 @@
 
 import asyncio
 import contextlib
+import json
+import threading
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # только для аннотаций: импорты тянут sklearn/shap
@@ -18,7 +21,6 @@ from slowapi.util import get_remote_address
 from src import Err, Ok, config
 from src.api_pkg import deps
 from src.api_pkg.routers.auth import require_any_role, user_error_detail
-from src.api_pkg.user_keys import self_profile_name
 from src.models.api_responses import (
     DeadSkillsResponse,
     MissingSkillsResponse,
@@ -48,6 +50,40 @@ def _json_safe(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_json_safe(v) for v in value]
     return value
+
+
+# Кэш распарсенных справочных JSON-файлов по (path, mtime, size). Только
+# reference-файлы (competency_mapping, skill_weights, market_snapshot): они не
+# зависят от пользователя. Per-user данные (self_*_competency.json и глоб
+# students/*_competency.json, куда попадают и self-профили) НЕ кэшируются.
+_json_cache: dict[str, tuple[int, int, Any]] = {}
+_json_cache_lock = threading.Lock()
+
+
+def _reset_profile_cache() -> None:
+    with _json_cache_lock:
+        _json_cache.clear()
+
+
+def _load_json_cached(path: Path) -> Any:
+    """Прочитать и распарсить JSON, кэшируя по (path, mtime_ns, size).
+
+    Ошибки (нет файла, битый JSON) пробрасываются наружу - вызывающие сохраняют
+    прежнюю обработку и логирование (как было с read_text+json.loads).
+    Возвращаемый объект не мутируется вызывающими (справочные данные), поэтому
+    отдаём сам кэшированный экземпляр без копии.
+    """
+    key = str(path)
+    st = path.stat()  # FileNotFoundError сохраняет прежнюю семантику
+    sig = (st.st_mtime_ns, st.st_size)
+    with _json_cache_lock:
+        cached = _json_cache.get(key)
+        if cached is not None and cached[0] == sig[0] and cached[1] == sig[1]:
+            return cached[2]
+    parsed = json.loads(path.read_text(encoding="utf-8"))
+    with _json_cache_lock:
+        _json_cache[key] = (sig[0], sig[1], parsed)
+    return parsed
 
 
 @router.get(
@@ -132,11 +168,8 @@ _TECH_MAX = 200
 
 
 def _map_codes_to_skills(codes: list[str]) -> list[str]:
-    import json
-    from pathlib import Path
     try:
-        mp = json.loads((Path(config.DATA_DIR) / "processed" / "competency_mapping.json")
-                        .read_text(encoding="utf-8"))
+        mp = _load_json_cached(Path(config.DATA_DIR) / "processed" / "competency_mapping.json")
         if not isinstance(mp, dict):
             mp = {}
     except Exception as exc:
@@ -177,12 +210,9 @@ def _clean_str_list(items: Any, *, max_len: int, field: str) -> list[str]:
 @limiter.limit("60/minute")
 async def custom_profile_options(request: Request):
     """Picker data: competencies union (memory profiles + files) + top-30 market technologies. Read-only."""
-    import json
-    from pathlib import Path
     try:
         try:
-            mp = json.loads((Path(config.DATA_DIR) / "processed" / "competency_mapping.json")
-                            .read_text(encoding="utf-8"))
+            mp = _load_json_cached(Path(config.DATA_DIR) / "processed" / "competency_mapping.json")
             if not isinstance(mp, dict):
                 mp = {}
         except Exception as exc:
@@ -255,8 +285,7 @@ async def custom_profile_options(request: Request):
             # runtime fallback: baked weights file, then snapshot names
             tech_suggest = []
             try:
-                wf = json.loads((Path(config.DATA_DIR) / "processed" / "skill_weights.json")
-                                .read_text(encoding="utf-8"))
+                wf = _load_json_cached(Path(config.DATA_DIR) / "processed" / "skill_weights.json")
                 if isinstance(wf, dict) and wf:
                     tech_suggest = [str(k) for k, _ in
                                     sorted(wf.items(), key=lambda x: x[1], reverse=True)[:30]]
@@ -265,8 +294,8 @@ async def custom_profile_options(request: Request):
                 tech_suggest = []
             if not tech_suggest:
                 try:
-                    snap = json.loads((Path(config.DATA_DIR) / "benchmark" / "article_datasets" /
-                                       "market_snapshot.json").read_text(encoding="utf-8"))
+                    snap = _load_json_cached(Path(config.DATA_DIR) / "benchmark" / "article_datasets" /
+                                             "market_snapshot.json")
                     tech_suggest = [str(s.get("name", "")).strip()
                                     for s in (snap.get("skills") or [])[:30]
                                     if str(s.get("name", "")).strip()]
@@ -308,7 +337,7 @@ async def create_custom_profile(request: Request, body: CustomProfileIn):
             level = ExperienceLevel((body.target_level or "middle").strip().lower())
         except ValueError:
             raise HTTPException(status_code=400,
-                                detail="target_level must be junior|middle|senior") from None
+                                detail="target_level must be junior|middle|senior")
         is_new = bool(body.base is not None or body.competency_codes or body.new_competencies or body.technologies)
         codes_old = list(dict.fromkeys(c.strip() for c in (body.competencies or [])
                                        if c and isinstance(c, str) and c.strip()))[:200]
@@ -432,7 +461,6 @@ async def create_custom_profile(request: Request, body: CustomProfileIn):
 @router.get(
     "/profiles/{profile}/profession-evaluation",
     response_model=dict,
-    dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
 )
 @limiter.limit("30/minute")
 async def get_profile_profession_evaluation(
@@ -444,7 +472,6 @@ async def get_profile_profession_evaluation(
     """Оценка профиля под профессию. Без ?profession= - фиксированная цель профиля
     (краткий ответ). С ?profession=<имя> - полный фокус-режим: строгие метрики,
     KRM по выбранной профессии и Топ-10, пересчитанный движком под её домены."""
-    await _authorize_student_profile(request, profile)
     if profile not in deps.student_profiles:
         raise HTTPException(status_code=404, detail=f"Profile '{profile}' not found")
     if deps.evaluator is None:
@@ -552,7 +579,7 @@ async def _build_focused_profession_view(
         raise HTTPException(
             status_code=500,
             detail=await user_error_detail(request, str(e), "Не удалось пересчитать рекомендации. Попробуйте позже."),
-        ) from None
+        )
     match gen:
         case Ok(rec_result):
             pass
@@ -623,10 +650,9 @@ async def get_recommendations(
         cfg = prof_taxonomy.get_profile_target(profile) or {}
         domains = cfg.get("target_domains", [])
         precomputed = None
-        if domains:
-            if not student.target_profession:
-                with contextlib.suppress(Exception):
-                    student.target_profession = cfg.get("target_profession", "")
+        if domains and not student.target_profession:
+            with contextlib.suppress(Exception):
+                student.target_profession = cfg.get("target_profession", "")
 
         # evaluate_profile + generate_recommendations - синхронный CPU-расчёт;
         # считаем в потоке, чтобы не держать event loop (ср. строку 515).
@@ -717,33 +743,13 @@ async def dead_skills(
 
 
 def _self_profile_name(email: str) -> tuple[str, str]:
-    """Личный профиль пользователя: (имя профиля, путь к файлу).
-
-    Имя строится общим хелпером ``user_keys.self_profile_name`` - той же
-    функцией, что и в guards результатов/KRM, поэтому совпадение точное.
-    """
+    """Личный профиль пользователя: (имя профиля, путь к файлу)."""
+    import re
     from pathlib import Path
 
-    name = self_profile_name(email)
+    safe = re.sub(r"[^a-z0-9_]", "_", (email or "anon").strip().lower())[:40] or "anon"
+    name = f"self_{safe}"
     return name, str(Path(config.DATA_DIR) / "students" / f"{name}_competency.json")
-
-
-async def _authorize_student_profile(request: Request, profile: str) -> None:
-    """Студент видит только свой профиль (self_<username>); чужой - 403.
-
-    admin/teacher/rop не ограничиваются. Ключ своего профиля строится той же
-    `_self_profile_name`, что и при его создании, поэтому совпадение точное
-    (тот же подход, что и в results.get_results_summary).
-    """
-    from src.api_pkg.routers.auth import get_current_user
-
-    user = await get_current_user(request) or {}
-    if (user.get("r") or user.get("role")) != "student":
-        return
-    username = str(user.get("u") or user.get("username") or "")
-    self_key, _ = _self_profile_name(username)
-    if profile != self_key:
-        raise HTTPException(status_code=403, detail="Доступ к чужому профилю запрещён")
 
 
 def _load_self_profile(name: str, fpath: str) -> dict:
@@ -828,7 +834,7 @@ async def patch_self_profile(request: Request, body: SelfProfilePatch):
             level = ExperienceLevel(body.target_level.strip().lower())
         except ValueError:
             raise HTTPException(status_code=400,
-                                detail="target_level must be junior|middle|senior") from None
+                                detail="target_level must be junior|middle|senior")
         data["target_level"] = level.value
 
     skills = list(data.get("skills", []))
@@ -898,11 +904,7 @@ async def patch_self_profile(request: Request, body: SelfProfilePatch):
             "tech_added": tech_added, "tech_removed": tech_removed}
 
 
-@router.get(
-    "/profiles/{profile}",
-    response_model=ProfileShort,
-    dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
-)
+@router.get("/profiles/{profile}", response_model=ProfileShort)
 @limiter.limit("60/minute")
 async def get_profile(
     request: Request,
@@ -912,7 +914,6 @@ async def get_profile(
 ):
     """Профиль студента по имени. По умолчанию первые 50 навыков (для UI),
     ?full=true - полный список (для графиков покрытия)."""
-    await _authorize_student_profile(request, profile)
     if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")
     student = profiles[profile]

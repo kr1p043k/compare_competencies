@@ -25,7 +25,7 @@ async def main(force: bool = False) -> None:
     model = SentenceTransformer(config.EMBEDDING_MODEL)
 
     async with async_session_factory() as session:
-        query = select(Skill).where(Skill.is_active == True)
+        query = select(Skill).where(Skill.is_active)
         if not force:
             query = query.where(Skill.embedding.is_(None))
         result = await session.execute(query)

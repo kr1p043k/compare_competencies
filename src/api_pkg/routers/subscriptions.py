@@ -148,7 +148,7 @@ async def list_notifications(
         .order_by(desc(Notification.created_at))
     )
     if unread_only:
-        query = query.where(Notification.is_read == False)
+        query = query.where(not Notification.is_read)
 
     async with async_session_factory() as session:
         result = await session.execute(query.limit(limit))
@@ -204,7 +204,7 @@ async def unread_count(request: Request, user: dict = Depends(require_auth)):
     async with async_session_factory() as session:
         result = await session.execute(
             select(func.count(Notification.id))
-            .where(Notification.user_id == uid, Notification.is_read == False)
+            .where(Notification.user_id == uid, not Notification.is_read)
         )
         count = result.scalar() or 0
     return {"unread_count": count}

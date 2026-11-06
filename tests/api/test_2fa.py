@@ -248,6 +248,42 @@ async def test_login_requires_totp_and_issues_no_token(env):
     assert body["challenge_id"]
 
 
+async def test_login_503_when_totp_query_fails(env, monkeypatch):
+    """Сбой чтения admin_totp не должен молча выдавать токен (fail-closed)."""
+    from fastapi import HTTPException
+
+    client = env["client"]
+
+    async def _boom(pool, user_id):
+        raise HTTPException(
+            status_code=503, detail="Не удалось проверить второй фактор, повторите позже"
+        )
+
+    monkeypatch.setattr(auth_mod, "_totp_state", _boom)
+    r = await _login(client)
+    assert r.status_code == 503, r.text
+    body = r.json()
+    assert "token" not in body, "токен не должен выдаваться при сбое 2FA"
+    assert "второй фактор" in body["detail"]
+
+
+class _BoomPool:
+    """Пул, у которого любой fetchrow падает: имитация сбоя БД."""
+
+    async def fetchrow(self, *args, **kwargs):
+        raise RuntimeError("db is down")
+
+
+async def test_totp_state_fails_closed_on_db_error():
+    """_totp_state различает "нет строки" и "запрос упал": сбой -> 503."""
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc_info:
+        await auth_mod._totp_state(_BoomPool(), "uid-123")
+    assert exc_info.value.status_code == 503
+    assert "второй фактор" in exc_info.value.detail
+
+
 async def test_verify_issues_token(env):
     client = env["client"]
     token = await _admin_token(client)
@@ -307,6 +343,26 @@ async def test_unknown_challenge_401(env):
         "/api/auth/2fa/verify", json={"challenge_id": "nope-nope-nope", "code": "123456"}
     )
     assert r.status_code == 401, r.text
+
+
+async def test_totp_code_reuse_rejected(env):
+    """Один и тот же TOTP-код нельзя использовать дважды (защита от повтора)."""
+    client = env["client"]
+    token = await _admin_token(client)
+    secret, _ = await _enable(client, token)
+
+    code = _totp(secret)
+    challenge = (await _login(client)).json()["challenge_id"]
+    first = await client.post(
+        "/api/auth/2fa/verify", json={"challenge_id": challenge, "code": code}
+    )
+    assert first.status_code == 200, first.text
+
+    challenge2 = (await _login(client)).json()["challenge_id"]
+    second = await client.post(
+        "/api/auth/2fa/verify", json={"challenge_id": challenge2, "code": code}
+    )
+    assert second.status_code == 401, second.text
 
 
 # --------------------------------------------------------------- recovery

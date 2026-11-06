@@ -49,7 +49,7 @@ async def notify_admins(title: str, body: str, severity: str = "error", article_
     from src.database import async_session_factory
 
     async with async_session_factory() as session:
-        result = await session.execute(select(User.id).where(User.role == "admin", User.is_active == True))
+        result = await session.execute(select(User.id).where(User.role == "admin", User.is_active))
         admin_ids = [str(row[0]) for row in result.all()]
         if not admin_ids:
             logger.warning("system_notify_no_admins", severity=sev)
@@ -195,7 +195,7 @@ async def _has_unread_duplicate(title: str, article_url: str) -> bool:
                 Notification.title == title,
                 Notification.article_url == article_url,
                 Notification.subscription_id.is_(None),
-                Notification.is_read == False,
+                not Notification.is_read,
             )
             .limit(1)
         )

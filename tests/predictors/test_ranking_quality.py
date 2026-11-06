@@ -20,9 +20,6 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-sys.modules.setdefault("shap", MagicMock())
-sys.modules.setdefault("cv2", MagicMock())
-
 from sklearn.metrics import ndcg_score  # noqa: E402
 from sklearn.model_selection import StratifiedShuffleSplit  # noqa: E402
 
