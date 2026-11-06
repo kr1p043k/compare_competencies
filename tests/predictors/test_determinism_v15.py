@@ -12,9 +12,13 @@ SNIPPET = "import json, sys\nsys.path.insert(0, '.')\nfrom src.analyzers.skill_m
 def _run(seed):
     env = dict(os.environ)
     env['PYTHONHASHSEED'] = str(seed)
+    # encoding задаём явно: дочерний процесс печатает UTF-8 (ensure_ascii=False),
+    # а без этого аргумента subprocess декодирует локальной кодировкой консоли
+    # (cp1251 на Windows) и падает с UnicodeDecodeError -> p.stdout is None.
     p = subprocess.run(
         [sys.executable, '-c', SNIPPET],
-        cwd=str(REPO), capture_output=True, text=True, env=env, timeout=300,
+        cwd=str(REPO), capture_output=True, text=True,
+        encoding='utf-8', errors='replace', env=env, timeout=300,
     )
     assert p.returncode == 0, p.stderr[-2000:]
     lines = [l for l in p.stdout.splitlines() if l.startswith('{')]
