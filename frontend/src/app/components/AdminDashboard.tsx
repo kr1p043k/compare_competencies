@@ -15,7 +15,7 @@ import { ApiError, request } from "../../lib/api";
 import { PageHeader } from "./PageHeader";
 import { AdminSecurity } from "./AdminSecurity";
 import { AdminAuditTab } from "./AdminAuditTab";
-import { Skeleton } from "../../design";
+import { AdminUsersTab } from "./AdminUsersTab";
 
 export function AdminDashboard() {
   const RPD_STAGE_LABELS: Record<string, string> = {
@@ -197,16 +197,7 @@ export function AdminDashboard() {
       setLinkSaving(false);
     }
   };
-  const [newUserEmail, setNewUserEmail] = useState("");
-  const [newUserPass, setNewUserPass] = useState("");
-  const [newUserRole, setNewUserRole] = useState("teacher");
-  const [newUserName, setNewUserName] = useState("");
-  const [newUserDirs, setNewUserDirs] = useState<string[]>([]);
   const [directions, setDirections] = useState<any[]>([]);
-  const [editUser, setEditUser] = useState<string>("");
-  const [editUserDirs, setEditUserDirs] = useState<string[]>([]);
-  const [dirMsg, setDirMsg] = useState("");
-  const [userCreated, setUserCreated] = useState("");
   const [importJson, setImportJson] = useState("");
   const [rpdDir, setRpdDir] = useState("09.03.02");
   const [rpdFile, setRpdFile] = useState<File | null>(null);
@@ -404,46 +395,6 @@ export function AdminDashboard() {
     finally { setExportLoading(false); }
   };
 
-  const createUser = async () => {
-    setUserCreated("");
-    try {
-      const d = await request<any>("/api/admin/users/create", {
-        method: "POST",
-        body: {
-          email: newUserEmail,
-          password: newUserPass,
-          role: newUserRole,
-          name: newUserName,
-          directions: newUserRole === "rop" ? newUserDirs : [],
-        },
-      });
-      setUserCreated(d.status === "ok" ? `User created: ${d.email}` : "Failed");
-      if (d.status === "ok") { setNewUserEmail(""); setNewUserPass(""); setNewUserName(""); setNewUserDirs([]); }
-    } catch (e: any) {
-      setUserCreated("Error: " + e.message);
-    }
-  };
-
-  const startEdit = (u: any) => {
-    setEditUser(u.id);
-    setEditUserDirs(u.directions || []);
-    setDirMsg("");
-  };
-
-  const saveDirections = async () => {
-    setDirMsg("");
-    try {
-      const d = await request<any>(`/api/admin/users/${editUser}/directions`, {
-        method: "PUT",
-        body: { directions: editUserDirs },
-      });
-      setDirMsg(d.status === "ok" ? "Сохранено" : "Ошибка");
-      loadData();
-    } catch (e: any) {
-      setDirMsg("Error: " + e.message);
-    }
-  };
-
   const importStudents = async () => {
     setImpMsg("");
     try {
@@ -530,154 +481,9 @@ export function AdminDashboard() {
 
         {/* ── Users tab ── */}
         <TabsContent value="users" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Зарегистрированные пользователи</CardTitle></CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-gray-500 dark:text-slate-400">
-                      <th className="pb-2 font-medium">Имя</th>
-                      <th className="pb-2 font-medium">Логин</th>
-                      <th className="pb-2 font-medium">Роль</th>
-                      <th className="pb-2 font-medium">Направления</th>
-                      <th className="pb-2 font-medium text-right">Запросов</th>
-                    </tr>
-                  </thead>
-                  <tbody aria-busy={loading}>
-                    {loading &&
-                      Array.from({ length: 5 }, (_, i) => (
-                        <tr
-                          key={`users-skeleton-${i}`}
-                          aria-hidden="true"
-                          className="border-b border-gray-100 dark:border-slate-800"
-                        >
-                          <td className="py-2"><Skeleton className="h-4 w-28" /></td>
-                          <td className="py-2"><Skeleton className="h-4 w-24" /></td>
-                          <td className="py-2"><Skeleton className="h-5 w-20 rounded-full" /></td>
-                          <td className="py-2"><Skeleton className="h-4 w-32" /></td>
-                          <td className="py-2">
-                            <span className="flex justify-end"><Skeleton className="h-4 w-8" /></span>
-                          </td>
-                        </tr>
-                      ))}
-                    {users.map((u) => (
-                      <tr key={u.username} className="border-b border-gray-100 dark:border-slate-800">
-                        <td className="py-2 font-medium text-gray-900 dark:text-slate-100">{u.name}</td>
-                        <td className="py-2 text-gray-600 dark:text-slate-400">{u.username}</td>
-                        <td className="py-2">
-                          <Badge variant="outline" className={
-                            u.role === "admin" ? "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800" :
-                            u.role === "teacher" ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800" :
-                            u.role === "rop" ? "bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800" :
-                            "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800"
-                          }>
-                            {u.role === "admin" ? "Админ" : u.role === "teacher" ? "Преподаватель" : u.role === "rop" ? "РОП" : "Студент"}
-                          </Badge>
-                        </td>
-                        <td className="py-2">
-                          {u.role === "rop" ? (
-                            <span className="inline-flex items-center gap-1 flex-wrap">
-                              {(u.directions || []).slice(0, 3).map((d: string) => (
-                                <span key={d} className="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 font-mono">{d}</span>
-                              ))}
-                              {(u.directions || []).length > 3 && (
-                                <span className="text-xs text-gray-400 dark:text-slate-500">+{(u.directions || []).length - 3}</span>
-                              )}
-                              <button
-                                onClick={() => startEdit(u)}
-                                className="ml-1 text-xs text-violet-600 underline cursor-pointer bg-transparent border-0"
-                              >
-                                изм.
-                              </button>
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 dark:text-slate-500">-</span>
-                          )}
-                        </td>
-                        <td className="py-2 text-right text-gray-600 dark:text-slate-400">{u.total_requests}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Создать пользователя</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <Input placeholder="Электронная почта" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} />
-              <Input placeholder="Пароль" type="password" value={newUserPass} onChange={(e) => setNewUserPass(e.target.value)} />
-              <Input placeholder="ФИО" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} />
-              <select value={newUserRole} onChange={(e) => { setNewUserRole(e.target.value); setNewUserDirs([]); }}
-                className="w-full h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm">
-                <option value="teacher">Преподаватель</option>
-                <option value="admin">Администратор</option>
-                <option value="rop">Руководитель ОП</option>
-              </select>
-              {newUserRole === "rop" && (
-                <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 max-h-40 overflow-y-auto space-y-1">
-                  <div className="text-xs text-gray-500 dark:text-slate-400 font-medium">Направления</div>
-                  {directions.map((d) => (
-                    <label key={d.dir_code} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={newUserDirs.includes(d.dir_code)}
-                        onChange={(e) => setNewUserDirs((prev) => e.target.checked ? [...prev, d.dir_code] : prev.filter((x) => x !== d.dir_code))}
-                        className="accent-violet-600"
-                      />
-                      <span className="font-mono text-xs text-gray-600 dark:text-slate-400">{d.dir_code}</span>
-                      <span className="text-xs text-gray-500 dark:text-slate-400 truncate">{d.name}</span>
-                    </label>
-                  ))}
-                  {directions.length === 0 && <div className="text-xs text-gray-400 dark:text-slate-500">Направления не загружены</div>}
-                </div>
-              )}
-              <Button onClick={createUser}>Создать</Button>
-              {userCreated && <p className="text-sm text-green-600">{userCreated}</p>}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Направления РОП</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <select value={editUser} onChange={(e) => {
-                const u = users.find((x) => x.id === e.target.value);
-                setEditUser(e.target.value);
-                setEditUserDirs(u?.directions || []);
-                setDirMsg("");
-              }} className="w-full h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm">
-                <option value="">-- Выберите пользователя --</option>
-                {users.filter((u) => u.role === "rop").map((u) => (
-                  <option key={u.id} value={u.id}>{u.name} ({u.username})</option>
-                ))}
-              </select>
-              {editUser && (
-                <>
-                  <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 max-h-40 overflow-y-auto space-y-1">
-                    {directions.map((d) => (
-                      <label key={d.dir_code} className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={editUserDirs.includes(d.dir_code)}
-                          onChange={(e) => setEditUserDirs((prev) => e.target.checked ? [...prev, d.dir_code] : prev.filter((x) => x !== d.dir_code))}
-                          className="accent-violet-600"
-                        />
-                        <span className="font-mono text-xs text-gray-600 dark:text-slate-400">{d.dir_code}</span>
-                        <span className="text-xs text-gray-500 dark:text-slate-400 truncate">{d.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <Button onClick={saveDirections} className="bg-blue-700 hover:bg-blue-800 transition-colors">Сохранить</Button>
-                  {dirMsg && <p className="text-sm text-green-600">{dirMsg}</p>}
-                </>
-              )}
-            </CardContent>
-          </Card>
+          <AdminUsersTab />
         </TabsContent>
 
-        {/* ── Logs tab ── */}
         <TabsContent value="logs" className="space-y-4">
           <Card>
             <CardHeader>
