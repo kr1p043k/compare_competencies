@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, Suspense, lazy, memo } from "react";
 import { Tabs, TabsContent } from "./components/ui/tabs";
 import ErrorBoundary from "../design/ErrorBoundary";
+import { Skeleton } from "../design";
 const GapAnalysisVisualizer = lazy(() => import("./components/GapAnalysisVisualizer").then(m => ({ default: m.GapAnalysisVisualizer })));
 import { Footer } from "./components/Footer";
 import { VacanciesList } from "./components/VacanciesList";

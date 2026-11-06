@@ -99,8 +99,17 @@ class TestInit:
         monkeypatch.setattr(config, "YC_API_KEY", SecretStr("test-key"))
         monkeypatch.setattr(config, "YC_FOLDER_ID", "test-folder")
         import sys
+        import types
         from unittest.mock import MagicMock
-        sys.modules["openai"] = MagicMock()
+
+        class _StubModule(types.ModuleType):
+            def __getattr__(self, name):
+                if name.startswith("__"):
+                    raise AttributeError(name)
+                return MagicMock()
+
+        # monkeypatch вернёт прежнее значение sys.modules после теста.
+        monkeypatch.setitem(sys.modules, "openai", _StubModule("openai"))
         try:
             engine = RecommendationEngine(use_llm=True)
             assert engine.use_llm is True

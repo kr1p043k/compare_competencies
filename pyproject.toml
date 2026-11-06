@@ -67,6 +67,13 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
 
+[tool.ruff.lint.per-file-ignores]
+# FastAPI: Depends(...) в значении по умолчанию — это контракт, а не ошибка.
+"src/api_pkg/routers/*.py" = ["B008"]
+# Тесты: имена моков с большой буквы, распаковка в match, длинные фикстуры,
+# импорты после патча sys.modules (заглушки обязаны идти первыми).
+"tests/**/*.py" = ["N806", "F841", "E501", "E402"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 

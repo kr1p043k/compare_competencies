@@ -47,6 +47,11 @@ def _db_reachable() -> bool:
 pytestmark = pytest.mark.skipif(not _db_reachable(), reason="local postgres unavailable")
 
 
+def _totp_secret() -> str:
+    """Случайный base32-секрет для прямой записи в admin_totp."""
+    return auth_mod._generate_totp_secret()
+
+
 def _totp(secret: str) -> str:
     return auth_mod._totp_now(secret)
 
@@ -120,12 +125,19 @@ async def env() -> AsyncIterator[dict[str, Any]]:
         academic_mod.limiter.reset()
     await auth_mod._ensure_totp_table(pool)
     await _make_user(pool)
+    # 2FA включена: сценарии ниже проверяют именно включённый рубильник.
+    from src.api_pkg.security_settings import set_two_factor_enabled
+    await set_two_factor_enabled(pool, True)
 
     app = create_app()
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
             yield {"client": client, "pool": pool}
     finally:
+        with contextlib.suppress(Exception):
+            from src.api_pkg.security_settings import set_two_factor_enabled as _set
+
+            await _set(pool, False)
         await _drop_user(pool)
         dbmod.pool = old
         await pool.close()
@@ -163,8 +175,13 @@ def _sso(client: AsyncClient, username: str = USERNAME):
 async def test_sso_admin_with_totp_returns_challenge(env, fake_sso):
     """Админ с подтверждённым TOTP: SSO выдаёт challenge, а не токен."""
     client = env["client"]
-    token = await _admin_token(client)
-    await _enable(client, token)
+    pool = env["pool"]
+    await pool.execute(
+        "INSERT INTO admin_totp (user_id, secret, confirmed) "
+        "SELECT id, $1, true FROM users WHERE lower(email) = lower($2) "
+        "ON CONFLICT (user_id) DO UPDATE SET confirmed = true",
+        _totp_secret(), EMAIL,
+    )
 
     r = await _sso(client)
     assert r.status_code == 200, r.text
@@ -174,12 +191,18 @@ async def test_sso_admin_with_totp_returns_challenge(env, fake_sso):
     assert body["challenge_id"]
 
 
-async def test_sso_admin_without_totp_issues_token(env, fake_sso):
-    """Админ без TOTP: SSO выдаёт токен - как /auth/login (2FA необязателен)."""
+async def test_sso_admin_without_totp_requires_enrolment(env, fake_sso):
+    """Админ без TOTP при включённом рубильнике получает пропуск, не токен.
+
+    Токен здесь означал бы обход второго фактора: у кого есть hub-JWT,
+    тот вошёл бы без кода."""
     client = env["client"]
     r = await _sso(client)
     assert r.status_code == 200, r.text
-    assert r.json().get("token"), "без TOTP SSO должен выдавать токен"
+    body = r.json()
+    assert body.get("status") == "totp_setup_required", body
+    assert "token" not in body
+    assert body.get("enroll_id")
 
 
 async def test_sso_non_admin_issues_token(env, fake_sso):

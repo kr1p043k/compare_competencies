@@ -97,6 +97,12 @@ async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
             yield {"client": client, "pool": pool}
     finally:
+        # Вернуть рубильник в исходное (выключенное) состояние: иначе флаг
+        # протечёт в следующие тестовые модули.
+        with contextlib.suppress(Exception):
+            from src.api_pkg.security_settings import set_two_factor_enabled
+
+            await set_two_factor_enabled(pool, False)
         await _drop_user(pool)
         dbmod.pool = old
         await pool.close()

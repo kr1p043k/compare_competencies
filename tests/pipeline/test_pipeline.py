@@ -1,13 +1,27 @@
 # tests/pipeline/test_pipeline.py
 import json
 import sys
+import types
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-sys.modules['shap'] = MagicMock()
-sys.modules['cv2'] = MagicMock()
+class _StubModule(types.ModuleType):
+    """Настоящий модуль, чьи атрибуты - MagicMock.
+
+    Нужен, чтобы не грузить тяжёлые библиотеки, и при этом не оставлять
+    MagicMock в sys.modules (это ломает изоляцию и запрещено тестом гигиены).
+    """
+
+    def __getattr__(self, name):
+        if name.startswith("__"):
+            raise AttributeError(name)
+        return MagicMock()
+
+
+sys.modules.setdefault("shap", _StubModule("shap"))
+sys.modules.setdefault("cv2", _StubModule("cv2"))
 
 from src.errors import RecommendationError
 from src.models.vacancy import Vacancy

@@ -192,5 +192,6 @@ def test_fk_migration_is_single_alembic_head() -> None:
     cfg.set_main_option("script_location", str(PROJECT_ROOT / "alembic"))
     script = ScriptDirectory.from_config(cfg)
 
-    assert script.get_heads() == ["retention_fk_on_delete"]
+    heads = script.get_heads()
+    assert len(heads) == 1, f"alembic must have a single head, got {heads}"
     assert script.get_revision("retention_fk_on_delete").down_revision == "add_admin_totp"

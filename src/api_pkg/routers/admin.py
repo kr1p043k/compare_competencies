@@ -1474,6 +1474,12 @@ async def frontend_log(request: Request, body: FrontendLogRequest):
 
 ws_log_router = APIRouter(tags=["logs-ws"])
 
+#: Период keepalive-опроса сокета и пере-проверки сессии.
+_WS_LOOP_INTERVAL_SEC = 30.0
+_WS_SESSION_RECHECK_SEC = 30.0
+#: Жёсткий лимит жизни соединения: долгий сокет переживает отзыв токена.
+_WS_MAX_LIFETIME_SEC = 30.0 * 60.0
+
 _TAIL_POLL_SEC = 0.7
 _TAIL_INITIAL_LINES = 400
 _TAIL_MAX_SEND = 200
@@ -1566,14 +1572,33 @@ async def admin_logs_ws(websocket: WebSocket):
 
     stop = asyncio.Event()
     tail_task = asyncio.create_task(_tail_backend_log(websocket, stop))
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    last_recheck = started
     try:
         while True:
             try:
-                await asyncio.wait_for(websocket.receive_text(), timeout=30)
+                await asyncio.wait_for(
+                    websocket.receive_text(), timeout=_WS_LOOP_INTERVAL_SEC
+                )
             except TimeoutError:
-                # Клиент жив - просто keepalive-пауза
-                continue
+                pass  # клиент жив, просто нет сообщений
             except Exception:
+                break
+
+            now = loop.time()
+            if now - last_recheck >= _WS_SESSION_RECHECK_SEC:
+                last_recheck = now
+                session_user = await resolve_session(eff_token)
+                if session_user is None or session_user.get("r") != "admin":
+                    logger.warning(
+                        "admin_logs_ws_session_invalid",
+                        uid=(session_user or {}).get("uid"),
+                    )
+                    await websocket.close(code=4001, reason="Session invalid")
+                    break
+            if now - started >= _WS_MAX_LIFETIME_SEC:
+                await websocket.close(code=1000, reason="Socket lifetime exceeded")
                 break
     finally:
         stop.set()

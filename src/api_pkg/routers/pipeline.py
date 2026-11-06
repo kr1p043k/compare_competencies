@@ -1014,6 +1014,11 @@ async def get_gap_progress(task_id: str, request: Request):
 
 _ws_clients: set[WebSocket] = set()
 
+#: Как часто пере-проверять сессию, пока сокет открыт (отзыв токена, смена роли).
+_WS_SESSION_RECHECK_SEC = 30.0
+#: Жёсткий лимит жизни соединения: WebSocket не должен жить дольше.
+_WS_MAX_LIFETIME_SEC = 30.0 * 60.0
+
 
 @router.websocket("/pipeline/ws")
 async def pipeline_ws(websocket: WebSocket):
@@ -1049,9 +1054,23 @@ async def pipeline_ws(websocket: WebSocket):
 
     await websocket.accept()
     _ws_clients.add(websocket)
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    last_recheck = started
     try:
         prev_data = ""
         while True:
+            now = loop.time()
+            if now - last_recheck >= _WS_SESSION_RECHECK_SEC:
+                last_recheck = now
+                session_user = await resolve_session(eff_token)
+                if session_user is None:
+                    logger.warning("pipeline_ws_session_invalid")
+                    await websocket.close(code=4001, reason="Session invalid")
+                    break
+            if now - started >= _WS_MAX_LIFETIME_SEC:
+                await websocket.close(code=1000, reason="Socket lifetime exceeded")
+                break
             raw = None
             for fp in (PIPELINE_PROGRESS_FILE, GAP_PROGRESS_FILE):
                 try:

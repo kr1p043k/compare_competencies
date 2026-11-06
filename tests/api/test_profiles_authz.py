@@ -11,14 +11,24 @@
 student на свой -> 200, admin -> 200.
 """
 import sys
+import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
 # shap/cv2 не установлены в CI, но подтягиваются при импорте app.
-sys.modules["shap"] = MagicMock()
-sys.modules["cv2"] = MagicMock()
+class _StubModule(types.ModuleType):
+    """Модуль-заглушка: атрибуты - MagicMock, сам объект - настоящий ModuleType."""
+
+    def __getattr__(self, name):
+        if name.startswith("__"):
+            raise AttributeError(name)
+        return MagicMock()
+
+
+sys.modules.setdefault("shap", _StubModule("shap"))
+sys.modules.setdefault("cv2", _StubModule("cv2"))
 
 import src.analyzers.skills.profession_taxonomy as prof_tax_mod  # noqa: E402
 from src import Ok  # noqa: E402
