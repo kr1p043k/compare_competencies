@@ -88,12 +88,9 @@ docs/pentest-*.md
 # –абочие аудиты и заметки: только локально
 NOTES-*.md
 
-<<<<<<< HEAD
 # локальные креды (пароли, ключи), не коммитить
 .secrets/
-=======
 # локальные прогоны покрыти€
 cov.out.log
 cov.err.log
 run_cov.cmd
->>>>>>> origin/for_Nikita
