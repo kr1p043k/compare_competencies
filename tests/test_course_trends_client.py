@@ -31,7 +31,7 @@ def patch_transport(monkeypatch, handler):
         # Сохраняем headers/timeout исходного вызова: UA и таймаут - часть
         # контракта (WAF режет не-браузерный UA), терять их нельзя.
         kwargs.pop("timeout", None)
-        return real_client(transport=httpx.MockTransport(handler), *args,
+        return real_client(*args, transport=httpx.MockTransport(handler),
                            timeout=5.0, **kwargs)
 
     monkeypatch.setattr(ct.httpx, "Client", fake_client)

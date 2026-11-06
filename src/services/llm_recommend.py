@@ -134,7 +134,7 @@ def _build_prompt(context_txt: str, items: list[dict]) -> str:
     shown = items[:_MAX_BASE_ITEMS]
     lines: list[str] = []
     for i, r in enumerate(shown):
-        lines.append("%d. %s (score=%s)" % (i + 1, _skill_of(r), _score_of(r)))
+        lines.append(f"{i + 1}. {_skill_of(r)} (score={_score_of(r)})")
     base_txt = "\n".join(lines)
     while base_txt and len(base_txt) + len(ctx) + 700 > _PROMPT_BUDGET:
         shown = shown[:-1]

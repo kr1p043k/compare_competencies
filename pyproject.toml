@@ -72,7 +72,8 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
 "src/api_pkg/routers/*.py" = ["B008"]
 # Тесты: имена моков с большой буквы, распаковка в match, длинные фикстуры,
 # импорты после патча sys.modules, вложенные with для моков.
-"tests/**/*.py" = ["N806", "F841", "E501", "E402", "SIM117"]
+"tests/**/*.py" = ["N806", "N803", "N812", "N814", "N817", "E741", "B017",
+                    "F841", "E501", "E402", "SIM117"]
 # CLI и загрузчики: окружение (dotenv, кодировка консоли, sys.path) обязано
 # быть настроено до импорта src — E402 здесь ожидаем.
 "src/cli/*.py" = ["E402"]
@@ -80,7 +81,7 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
 "src/pipeline/helpers.py" = ["E402"]
 "src/loaders_student/student_loader.py" = ["E402"]
 # ML: матрица признаков традиционно называется X.
-"src/predictors/ltr_recommendation_engine.py" = ["N806"]
+"src/predictors/ltr_recommendation_engine.py" = ["N806", "N803"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

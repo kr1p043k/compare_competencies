@@ -263,9 +263,12 @@ async def _flush_to_db() -> None:
     _resolve_buffer.clear()
     try:
         for e in entries:
-            if e.get("dedupe") and e.get("article_url"):
-                if await _has_unread_duplicate(e["title"], e["article_url"]):
-                    continue
+            if (
+                e.get("dedupe")
+                and e.get("article_url")
+                and await _has_unread_duplicate(e["title"], e["article_url"])
+            ):
+                continue
             await notify_admins(
                 title=e["title"],
                 body=e["body"],

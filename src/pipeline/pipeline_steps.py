@@ -107,7 +107,8 @@ class SpamFilterStep(PipelineStage):
             df = parser.aggregate_to_dataframe(vacancies, quality_report)
             excel_name = f"vacancies_{self.args.query.replace(' ', '_')}.xlsx"
             match parser.save_to_excel(df, excel_name):
-                case Ok(_): pass
+                case Ok(_):
+                    pass
                 case Err(e):
                     logger.warning("excel_save_failed", error=str(e))
 

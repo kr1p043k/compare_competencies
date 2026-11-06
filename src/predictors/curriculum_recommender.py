@@ -307,10 +307,8 @@ class CurriculumRecommender:
         for s in coverage.gaps_list:
             if self._is_fragment(s):
                 continue
-            if _ksa_types.get(s) == "knowledge":
-                cls = "academic"  # DB ground truth beats text heuristics (v37)
-            else:
-                cls = _classify_skill(s, self.skill_types)
+            # DB ground truth beats text heuristics (v37)
+            cls = "academic" if _ksa_types.get(s) == "knowledge" else _classify_skill(s, self.skill_types)
             hint = _hints.get(s)
             # Честный спрос: точное число вакансий из БД вместо
             # «ничего нет» для редких, но реальных навыков (k-means: 5).
@@ -542,10 +540,13 @@ class CurriculumRecommender:
             if not r.type or not r.message:
                 logger.info("rec_invalid_dropped", reason="empty_type_or_message")
                 continue
-            if r.type in ("add_new_content", "cross_reference", "review_content", "foundational"):
-                if sk and len(sk) < 2:
-                    logger.info("rec_invalid_dropped", reason="short_skill", skill=sk)
-                    continue
+            if (
+                r.type in ("add_new_content", "cross_reference", "review_content", "foundational")
+                and sk
+                and len(sk) < 2
+            ):
+                logger.info("rec_invalid_dropped", reason="short_skill", skill=sk)
+                continue
             if r.type == "add_new_content" and sk.lower() in matched:
                 logger.info("rec_invalid_dropped", reason="already_covered", skill=sk)
                 continue

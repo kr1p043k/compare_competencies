@@ -123,7 +123,11 @@ class TestCheckClusters:
 
         import scripts.check_clusters as cc
         # Проверяем, что скрипт выводит информацию о кластере
-        cc.main() if hasattr(cc, 'main') else exec(open(cc.__file__).read())
+        if hasattr(cc, 'main'):
+            cc.main()
+        else:
+            with open(cc.__file__, encoding='utf-8') as fh:
+                exec(fh.read())
         captured = capsys.readouterr()
         assert "Кластер 0" in captured.out or "python" in captured.out
 
@@ -143,6 +147,10 @@ class TestCheckClusters:
             # Убедимся, что модуль не был импортирован ранее: удалим из sys.modules
             if 'scripts.check_clusters' in sys.modules:
                 del sys.modules['scripts.check_clusters']
-            exec(open(Path(__file__).parent.parent.parent / "scripts" / "check_clusters.py", encoding='utf-8').read())
+            with open(
+                Path(__file__).parent.parent.parent / "scripts" / "check_clusters.py",
+                encoding='utf-8',
+            ) as fh:
+                exec(fh.read())
         found = sum(1 for call in mock_print.call_args_list if "модель не найдена" in str(call))
         assert found >= 3

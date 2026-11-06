@@ -611,11 +611,6 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             stratify=y_train if len(set(y_train.tolist())) > 1 else None,
         )
         # группы для val: порядок строк train уже сгруппирован по qid
-        train_qids = []
-        pos = 0
-        for c in g_train:
-            train_qids.extend([pos] * 0)  # placeholder, replaced below
-            pos += 1
         # Проще: qid каждой строки train известен - восстанавливаем из групп.
         qids_train: list[int] = []
         for qi, c in enumerate(g_train):

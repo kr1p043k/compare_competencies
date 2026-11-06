@@ -585,7 +585,7 @@ def rebuild(args=None) -> Result[None, str]:
     console_header("ПОЛНАЯ ПЕРЕСБОРКА")
     logger.info("full_rebuild_started")
 
-    DATA = config.DATA_DIR
+    DATA = config.DATA_DIR  # noqa: N806 — осознанное имя
     to_remove = [
         DATA / "cache" / "parsed_skills.joblib",
         DATA / "processed" / "skill_weights.json",

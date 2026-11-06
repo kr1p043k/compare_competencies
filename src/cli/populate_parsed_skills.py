@@ -52,7 +52,7 @@ async def _populate(run_id: str, force_all: bool) -> None:
             return
         print(f"Found {total_count} vacancies to parse")
 
-        BATCH = 100
+        BATCH = 100  # noqa: N806 — осознанное имя
         last_id = "00000000-0000-0000-0000-000000000000"
         processed = 0
         while True:

@@ -89,7 +89,7 @@ async def test_sessions_count_respects_activity_window():
     pool = await _connect()
     old = dbmod.pool
     dbmod.pool = pool
-    tag = "t-gap2-%d" % os.getpid()
+    tag = f"t-gap2-{os.getpid()}"
     try:
         uid = await pool.fetchval("SELECT id FROM users LIMIT 1")
         if uid is None:

@@ -28,7 +28,7 @@ def test_all_fk_columns_have_index():
     from src.models.krm_models import Base
 
     missing = [
-        "%s.%s" % (t.name, c.name)
+        f"{t.name}.{c.name}"
         for t in Base.metadata.tables.values()
         for c in t.columns
         if c.foreign_keys and not c.index

@@ -25,7 +25,7 @@ class TestResultLaws:
     def test_err_unwrap_raises(self, e):
         try:
             Err(e).unwrap()
-            assert False, "Expected RuntimeError"
+            raise AssertionError("Expected RuntimeError")
         except RuntimeError:
             pass
 

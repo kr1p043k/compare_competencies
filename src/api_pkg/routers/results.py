@@ -107,12 +107,9 @@ async def get_results_summary(
             if candidate in evaluations:
                 self_key = candidate
                 break
-        if self_key:
-            evaluations = {self_key: evaluations[self_key]}
-        else:
-            # Своего профиля ещё нет: показывать чужие архетипы нельзя, иначе
-            # студент примет их за собственную оценку.
-            evaluations = {}
+        # Своего профиля ещё нет: показывать чужие архетипы нельзя, иначе
+        # студент примет их за собственную оценку.
+        evaluations = {self_key: evaluations[self_key]} if self_key else {}
 
     if evaluations:
         return {

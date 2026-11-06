@@ -26,7 +26,7 @@ class SnapshotTrendAnalyzer:
     def _normalize_freq(self, freq: dict[str, int]) -> dict[str, int]:
         """Normalize freq dict: merge aliases, apply user overrides."""
         freq = dict(freq)
-        CUR_MERGE = {"linux": ["администрирование linux"]}
+        CUR_MERGE = {"linux": ["администрирование linux"]}  # noqa: N806 — осознанное имя
         for target, sources in CUR_MERGE.items():
             for src in sources:
                 if src in freq:

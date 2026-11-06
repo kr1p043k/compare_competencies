@@ -288,7 +288,8 @@ class TestSkillExtractorExtract:
         manifest_path = cache_path.with_suffix(".manifest.json")
         manifest_path.write_text("{}", encoding="utf-8")
         incompatible = MagicMock()
-        from src import Ok; incompatible.is_compatible.return_value = Ok(False)
+        from src import Ok
+        incompatible.is_compatible.return_value = Ok(False)
         with patch("src.pipeline.skill_extractor.ArtifactManifest.load",
                    return_value=Ok(incompatible)):
             extractor._check_manifest(cache_path)

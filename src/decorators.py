@@ -41,7 +41,7 @@ def timed_async(log_key: str = ""):
     return timed(log_key)
 
 
-class timed_block:
+class timed_block:  # noqa: N801 — осознанное имя
     """Context manager for timing inline blocks.
 
     Usage:

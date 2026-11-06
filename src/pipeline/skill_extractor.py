@@ -81,10 +81,7 @@ class SkillExtractor:
                     case _:
                         pass
 
-            if cached_result:
-                # Протухший кэш (частоты есть, hybrid пуст) - игнорируем, считаем заново,
-                # иначе WeightCleaning получит пустой вход и gap-analysis упадёт.
-                if not cached_result.get("hybrid_weights"):
+            if (cached_result) and (not cached_result.get("hybrid_weights")):
                     logger.warning("parse_cache_stale_hybrid_empty_recompute")
                     cached_result = None
             if cached_result:
@@ -128,7 +125,8 @@ class SkillExtractor:
             )
 
             match parser.save_processed_frequencies(skill_freq, apply_filter=not self.args.no_filter):
-                case Ok(_): pass
+                case Ok(_):
+                    pass
                 case Err(e):
                     logger.warning("save_processed_frequencies_failed", error=str(e))
             print_top_skills(skill_freq)

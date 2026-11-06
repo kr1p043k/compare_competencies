@@ -233,7 +233,7 @@ def extract_ksa_skills(text: str) -> dict:
         # Внутри фразы KSA ('применять подходы УК-4 к решению задач') это
         # контент: прежний search() переключал парсер на фантомную
         # компетенцию и терял остаток секции (P-ksa, 2026-10-14).
-        cm_line = line.lstrip("-•\u2013\u2022 ")
+        cm_line = line.lstrip("-•\u2013\u2022 ")  # noqa: B005 - набор символов, не подстрока
         cm = COMP_PATTERN.match(cm_line)
         ksa_matches = list(ksa_multi.finditer(line))
 

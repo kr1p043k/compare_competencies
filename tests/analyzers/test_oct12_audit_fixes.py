@@ -96,7 +96,7 @@ def test_morph_keeps_symbolic_skills():
 def test_match_cache_flag_sensitive():
     m = _matcher({"python": 10})
     m.match("python")
-    assert any(isinstance(k, tuple) for k in m._match_cache.keys())
+    assert any(isinstance(k, tuple) for k in m._match_cache)
     _ = MagicMock()
 
 

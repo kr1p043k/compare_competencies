@@ -307,9 +307,7 @@ def _is_usable_forecast(r, min_freq: float = 0) -> bool:
     """Годен ли прогноз для топа: есть горизонт (не flat/insufficient) и частота."""
     if getattr(r, "forecast_months", 0) == 0:
         return False
-    if min_freq and r.current_frequency < min_freq:
-        return False
-    return True
+    return not (min_freq and r.current_frequency < min_freq)
 
 
 def _select_observed_direction(items: list[dict], direction: str) -> list[dict]:

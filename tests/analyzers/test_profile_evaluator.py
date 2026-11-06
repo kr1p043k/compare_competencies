@@ -681,7 +681,9 @@ class TestProfileEvaluatorFull:
                     "fastapi": SkillMetrics(skill="fastapi", user_level=0.0),
                 }
                 for m in metrics.values():
-                    m.gap_j = 0.5; m.gap_m = 0.5; m.gap_s = 0.5
+                    m.gap_j = 0.5
+                    m.gap_m = 0.5
+                    m.gap_s = 0.5
                 mock_metrics.return_value = Ok(metrics)
 
                 result = evaluator.evaluate_profile(student).unwrap()

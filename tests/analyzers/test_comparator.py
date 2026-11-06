@@ -487,7 +487,8 @@ class TestCompetencyComparatorFull:
         # Манифест пусть будет совместим - подменим его
         with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest") as MockManifest:
             mock_manifest = MockManifest.load.return_value
-            from src import Ok; mock_manifest.is_compatible.return_value = Ok(True)
+            from src import Ok
+            mock_manifest.is_compatible.return_value = Ok(True)
 
             comp.build_market_index([], level="middle")  # список не важен, загрузится из кэша
 

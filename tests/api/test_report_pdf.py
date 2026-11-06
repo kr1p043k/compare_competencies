@@ -72,8 +72,8 @@ def test_builder_cyrillic():
     import json
 
     from src.reports.pdf_report import build_profile_pdf
-    d = json.load(open("data/result/base/full_recommendations_base.json",
-                       encoding="utf-8"))
+    with open("data/result/base/full_recommendations_base.json", encoding="utf-8") as fh:
+        d = json.load(fh)
     blob = build_profile_pdf("base", d, "data/result/reports")
     assert blob[:5] == b"%PDF-"
     text = blob.decode("latin-1", errors="ignore")

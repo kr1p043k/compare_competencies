@@ -209,7 +209,7 @@ class TestCorrelationCaps:
             "src.analyzers.skills.skill_correlation.SkillNormalizer.normalize",
             side_effect=lambda s: __import__("src").Ok(s),
         ):
-            a.fit([["skill-%d" % i for i in range(300)]])
+            a.fit([[f"skill-{i}" for i in range(300)]])
         # Частоты полные (линейно), а квадратичная часть (пары) срезана до C(80,2)
         assert len(a._cooccurrence) <= 80 * 79 // 2
 
@@ -465,7 +465,8 @@ class TestPipelineDataFixes:
         # Кап 0.3 должен подаваться как «+30% и более», а не ровные +30%.
         import re
 
-        src = open("src/predictors/recommendation_engine.py", encoding="utf-8").read()
+        with open("src/predictors/recommendation_engine.py", encoding="utf-8") as fh:
+            src = fh.read()
         assert "+30% и более" in src
         assert re.search(r"Топ роста \(\+[^)]*%\)", src) is None or "+30% и более" in src
 
