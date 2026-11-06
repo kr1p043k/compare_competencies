@@ -38,13 +38,27 @@ def _load_audit() -> Any:
     Скрипт - не пакет, поэтому грузим через importlib (как `curriculum_years.py`).
     Модуль аудита при импорте выполняет только `import psycopg` и определения
     функций, побочных эффектов нет.
+
+    Аудит импортирует `_dsn` как модуль верхнего уровня (он рассчитан на запуск
+    из своей директории), поэтому на время exec_module кладём `scripts/` первым
+    в sys.path. Иначе под uvicorn `from _dsn import ...` падает, а запасной
+    `from scripts._dsn import ...` перехватывает чужой пакет `scripts` из
+    site-packages - и /teacher/intake-comparison отвечает 500.
     """
-    spec = importlib.util.spec_from_file_location(
-        "audit_curriculum_coverage", ROOT / "scripts" / "audit_curriculum_coverage.py"
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    scripts_dir = str(ROOT / "scripts")
+    with contextlib.suppress(ValueError):
+        sys.path.remove(scripts_dir)
+    sys.path.insert(0, scripts_dir)
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "audit_curriculum_coverage", ROOT / "scripts" / "audit_curriculum_coverage.py"
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    finally:
+        with contextlib.suppress(ValueError):
+            sys.path.remove(scripts_dir)
     return module
 
 
