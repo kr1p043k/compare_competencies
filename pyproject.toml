@@ -64,6 +64,19 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+# Осознанные исключения (проверены вручную, см. комментарии выше блока).
+ignore = [
+    "E402",  # импорт после sys.path.insert / load_dotenv - обязательный порядок
+    "B008",  # Depends()/Body() в дефолтах - штатный FastAPI
+    "N806",  # X, X_train и подобные - конвенция ML
+    "N803",  # X как имя аргумента - конвенция ML
+    "B005",  # .strip() с набором символов, а не строкой
+]
+
+[tool.ruff.lint.per-file-ignores]
+# CLI и точки входа намеренно настраивают окружение до импортов.
+"src/cli/*" = ["E402"]
+"src/pipeline/teacher_analysis_runner.py" = ["E402"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

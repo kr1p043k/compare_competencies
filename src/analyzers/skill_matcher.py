@@ -686,9 +686,11 @@ class SkillMatcher:
             # and   _word_match(rn, mn) == rn word inside mn
             qpat = _word_pattern(mn)
             skip = False
-            if rpd_pats:
-                if any(p.search(mn) for p in rpd_pats) or any(qpat.search(rn) for rn in rpd_normalized):
-                    skip = True
+            if rpd_pats and (
+                any(p.search(mn) for p in rpd_pats)
+                or any(qpat.search(cand) for cand in rpd_normalized)
+            ):
+                skip = True
             mn_folds: set[str] = set()
             mn_fold_pats: list = []
             if not skip and rpd_fold_pats:

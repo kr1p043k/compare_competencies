@@ -6,7 +6,7 @@ import shutil
 import threading
 import time
 import uuid
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 import structlog
@@ -181,7 +181,7 @@ _bootstrap_lock = asyncio.Lock()
 _bootstrap_running = False
 
 
-class PipelineAction(str, Enum):
+class PipelineAction(StrEnum):
     FULL_CYCLE = "full-cycle"
     REBUILD = "rebuild"
     TRAIN_CLUSTERS = "train-clusters"

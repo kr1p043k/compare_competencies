@@ -232,9 +232,7 @@ def _is_skill_like_ksa(text: str) -> bool:
     if t.startswith(("при наличии", "в случае", "при условии", "если ", "при отсутствии")):
         return False
     # Обрывки слов/символы, не похожие на навык
-    if len(t) <= 60 and len(t.split()) == 1 and any(ch.isdigit() for ch in t):
-        return False
-    return True
+    return not (len(t) <= 60 and len(t.split()) == 1 and any(ch.isdigit() for ch in t))
 
 
 def _enhance_disciplines_with_gap_analysis(

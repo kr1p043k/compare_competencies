@@ -423,12 +423,11 @@ class CoverageAnalyzer:
 
             total_weight = sum(_w(s) for s, _ in top_market)
             covered_weight = sum(_w(s) for s in top_covered)
-            if total_weight > 0:
-                market_weight_coverage = round(covered_weight / total_weight, 4)
-            else:
-                # Weights exist but none of the top skills are in them: fall
-                # back to the unweighted ratio rather than reporting 0%.
-                market_weight_coverage = top_coverage
+            # If weights exist but none of the top skills are in them, fall
+            # back to the unweighted ratio rather than reporting 0%.
+            market_weight_coverage = (
+                round(covered_weight / total_weight, 4) if total_weight > 0 else top_coverage
+            )
         else:
             market_weight_coverage = top_coverage
 

@@ -41,7 +41,7 @@ def timed_async(log_key: str = ""):
     return timed(log_key)
 
 
-class timed_block:
+class TimedBlock:
     """Context manager for timing inline blocks.
 
     Usage:
@@ -61,3 +61,7 @@ class timed_block:
     def __exit__(self, *args):
         elapsed = time.perf_counter() - self._start
         self._logger.info("timed", function=self.log_key, elapsed_sec=round(elapsed, 4))
+
+
+# Историческое имя: используется в src.pipeline.runner и тестах.
+timed_block = TimedBlock

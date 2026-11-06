@@ -40,7 +40,7 @@ class RetryPolicy:
 
     def execute(self, fn: Callable[..., Result[T, DomainError]], *args: Any, **kwargs: Any) -> Result[T, DomainError]:
         """Sync retry with time.sleep - для синхронных контекстов (CLI, thread pool).
-        
+
         Для async-контекстов используйте `execute_async()`.
         """
         last_error: DomainError | None = None

@@ -946,10 +946,10 @@ async def export_vacancies_excel(request: Request, search: str | None = None,
     # память. Берём max_rows+1, чтобы отличить «ровно max_rows» от «больше»,
     # и просим сузить фильтры вместо тихого усечения данных.
     recs = await pool.fetch(
-        """SELECT hh_id, name, employer_name, area_name, salary_from, salary_to,
+        f"""SELECT hh_id, name, employer_name, area_name, salary_from, salary_to,
                   experience, alternate_url, parsed_skills, key_skills
-           FROM vacancies v WHERE %s ORDER BY v.published_at DESC NULLS LAST
-           LIMIT $%d""" % (where, len(params) + 1),
+           FROM vacancies v WHERE {where} ORDER BY v.published_at DESC NULLS LAST
+           LIMIT ${len(params) + 1}""",
         *params, max_rows + 1)
     if len(recs) > max_rows:
         raise HTTPException(
