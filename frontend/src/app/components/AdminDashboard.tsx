@@ -14,6 +14,7 @@ import { reportError } from "./../../lib/errors";
 import { ApiError, request } from "../../lib/api";
 import { PageHeader } from "./PageHeader";
 import { AdminSecurity } from "./AdminSecurity";
+import { AdminAuditTab } from "./AdminAuditTab";
 import { Skeleton } from "../../design";
 
 export function AdminDashboard() {
@@ -523,6 +524,7 @@ export function AdminDashboard() {
           <TabsTrigger value="skills"><Brain className="size-4 mr-2" />Навыки</TabsTrigger>
           <TabsTrigger value="sched"><Clock className="size-4 mr-2" />Фоновые задачи</TabsTrigger>
           <TabsTrigger value="health"><Activity className="size-4 mr-2" />Проверка</TabsTrigger>
+          <TabsTrigger value="audit"><FileText className="size-4 mr-2" />Аудит</TabsTrigger>
           <TabsTrigger value="security"><Shield className="size-4 mr-2" />Безопасность</TabsTrigger>
         </TabsList>
 
@@ -1109,6 +1111,9 @@ export function AdminDashboard() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+        <TabsContent value="audit" className="space-y-4">
+          <AdminAuditTab />
         </TabsContent>
         <TabsContent value="security" className="space-y-4">
           <AdminSecurity />
