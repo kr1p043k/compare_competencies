@@ -104,6 +104,22 @@ def guard_reference_data():
 
 
 @pytest.fixture(autouse=True)
+def isolate_feature_flags(tmp_path_factory, monkeypatch):
+    """Флаги функций живут в отдельном файле на каждый тест.
+
+    Без этого `PUT /admin/features/{flag}` писал в общий
+    `data/settings/features.json`, и включённый в одном тесте флаг 2FA
+    протекал в следующие тесты полного прогона (падали login-тесты).
+    """
+    import src.api_pkg.feature_flags as ff
+
+    path = tmp_path_factory.mktemp("features") / "features.json"
+    monkeypatch.setattr(ff, "_FEATURES_PATH", path)
+    monkeypatch.delenv("FEATURES_FILE", raising=False)
+    return path
+
+
+@pytest.fixture(autouse=True)
 def mock_sleep():
     """Автоматически подменяет time.sleep на заглушку во всех тестах, кроме помеченных @pytest.mark.no_sleep_mock"""
     with patch("time.sleep", return_value=None) as mock:

@@ -12,9 +12,13 @@ SNIPPET = "import json, sys\nsys.path.insert(0, '.')\nfrom src.analyzers.skill_m
 def _run(seed):
     env = dict(os.environ)
     env['PYTHONHASHSEED'] = str(seed)
+    # Явная кодировка: на русской Windows дочерний процесс пишет UTF-8, а
+    # text=True без encoding декодирует cp1251 и падает на кириллице.
+    env['PYTHONIOENCODING'] = 'utf-8'
     p = subprocess.run(
         [sys.executable, '-c', SNIPPET],
-        cwd=str(REPO), capture_output=True, text=True, env=env, timeout=300,
+        cwd=str(REPO), capture_output=True, text=True,
+        encoding='utf-8', errors='replace', env=env, timeout=300,
     )
     assert p.returncode == 0, p.stderr[-2000:]
     lines = [l for l in p.stdout.splitlines() if l.startswith('{')]
