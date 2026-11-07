@@ -7,7 +7,7 @@ queue_system_error безопасно вызывать из sync (CLI) и async 
 import asyncio
 import time
 from collections import deque
-from datetime import datetime
+from datetime import UTC, datetime
 
 import structlog
 
@@ -64,7 +64,7 @@ async def notify_admins(title: str, body: str, severity: str = "error", article_
                 article_url=article_url,
                 article_source=None,
                 severity=sev,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(UTC),
             ))
         await session.commit()
     logger.info("system_notify_sent", severity=sev, admins=len(admin_ids))
