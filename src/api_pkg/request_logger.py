@@ -108,9 +108,45 @@ class LogEntry:
 
 _log_buffer: deque[LogEntry] = deque(maxlen=MAX_LOGS)
 
-#: Таблица audit_logs не создана (миграция не применена): не пытаемся писать
-#: снова и снова, иначе каждый аудируемый запрос тратит соединение на INSERT.
+#: Таблица audit_logs недоступна даже после попытки создать её (нет прав DDL):
+#: больше не пытаемся, иначе каждый аудируемый запрос тратит соединение впустую.
 _audit_table_missing = False
+
+#: DDL-страховка. На части баз миграция add_audit_logs оказалась недостижима
+#: (цепочку миграций переписывали, alembic при этом считает базу на голове),
+#: поэтому таблица создаётся при первой записи - как auth._ensure_totp_table.
+_AUDIT_TABLE_DDL = (
+    """CREATE TABLE IF NOT EXISTS audit_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        actor_id UUID NULL,
+        actor_email TEXT NULL,
+        actor_role VARCHAR(20) NULL,
+        action VARCHAR(100) NOT NULL,
+        target_type VARCHAR(50) NULL,
+        target_id VARCHAR(100) NULL,
+        target TEXT NULL,
+        meta JSONB NULL,
+        ip VARCHAR(45) NULL,
+        request_id VARCHAR(64) NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs (created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_audit_action_created ON audit_logs (action, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_logs (actor_email)",
+    "CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_logs (target_type, target_id)",
+)
+
+
+async def _ensure_audit_table(pool) -> None:
+    """Создать audit_logs, если её нет (гонку с другим воркером не считаем ошибкой)."""
+    for ddl in _AUDIT_TABLE_DDL:
+        try:
+            await pool.execute(ddl)
+        except Exception:
+            # Индекс мог создать параллельный воркер: важно лишь наличие таблицы.
+            exists = await pool.fetchval("SELECT to_regclass('public.audit_logs') IS NOT NULL")
+            if not exists:
+                raise
 
 
 def _to_request_log(e: LogEntry, with_detail: bool = True) -> RequestLog:
@@ -330,7 +366,8 @@ async def _persist_audit_log(request: Request, action: str, target: str, email: 
 
     target_type, target_id = _split_target(target)
     request_id: str | None = getattr(request.state, "request_id", None)
-    try:
+
+    async def _insert() -> None:
         await pool.execute(
             """INSERT INTO audit_logs
                    (id, actor_id, actor_email, actor_role, action, target_type, target_id,
@@ -339,13 +376,21 @@ async def _persist_audit_log(request: Request, action: str, target: str, email: 
             uuid.uuid4(), email, role, action, target_type, target_id,
             target or None, ip, request_id, datetime.now(UTC),
         )
+
+    try:
+        await _insert()
     except Exception as exc:
-        if _is_missing_audit_table(exc):
-            _audit_table_missing = True
-            logger.error("audit_db_table_missing", action=action)
+        if not _is_missing_audit_table(exc):
+            # Security-события не должны теряться тихо: ERROR, а не WARNING.
+            logger.error("audit_db_write_failed", action=action, error=str(exc))
             return
-        # Security-события не должны теряться тихо: ERROR, а не WARNING.
-        logger.error("audit_db_write_failed", action=action, error=str(exc))
+        # Таблицы нет: создаём и пробуем ещё раз (страховка к миграции).
+        try:
+            await _ensure_audit_table(pool)
+            await _insert()
+        except Exception as exc2:
+            _audit_table_missing = True
+            logger.error("audit_db_table_missing", action=action, error=str(exc2))
 
 
 def _split_target(target: str) -> tuple[str | None, str | None]:
