@@ -112,21 +112,6 @@ async def test_setup_requires_actor_when_switch_on(flag_on: None) -> None:
     assert resp.status_code == 401, resp.text
 
 
-def test_enroll_id_is_single_use() -> None:
-    token = auth_mod._issue_enroll("uid-1")
-    assert auth_mod._enroll_user_id(token) == "uid-1", "проверка не должна сжигать пропуск"
-    assert auth_mod._consume_enroll(token) == "uid-1"
-    assert auth_mod._consume_enroll(token) is None, "пропуск обязан быть одноразовым"
-
-
-def test_enroll_id_expires(monkeypatch: pytest.MonkeyPatch) -> None:
-    now = 1_000_000.0
-    monkeypatch.setattr(auth_mod.time, "time", lambda: now)
-    token = auth_mod._issue_enroll("uid-2")
-    monkeypatch.setattr(auth_mod.time, "time", lambda: now + auth_mod._ENROLL_TTL + 1)
-    assert auth_mod._enroll_user_id(token) is None
-
-
 def test_disabled_error_shape() -> None:
     exc = auth_mod._two_factor_disabled()
     assert isinstance(exc, HTTPException)

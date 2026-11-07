@@ -323,16 +323,15 @@ async def sso_login(body: SsoRequest, request: Request, response: Response):
     # код не спрашиваем ни у кого, включён - у всех подключённых.
     if row["role"] == "admin":
         from src.api_pkg.routers.auth import (
-            _issue_challenge,
-            _issue_enroll,
             _totp_state,
             get_two_factor_enabled,
         )
+        from src.api_pkg.twofa_token_store import issue_challenge, issue_enroll
 
         if await get_two_factor_enabled(pool):
             state = await _totp_state(pool, row["id"])
             if state and state.get("confirmed"):
-                challenge = _issue_challenge(str(row["id"]))
+                challenge = await issue_challenge(pool, str(row["id"]))
                 logger.info("sso_totp_required", username=username)
                 return {
                     "status": "totp_required",
@@ -342,7 +341,7 @@ async def sso_login(body: SsoRequest, request: Request, response: Response):
             logger.info("sso_totp_setup_required", username=username)
             return {
                 "status": "totp_setup_required",
-                "enroll_id": _issue_enroll(str(row["id"])),
+                "enroll_id": await issue_enroll(pool, str(row["id"])),
                 "expires_in": 600,
             }
 
