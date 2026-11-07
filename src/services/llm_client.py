@@ -17,7 +17,9 @@ logger = structlog.get_logger(__name__)
 
 # ─────────────── LLM interaction persistence (sync, own connection) ──────────
 
-_sync_url = config.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+_sync_url = config.settings.DATABASE_URL.replace(
+    "postgresql+asyncpg://", "postgresql+psycopg2://", 1
+)
 
 
 @lru_cache(maxsize=1)
