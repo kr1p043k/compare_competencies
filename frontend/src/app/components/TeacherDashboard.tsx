@@ -201,7 +201,7 @@ export function TeacherDashboard() {
   useEffect(() => {
     const root = document.getElementById("teacher-main");
     if (!root) return;
-    const ids = ["t-overview", "t-recs", "t-gaps", "t-trends", "t-discs",
+    const ids = ["t-overview", "t-recs", "t-trends",
       "d-cover", "d-recs", "d-top", "d-gaps", "d-comps"];
     const obs = new IntersectionObserver(
       (entries) => {
@@ -1023,9 +1023,7 @@ export function TeacherDashboard() {
               : [
                   ["t-overview", "Обзор"],
                   ["t-recs", "Рекомендации"],
-                  ["t-gaps", "Разрывы"],
                   ["t-trends", "Тренды"],
-                  ["t-discs", "Дисциплины"],
                 ]
             ).map(([id, label]) => (
               <button
@@ -1184,84 +1182,6 @@ export function TeacherDashboard() {
                 </details>
               )}
 
-              <details id="t-discs" className={`${card} scroll-mt-2`}>
-                <summary className="text-xs font-semibold text-violet-600 cursor-pointer select-none mb-2">
-                  Дисциплины в анализе (учёт)
-                </summary>
-                {(() => {
-                  const aMap = new Map(analysis.disciplines.map((x) => [x.name, x]));
-                  const rows = disciplines.map((k) => ({
-                    name: k.name,
-                    a: aMap.get(k.name),
-                    inScope: k.in_scope ?? true,
-                    src: k.scope_source ?? "default",
-                  }));
-                  const inN = rows.filter((r) => r.inScope).length;
-                  return (<>
-                    <div className="text-xs text-gray-500 dark:text-slate-400 mb-1.5">
-                      В учёте: {inN} из {rows.length}
-                      {scopeMsg && (<span className="ml-2 text-amber-800">{scopeMsg}</span>)}
-                    </div>
-                    {rows.map((r, i) => (
-                    <div key={i} className="flex items-center gap-2 py-1.5 border-b border-gray-200 dark:border-slate-700 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={r.inScope}
-                          aria-label="Учитывать в анализе"
-                        disabled={scopeSaving === r.name}
-                        title={r.src === "methodology" ? "Исключена методологией (можно вернуть)" : "Учитывать в анализе"}
-                        onChange={(e) => saveScope(r.name, e.target.checked)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="size-[15px] accent-violet-600 cursor-pointer shrink-0"
-                      />
-                      <span
-                        className={"text-gray-700 dark:text-slate-300 max-w-[240px] truncate flex-1"}
-                        onClick={() => { if (r.a) { const found = disciplines.find((dd) => dd.name === r.name); if (found) loadDiscipline(found.name); } }}
-                      >
-                        {r.name}
-                        {r.src === "methodology" && (
-                          <span className="ml-1.5 text-xs text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950 rounded px-1 py-0.5">методология</span>
-                        )}
-                        {r.src === "custom" && (
-                          <span className="ml-1.5 text-xs text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950 rounded px-1 py-0.5">вручную</span>
-                        )}
-                      </span>
-                      {r.a ? (
-                        r.a.coverage_level === "no_data" ? (
-                          <span className="text-xs text-gray-500 dark:text-slate-400"
-                                title="По дисциплине нет навыков для анализа: 0% покрытия при нулевых разрывах - это отсутствие данных, а не результат">
-                            нет данных
-                          </span>
-                        ) : (
-                        <div className="flex gap-3">
-                          <span className={`font-semibold ${covTextClass(r.a.coverage_ratio)}`}>{(r.a.coverage_ratio * 100).toFixed(1)}%</span>
-                          {r.a.weighted_coverage != null && (
-                            <span className={`text-xs ${covTextClass(r.a.weighted_coverage)}`} title="Взвешенное покрытие (качество)">Кач.:{(r.a.weighted_coverage * 100).toFixed(0)}%</span>
-                          )}
-                          <span className="text-red-600" title="Пробелов">{r.a.gaps} пр.</span>
-                          <span
-                            className="text-blue-600"
-                            title={
-                              r.a.emerging_growth_skills?.length
-                                ? "Растущие навыки рынка, которых нет в дисциплине: "
-                                  + r.a.emerging_growth_skills
-                                      .map((g) => g.skill + (g.change_pct != null ? ` +${g.change_pct.toFixed(0)}%` : ""))
-                                      .join(", ")
-                                : "Растущие навыки рынка, которых нет в дисциплине"
-                            }
-                          >
-                            {r.a.emerging_growth ?? r.a.emerging} раст.
-                          </span>
-                        </div>
-                        )
-                      ) : (
-                        <span className="text-xs text-gray-400">вне учёта</span>
-                      )}
-                    </div>
-                    ))}
-                  </>);
-                })()}
-              </details>
               </>)}
             </>)}
 

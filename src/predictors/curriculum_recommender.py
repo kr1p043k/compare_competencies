@@ -600,8 +600,8 @@ class CurriculumRecommender:
                     priority="high",
                     skill_name=skill,
                     message=(
-                        f"Навык «{skill}» (частота на рынке: {freq}) — кандидат на добавление. "
-                        f"Куда: {names}{more} ({basis}; покрытие дисциплин {lo:.0%}–{hi:.0%})."
+                        f"Навык «{skill}» (частота на рынке: {freq}) - кандидат на добавление. "
+                        f"Куда: {names}{more} ({basis}; покрытие дисциплин {lo:.0%}-{hi:.0%})."
                     ),
                 ))
 
