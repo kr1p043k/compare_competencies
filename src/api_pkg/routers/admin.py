@@ -57,15 +57,31 @@ class WhitelistBackupResponse(BaseModel):
 IT_SKILLS_PATH = config.DATA_DIR / "reference" / "it_skills.json"
 
 
+#: (mtime, skills) - файл whitelist читался с диска на каждый запрос.
+_whitelist_cache: tuple[float, list[str]] | None = None
+
+
 def _load_whitelist() -> list[str]:
-    return sorted(load_it_skills())
+    global _whitelist_cache
+    try:
+        mtime = IT_SKILLS_PATH.stat().st_mtime
+    except OSError:
+        _whitelist_cache = None
+        return sorted(load_it_skills())
+    if _whitelist_cache is not None and _whitelist_cache[0] == mtime:
+        return list(_whitelist_cache[1])
+    skills = sorted(load_it_skills())
+    _whitelist_cache = (mtime, skills)
+    return list(skills)
 
 
 def _save_whitelist(skills: list[str]):
+    global _whitelist_cache
     IT_SKILLS_PATH.write_text(
         json.dumps(sorted(set(skills)), ensure_ascii=False, indent=2), encoding="utf-8"
     )
     deps.current_skills_set = set(skills)
+    _whitelist_cache = None
 
 
 def _write_json(path: str | Path, data: Any) -> None:
@@ -365,6 +381,17 @@ async def export_excel(request: Request):
     )
 
 
+def _build_full_report_zip(result_dir: Path) -> bytes:
+    """Собрать ZIP с отчётами (синхронно, вызывается через asyncio.to_thread)."""
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fpath in sorted(result_dir.rglob("*")):
+            if fpath.is_file() and fpath.suffix in {".json", ".png", ".xlsx"}:
+                arcname = str(fpath.relative_to(result_dir.parent))
+                zf.write(str(fpath), arcname)
+    return zip_buffer.getvalue()
+
+
 @router.get("/admin/export/full-report", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("2/minute")
 async def export_full_report(request: Request):
@@ -375,17 +402,12 @@ async def export_full_report(request: Request):
     if not result_dir.exists() or not any(result_dir.rglob("*")):
         raise HTTPException(status_code=404, detail="No report data found")
 
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for fpath in sorted(result_dir.rglob("*")):
-            if fpath.is_file() and fpath.suffix in {".json", ".png", ".xlsx"}:
-                arcname = str(fpath.relative_to(result_dir.parent))
-                zf.write(str(fpath), arcname)
-    zip_buffer.seek(0)
+    # Сборка архива - CPU и диски: уносим с event loop.
+    payload = await asyncio.to_thread(_build_full_report_zip, result_dir)
 
     await audit_action(request, "admin.export.full-report")
     return StreamingResponse(
-        iter([zip_buffer.getvalue()]),
+        iter([payload]),
         media_type="application/zip",
         headers={"Content-Disposition": 'attachment; filename="full_report.zip"'},
     )
@@ -1014,13 +1036,22 @@ async def admin_monitoring(
     новым эндпоинтом), что тяжело и для панели, и для клиента. Теперь: фильтр
     по именам, limit/offset и общее число семейств в ответе.
     """
+    wanted = {n.strip() for n in names.split(",") if n.strip()}
+    # Разбор ~сотен семейств метрик - в потоке, а не на event loop.
+    families = await asyncio.to_thread(_parse_metric_families, wanted)
+
+    total = len(families)
+    page = dict(sorted(families.items())[offset: offset + limit])
+    return {"total": total, "limit": limit, "offset": offset, "families": page}
+
+
+def _parse_metric_families(wanted: set[str]) -> dict[str, dict]:
+    """Разобрать экспозицию Prometheus в словарь семейств (в потоке)."""
     from prometheus_client.parser import text_string_to_metric_families
 
     from src.monitoring.metrics import get_metrics
 
     raw, _ = get_metrics()
-    wanted = {n.strip() for n in names.split(",") if n.strip()}
-
     families: dict[str, dict] = {}
     for f in text_string_to_metric_families(raw.decode()):
         if wanted and f.name not in wanted:
@@ -1032,10 +1063,7 @@ async def admin_monitoring(
                 {"name": s.name, "labels": s.labels, "value": s.value} for s in f.samples
             ],
         }
-
-    total = len(families)
-    page = dict(sorted(families.items())[offset: offset + limit])
-    return {"total": total, "limit": limit, "offset": offset, "families": page}
+    return families
 
 
 def _p95_from_buckets(buckets: list[tuple[float, float]]) -> float | None:
@@ -1059,6 +1087,45 @@ def _p95_from_buckets(buckets: list[tuple[float, float]]) -> float | None:
     return max(finite) if finite else None
 
 
+def _metrics_p95_and_busiest() -> tuple[dict[str, float], list[dict[str, Any]]]:
+    """Топ-5 по p95 и топ-5 по числу запросов (синхронно, через to_thread)."""
+    from prometheus_client.parser import text_string_to_metric_families
+
+    from src.monitoring.metrics import get_metrics
+
+    raw, _ = get_metrics()
+    buckets: dict[tuple[str, str], list[tuple[float, float]]] = {}
+    for f in text_string_to_metric_families(raw.decode()):
+        if f.name == "api_request_duration_seconds":
+            for s in f.samples:
+                if s.name.endswith("_bucket"):
+                    key = (s.labels.get("method", ""), s.labels.get("path", ""))
+                    # Бакет +Inf держим как настоящий inf (не подменяем на 1e18),
+                    # иначе p95 из +Inf-бакета вернул бы абсурдное число.
+                    buckets.setdefault(key, []).append(
+                        (float(s.labels.get("le", "+Inf")), s.value)
+                    )
+    p95_by_endpoint: dict[str, float] = {}
+    requests_by_endpoint: dict[str, int] = {}
+    for (method, path), b in buckets.items():
+        b_sorted = sorted(b, key=lambda x: x[0])
+        p95 = _p95_from_buckets(b_sorted)
+        name = f"{method} {path}"
+        if p95 is not None:
+            p95_by_endpoint[name] = p95
+        requests_by_endpoint[name] = int(b_sorted[-1][1]) if b_sorted else 0
+    top_latency = dict(
+        sorted(p95_by_endpoint.items(), key=lambda kv: kv[1], reverse=True)[:5]
+    )
+    top_busiest = [
+        {"endpoint": name, "requests": count}
+        for name, count in sorted(
+            requests_by_endpoint.items(), key=lambda kv: kv[1], reverse=True
+        )[:5]
+    ]
+    return top_latency, top_busiest
+
+
 @router.get("/admin/monitoring/summary", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
 async def admin_monitoring_summary(request: Request):
@@ -1068,44 +1135,13 @@ async def admin_monitoring_summary(request: Request):
     выборкой), busiest_by_requests - топ-5 самых нагруженных (по числу запросов):
     ключ по имени больше не вводит в заблуждение, информация о нагрузке сохраняется.
     """
-    from prometheus_client.parser import text_string_to_metric_families
-
-    from src.monitoring.metrics import get_metrics
-
     out: dict[str, Any] = {"latency_p95_by_endpoint": {}, "busiest_by_requests": [],
                            "errors_1h": {"4xx": 0, "5xx": 0}, "sessions_active": None,
                            "sessions_total_open": None, "recent_runs": [], "freshness": {}}
     try:
-        raw, _ = get_metrics()
-        buckets: dict[tuple[str, str], list[tuple[float, float]]] = {}
-        for f in text_string_to_metric_families(raw.decode()):
-            if f.name == "api_request_duration_seconds":
-                for s in f.samples:
-                    if s.name.endswith("_bucket"):
-                        key = (s.labels.get("method", ""), s.labels.get("path", ""))
-                        # Бакет +Inf держим как настоящий inf (не подменяем на 1e18),
-                        # иначе p95 из +Inf-бакета вернул бы абсурдное число.
-                        buckets.setdefault(key, []).append(
-                            (float(s.labels.get("le", "+Inf")), s.value)
-                        )
-        p95_by_endpoint: dict[str, float] = {}
-        requests_by_endpoint: dict[str, int] = {}
-        for (method, path), b in buckets.items():
-            b_sorted = sorted(b, key=lambda x: x[0])
-            p95 = _p95_from_buckets(b_sorted)
-            name = f"{method} {path}"
-            if p95 is not None:
-                p95_by_endpoint[name] = p95
-            requests_by_endpoint[name] = int(b_sorted[-1][1]) if b_sorted else 0
-        out["latency_p95_by_endpoint"] = dict(
-            sorted(p95_by_endpoint.items(), key=lambda kv: kv[1], reverse=True)[:5]
-        )
-        out["busiest_by_requests"] = [
-            {"endpoint": name, "requests": count}
-            for name, count in sorted(
-                requests_by_endpoint.items(), key=lambda kv: kv[1], reverse=True
-            )[:5]
-        ]
+        latency, busiest = await asyncio.to_thread(_metrics_p95_and_busiest)
+        out["latency_p95_by_endpoint"] = latency
+        out["busiest_by_requests"] = busiest
     except Exception as e:
         logger.warning("monitoring_summary_metrics_failed", error=str(e))
 

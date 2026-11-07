@@ -14,7 +14,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+# .env лежит в корне репозитория, а не в src/: с двумя .parent путь вёл в
+# src/.env, которого нет, и load_dotenv молча ничего не делал.
+ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+load_dotenv(ENV_PATH)
 
 import structlog
 

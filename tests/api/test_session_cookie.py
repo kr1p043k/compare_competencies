@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 import socket
 import urllib.parse
+import uuid
 
 import pytest
 from starlette.responses import Response
@@ -71,7 +72,9 @@ async def test_login_sets_httponly_cookie():
     import src.db as dbmod
     from src.api_pkg import create_app
 
-    email = "cookie-check@example.test"
+    # Уникальный на процесс: прогоны идут параллельно на общей БД,
+    # фиксированный email приводит к гонке delete/insert.
+    email = f"cookie-check-{os.getpid()}-{uuid.uuid4().hex[:8]}@example.test"
     password = "Cookie_Check_123"
     old = dbmod.pool
     pool = await asyncpg.create_pool(TEST_DB_URL, min_size=1, max_size=2, command_timeout=30)
