@@ -2,7 +2,7 @@ name: Загрузка тестов
 
 on:
   # schedule временно отключён: nightly падал каждый день на устаревших шагах
-  # (docker-compose v1, apt-key, неверный путь k6-скрипта). Вернуть cron после
+  # (docker-compose v1, apt-key, отсутствующий .env). Вернуть cron после
   # зелёного ручного прогона.
   # schedule:
   #   - cron: '0 4 * * *'  # каждую ночь в 4 утра МСК
@@ -31,9 +31,14 @@ jobs:
           sudo apt-get install k6
       
       - name: Run load test
-        run: k6 run tests/load/k6_script.js --out json=tests/load/reports/results.json
+        # k6 сам падает с кодом 99 при нарушении thresholds в скрипте -
+        # это основной гейт. --summary-export пишет итоговый JSON-отчёт.
+        run: |
+          mkdir -p tests/load/reports
+          k6 run tests/load/k6_script.js --summary-export=tests/load/reports/results.json
       
       - name: Upload results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: load-test-results
@@ -41,8 +46,15 @@ jobs:
       
       - name: Check thresholds
         run: |
-          # Проверка что ошибки < 5%
-          ERROR_RATE=$(jq '.metrics.errors.rate' tests/load/reports/results.json)
+          # Вторичный fail-closed гейт: если метрики нет или формат изменился,
+          # на выходе 1 и шаг падает. Новый формат summary-export пишет .rate,
+          # старый писал .value.
+          if [ ! -f tests/load/reports/results.json ]; then
+            echo "results.json not found"
+            exit 1
+          fi
+          ERROR_RATE=$(jq -r '.metrics.http_req_failed.rate // .metrics.http_req_failed.value // 1' tests/load/reports/results.json)
+          echo "http_req_failed rate: $ERROR_RATE"
           if (( $(echo "$ERROR_RATE > 0.05" | bc -l) )); then
             echo "Error rate too high: $ERROR_RATE"
             exit 1
