@@ -177,6 +177,32 @@ async def whitelist_backup(request: Request):
 # ---------- Student profiles ----------
 
 
+def _scan_students_dir(students_dir: Path) -> list[dict[str, Any]]:
+    """Сканирует каталог студентов и собирает профили (в потоке, не на event loop)."""
+    students: list[dict[str, Any]] = []
+    for f in sorted(students_dir.iterdir()):
+        if f.suffix not in (".json",):
+            continue
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            skills = (
+                data.get("competencias_actuales")
+                or data.get("навыки")
+                or data.get("skills")
+                or []
+            )
+            students.append(
+                {
+                    "filename": f.name,
+                    "skills_count": len(skills) if isinstance(skills, list) else 0,
+                    "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+                }
+            )
+        except Exception:
+            students.append({"filename": f.name, "skills_count": 0, "modified": ""})
+    return students
+
+
 @router.get("/admin/students", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
 async def list_students(request: Request):
@@ -184,29 +210,7 @@ async def list_students(request: Request):
     students_dir = config.DATA_DIR / "students"
     if not students_dir.exists():
         return {"students": [], "total": 0}
-    files = sorted(students_dir.iterdir())
-    students = []
-    for f in files:
-        if f.suffix in (".json",):
-            try:
-                data = json.loads(f.read_text(encoding="utf-8"))
-                skills = (
-                    data.get("competencias_actuales")
-                    or data.get("навыки")
-                    or data.get("skills")
-                    or []
-                )
-                students.append(
-                    {
-                        "filename": f.name,
-                        "skills_count": len(skills) if isinstance(skills, list) else 0,
-                        "modified": datetime.fromtimestamp(
-                            f.stat().st_mtime
-                        ).isoformat(),
-                    }
-                )
-            except Exception:
-                students.append({"filename": f.name, "skills_count": 0, "modified": ""})
+    students = await asyncio.to_thread(_scan_students_dir, students_dir)
     return {"students": students, "total": len(students)}
 
 
@@ -342,7 +346,7 @@ async def export_excel(request: Request):
     os.close(fd)
     excel_path = Path(name)
     try:
-        df.to_excel(excel_path, index=False, engine="openpyxl")
+        await asyncio.to_thread(df.to_excel, excel_path, index=False, engine="openpyxl")
     except Exception:
         excel_path.unlink(missing_ok=True)
         raise
@@ -450,10 +454,18 @@ async def admin_users(
         total = (
             await session.execute(text(f"SELECT COUNT(*) FROM users u{where_clause}"), params)
         ).scalar_one()
-        ud_result = await session.execute(select(UserDirection.user_id, UserDirection.dir_code))
+        # Направления грузим только для страницы: раньше select без WHERE тянул
+        # всю таблицу user_directions на каждый запрос списка.
+        page_ids = [str(u.id) for u in rows]
         dir_map: dict[str, list[str]] = {}
-        for uid, code in ud_result.all():
-            dir_map.setdefault(str(uid), []).append(code)
+        if page_ids:
+            ud_result = await session.execute(
+                select(UserDirection.user_id, UserDirection.dir_code).where(
+                    UserDirection.user_id.in_(page_ids)
+                )
+            )
+            for uid, code in ud_result.all():
+                dir_map.setdefault(str(uid), []).append(code)
 
     log_counts = get_logs_by_user()
     return {
@@ -989,6 +1001,7 @@ async def admin_sessions(
 
 
 @router.get("/admin/monitoring", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("60/minute")
 async def admin_monitoring(
     request: Request,
     names: str = Query("", description="Фильтр по именам метрик через запятую"),
@@ -1467,7 +1480,10 @@ def _run_export() -> None:
 async def admin_backup_db(request: Request):
     """Create a PostgreSQL dump in data/backups/."""
     from src.cli.backup_db import main as backup_main
-    backup_main()
+
+    # pg_dump - блокирующий внешний процесс: на event loop он останавливает весь
+    # воркер на всё время дампа.
+    await asyncio.to_thread(backup_main)
     await audit_action(request, "admin.db.backup")
     return {"status": "ok", "message": "Backup created"}
 
