@@ -26,7 +26,7 @@
 | oof_platt | 12.3900 | 0.3438 |
 | oof_isotonic | 0.6420 | 0.2260 (winner) |
 
-Platt (log_loss 13.23) и oof_platt (12.39) катастрофически плохо калибруют — модель выдаёт要么 0, либо 1 без градиента. Победитель — `oof_isotonic` (log_loss 0.642). Нужно: (1) убрать platt из serving, (2) добавить oof_isotonic в serving pipeline, (3) документировать.
+Platt (log_loss 13.23) и oof_platt (12.39) катастрофически плохо калибруют — модель выдаёт либо 0, либо 1 без градиента. Победитель — `oof_isotonic` (log_loss 0.642). Нужно: (1) убрать platt из serving, (2) добавить oof_isotonic в serving pipeline, (3) документировать.
 
 - **Файлы:** `scripts/calibrate_ranker.py`, `labeling/calibration_report.json`
 - **Приоритет:** P0
