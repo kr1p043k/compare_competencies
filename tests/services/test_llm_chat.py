@@ -9,6 +9,10 @@ Covers the acceptance criteria:
       text block and does not call the LLM
   (e) append_turn writes exactly one ChatMessage row with the next seq
   (f) build_context enforces the 50/40/15/10 limits
+  (g) build_context with empty sources yields an empty context without
+      raising (fallback to context_key as title, no phantom data)
+  (h) block parsing edge cases: empty blocks list / no "blocks" key /
+      JSON embedded in prose
 """
 
 from __future__ import annotations
@@ -250,6 +254,54 @@ async def _use_default_teacher_loader(tmp_path, monkeypatch):
     assert "Python" in ctx["skills"]
 
 
+# ── (g) build_context без данных: пустой контекст, без исключения ───────────
+
+async def _no_pubs(query: str, limit: int) -> list[dict]:
+    return []
+
+
+async def test_build_context_teacher_empty_payload_is_safe():
+    """Пустой summary/KRM/публикации -> пустой контекст, исключения нет."""
+    ctx = await llm_chat.build_context(
+        "teacher",
+        "09.03.02",
+        summary_loader=lambda dir_code: {},
+        krm_loader=lambda ct, ck: [],
+        pubs_loader=_no_pubs,
+    )
+
+    assert ctx["context_type"] == "teacher"
+    assert ctx["title"] == "09.03.02"  # fallback на context_key
+    assert ctx["metrics"]["coverage"] is None
+    assert ctx["metrics"]["quality"] is None
+    assert ctx["skills"] == []
+    assert ctx["gaps"] == []
+    assert ctx["frontiers"] == []
+    assert ctx["competencies"] == []
+    assert ctx["publications"] == []
+
+
+async def test_build_context_student_empty_payload_is_safe():
+    """Пустые рекомендации -> пустой контекст, исключения нет."""
+    ctx = await llm_chat.build_context(
+        "student",
+        "somebody",
+        recs_loader=lambda profile: {},
+        krm_loader=lambda ct, ck: [],
+        pubs_loader=_no_pubs,
+    )
+
+    assert ctx["context_type"] == "student"
+    assert ctx["title"] == "somebody"
+    assert ctx["metrics"]["coverage"] is None
+    assert ctx["metrics"]["readiness"] is None
+    assert ctx["skills"] == []
+    assert ctx["gaps"] == []
+    assert ctx["frontiers"] == []
+    assert ctx["competencies"] == []
+    assert ctx["publications"] == []
+
+
 # ── ответы LLM: выбор моделей ──────────────────────────────────────────────
 
 def test_answer_text_uses_text_model(monkeypatch):
@@ -311,6 +363,59 @@ def test_answer_blocks_wrong_type_falls_back_to_text(monkeypatch):
     blocks = llm_chat.answer_blocks({}, "сводка")
 
     assert blocks == [{"type": "text", "content": "сводка"}]
+
+
+# ── (h) парсинг блоков: граничные варианты невалидного/обёрнутого JSON ──────
+
+def test_answer_blocks_empty_blocks_list_falls_back_to_text(monkeypatch):
+    """Валидный JSON с пустым списком блоков -> один text-блок."""
+    class Fake:
+        def __init__(self, model=None, **kwargs):
+            pass
+
+        def generate(self, prompt):
+            return '{"blocks": []}'
+
+    monkeypatch.setattr(llm_chat, "LLMClient", Fake)
+
+    blocks = llm_chat.answer_blocks({}, "сводка")
+
+    assert blocks == [{"type": "text", "content": "сводка"}]
+
+
+def test_answer_blocks_json_without_blocks_key_falls_back_to_text(monkeypatch):
+    """Валидный JSON без ключа blocks -> один text-блок."""
+    class Fake:
+        def __init__(self, model=None, **kwargs):
+            pass
+
+        def generate(self, prompt):
+            return '{"items": [{"type": "text", "content": "x"}]}'
+
+    monkeypatch.setattr(llm_chat, "LLMClient", Fake)
+
+    blocks = llm_chat.answer_blocks({}, "сводка")
+
+    assert blocks == [{"type": "text", "content": "сводка"}]
+
+
+def test_answer_blocks_recovers_json_embedded_in_prose(monkeypatch):
+    """JSON обёрнут разговорным текстом - регекс-аварийный путь достаёт блоки."""
+    class Fake:
+        def __init__(self, model=None, **kwargs):
+            pass
+
+        def generate(self, prompt):
+            return (
+                'Вот ваш ответ: {"blocks": [{"type": "metric", "name": "coverage", '
+                '"value": 82}]}. Надеюсь, помог.'
+            )
+
+    monkeypatch.setattr(llm_chat, "LLMClient", Fake)
+
+    blocks = llm_chat.answer_blocks({}, "сводка")
+
+    assert blocks == [{"type": "metric", "name": "coverage", "value": 82}]
 
 
 # ── assess: fallback при выключенном флаге ─────────────────────────────────

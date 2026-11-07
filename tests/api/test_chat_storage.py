@@ -8,7 +8,7 @@ import os
 
 import psycopg2
 import pytest
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.models.krm_models import ChatMessage, ChatThread  # noqa: F401
@@ -155,6 +155,32 @@ def test_cascade_delete_thread_removes_messages(sess: Session, _setup_chat_table
         select(ChatMessage).where(ChatMessage.thread_id == t.id)
     ).scalars().all()
     assert len(cnt) == 0
+
+
+def test_db_level_cascade_delete_raw_sql(
+    sess: Session, _setup_chat_tables, _sync_conn
+) -> None:
+    """ON DELETE CASCADE живёт в самой БД, а не только в ORM.
+
+    ORM-тест выше не отличает FK-каскад от cascade="all, delete-orphan"
+    (krm_models.py:842); этот тест удаляет строку треда raw SQL в обход
+    ORM-сессии - сообщения обязаны исчезнуть силами самой БД
+    (chat_messages_thread_id_fkey, alembic add_chat_storage.py).
+    """
+    t = _make_thread(sess, title="Raw SQL cascade")
+    _make_msg(sess, t, "user", 1, blocks_json={"text": "a"})
+    _make_msg(sess, t, "assistant", 2, blocks_json={"text": "b"})
+    sess.commit()  # строки видны другим соединениям
+
+    cur = _sync_conn.cursor()
+    try:
+        cur.execute("SELECT COUNT(*) FROM chat_messages WHERE thread_id = %s", (t.id,))
+        assert cur.fetchone()[0] == 2
+        cur.execute("DELETE FROM chat_threads WHERE id = %s", (t.id,))
+        cur.execute("SELECT COUNT(*) FROM chat_messages WHERE thread_id = %s", (t.id,))
+        assert cur.fetchone()[0] == 0
+    finally:
+        cur.close()
 
 
 def test_context_type_check_constraint(sess: Session, _setup_chat_tables) -> None:
