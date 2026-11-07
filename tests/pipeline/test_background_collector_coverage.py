@@ -47,16 +47,8 @@ class _Breaker:
 
 def test_seed_defaults_fallbacks_on_broken_settings(tmp_data, monkeypatch):
     class _Boom:
-        @property
-        def BACKGROUND_COLLECTOR_ENABLED(self):
-            raise RuntimeError("no")
-
-        @property
-        def SCHEDULER_COLLECT_INTERVAL_HOURS(self):
-            raise RuntimeError("no")
-
-        @property
-        def SCHEDULER_DAILY_GAP_ENABLED(self):
+        def __getattr__(self, _name):
+            # Любое чтение настройки падает - seed обязан вернуть фолбэки.
             raise RuntimeError("no")
 
     monkeypatch.setattr(sched.config, "settings", _Boom())
