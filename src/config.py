@@ -77,6 +77,9 @@ class Settings(BaseSettings):
 
     # ---------- безопасность ----------
     SECRET_KEY: SecretStr | None = None
+    # Ограничитель частоты. Выключать только для нагрузочных замеров:
+    # иначе результат измеряет работу лимитера, а не сервера.
+    RATELIMIT_ENABLED: bool = True
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8000"
     TOKEN_TTL_DAYS: int = 7
     # Токен для скрейпинга /metrics (Prometheus). Если задан, эндпоинт
