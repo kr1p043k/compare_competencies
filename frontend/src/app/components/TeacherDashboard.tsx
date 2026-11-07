@@ -1141,18 +1141,10 @@ export function TeacherDashboard() {
                 </div>
               )}
 
-                 <div id="t-gaps" className={`${card} scroll-mt-2`}>
-                <div className="text-xs font-semibold text-violet-600 mb-2">Междисциплинарные разрывы</div>
-                 {((analysis.top_cross_discipline_gaps) || []).map((g, i: number) => (
-                  <div key={i} className="flex justify-between py-1 border-b border-gray-200 dark:border-slate-700 text-xs">
-                    <span className="text-red-700 font-medium">{g.skill}</span>
-                    <span className="text-gray-500 dark:text-slate-400">{g.disciplines} дисциплин</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className={card}>
-                <div className="text-xs font-semibold text-violet-600 mb-2">Востребованные навыки рынка</div>
+              <details className={`${card} scroll-mt-2`}>
+                <summary className="text-xs font-semibold text-violet-600 cursor-pointer select-none">
+                  Востребованные навыки рынка
+                </summary>
                 <div className="flex gap-1 flex-wrap">
                    {((analysis.top_emerging_across_all) || []).map((s, i: number) => (
                     <span key={i} className="inline-block px-2 py-0.5 rounded text-xs bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 m-0.5">
@@ -1160,10 +1152,14 @@ export function TeacherDashboard() {
                     </span>
                   ))}
                 </div>
-              </div>
+              </details>
 
               {analysis.trends && (
-                <div id="t-trends" className="flex gap-3 flex-wrap scroll-mt-2">
+                <details id="t-trends" className={`${card} scroll-mt-2`}>
+                  <summary className="text-xs font-semibold text-violet-600 cursor-pointer select-none mb-2">
+                    Растущие и падающие навыки
+                  </summary>
+                <div className="flex gap-3 flex-wrap">
                   {analysis.trends.rising?.length > 0 && (
                     <div className={`${card} flex-1 min-w-[200px]`}>
                       <div className="text-xs font-semibold text-emerald-600 mb-2">Растущие навыки</div>
@@ -1185,10 +1181,13 @@ export function TeacherDashboard() {
                     </div>
                   )}
                 </div>
+                </details>
               )}
 
-              <div id="t-discs" className={`${card} scroll-mt-2`}>
-                <div className="text-xs font-semibold text-violet-600 mb-2">Разбивка по дисциплинам</div>
+              <details id="t-discs" className={`${card} scroll-mt-2`}>
+                <summary className="text-xs font-semibold text-violet-600 cursor-pointer select-none mb-2">
+                  Дисциплины в анализе (учёт)
+                </summary>
                 {(() => {
                   const aMap = new Map(analysis.disciplines.map((x) => [x.name, x]));
                   const rows = disciplines.map((k) => ({
@@ -1262,7 +1261,7 @@ export function TeacherDashboard() {
                     ))}
                   </>);
                 })()}
-              </div>
+              </details>
               </>)}
             </>)}
 
