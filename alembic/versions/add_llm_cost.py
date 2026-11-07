@@ -17,7 +17,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "add_llm_cost"
-down_revision: tuple[str, ...] | str = ("merge_all_heads",)
+down_revision: tuple[str, ...] | str = ("add_chat_storage",)
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
