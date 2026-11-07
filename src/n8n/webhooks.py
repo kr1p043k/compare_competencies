@@ -130,7 +130,7 @@ async def webhook_new_publications(body: NewPublicationsBody, request: Request):
             session.add(notif)
             created.append(notif)
 
-        sub.last_checked_at = datetime.utcnow()
+        sub.last_checked_at = datetime.now(UTC)
         await session.commit()
 
     # Send Telegram if configured
