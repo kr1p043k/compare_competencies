@@ -1,0 +1,68 @@
+# Prometheus alerting rules for Compare Competencies.
+#
+# Every metric referenced below is defined in the application codebase or
+# exported by a scrape target declared in prometheus/prometheus.yml. Comments
+# cite the exact file:line of each metric definition.
+
+groups:
+  - name: compare-competencies
+    rules:
+      # Metric: api_requests_total (Counter, labels method/path/status)
+      # Defined: src/monitoring/metrics.py:32-36
+      # Emitted: src/api_pkg/request_logger.py:448 (status = response.status_code)
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(api_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(api_requests_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP 5xx error rate"
+          description: "5xx responses are {{ $value | humanizePercentage }} of all API requests over the last 5m (threshold 5%)."
+
+      # Metric: api_request_duration_seconds (Histogram, labels method/path/status)
+      # Defined: src/monitoring/metrics.py:25-30
+      # Emitted: src/api_pkg/request_logger.py:449
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(api_request_duration_seconds_bucket[10m])) by (le)
+          ) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency (p95)"
+          description: "p95 API request duration is {{ $value | humanizeDuration }} over the last 10m (threshold 2s)."
+
+      # Metric: pipeline_runs_total (Counter, labels status/trigger)
+      # Defined: src/monitoring/metrics.py:121-125
+      # Incremented on failure: src/pipeline/runner.py:371
+      - alert: PipelineJobFailed
+        expr: increase(pipeline_runs_total{status="failed"}[10m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pipeline run failed"
+          description: "{{ $value | humanize }} pipeline run(s) failed in the last 10m."
+
+      # Metric: pg_up (Gauge, 0/1) exported by postgres-exporter.
+      # Scrape target: docker-compose.yml:229-244 (postgres-exporter),
+      # prometheus/prometheus.yml:17-19 (job 'postgres').
+      # The application exports no DB-up or health-check metric (verified against
+      # src/monitoring/metrics.py and src/api_pkg/routers/health.py), so the DB
+      # up signal comes from the exporter.
+      - alert: DatabaseUnavailable
+        expr: pg_up == 0 or up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database unavailable"
+          description: "PostgreSQL is down (pg_up == 0) or the postgres-exporter scrape target (job 'postgres') is down."
