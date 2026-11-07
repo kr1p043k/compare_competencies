@@ -29,8 +29,15 @@ class LLMClient:
             ) from exc
         self.base_url = base_url or config.OLLAMA_URL
         self.model = model or config.OLLAMA_MODEL
+        # OpenAI-совместимые эндпоинты уже оканчиваются на /v1 (например
+        # шлюз reformboss: http://127.0.0.1:8797/k1/v1). Ollama отдаёт
+        # совместимый API по <host>/v1, поэтому /v1 добавляется только когда
+        # его ещё нет в base_url.
+        api_base = self.base_url.rstrip("/")
+        if not api_base.endswith("/v1"):
+            api_base = f"{api_base}/v1"
         self._client = OpenAI(
-            base_url=f"{self.base_url}/v1",
+            base_url=api_base,
             api_key=api_key or "ollama",
             timeout=120.0,
             max_retries=2,
