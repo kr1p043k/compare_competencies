@@ -667,3 +667,59 @@ async def append_turn(
     finally:
         if owns:
             await session.close()
+
+
+async def get_thread_history(
+    user_id: str | None,
+    context_type: str,
+    context_key: str,
+    *,
+    session: Any | None = None,
+) -> dict[str, Any]:
+    """История треда: ``{"thread_id", "messages": [{"role", "blocks", "ts"}]}``.
+
+    Сообщения упорядочены по ``seq``. Если треда ещё нет - ``thread_id`` = None и
+    пустой список. Ошибки БД пробрасываются вызывающему (как append_turn/
+    get_or_create_thread): тихий swallow скрыл бы потерю данных.
+    """
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from src.database import async_session_factory
+    from src.models.krm_models import ChatThread
+
+    owns = session is None
+    if session is None:
+        session = async_session_factory()
+    try:
+        result = await session.execute(
+            select(ChatThread)
+            .options(selectinload(ChatThread.messages))
+            .where(
+                ChatThread.user_id == user_id,
+                ChatThread.context_type == context_type,
+                ChatThread.context_key == context_key,
+            )
+        )
+        thread = result.scalars().first()
+        if thread is None:
+            return {"thread_id": None, "messages": []}
+        ordered = sorted(thread.messages, key=lambda m: (m.seq or 0))
+        return {
+            "thread_id": thread.id,
+            "messages": [
+                {
+                    "role": m.role,
+                    "blocks": m.blocks_json,
+                    "ts": m.created_at.isoformat() if m.created_at else None,
+                }
+                for m in ordered
+            ],
+        }
+    except Exception:
+        if owns:
+            await session.rollback()
+        raise
+    finally:
+        if owns:
+            await session.close()

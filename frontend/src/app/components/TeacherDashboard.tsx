@@ -5,6 +5,7 @@ import { AnalysisPanel } from "./AnalysisPanel";
 import { MetricsGlossary } from "./MetricsGlossary";
 import { TaxonomyBrowser } from "./TaxonomyBrowser";
 import CompetencyTrendsPanel from "./CompetencyTrendsPanel";
+import { LlmChatPanel } from "./LlmChatPanel";
 import { reportError } from "./../../lib/errors";
 import { ApiError, request } from "../../lib/api";
 
@@ -1560,6 +1561,11 @@ export function TeacherDashboard() {
           </>
         )}
       </div>
+      <LlmChatPanel
+        role="teacher"
+        discipline={selected?.name ?? null}
+        contextLabel={selected?.name ?? null}
+      />
     </div>
   );
 }

@@ -334,6 +334,8 @@ def create_app() -> FastAPI:
     _mount(student_router)
     from src.api_pkg.routers.llm import router as llm_router
     _mount(llm_router)
+    from src.api_pkg.routers.chat import router as chat_router
+    _mount(chat_router)
 
     from src.api_pkg.routers.subscriptions import router as subscriptions_router
     _mount(subscriptions_router)
