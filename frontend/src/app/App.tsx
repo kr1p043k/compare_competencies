@@ -292,7 +292,7 @@ export default function App() {
     const checkResultsReady = async (): Promise<boolean> => {
       try {
         // request() уже отдаёт распарсенный JSON: раньше здесь вызывался
-        // r.ok / r.json() и st всегда был null — проверка готовности не работала.
+        // r.ok / r.json() и st всегда был null - проверка готовности не работала.
         const st = await request<any>("/api/pipeline/status").catch(() => null);
         return !!st?.recommendations_all_ready;
       } catch {
@@ -400,7 +400,7 @@ export default function App() {
   useEffect(() => {
     if (activeTab !== "data" || !isAuth || professionsList.length > 0) return;
     // request() уже возвращает распарсенный JSON (lib/api.ts): раньше здесь
-    // было r.ok ? r.json() — r.ok был undefined и список профессий не грузился.
+    // было r.ok ? r.json() - r.ok был undefined и список профессий не грузился.
     request<any>(`${API}/taxonomy/professions`).catch(() => null)
       .then((d) => {
         const names = ((d?.professions || []) as any[])

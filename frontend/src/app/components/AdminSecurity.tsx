@@ -170,7 +170,7 @@ export function AdminSecurity() {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Выключено — вход по паролю для всех. Включено — код спрашивается у админов,
+          Выключено - вход по паролю для всех. Включено - код спрашивается у админов,
           которые подключили TOTP; остальные при входе проходят настройку.
           Выключение не удаляет подключения.
         </p>
@@ -229,7 +229,7 @@ export function AdminSecurity() {
 
           {recoveryCodes.length > 0 && (
             <div className="rounded-lg border border-amber-300/60 bg-amber-50/60 p-3 text-xs dark:border-amber-900 dark:bg-amber-950/40">
-              <div className="font-medium">Резервные коды — сохраните, показываются один раз</div>
+              <div className="font-medium">Резервные коды - сохраните, показываются один раз</div>
               <div className="mt-2 grid grid-cols-2 gap-1 font-mono text-[11px]">
                 {recoveryCodes.map((c) => <span key={c}>{c}</span>)}
               </div>

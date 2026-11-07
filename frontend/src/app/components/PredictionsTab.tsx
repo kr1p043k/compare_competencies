@@ -328,7 +328,7 @@ function ForecastRow({ item, rank, expanded, onToggle, months }: { item: Forecas
 
 const MIN_POINTS_FOR_CONFIDENCE = 4;
 
-/** Человеческие причины низкой достоверности — без MAPE и интервалов. */
+/** Человеческие причины низкой достоверности - без MAPE и интервалов. */
 function confidenceReasons(item: ForecastItem, confPct: number): string[] {
   const reasons: string[] = [];
   const points = item.data_points ?? 0;

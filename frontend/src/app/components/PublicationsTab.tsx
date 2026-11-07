@@ -72,7 +72,7 @@ export function PublicationsTab() {
   const [searchData, setSearchData] = useState<SearchResponse | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
-  // Глубокий поиск — фоновая задача: обычный запрос читает лишь первые
+  // Глубокий поиск - фоновая задача: обычный запрос читает лишь первые
   // страницы корпуса, поэтому явная кнопка запускает скан на сотни страниц
   // с прогрессом и возможностью отмены.
   const [deepJob, setDeepJob] = useState<DeepSearchStatus | null>(null);
@@ -389,7 +389,7 @@ export function PublicationsTab() {
               </p>
               <p className="mt-1 text-[11px] opacity-80">
                 У hub.sfedu.ru нет полнотекстового индекса: поиск читает первые страницы
-                корпуса, а не весь репозиторий. Уточняйте запрос или выберите тип —
+                корпуса, а не весь репозиторий. Уточняйте запрос или выберите тип -
                 так совпадений в просмотренной части будет больше.
               </p>
             </AlertDescription>

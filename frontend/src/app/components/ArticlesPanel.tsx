@@ -250,7 +250,7 @@ export function ArticlesPanel() {
           <div className="text-xs text-muted-foreground flex flex-wrap gap-3">
             <span>Показано {items.length} из {data?.total ?? 0}</span>
             {years.length > 0 && (
-              <span>Годы: {years[years.length - 1]}–{years[0]}</span>
+              <span>Годы: {years[years.length - 1]}-{years[0]}</span>
             )}
           </div>
 

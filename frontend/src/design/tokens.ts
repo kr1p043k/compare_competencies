@@ -1,7 +1,7 @@
 /**
  * Дизайн-токены для JS/TS-кода: цвета графиков, семантические стили.
  *
- * CSS-переменные живут в `src/styles/theme.css`. Здесь — только то, что нужно
+ * CSS-переменные живут в `src/styles/theme.css`. Здесь - только то, что нужно
  * вычислять в рантайме (Recharts принимает цвета строками, а не классами).
  */
 
@@ -22,7 +22,7 @@ export const chartSeries = [
   chartColor.violet,
 ] as const;
 
-/** Цвет по знаку изменения: рост — зелёный, падение — красный. */
+/** Цвет по знаку изменения: рост - зелёный, падение - красный. */
 export function trendColor(value: number): string {
   if (value > 0) return "var(--success)";
   if (value < 0) return "var(--destructive)";

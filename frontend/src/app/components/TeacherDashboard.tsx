@@ -830,7 +830,7 @@ export function TeacherDashboard() {
                 if (!parts.length) return null;
                 return (
                   <div className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">
-                    источник рынка — {parts.join(", ")}
+                    источник рынка - {parts.join(", ")}
                     {unreliable > 0 && ` · недостоверно (мало навыков): ${unreliable}`}
                   </div>
                 );
@@ -871,7 +871,7 @@ export function TeacherDashboard() {
         <div className="flex-1 overflow-auto">
           <div className="px-4 py-1.5 text-xs text-gray-500 dark:text-slate-400 border-b border-gray-200 dark:border-slate-700">
 {scopeChain ? (
-              <>В наборе {scopeChain.total} · в учёте {scopeChain.in_scope} · в анализе {scopeChain.analyzed ?? "—"}
+              <>В наборе {scopeChain.total} · в учёте {scopeChain.in_scope} · в анализе {scopeChain.analyzed ?? "-"}
                 <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-0.5">
                   исключено методикой: {scopeChain.excluded_manual}, без данных: {scopeChain.excluded_no_data}
                 </div>

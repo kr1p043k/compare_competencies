@@ -117,14 +117,14 @@ function ruPriority(p: string): string {
   return m[(p || "").toUpperCase()] || p;
 }
 
-/** Тон метрики по качеству совпадения: ≥60 — хорошо, 30–59 — средне, ниже — плохо. */
+/** Тон метрики по качеству совпадения: ≥60 - хорошо, 30-59 - средне, ниже - плохо. */
 function scoreTone(score: number): "success" | "warning" | "danger" {
   if (score >= 60) return "success";
   if (score >= 30) return "warning";
   return "danger";
 }
 
-/** Тон бейджа приоритета: высокий — опасность, средний — внимание, низкий — акцент. */
+/** Тон бейджа приоритета: высокий - опасность, средний - внимание, низкий - акцент. */
 const PRIORITY_TONE: Record<string, BadgeTone> = {
   HIGH: "danger",
   MEDIUM: "warning",

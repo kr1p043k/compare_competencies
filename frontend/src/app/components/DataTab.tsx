@@ -214,7 +214,7 @@ export function DataTab({
         </div>
         )}
         <p className="text-xs text-gray-500 dark:text-slate-400">
-          Последняя подгрузка результатов [{profile}]: {(() => {
+          Последняя подгрузка результатов [{profileLabel(profile)}]: {(() => {
             const iso = resultLoadedAt[profile];
             if (!iso) return "ещё не подгружались";
             const d = new Date(iso);

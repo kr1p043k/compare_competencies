@@ -10,7 +10,7 @@ import { EXTERNAL_LINK, OUTLINE_BADGE, TYPE_BADGE, doiHref, errorText, isAbort }
 import { resolveHubLink, type Publication } from "./publicationsFilter";
 
 function formatSize(n: number | null): string {
-  if (n === null || n < 0) return "—";
+  if (n === null || n < 0) return "-";
   if (n < 1024) return `${n} Б`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} КБ`;
   return `${(n / (1024 * 1024)).toFixed(1)} МБ`;

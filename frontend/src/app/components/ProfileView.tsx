@@ -22,7 +22,7 @@ const LEVEL_RU: Record<string, string> = {
 
 export function ProfileView({ data }: ProfileViewProps) {
   const skills = data.skills || [];
-  const show = skills.slice(0, 30);
+  const show = skills;
 
   return (
     <motion.div
@@ -60,9 +60,7 @@ export function ProfileView({ data }: ProfileViewProps) {
             Навыки профиля
           </CardTitle>
           <CardDescription>
-            {skills.length > show.length
-              ? `Первые ${show.length} из ${skills.length} - полный список в gap-анализе`
-              : `Всего: ${skills.length}`}
+            Всего: {skills.length}
           </CardDescription>
         </CardHeader>
         <CardContent>
