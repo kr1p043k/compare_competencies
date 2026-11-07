@@ -5,7 +5,8 @@
  * модуль, чтобы не тянуть auth-заголовки в jsdom), EventSource - фейковый
  * класс с реестром инстансов и emit(). Проверяется контракт панели:
  * история при открытии (и 404 как пустой чат), параметры URL стрима
- * (student: только message; teacher: + discipline), накопление
+ * (student: только message; teacher: + discipline - код направления
+ * вроде 09.03.02, ключ контекста на бэкенде), накопление
  * text-дельт, рендер block-метрики, завершение по done, ошибка с
  * «Повторить», отключённый чат у преподавателя без дисциплины.
  */
@@ -129,19 +130,21 @@ describe("LlmChatPanel", () => {
     expect(vi.mocked(request).mock.calls[0][0]).toBe("/api/student/chat/history");
   });
 
-  it("teacher: история запрашивается с параметром дисциплины", async () => {
+  it("teacher: история запрашивается с кодом направления", async () => {
     const user = userEvent.setup();
     vi.mocked(request).mockResolvedValueOnce({ messages: [] });
 
     render(
-      <LlmChatPanel role="teacher" discipline="Базы данных" contextLabel="Базы данных" />,
+      // discipline - КОД направления (бэкенд-ключ контекста), contextLabel -
+      // человекочитаемая подпись для шапки панели.
+      <LlmChatPanel role="teacher" discipline="09.03.02" contextLabel="Базы данных" />,
     );
     await user.click(screen.getByRole("button", FAB));
 
     await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
     const url = new URL(vi.mocked(request).mock.calls[0][0], "http://localhost");
     expect(url.pathname).toBe("/api/teacher/chat/history");
-    expect(url.searchParams.get("discipline")).toBe("Базы данных");
+    expect(url.searchParams.get("discipline")).toBe("09.03.02");
 
     // Подпись контекста видна в шапке панели.
     expect(screen.getByTitle("Базы данных")).toBeInTheDocument();
@@ -229,9 +232,9 @@ describe("LlmChatPanel", () => {
     expect(screen.queryByText("Ассистент отвечает")).not.toBeInTheDocument();
   });
 
-  it("teacher стрим: URL содержит дисциплину", async () => {
+  it("teacher стрим: URL содержит код направления, а не имя", async () => {
     const user = userEvent.setup();
-    render(<LlmChatPanel role="teacher" discipline="Базы данных" />);
+    render(<LlmChatPanel role="teacher" discipline="09.03.02" />);
     await user.click(screen.getByRole("button", FAB));
 
     const input = await screen.findByLabelText("Сообщение ассистенту");
@@ -240,7 +243,7 @@ describe("LlmChatPanel", () => {
 
     const url = new URL(lastStream().url, "http://localhost");
     expect(url.pathname).toBe("/api/teacher/chat/stream");
-    expect(url.searchParams.get("discipline")).toBe("Базы данных");
+    expect(url.searchParams.get("discipline")).toBe("09.03.02");
     expect(url.searchParams.get("message")).toBe("Что с пробелами?");
   });
 

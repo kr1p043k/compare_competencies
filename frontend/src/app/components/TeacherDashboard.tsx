@@ -1561,9 +1561,13 @@ export function TeacherDashboard() {
           </>
         )}
       </div>
+      {/* Ключ контекста чата - КОД направления (selectedDir, напр. 09.03.02):
+          бэкенд llm_chat строит контекст из data/result/teacher/<код>/_summary.json
+          и krm_disciplines_<код>.json, человеческое имя давало пустой контекст.
+          Подпись в шапке (contextLabel) остаётся человекочитаемой. */}
       <LlmChatPanel
         role="teacher"
-        discipline={selected?.name ?? null}
+        discipline={selectedDir}
         contextLabel={selected?.name ?? null}
       />
     </div>
