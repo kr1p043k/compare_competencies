@@ -15,7 +15,6 @@ import pytest
 import src.loaders.rpd_loader as rl
 from src.loaders.rpd_loader import RPDLoader
 
-
 # ---------- приватные хелперы ----------
 
 
