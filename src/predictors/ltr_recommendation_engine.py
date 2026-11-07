@@ -129,37 +129,56 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
     LTR-движок на XGBoost для персонализированного ранжирования навыков.
     """
 
-    # Canonical artifact written by fit(); when it is absent we fall back to
-    # the best-ranked pre-trained artifact that ships with the repo instead of
-    # failing to load and silently degrading to heuristics.
+    # ────────── Выбор прод-модели (осознанный, сверено с data/model 2026-11-07) ──────────
+    # Критерий выбора: NDCG@10 на human gold
+    # (scripts/eval_frozen.py, data/reports/frozen_eval.json, seed 42):
+    #   ensemble_human 0.7455 | xgb_rank_human 0.7195 | ensemble_final 0.7087 |
+    #   canon 0.6570 | суррогат xgb_regressor на gold не ранжируется (r2 0.7081).
+    #
+    # Приоритет в проде:
+    #   1. ltr_ranker_ensemble_human.joblib (0.7455) - лучшая модель, но её
+    #      артефакта НЕТ в data/models (не поставляется), поэтому она оставлена
+    #      первой на случай переобучения (scripts/make_ensemble.py).
+    #   2. ltr_ranker_xgb_rank_human.joblib (0.7195) - лучшая ДОСТУПНАЯ и
+    #      совместимая по feature-space (8 признаков) human-gold модель; это
+    #      и есть продовая модель по умолчанию.
+    #   3. ltr_ranker_xgb_regressor.joblib - суррогат, обучаемый fit() на
+    #      синтетическом relevance: fallback, когда human-модели нет; он же
+    #      переобучается пайплайном.
+    #
+    # НЕ загружаем (иначе KeyError на инференсе - текущий _extract_features
+    # отдаёт 8 признаков, а эти артефакты требуют 10):
+    #   ltr_ranker_canon.joblib (0.6570) и ltr_ranker_ensemble_final.joblib
+    #   (0.7087) - legacy feature-space (role_freq_normalized + role_lift);
+    #   ltr_ranker_xgb_rank.joblib - старый корпус 272 навыка (KeyError('openapi')).
     MODEL_FILENAME = "ltr_ranker_xgb_regressor.joblib"
-    # Ordered by frozen-split NDCG@10 (scripts/eval_frozen.py, gold.csv, seed 42):
-    #   ensemble_human 0.7455 | xgb_rank_human 0.7195 | canon 0.6570 |
-    #   ensemble_final 0.7087 (different feature space).
-    # ltr_ranker_xgb_rank is excluded: it was trained on the 272-skill corpus
-    # and raises KeyError('openapi') on the current feature space.
+
     MODEL_CANDIDATES = (
         "ltr_ranker_ensemble_human.joblib",
         "ltr_ranker_xgb_rank_human.joblib",
-        "ltr_ranker_canon.joblib",
-        "ltr_ranker_ensemble_final.joblib",
     )
 
     @classmethod
     def _resolve_model_path(cls) -> Path:
-        canonical = config.MODELS_DIR / cls.MODEL_FILENAME
-        if canonical.exists():
-            return canonical
+        """Разрешить путь прод-модели.
+
+        Предпочитает лучшую доступную human-gold модель (MODEL_CANDIDATES,
+        порядок = убывание NDCG@10), затем суррогат (MODEL_FILENAME).
+        Никогда не бросает исключение: если артефактов нет, возвращает путь
+        суррогата, а load_model() вернёт Ok/Err как и раньше.
+        """
         for name in cls.MODEL_CANDIDATES:
             candidate = config.MODELS_DIR / name
             if candidate.exists():
-                logger.warning(
-                    "ltr_model_fallback",
-                    requested=str(canonical),
-                    using=str(candidate),
-                )
                 return candidate
-        return canonical
+        surrogate = config.MODELS_DIR / cls.MODEL_FILENAME
+        if surrogate.exists():
+            logger.warning(
+                "ltr_model_fallback",
+                preferred=cls.MODEL_CANDIDATES[0],
+                using=cls.MODEL_FILENAME,
+            )
+        return surrogate
 
     def __init__(self, model_path: Path | None = None):
         self.vacancy_parser = VacancyParser()

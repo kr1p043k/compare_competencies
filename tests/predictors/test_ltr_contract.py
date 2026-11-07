@@ -28,28 +28,49 @@ class _FixedModel:
 def test_model_candidates_prefer_the_evaluated_best():
     candidates = LTRRecommendationEngine.MODEL_CANDIDATES
     assert candidates[0] == "ltr_ranker_ensemble_human.joblib"
-    # Trained on the old 272-skill corpus and incompatible with the current
-    # feature space; keeping it in the list would break loading.
+    # Second candidate is the best AVAILABLE human-gold model (ensemble_human
+    # is not shipped): xgb_rank_human, 8-feature and compatible with the
+    # current runtime.
+    assert candidates[1] == "ltr_ranker_xgb_rank_human.joblib"
+    # The old 272-skill corpus (xgb_rank) and the legacy 10-feature artifacts
+    # (canon/ensemble_final) are incompatible with the current 8-feature
+    # runtime; keeping them in the list would break loading/inference.
     assert "ltr_ranker_xgb_rank.joblib" not in candidates
+    assert "ltr_ranker_canon.joblib" not in candidates
+    assert "ltr_ranker_ensemble_final.joblib" not in candidates
 
 
-def test_resolve_model_path_prefers_canonical_when_present(tmp_path, monkeypatch):
+def test_resolve_model_path_prefers_best_available_human_over_surrogate(
+    tmp_path, monkeypatch
+):
+    """При наличии human-модели она приоритетнее суррогата (осознанный выбор)."""
     monkeypatch.setattr(config, "MODELS_DIR", tmp_path)
-    canonical = tmp_path / LTRRecommendationEngine.MODEL_FILENAME
-    canonical.write_bytes(b"stub")
+    (tmp_path / LTRRecommendationEngine.MODEL_FILENAME).write_bytes(b"surrogate")
+    (tmp_path / LTRRecommendationEngine.MODEL_CANDIDATES[1]).write_bytes(b"human")
 
     resolved = LTRRecommendationEngine._resolve_model_path()
-    assert resolved == canonical
+    assert resolved.name == "ltr_ranker_xgb_rank_human.joblib"
 
 
-def test_resolve_model_path_falls_back_in_declared_order(tmp_path, monkeypatch):
+def test_resolve_model_path_prefers_ensemble_human_when_present(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "MODELS_DIR", tmp_path)
-    # Only the third candidate exists.
-    third = LTRRecommendationEngine.MODEL_CANDIDATES[2]
-    (tmp_path / third).write_bytes(b"stub")
+    (tmp_path / LTRRecommendationEngine.MODEL_FILENAME).write_bytes(b"surrogate")
+    (tmp_path / LTRRecommendationEngine.MODEL_CANDIDATES[0]).write_bytes(b"best")
+    (tmp_path / LTRRecommendationEngine.MODEL_CANDIDATES[1]).write_bytes(b"second")
 
     resolved = LTRRecommendationEngine._resolve_model_path()
-    assert resolved.name == third
+    assert resolved.name == "ltr_ranker_ensemble_human.joblib"
+
+
+def test_resolve_model_path_falls_back_to_surrogate_without_human(
+    tmp_path, monkeypatch
+):
+    """Нет human-модели - валидный fallback на суррогат, без исключения."""
+    monkeypatch.setattr(config, "MODELS_DIR", tmp_path)
+    (tmp_path / LTRRecommendationEngine.MODEL_FILENAME).write_bytes(b"stub")
+
+    resolved = LTRRecommendationEngine._resolve_model_path()
+    assert resolved.name == LTRRecommendationEngine.MODEL_FILENAME
 
 
 def test_resolve_model_path_returns_canonical_when_nothing_exists(tmp_path, monkeypatch):

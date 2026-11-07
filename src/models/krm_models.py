@@ -802,3 +802,89 @@ class AuditLog(Base):
         sa.Index("idx_audit_actor", "actor_email"),
         sa.Index("idx_audit_target", "target_type", "target_id"),
     )
+
+
+# ─── Chat Thread (LLM chat history) ────────────────────────────────────────
+
+class ChatThread(Base):
+    """Тред LLM-чата для пользователя.
+
+    context_type + context_key определяют контекст (teacher дисциплины / student профиля).
+    """
+
+    __tablename__ = "chat_threads"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    user_id: Mapped[str | None] = mapped_column(
+        UUID,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        index=True,
+    )
+    context_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+    )
+    context_key: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+    title: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        default=partial(datetime.now, UTC),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        default=partial(datetime.now, UTC),
+        onupdate=partial(datetime.now, UTC),
+    )
+
+    messages: Mapped[list["ChatMessage"]] = relationship(
+        back_populates="thread", cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            context_type.in_(["teacher", "student"]),
+            name="ck_ct_context_type",
+        ),
+        sa.Index("idx_ct_user", "user_id", "created_at"),
+    )
+
+
+# ─── Chat Message ──────────────────────────────────────────────────────────
+
+class ChatMessage(Base):
+    """Отдельное сообщение в треде чата."""
+
+    __tablename__ = "chat_messages"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    thread_id: Mapped[str] = mapped_column(
+        UUID,
+        ForeignKey("chat_threads.id", ondelete="CASCADE"),
+        index=True,
+    )
+    role: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+    )
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)
+    blocks_json: Mapped[dict | None] = mapped_column(sa.JSON())
+    model_used: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        default=partial(datetime.now, UTC),
+    )
+
+    thread: Mapped["ChatThread"] = relationship(
+        back_populates="messages",
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            role.in_(["user", "assistant"]),
+            name="ck_cm_role",
+        ),
+        sa.Index("idx_cm_thread_seq", "thread_id", "seq"),
+    )
