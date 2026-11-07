@@ -1,16 +1,27 @@
 /**
- * LoginPage: локальный вход и шаг 2FA. Сеть мокается на уровне lib/api.request,
- * реальный fetch не вызывается.
+ * LoginPage: локальный вход, шаг 2FA и первичная настройка TOTP
+ * (totp_setup_required: у админа включена защита, но нет ключа).
+ * Сеть мокается на уровне lib/api.request, реальный fetch не вызывается.
  */
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { request } from "../../lib/api";
+import { ApiError, request } from "../../lib/api";
 import { LoginPage } from "./LoginPage";
 
 vi.mock("../../lib/api", () => {
-  class ApiError extends Error {}
+  class ApiError extends Error {
+    constructor(
+      message: string,
+      readonly status = 0,
+      readonly detail: unknown = null,
+      readonly url = "",
+    ) {
+      super(message);
+      this.name = "ApiError";
+    }
+  }
   return { request: vi.fn(), ApiError };
 });
 
@@ -68,6 +79,22 @@ describe("LoginPage", () => {
     await waitFor(() => expect(onLogin).toHaveBeenCalledWith("tok-plain", "admin", "Иван Петров"));
     expect(onLogin).toHaveBeenCalledTimes(1);
     // 2FA выключена: шаг с кодом не появляется, форма остаётся обычной.
+    expect(screen.queryByLabelText(/Код из приложения/)).toBeNull();
+  });
+
+  it("401 показывает «Неверный логин или пароль»", async () => {
+    const user = userEvent.setup();
+    requestMock.mockRejectedValue(
+      new ApiError("Неверные учётные данные", 401, null, "/api/auth/login"),
+    );
+    render(<LoginPage onLogin={onLogin} />);
+
+    await submitCredentials(user);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Неверный логин или пароль");
+    expect(onLogin).not.toHaveBeenCalled();
+    // Ошибка не застревает в состоянии загрузки и шаг 2FA не открылся.
+    expect(screen.getByRole("button", { name: "Войти" })).toBeEnabled();
     expect(screen.queryByLabelText(/Код из приложения/)).toBeNull();
   });
 
@@ -131,7 +158,78 @@ describe("LoginPage", () => {
     await user.click(screen.getByRole("button", { name: "Назад" }));
 
     expect(screen.getByLabelText("Почта")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Код из приложения")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Код из приложения/)).not.toBeInTheDocument();
     expect(onLogin).not.toHaveBeenCalled();
+  });
+
+  it("totp_setup_required: настройка 2FA целиком на экране входа", async () => {
+    const user = userEvent.setup();
+    // login -> enroll_id; setup -> секрет; confirm -> recovery-коды + сессия.
+    requestMock.mockImplementation(((url: string) => {
+      if (url === "/api/auth/login")
+        return Promise.resolve({
+          status: "totp_setup_required",
+          enroll_id: "enr-7",
+          expires_in: 600,
+        });
+      if (url === "/api/auth/2fa/setup")
+        return Promise.resolve({
+          otpauth_uri: "otpauth://totp/CGA:admin%40sfedu.ru?secret=KQXG5C2M&issuer=CGA",
+          secret: "KQXG5C2M",
+          enroll_id: "enr-7",
+        });
+      if (url === "/api/auth/2fa/confirm")
+        return Promise.resolve({
+          status: "enabled",
+          recovery_codes: ["aa11bb22cc33dd44", "11ff22ee33dd44cc"],
+          token: "tok-enroll",
+          role: "admin",
+          name: "Иван Петров",
+        });
+      return Promise.reject(new Error(`unexpected endpoint: ${url}`));
+    }) as never);
+    render(<LoginPage onLogin={onLogin} />);
+
+    await submitCredentials(user);
+    const step = await screen.findByRole("region", { name: "Настройка двухфакторной защиты" });
+
+    // Секрет запрашивается сразу с enroll_id из ответа логина.
+    expect(requestMock).toHaveBeenCalledWith("/api/auth/2fa/setup", {
+      method: "POST",
+      body: { enroll_id: "enr-7" },
+      anonymous: true,
+    });
+    // Секрет и ссылку видно - аккаунт можно добавить вручную.
+    expect(await within(step).findByText("KQXG5C2M")).toBeInTheDocument();
+    expect(within(step).getByRole("link", { name: /otpauth/ })).toHaveAttribute(
+      "href",
+      "otpauth://totp/CGA:admin%40sfedu.ru?secret=KQXG5C2M&issuer=CGA",
+    );
+
+    await user.type(within(step).getByLabelText("Код из приложения"), "123456");
+    await user.click(within(step).getByRole("button", { name: "Подтвердить" }));
+
+    expect(requestMock).toHaveBeenCalledWith("/api/auth/2fa/confirm", {
+      method: "POST",
+      body: { code: "123456", enroll_id: "enr-7" },
+      anonymous: true,
+    });
+
+    // Recovery-коды видны ДО onLogin: сервер показывает их один раз,
+    // и продолжить можно только явной кнопкой.
+    const codesStep = await screen.findByRole("region", {
+      name: "Настройка двухфакторной защиты",
+    });
+    expect(await within(codesStep).findByText("aa11bb22cc33dd44")).toBeInTheDocument();
+    expect(within(codesStep).getByText("11ff22ee33dd44cc")).toBeInTheDocument();
+    expect(onLogin).not.toHaveBeenCalled();
+
+    await user.click(
+      within(codesStep).getByRole("button", { name: "Я сохранил коды, продолжить" }),
+    );
+
+    await waitFor(() =>
+      expect(onLogin).toHaveBeenCalledWith("tok-enroll", "admin", "Иван Петров"),
+    );
   });
 });
