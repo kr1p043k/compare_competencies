@@ -8,19 +8,12 @@
 from collections.abc import Sequence
 
 revision: str = "merge_all_heads"
+# Только настоящие головы перед склейкой. Перечислять здесь ещё и их предков
+# нельзя: alembic пытается снять с набора голов ревизию, которая головой уже
+# не является, и падает с KeyError при `upgrade`.
 down_revision: tuple[str, ...] = (
     "add_audit_logs",
-    "add_discipline_intake_year",
-    "add_sessions_sso_token",
-    "add_subs_and_notifs",
-    "discipline_scope_table",
-    "fix_pipeline_cancelled",
-    "merge_for_nikita_main",
-    "pipeline_runs_owner_dir",
-    "remove_non_it_disciplines",
     "retention_fk_on_delete",
-    "vacancies_published_nulls_last",
-    "vacancy_employer_logo",
 )
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
