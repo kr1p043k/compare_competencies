@@ -38,6 +38,8 @@ router = APIRouter(tags=["chat"])
 _TEACHER_ROLES = ("admin", "teacher", "rop")
 _CHUNK_SIZE = 1024
 _MAX_MESSAGE_LEN = 4000
+# Сколько последних ходов треда подставляем в промпт LLM-вызова.
+_MAX_HISTORY_TURNS = 10
 
 
 def _sse(event: str, data: str) -> str:
@@ -70,8 +72,14 @@ async def _stream(
 
     try:
         thread = await llm_chat.get_or_create_thread(user_id, context_type, context_key)
+        history = await llm_chat.get_thread_history(
+            user_id, context_type, context_key, limit=_MAX_HISTORY_TURNS
+        )
+        history_messages = (history.get("messages") or [])[-_MAX_HISTORY_TURNS:]
         await llm_chat.append_turn(thread.id, "user", {"text": message}, None)
-        result = await llm_chat.assess(context_type, context_key)
+        result = await llm_chat.assess(
+            context_type, context_key, message=message, history=history_messages
+        )
     except Exception:
         logger.exception(
             "chat_stream_setup_failed",

@@ -257,7 +257,7 @@ def test_answer_text_uses_text_model(monkeypatch):
     monkeypatch.setattr(llm_chat, "LLMClient", _RecordingClient)
     monkeypatch.setattr(llm_chat.config, "LLM_CHAT_MODEL", "text-model")
 
-    out = llm_chat.answer_text({"metrics": {}})
+    out = llm_chat.answer_text({"metrics": {}}, message="Какие пробелы?")
 
     assert out == "сводка"
     assert any(c.model == "text-model" for c in _RecordingClient.instances)
@@ -363,11 +363,118 @@ async def test_assess_enabled_calls_two_models(monkeypatch):
 
     monkeypatch.setattr(llm_chat, "build_context", fake_build)
 
-    result = await llm_chat.assess("teacher", "09.03.02")
+    result = await llm_chat.assess("teacher", "09.03.02", message="Какие пробелы?")
 
     assert result["llm_used"] is True
     assert "text-model" in models
     assert "blocks-model" in models
+
+
+# ── вопрос пользователя попадает в промпт ──────────────────────────────────
+
+def test_answer_text_prompt_contains_question(monkeypatch):
+    captured: dict = {}
+
+    class Fake:
+        def __init__(self, model=None, **kwargs):
+            pass
+
+        def generate(self, prompt):
+            captured["prompt"] = prompt
+            return "ответ"
+
+    monkeypatch.setattr(llm_chat, "LLMClient", Fake)
+
+    out = llm_chat.answer_text({"metrics": {}}, message="Какие у нас пробелы?")
+
+    assert out == "ответ"
+    assert "Какие у нас пробелы?" in captured["prompt"]
+
+
+def test_answer_text_without_question_does_not_call_llm(monkeypatch):
+    called: list[str] = []
+
+    def _boom(*args, **kwargs):
+        called.append("llm")
+        raise AssertionError("без вопроса LLM не вызывается")
+
+    monkeypatch.setattr(llm_chat, "LLMClient", _boom)
+
+    out = llm_chat.answer_text({"metrics": {}})
+
+    assert out == ""
+    assert called == []
+
+
+# ── assess: честный llm_used и прокидывание client ─────────────────────────
+
+async def test_assess_without_question_does_not_call_llm(monkeypatch):
+    monkeypatch.setattr(llm_chat.config, "LLM_ASSESS_ENABLED", True)
+
+    async def fake_build(*args, **kwargs):
+        return {"context_type": "teacher", "metrics": {}, "gaps": []}
+
+    monkeypatch.setattr(llm_chat, "build_context", fake_build)
+    monkeypatch.setattr(llm_chat, "answer_text", lambda *a, **k: (_ for _ in ()).throw(AssertionError("LLM called")))
+
+    result = await llm_chat.assess("teacher", "09.03.02")
+
+    assert result["llm_used"] is False
+    assert result["blocks"]
+
+
+async def test_assess_llm_failure_marks_llm_used_false(monkeypatch):
+    monkeypatch.setattr(llm_chat.config, "LLM_ASSESS_ENABLED", True)
+
+    class Boom:
+        def __init__(self, model=None, **kwargs):
+            pass
+
+        def generate(self, prompt):
+            raise RuntimeError("gateway down")
+
+    monkeypatch.setattr(llm_chat, "LLMClient", Boom)
+
+    async def fake_build(*args, **kwargs):
+        return {
+            "context_type": "teacher",
+            "context_key": "09.03.02",
+            "title": "Информатика",
+            "metrics": {"coverage": 80.0, "quality": 70.0},
+            "gaps": [{"skill": "Kafka"}],
+        }
+
+    monkeypatch.setattr(llm_chat, "build_context", fake_build)
+
+    result = await llm_chat.assess("teacher", "09.03.02", message="Какие пробелы?")
+
+    assert result["llm_used"] is False
+    assert result["blocks"] and result["blocks"][0]["type"] == "text"
+    assert "Kafka" in result["blocks"][0]["content"]
+
+
+async def test_assess_passes_injected_client_to_answer_blocks(monkeypatch):
+    monkeypatch.setattr(llm_chat.config, "LLM_ASSESS_ENABLED", True)
+    monkeypatch.setattr(llm_chat.config, "LLM_CHAT_MODEL", "text-model")
+    monkeypatch.setattr(llm_chat.config, "LLM_CHAT_BLOCKS_MODEL", "blocks-model")
+
+    injected = _RecordingClient(model="injected")
+    received: dict = {}
+
+    async def fake_build(*args, **kwargs):
+        return {"metrics": {}, "gaps": []}
+
+    monkeypatch.setattr(llm_chat, "build_context", fake_build)
+
+    def spy_blocks(context, text, client=None, **kwargs):
+        received["client"] = client
+        return [{"type": "text", "content": "x"}]
+
+    monkeypatch.setattr(llm_chat, "answer_blocks", spy_blocks)
+
+    await llm_chat.assess("teacher", "09.03.02", client=injected, message="вопрос")
+
+    assert received["client"] is injected
 
 
 # ── персистенция ───────────────────────────────────────────────────────────
