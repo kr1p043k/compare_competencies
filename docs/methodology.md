@@ -71,6 +71,36 @@ target = 0.6 × relevance + 0.4 × base_target
 человеком пар «профиль-навык» нет, модель distilled эвристики
 в быстрый инференс (SHAP-объяснимость прилагается).
 
+### Выбор прод-модели (v2)
+
+Ранжирование на human gold (`scripts/eval_frozen.py`,
+`data/reports/frozen_eval.json`, seed 42) даёт порядок кандидатов:
+`ensemble_human` 0.7455 > `xgb_rank_human` 0.7195 > `ensemble_final`
+0.7087 > `canon` 0.6570. В прод загружается лучшая **доступная и
+совместимая** модель, а не первая по метрике:
+
+- артефакта `ltr_ranker_ensemble_human.joblib` (0.7455) НЕТ в
+  `data/models` - он не поставляется, поэтому в `MODEL_CANDIDATES` он
+  оставлен первым на случай переобучения (`scripts/make_ensemble.py`), но
+  при инференсе резолв падает на следующий;
+- продовая модель по умолчанию - `ltr_ranker_xgb_rank_human.joblib`
+  (0.7195): лучшая доступная human-gold модель, совместимая с текущим
+  8-признаковым feature-space;
+- fallback - `ltr_ranker_xgb_regressor.joblib` (суррогат §2): используется,
+  когда human-моделей в `data/models` нет; этот же артефакт переобучает
+  `fit()`;
+- `ltr_ranker_canon.joblib` (0.6570) и `ltr_ranker_ensemble_final.joblib`
+  (0.7087) **не загружаем**: их feature-space устарел (10 признаков,
+  `role_freq_normalized` + `role_lift`), а текущий `_extract_features`
+  отдаёт 8, инференс упал бы с `KeyError`;
+- `ltr_ranker_xgb_rank.joblib` исключён: обучен на старом корпусе 272
+  навыка и падает с `KeyError('openapi')`.
+
+Резолв реализован в `LTRRecommendationEngine._resolve_model_path()`
+(`src/predictors/ltr_recommendation_engine.py`): перебирает
+`MODEL_CANDIDATES` в порядке убывания NDCG@10, затем суррогат; исключений
+не бросает, чтобы `load_model()` по-прежнему возвращал `Ok`/`Err`.
+
 ## 3. Что валидировано по-настоящему
 
 Матчинг (не LTR!) проверен на размеченных парах
