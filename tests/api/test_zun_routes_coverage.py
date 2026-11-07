@@ -82,6 +82,41 @@ class FakePool:
         self.exec_log.append(sql)
         return "OK"
 
+    async def executemany(self, sql, rows):
+        self.exec_log.append(sql)
+        return None
+
+    def acquire(self):
+        pool = self
+
+        class _Conn:
+            async def executemany(self, sql, rows):
+                await pool.executemany(sql, rows)
+
+            def transaction(self):
+                return _NullAsyncCtx()
+
+        return _ConnCtx(_Conn())
+
+
+class _NullAsyncCtx:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+class _ConnCtx:
+    def __init__(self, conn):
+        self._conn = conn
+
+    async def __aenter__(self):
+        return self._conn
+
+    async def __aexit__(self, *exc):
+        return False
+
 
 def _client(pool: FakePool):
     app = create_app()
