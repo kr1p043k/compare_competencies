@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "../api";
-import { Skeleton } from "../../design";
+import { MetricPair, Skeleton } from "../../design";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { MetricsGlossary } from "./MetricsGlossary";
 import { TaxonomyBrowser } from "./TaxonomyBrowser";
@@ -49,14 +49,18 @@ type DirectionAnalysis = {
   average_market_top_coverage?: number;
   /** False, когда релевантных навыков слишком мало для процента. */
   average_market_top_reliable?: boolean;
+  /** Охват спроса с весом спроса по каждому навыку (качество охвата). */
+  average_market_weight_coverage?: number;
   average_quality_coverage?: number;
   coverage_level: string;
   total_gaps_across_all: number;
   top_cross_discipline_gaps: { skill: string; disciplines: number }[];
-  top_emerging_across_all: { skill: string; frequency: number }[];
+  /** frequency - вакансий с навыком; change_pct/basis - только когда
+   *  бэкенд нашёл динамику (SnapshotTrendAnalyzer, «рост спроса»). */
+  top_emerging_across_all: { skill: string; frequency: number; change_pct?: number | null; basis?: string }[];
   recommendations: { type: string; priority: string; message: string }[];
   trends: { rising: { skill: string; change_pct: number }[]; declining: { skill: string; change_pct: number }[] };
-  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; coverage_level: string; gaps: number; emerging: number; emerging_growth?: number; emerging_growth_skills?: { skill: string; change_pct: number | null }[]; market_top_coverage?: number; market_top_total?: number; market_top_reliable?: boolean; market_top_source?: string; years?: number[] }[];
+  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; strong_coverage?: number; coverage_level: string; gaps: number; emerging: number; emerging_growth?: number; emerging_growth_skills?: { skill: string; change_pct: number | null }[]; market_top_coverage?: number; market_weight_coverage?: number; market_top_total?: number; market_top_reliable?: boolean; market_top_source?: string; years?: number[] }[];
   generated_at: string;
 };
 
@@ -811,6 +815,16 @@ export function TeacherDashboard() {
                   </span>
                 </span>
               </div>
+              {/* Качественная пара к охвату: без него один процент выглядит
+                  итоговой оценкой, хотя это лишь строгая доля. */}
+              {analysis.average_market_weight_coverage != null && (
+                <div
+                  className="text-[11px] text-gray-500 dark:text-slate-400 mt-1"
+                  title="Взвешенный охват: те же топ-навыки рынка, но с весом спроса по каждому навыку (см. глоссарий)"
+                >
+                  по спросу: {(analysis.average_market_weight_coverage * 100).toFixed(1)}%
+                </div>
+              )}
               <div className="text-gray-500 dark:text-slate-400 mt-0.5">
                 {analysis.total_disciplines} {plural(analysis.total_disciplines, "дисциплина", "дисциплины", "дисциплин")}, {analysis.total_gaps_across_all} {plural(analysis.total_gaps_across_all, "пробел", "пробела", "пробелов")}
               </div>
@@ -955,9 +969,19 @@ export function TeacherDashboard() {
                     })()}
                   </div>
                   {discAnalysis && (
-                    <span className={`text-xs font-bold ${covTextClass(discAnalysis.coverage_ratio)}`}>
-                      {(discAnalysis.coverage_ratio * 100).toFixed(0)}%
-                    </span>
+                    <MetricPair
+                      className="text-xs"
+                      primaryValue={`${(discAnalysis.coverage_ratio * 100).toFixed(0)}%`}
+                      primaryTitle="Покрытие: доля навыков дисциплины, подтверждённых рынком"
+                      primaryClassName={`font-bold ${covTextClass(discAnalysis.coverage_ratio)}`}
+                      secondaryValue={
+                        discAnalysis.weighted_coverage != null
+                          ? `${(discAnalysis.weighted_coverage * 100).toFixed(0)}%`
+                          : undefined
+                      }
+                      secondaryLabel="кач."
+                      secondaryTitle="Качество совпадений: покрытие, взвешенное по спросу. Поля нет в payload - не выводится"
+                    />
                   )}
                 </div>
                 <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
@@ -1061,6 +1085,9 @@ export function TeacherDashboard() {
               : analysis.average_market_top_reliable !== false;
             const gaps = discData ? discData.gaps : analysis.total_gaps_across_all;
             const level = discData ? discData.coverage_level : analysis.coverage_level;
+            // Парная метрика качества: взвешенный по спросу охват. Берём
+            // только со своего уровня (дисциплина/направление), не смешиваем.
+            const wCov = discData ? discData.market_weight_coverage : analysis.average_market_weight_coverage;
           return (<>
           <div className="flex gap-3 mb-4 flex-wrap">
             <div className={card}>
@@ -1074,6 +1101,16 @@ export function TeacherDashboard() {
                   <div className="text-xs font-semibold text-gray-500 dark:text-slate-400">
                     {covReliable ? (level || "").toUpperCase() : "мало релевантных навыков"}
                   </div>
+                  {/* Пара к строгому охвату сверху: без неё один процент
+                  читается как полная оценка. Только при достоверном знаменателе. */}
+                  {covReliable && wCov != null && (
+                    <div
+                      className="text-xs text-gray-500 dark:text-slate-400 mt-0.5"
+                      title="Взвешенный охват (по спросу): насколько востребовано то из топа рынка, что реально покрыто. Может быть выше или ниже строгого"
+                    >
+                      взвешенный охват: {(wCov * 100).toFixed(1)}%
+                    </div>
+                  )}
                   {/* Откуда знаменатель: ручная привязка, автоподбор по навыкам
                       дисциплины или слабая оценка по названию. */}
                   {discData?.market_top_source && (
@@ -1141,18 +1178,63 @@ export function TeacherDashboard() {
                 </div>
               )}
 
-              <details className={`${card} scroll-mt-2`}>
-                <summary className="text-xs font-semibold text-violet-600 cursor-pointer select-none">
-                  Востребованные навыки рынка
-                </summary>
-                <div className="flex gap-1 flex-wrap">
-                   {((analysis.top_emerging_across_all) || []).map((s, i: number) => (
-                    <span key={i} className="inline-block px-2 py-0.5 rounded text-xs bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 m-0.5">
-                      {s.skill}
-                    </span>
-                  ))}
-                </div>
-              </details>
+               <details className={`${card} scroll-mt-2`}>
+                 <summary className="text-xs font-semibold text-violet-600 cursor-pointer select-none">
+                   Востребованные навыки рынка
+                 </summary>
+                 <div className="text-xs text-gray-500 dark:text-slate-400 mb-1.5">
+                   Навыки из свежих вакансий, которых нет в плане. Происхождение: частота в вакансиях
+                   {(analysis.top_emerging_across_all || []).some((s) => s.change_pct != null)
+                     ? " и динамика спроса по срезам рынка"
+                     : ""}
+                   .
+                 </div>
+                 <div className="flex gap-1 flex-wrap">
+                    {((analysis.top_emerging_across_all) || []).map((s, i: number) => (
+                     <span
+                       key={i}
+                       className="inline-block px-2 py-0.5 rounded text-xs bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 m-0.5"
+                       title={`Вакансий с этим навыком: ${s.frequency}${s.basis ? ` · основа отбора: ${s.basis}` : ""}`}
+                     >
+                       {s.skill}
+                       <span className="ml-1 opacity-70">{s.frequency} вк.</span>
+                       {s.change_pct != null && (
+                         <span
+                           className="ml-1 text-emerald-600 dark:text-emerald-400"
+                           title={s.basis ? `Основа отбора: ${s.basis} (динамика по срезам рынка)` : "Динамика спроса"}
+                         >
+                           {s.change_pct > 0 ? "+" : ""}{s.change_pct.toFixed(0)}%
+                         </span>
+                       )}
+                     </span>
+                   ))}
+                 </div>
+               </details>
+
+               <details id="t-gaps" className={`${card} scroll-mt-2`}>
+                 <summary className="text-xs font-semibold text-violet-600 cursor-pointer select-none">
+                   Разрывы между планом и рынком
+                 </summary>
+                 <div className="text-xs text-gray-500 dark:text-slate-400 mb-1.5">
+                   Навыки из планов дисциплин (РПД), на которые нет спроса в вакансиях. Число - в скольких
+                   дисциплинах навык встречается. Происхождение: сравнение РПД с топом рынка при
+                   teacher-анализе.
+                 </div>
+                 <div className="flex gap-1 flex-wrap">
+                   {(analysis.top_cross_discipline_gaps || []).map((g, i) => (
+                     <span
+                       key={i}
+                       className="inline-block px-2 py-0.5 rounded text-xs bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 m-0.5"
+                       title={`Навык есть в планах ${g.disciplines === 1 ? "одной дисциплине" : `${g.disciplines} дисциплинах`}, но в свежих вакансиях спроса нет`}
+                     >
+                       {g.skill}
+                       <span className="ml-1 opacity-70">
+                         {g.disciplines} {plural(g.disciplines, "дисциплина", "дисциплины", "дисциплин")}
+                       </span>
+                     </span>
+                   ))}
+                 </div>
+               </details>
 
               {analysis.trends && (
                 <details id="t-trends" className={`${card} scroll-mt-2`}>
