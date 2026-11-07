@@ -74,7 +74,7 @@
             "type": "string"
           },
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
@@ -2917,6 +2917,13 @@
       },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
           "loc": {
             "items": {
               "anyOf": [
@@ -4267,7 +4274,7 @@
     },
     "/api/admin/monitoring/summary": {
       "get": {
-        "description": "Сводка для панели здоровья: латентность, ошибки, сессии, прогоны, свежесть.",
+        "description": "Сводка для панели здоровья: латентность, ошибки, сессии, прогоны, свежесть.\n\nlatency_p95_by_endpoint - топ-5 САМЫХ МЕДЛЕННЫХ эндпоинтов (по p95, с ненулевой\nвыборкой), busiest_by_requests - топ-5 самых нагруженных (по числу запросов):\nключ по имени больше не вводит в заблуждение, информация о нагрузке сохраняется.",
         "operationId": "admin_monitoring_summary_api_admin_monitoring_summary_get",
         "responses": {
           "200": {
@@ -8805,6 +8812,69 @@
         ]
       }
     },
+    "/api/student/chat/history": {
+      "get": {
+        "description": "История собственного треда студента (профиль из auth).",
+        "operationId": "student_chat_history_api_student_chat_history_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Student Chat History",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/student/chat/stream": {
+      "get": {
+        "description": "SSE-ответ студенту. Контекст - исключительно свой профиль из auth.",
+        "operationId": "student_chat_stream_api_student_chat_stream_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "message",
+            "required": true,
+            "schema": {
+              "maxLength": 4000,
+              "minLength": 1,
+              "title": "Message",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Student Chat Stream",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
     "/api/student/history": {
       "get": {
         "description": "История действий студента.",
@@ -9302,6 +9372,103 @@
         "summary": "Get Analysis Discipline",
         "tags": [
           "teacher"
+        ]
+      }
+    },
+    "/api/teacher/chat/history": {
+      "get": {
+        "description": "История треда преподавателя по дисциплине.",
+        "operationId": "teacher_chat_history_api_teacher_chat_history_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "discipline",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Discipline",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Teacher Chat History",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/teacher/chat/stream": {
+      "get": {
+        "description": "SSE-ответ на вопрос преподавателя по дисциплине.",
+        "operationId": "teacher_chat_stream_api_teacher_chat_stream_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "discipline",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Discipline",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "message",
+            "required": true,
+            "schema": {
+              "maxLength": 4000,
+              "minLength": 1,
+              "title": "Message",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Teacher Chat Stream",
+        "tags": [
+          "chat"
         ]
       }
     },
