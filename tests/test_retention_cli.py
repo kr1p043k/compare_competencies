@@ -195,3 +195,66 @@ def test_fk_migration_is_single_alembic_head() -> None:
     # Инвариант: ровно одна голова (иначе `alembic upgrade head` падает).
     # Конкретное имя ревизии здесь не проверяем: ветка живёт своей историей.
     assert len(script.get_heads()) == 1, script.get_heads()
+
+
+# ---------------------------------------------------------------------------
+# Сессии и терминальные прогоны
+# ---------------------------------------------------------------------------
+
+def _count_sql(conn: _FakeConnection, table: str) -> str:
+    """COUNT-запрос по таблице: он выполняется всегда, в отличие от DELETE."""
+    return next(sql for sql in conn.cur.executed if f"FROM {table}" in sql)
+
+
+def test_sessions_cleanup_only_closed(monkeypatch) -> None:
+    """Активные сессии (logged_out_at IS NULL) чистить нельзя - разлогиним живых."""
+    conn = _patch_psycopg2(monkeypatch)
+    from src.cli import retention
+
+    args = SimpleNamespace(
+        apply=False, vacancies_days=730, logs_days=90, run_days=365, session_days=30
+    )
+    retention.main(args)
+
+    sql = _count_sql(conn, "sessions")
+    assert "logged_out_at IS NOT NULL" in sql
+    assert "30 days" in sql
+
+
+def test_sessions_respect_custom_days(monkeypatch) -> None:
+    conn = _patch_psycopg2(monkeypatch)
+    from src.cli import retention
+
+    args = SimpleNamespace(
+        apply=False, vacancies_days=730, logs_days=90, run_days=365, session_days=7
+    )
+    retention.main(args)
+
+    assert "7 days" in _count_sql(conn, "sessions")
+
+
+def test_pipeline_runs_only_terminal_status(monkeypatch) -> None:
+    """Идущий прогон (status='started') не должен попасть под чистку."""
+    conn = _patch_psycopg2(monkeypatch)
+    from src.cli import retention
+
+    args = SimpleNamespace(
+        apply=False, vacancies_days=730, logs_days=90, run_days=365, session_days=30
+    )
+    retention.main(args)
+
+    sql = _count_sql(conn, "pipeline_runs")
+    assert "status IN ('completed', 'failed', 'cancelled')" in sql
+    assert "'started'" not in sql
+
+
+def test_session_days_must_be_positive(monkeypatch) -> None:
+    """--session-days=-1 удалил бы историю сессий целиком."""
+    conn = _patch_psycopg2(monkeypatch)
+    from src.cli import retention
+
+    args = SimpleNamespace(
+        apply=True, vacancies_days=730, logs_days=90, run_days=365, session_days=-1
+    )
+    assert retention.main(args) == 2
+    assert conn.cur.executed == []
