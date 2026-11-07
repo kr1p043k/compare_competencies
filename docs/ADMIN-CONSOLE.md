@@ -14,7 +14,10 @@
 | POST | /auth/2fa/verify | admin | проверить код, выдать токен | auth.2fa.login |
 | POST | /auth/2fa/recovery | admin | вход по recovery-коду (одноразовый) | auth.2fa.recovery_used |
 | POST | /auth/2fa/disable | admin | отключить 2FA | auth.2fa.disabled |
-| POST | /auth/2fa/recovery-codes/rotate | admin | перевыпустить recovery-коды | auth.2fa.recovery_rotate |
+| GET | /auth/2fa/status | admin | состояние 2FA текущего админа (мастер-флаг + личное подключение) | нет |
+| GET | /auth/2fa/policy | public | статус 2FA (вкл/выкл) — показывать ли шаг кода на экране входа | нет |
+| GET | /admin/security/2fa/settings | admin | состояние мастер-переключателя 2FA | нет |
+| PUT | /admin/security/2fa/settings | admin | включить/выключить 2FA | admin.2fa.toggle |
 | GET | /admin/users | admin | чтение списка (q, role, is_active) | нет |
 | POST | /admin/users/create | admin | создать пользователя | admin.user.create |
 | GET | /admin/users/{id} | admin | карточка: поля, сессии, 2FA | нет |
@@ -39,6 +42,7 @@
 | PUT | /admin/scheduler/settings | admin | сохранить настройки планировщика | admin.scheduler.settings |
 | POST | /admin/scheduler/collect/now | admin | ручной сбор, 409 если занят | admin.scheduler.collect |
 | POST | /admin/scheduler/gap/now | admin | ручной gap-анализ, 409 если занят | admin.scheduler.gap |
+| GET | /admin/features | admin | legacy: JSON-переключатели функций, не используются для 2FA | нет |
 
 ## Аудит-действия
 
@@ -55,17 +59,24 @@
   `skills.extend.start`, `skills.categorize`, `admin.skills.suggestion.approve`,
   `admin.skills.suggestion.reject`.
 - 2FA: `auth.2fa.setup`, `auth.2fa.enabled`, `auth.2fa.login`, `auth.2fa.disabled`,
-  `auth.2fa.recovery_used`, `auth.2fa.recovery_rotate`.
+  `auth.2fa.recovery_used`, `admin.2fa.toggle`.
 
 Формат строки: `action | target | by <email> (<role>)`; из `target` берутся
 `target_type`/`target_id` (`uid=`/`email=` дают `target_type=user`).
 
 ## Хранение, миграция, индексы
 
-- Миграция `alembic/versions/add_audit_logs.py`, `down_revision = add_admin_totp`.
+- Миграция `alembic/versions/add_audit_logs.py`, `down_revision = app_settings`.
 - Таблица `audit_logs`: `actor_id/email/role`, `action`, `target_type/id`, `target`,
   `meta` (JSONB), `ip`, `request_id`, `created_at`.
 - Индексы: `idx_audit_created`, `idx_audit_action_created`, `idx_audit_actor`, `idx_audit_target`, автоиндекс `actor_id`.
+- 2FA мастер-флаг хранится в таблице `app_settings` (ключ `security.two_factor`,
+  значение JSONB `{"enabled": boolean}`), обновляется через `updated_at` и
+  `updated_by`. Миграция таблицы - `alembic/versions/app_settings_table.py`
+  (`add_audit_logs` идёт после неё); дополнительно есть рантайм-страховка
+  `_ensure_table` (CREATE TABLE IF NOT EXISTS). Чтение мастера fail-open:
+  любая ошибка БД = `False`, то есть при сбое чтения флага доступ по паролю
+  не блокируется - это осознанный размен, но его стоит поверхностно проверять в мониторинге.
 - Retention: `DEFAULT_AUDIT_DAYS = 730`; `python -m src.cli retention --audit-days 730`
   (dry-run; удаление с `--apply`). Шаг `audit_logs` пропускается без таблицы.
 
