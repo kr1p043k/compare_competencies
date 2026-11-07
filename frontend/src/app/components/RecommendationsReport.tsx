@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Target,
   Award,
+  BarChart3,
   Clock,
   BookOpen,
   ArrowUp,
@@ -141,10 +142,10 @@ const GAP_STATUS_RU: Record<string, { label: string; tone: BadgeTone }> = {
   strong: { label: "сильный", tone: "success" },
 };
 
-function GapStatusBadge({ category }: { category: string }) {
+function GapStatusBadge({ category, title }: { category: string; title?: string }) {
   const key = (category || "").toLowerCase();
   const meta = GAP_STATUS_RU[key] || { label: category || "-", tone: "neutral" as BadgeTone };
-  return <Badge tone={meta.tone} className="text-xs">{meta.label}</Badge>;
+  return <Badge tone={meta.tone} className="text-xs" title={title}>{meta.label}</Badge>;
 }
 
 function DomainCard({ name, entry }: { name: string; entry: DomainEntry }) {
@@ -231,6 +232,11 @@ function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
             <div title="Востребованность на уровне Senior">demand_s: {(entry.demand_s * 100).toFixed(0)}%</div>
             <div title="Ваш текущий уровень">user_level: {(entry.user_level * 100).toFixed(0)}%</div>
             <div title="Общая важность навыка">importance: {(entry.importance * 100).toFixed(0)}%</div>
+            {entry.cluster_relevance != null && (
+              <div title="Насколько навык релевантен кластеру целевых вакансий (вес кластера)">
+                кластер: {(entry.cluster_relevance * 100).toFixed(0)}%
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -277,28 +283,28 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
           icon={<CheckCircle2 className="size-4" />}
           label={<span title="Композитный индекс 0-100. Readiness = 0.45 × market + 0.30 × strong% − 0.25 × weak%: покрытие рынка, доля сильных и слабых навыков">Готовность</span>}
           value={`${data.summary.readiness_score.toFixed(1)}%`}
-          hint="Готовность к работе"
+          hint={`рынок: ${data.summary.market_coverage_score.toFixed(0)}% · средний разрыв: ${data.summary.avg_gap.toFixed(1)}%`}
           tone={scoreTone(data.summary.readiness_score)}
         />
         <StatCard
           icon={<Target className="size-4" />}
           label={<span title="Средневзвешенная оценка по трём метрикам. Match Score = (Market Coverage + Skill Coverage + Readiness) / 3">Соответствие рынку</span>}
           value={`${data.summary.match_score.toFixed(1)}%`}
-          hint="Общее соответствие рынку"
+          hint={`рынок ${data.summary.market_coverage_score.toFixed(0)}% · навыки ${data.summary.skill_coverage.toFixed(0)}% · готовность ${data.summary.readiness_score.toFixed(0)}%`}
           tone={scoreTone(data.summary.match_score)}
         />
         <StatCard
           icon={<TrendingUp className="size-4" />}
           label={<span title="Доля навыков студента от всех навыков на рынке. Market Coverage = (Σ весов навыков студента) / (Σ весов всех навыков) × 100">Покрытие рынка</span>}
           value={`${data.summary.market_coverage_score.toFixed(1)}%`}
-          hint="Покрытие навыков рынка"
+          hint={`строгое: ${data.summary.market_skill_coverage.toFixed(1)}%`}
           tone={scoreTone(data.summary.market_coverage_score)}
         />
         <StatCard
           icon={<Award className="size-4" />}
           label={<span title="Строгое: доля навыков студента среди рыночных (бинарно, без весов). Взвешенное ниже - с учётом спроса, может быть выше строгого">Навыки профиля (строго)</span>}
           value={data.summary.coverage_strict === undefined ? "-" : `${data.summary.coverage_strict.toFixed(1)}%`}
-          hint={`Взвешенное по спросу: ${(data.summary.coverage_weighted ?? data.summary.skill_coverage).toFixed(1)}%`}
+          hint={`Взвешенное по спросу: ${(data.summary.coverage_weighted ?? data.summary.skill_coverage).toFixed(1)}%${data.summary.coverage_strict_scope ? ` · область: ${data.summary.coverage_strict_scope}` : ""}`}
           tone={data.summary.coverage_strict === undefined ? "default" : scoreTone(data.summary.coverage_strict)}
         />
       </div>
@@ -397,6 +403,12 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                           {getPriorityIcon(rec.priority)}
                           {ruPriority(rec.priority)}
                         </Badge>
+                        {rec.category && (
+                          <GapStatusBadge
+                            category={rec.category}
+                            title="Состояние навыка у вас: нет / слабый / сильный (категория из анализа)"
+                          />
+                        )}
                         {rec.is_soft_skill && (
                           <Badge className="text-xs bg-chart-5/10 text-chart-5">
                             Софт-скилл
@@ -428,6 +440,15 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                         <Clock className="size-4" />
                         {rec.expected_timeframe}
                       </span>
+                      {rec.market_frequency_percent != null && (
+                        <span
+                          className="flex items-center gap-1"
+                          title="market_frequency_percent: доля вакансий топа рынка, где навык встречается (происхождение метрики)"
+                        >
+                          <BarChart3 className="size-4" />
+                          {rec.market_frequency_percent.toFixed(1)}% вакансий
+                        </span>
+                      )}
                     </div>
 
                     <div className="bg-primary-soft rounded-lg p-3 border border-primary/20">

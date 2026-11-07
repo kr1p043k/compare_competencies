@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Award, BarChart3, ChevronDown, ChevronUp } from "lucide-react";
+import { MetricPair } from "../../design";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import {
@@ -36,6 +37,20 @@ function rowVisible(key: string, evals: Record<string, EvalEntry>, profiles: str
   return true;
 }
 
+interface GapDetail {
+  skill?: string;
+  gap_j?: number;
+  gap_m?: number;
+  gap_s?: number;
+  demand_j?: number;
+  demand_m?: number;
+  demand_s?: number;
+  cluster_relevance?: number;
+  user_level?: number;
+  importance?: number;
+  category?: string;
+}
+
 interface EvalEntry {
   market_coverage_score?: number;
   skill_coverage?: number;
@@ -51,7 +66,7 @@ interface EvalEntry {
   target_profession?: string;
   dominant_domain_name?: string;
   closest_roles?: Array<{ role: string; semantic_similarity?: number }>;
-  gaps?: Record<string, { skill?: string; gap_j?: number; importance?: number; category?: string }>;
+  gaps?: Record<string, GapDetail>;
 }
 
 interface SummaryReportProps {
@@ -76,23 +91,64 @@ function scoreCell(v: number | undefined, isGap: boolean) {
   return <span className={`font-mono font-semibold ${scoreColor(v, isGap)}`}>{fixed}</span>;
 }
 
-function GapRow({ skill, entry }: { skill: string; entry: { skill?: string; gap_j?: number; importance?: number; category?: string } }) {
+function GapRow({ skill, entry }: { skill: string; entry: GapDetail }) {
+  // «Откуда взято» показываем только по реально пришедшим полям payload
+  // (gaps в summary = asdict(SkillMetrics)): ничего не изобретаем.
+  const hasOrigin =
+    entry.gap_m != null || entry.gap_s != null ||
+    entry.demand_j != null || entry.demand_m != null || entry.demand_s != null ||
+    entry.user_level != null || entry.cluster_relevance != null;
   return (
-    <div className="flex items-center justify-between py-1.5 border-b border-gray-100 dark:border-slate-800 last:border-0">
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{entry.skill || skill}</span>
-        {entry.category && (
-          <Badge variant="outline" className="text-xs px-1.5 py-0">{entry.category}</Badge>
-        )}
+    <div className="py-1.5 border-b border-gray-100 dark:border-slate-800 last:border-0">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{entry.skill || skill}</span>
+          {entry.category && (
+            <Badge variant="outline" className="text-xs px-1.5 py-0">{entry.category}</Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-4 text-sm shrink-0">
+          <span className="text-gray-500 dark:text-slate-400 text-xs">
+            важность {((entry.importance ?? 0) * 100).toFixed(0)}%
+          </span>
+          <span
+            className="font-mono font-semibold text-red-500 dark:text-red-400"
+            title="Разрыв на уровне Junior: насколько не хватает до требуемого"
+          >
+            +{((entry.gap_j ?? 0) * 100).toFixed(0)}%
+          </span>
+        </div>
       </div>
-      <div className="flex items-center gap-4 text-sm shrink-0">
-        <span className="text-gray-500 dark:text-slate-400 text-xs">
-          важность {((entry.importance ?? 0) * 100).toFixed(0)}%
-        </span>
-        <span className="font-mono font-semibold text-red-500 dark:text-red-400">
-          +{((entry.gap_j ?? 0) * 100).toFixed(0)}%
-        </span>
-      </div>
+      {hasOrigin && (
+        <details className="mt-0.5">
+          <summary className="text-[11px] text-gray-400 dark:text-slate-500 cursor-pointer select-none hover:text-gray-600 dark:hover:text-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded">
+            откуда взято
+          </summary>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-0.5 text-[11px] text-gray-500 dark:text-slate-400 mt-1 tabular">
+            {entry.gap_m != null && (
+              <span title="Разрыв на уровне Middle">gap_m: {(entry.gap_m * 100).toFixed(0)}%</span>
+            )}
+            {entry.gap_s != null && (
+              <span title="Разрыв на уровне Senior">gap_s: {(entry.gap_s * 100).toFixed(0)}%</span>
+            )}
+            {entry.demand_j != null && (
+              <span title="Востребованность на рынке, уровень Junior">спрос J: {(entry.demand_j * 100).toFixed(0)}%</span>
+            )}
+            {entry.demand_m != null && (
+              <span title="Востребованность на рынке, уровень Middle">спрос M: {(entry.demand_m * 100).toFixed(0)}%</span>
+            )}
+            {entry.demand_s != null && (
+              <span title="Востребованность на рынке, уровень Senior">спрос S: {(entry.demand_s * 100).toFixed(0)}%</span>
+            )}
+            {entry.user_level != null && (
+              <span title="Ваш текущий уровень владения навыком">уровень: {(entry.user_level * 100).toFixed(0)}%</span>
+            )}
+            {entry.cluster_relevance != null && (
+              <span title="Релевантность навыка кластеру целевых вакансий">кластер: {(entry.cluster_relevance * 100).toFixed(0)}%</span>
+            )}
+          </div>
+        </details>
+      )}
     </div>
   );
 }
@@ -119,9 +175,23 @@ function ProfileDetails({ name, ev }: { name: string; ev: EvalEntry }) {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <span className={`font-mono font-bold text-lg ${scoreColor(ev.market_coverage_score ?? 0)}`}>
-            {ev.market_coverage_score !== undefined ? `${ev.market_coverage_score.toFixed(1)}%` : "-"}
-          </span>
+          {/* Одиночный процент читался как итоговая оценка; рядом - парная
+              метрика качества, но только если она реально пришла в payload. */}
+          <MetricPair
+            primaryValue={
+              ev.market_coverage_score !== undefined
+                ? `${ev.market_coverage_score.toFixed(1)}%`
+                : "-"
+            }
+            primaryTitle="Покрытие рынка: доля востребованных навыков, которые у вас есть"
+            primaryClassName={`font-mono font-bold text-lg ${scoreColor(ev.market_coverage_score ?? 0)}`}
+            secondaryValue={
+              ev.skill_coverage !== undefined ? `${ev.skill_coverage.toFixed(1)}%` : undefined
+            }
+            secondaryLabel="взвеш."
+            secondaryTitle="Покрытие навыков (взвешенное по спросу): может льстить - подробности в таблице метрик"
+            secondaryClassName="font-mono text-gray-500 dark:text-slate-400"
+          />
           {open ? <ChevronUp className="size-4 text-gray-400 dark:text-slate-500" /> : <ChevronDown className="size-4 text-gray-400 dark:text-slate-500" />}
         </div>
       </button>

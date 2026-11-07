@@ -90,11 +90,30 @@ class LLMClient:
             raise ImportError(
                 "openai package is required for LLMClient. Install with: pip install openai>=1.68.0"
             ) from exc
-        self.base_url = base_url or config.OLLAMA_URL
-        self.model = model or config.OLLAMA_MODEL
+        # Дефолт: шлюз reformboss (LLM_CHAT_*). Если LLM_CHAT_* не заданы/пусты -
+        # откат на Ollama (OLLAMA_URL/MODEL). Явные аргументы конструктора всегда
+        # имеют приоритет над любыми настройками.
+        default_url = config.LLM_CHAT_URL or config.OLLAMA_URL
+        default_model = config.LLM_CHAT_MODEL or config.OLLAMA_MODEL
+
+        self.base_url = base_url or default_url
+        self.model = model or default_model
+
+        # Ключ: явный аргумент > LLM_CHAT_API_KEY (если задан) > заглушка "ollama".
+        resolved_api_key = api_key
+        if resolved_api_key is None and config.LLM_CHAT_API_KEY is not None:
+            resolved_api_key = config.LLM_CHAT_API_KEY.get_secret_value()
+
+        # OpenAI-совместимые эндпоинты уже оканчиваются на /v1 (например
+        # шлюз reformboss: http://127.0.0.1:8797/k1/v1). Ollama отдаёт
+        # совместимый API по <host>/v1, поэтому /v1 добавляется только когда
+        # его ещё нет в base_url.
+        api_base = self.base_url.rstrip("/")
+        if not api_base.endswith("/v1"):
+            api_base = f"{api_base}/v1"
         self._client = OpenAI(
-            base_url=f"{self.base_url}/v1",
-            api_key=api_key or "ollama",
+            base_url=api_base,
+            api_key=resolved_api_key or "ollama",
             timeout=120.0,
             max_retries=2,
         )
