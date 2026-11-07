@@ -206,7 +206,7 @@ export function TeacherDashboard() {
   useEffect(() => {
     const root = document.getElementById("teacher-main");
     if (!root) return;
-    const ids = ["t-overview", "t-recs", "t-trends",
+    const ids = ["t-overview", "t-recs", "t-gaps", "t-trends",
       "d-cover", "d-recs", "d-top", "d-gaps", "d-comps"];
     const obs = new IntersectionObserver(
       (entries) => {
@@ -1048,6 +1048,10 @@ export function TeacherDashboard() {
               : [
                   ["t-overview", "Обзор"],
                   ["t-recs", "Рекомендации"],
+                  // якорь t-gaps вернулся вместе с разделом «Разрывы между
+                  // планом и рынком», так что причина удаления чипа
+                  // (f02495ac) больше не актуальна
+                  ["t-gaps", "Разрывы"],
                   ["t-trends", "Тренды"],
                 ]
             ).map(([id, label]) => (
@@ -1561,9 +1565,13 @@ export function TeacherDashboard() {
           </>
         )}
       </div>
+      {/* Ключ контекста чата - КОД направления (selectedDir, напр. 09.03.02):
+          бэкенд llm_chat строит контекст из data/result/teacher/<код>/_summary.json
+          и krm_disciplines_<код>.json, человеческое имя давало пустой контекст.
+          Подпись в шапке (contextLabel) остаётся человекочитаемой. */}
       <LlmChatPanel
         role="teacher"
-        discipline={selected?.name ?? null}
+        discipline={selectedDir}
         contextLabel={selected?.name ?? null}
       />
     </div>
