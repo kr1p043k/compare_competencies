@@ -177,6 +177,32 @@ async def whitelist_backup(request: Request):
 # ---------- Student profiles ----------
 
 
+def _scan_students_dir(students_dir: Path) -> list[dict[str, Any]]:
+    """Сканирует каталог студентов и собирает профили (в потоке, не на event loop)."""
+    students: list[dict[str, Any]] = []
+    for f in sorted(students_dir.iterdir()):
+        if f.suffix not in (".json",):
+            continue
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            skills = (
+                data.get("competencias_actuales")
+                or data.get("навыки")
+                or data.get("skills")
+                or []
+            )
+            students.append(
+                {
+                    "filename": f.name,
+                    "skills_count": len(skills) if isinstance(skills, list) else 0,
+                    "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+                }
+            )
+        except Exception:
+            students.append({"filename": f.name, "skills_count": 0, "modified": ""})
+    return students
+
+
 @router.get("/admin/students", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
 async def list_students(request: Request):
@@ -184,29 +210,7 @@ async def list_students(request: Request):
     students_dir = config.DATA_DIR / "students"
     if not students_dir.exists():
         return {"students": [], "total": 0}
-    files = sorted(students_dir.iterdir())
-    students = []
-    for f in files:
-        if f.suffix in (".json",):
-            try:
-                data = json.loads(f.read_text(encoding="utf-8"))
-                skills = (
-                    data.get("competencias_actuales")
-                    or data.get("навыки")
-                    or data.get("skills")
-                    or []
-                )
-                students.append(
-                    {
-                        "filename": f.name,
-                        "skills_count": len(skills) if isinstance(skills, list) else 0,
-                        "modified": datetime.fromtimestamp(
-                            f.stat().st_mtime
-                        ).isoformat(),
-                    }
-                )
-            except Exception:
-                students.append({"filename": f.name, "skills_count": 0, "modified": ""})
+    students = await asyncio.to_thread(_scan_students_dir, students_dir)
     return {"students": students, "total": len(students)}
 
 
@@ -342,7 +346,7 @@ async def export_excel(request: Request):
     os.close(fd)
     excel_path = Path(name)
     try:
-        df.to_excel(excel_path, index=False, engine="openpyxl")
+        await asyncio.to_thread(df.to_excel, excel_path, index=False, engine="openpyxl")
     except Exception:
         excel_path.unlink(missing_ok=True)
         raise
@@ -450,10 +454,18 @@ async def admin_users(
         total = (
             await session.execute(text(f"SELECT COUNT(*) FROM users u{where_clause}"), params)
         ).scalar_one()
-        ud_result = await session.execute(select(UserDirection.user_id, UserDirection.dir_code))
+        # Направления грузим только для страницы: раньше select без WHERE тянул
+        # всю таблицу user_directions на каждый запрос списка.
+        page_ids = [str(u.id) for u in rows]
         dir_map: dict[str, list[str]] = {}
-        for uid, code in ud_result.all():
-            dir_map.setdefault(str(uid), []).append(code)
+        if page_ids:
+            ud_result = await session.execute(
+                select(UserDirection.user_id, UserDirection.dir_code).where(
+                    UserDirection.user_id.in_(page_ids)
+                )
+            )
+            for uid, code in ud_result.all():
+                dir_map.setdefault(str(uid), []).append(code)
 
     log_counts = get_logs_by_user()
     return {
@@ -989,6 +1001,7 @@ async def admin_sessions(
 
 
 @router.get("/admin/monitoring", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("60/minute")
 async def admin_monitoring(
     request: Request,
     names: str = Query("", description="Фильтр по именам метрик через запятую"),
@@ -1026,7 +1039,13 @@ async def admin_monitoring(
 
 
 def _p95_from_buckets(buckets: list[tuple[float, float]]) -> float | None:
-    """p95 по гистограммным бакетам [(upper, cumulative)] (прометеев формат)."""
+    """p95 по гистограммным бакетам [(upper, cumulative)] (прометеев формат).
+
+    Возвращает наименьшую конечную верхнюю границу бакета, чей накопительный
+    счётчик достигает 95% (total * 0.95). Если порог достигается только в бакете
+    +Inf, возвращает наибольшую КОНЕЧНУЮ границу (семантика: p95 >= максимальный
+    измеренный бакет), но никогда 1e18 или бесконечность.
+    """
     if not buckets:
         return None
     total = buckets[-1][1]
@@ -1034,37 +1053,59 @@ def _p95_from_buckets(buckets: list[tuple[float, float]]) -> float | None:
         return None
     target = total * 0.95
     for upper, cum in buckets:
-        if cum >= target and upper != float("inf"):
+        if upper != float("inf") and cum >= target:
             return upper
-    return buckets[-2][0] if len(buckets) > 1 else None
+    finite = [upper for upper, _ in buckets if upper != float("inf")]
+    return max(finite) if finite else None
 
 
 @router.get("/admin/monitoring/summary", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
 async def admin_monitoring_summary(request: Request):
-    """Сводка для панели здоровья: латентность, ошибки, сессии, прогоны, свежесть."""
+    """Сводка для панели здоровья: латентность, ошибки, сессии, прогоны, свежесть.
+
+    latency_p95_by_endpoint - топ-5 САМЫХ МЕДЛЕННЫХ эндпоинтов (по p95, с ненулевой
+    выборкой), busiest_by_requests - топ-5 самых нагруженных (по числу запросов):
+    ключ по имени больше не вводит в заблуждение, информация о нагрузке сохраняется.
+    """
     from prometheus_client.parser import text_string_to_metric_families
 
     from src.monitoring.metrics import get_metrics
 
-    out: dict = {"latency_p95_by_endpoint": {}, "errors_1h": {"4xx": 0, "5xx": 0},
-                 "sessions_active": None, "sessions_total_open": None, "recent_runs": [], "freshness": {}}
+    out: dict[str, Any] = {"latency_p95_by_endpoint": {}, "busiest_by_requests": [],
+                           "errors_1h": {"4xx": 0, "5xx": 0}, "sessions_active": None,
+                           "sessions_total_open": None, "recent_runs": [], "freshness": {}}
     try:
         raw, _ = get_metrics()
-        buckets: dict[str, list] = {}
+        buckets: dict[tuple[str, str], list[tuple[float, float]]] = {}
         for f in text_string_to_metric_families(raw.decode()):
-            if f.name == "api_request_duration_seconds_bucket":
+            if f.name == "api_request_duration_seconds":
                 for s in f.samples:
                     if s.name.endswith("_bucket"):
                         key = (s.labels.get("method", ""), s.labels.get("path", ""))
+                        # Бакет +Inf держим как настоящий inf (не подменяем на 1e18),
+                        # иначе p95 из +Inf-бакета вернул бы абсурдное число.
                         buckets.setdefault(key, []).append(
-                            (float(s.labels.get("le", "inf").replace("inf", "1e18")), s.value)
+                            (float(s.labels.get("le", "+Inf")), s.value)
                         )
-        tops = sorted(buckets.items(), key=lambda kv: kv[1][-1][1] if kv[1] else 0, reverse=True)[:5]
-        for (method, path), b in tops:
+        p95_by_endpoint: dict[str, float] = {}
+        requests_by_endpoint: dict[str, int] = {}
+        for (method, path), b in buckets.items():
             b_sorted = sorted(b, key=lambda x: x[0])
             p95 = _p95_from_buckets(b_sorted)
-            out["latency_p95_by_endpoint"][f"{method} {path}"] = p95
+            name = f"{method} {path}"
+            if p95 is not None:
+                p95_by_endpoint[name] = p95
+            requests_by_endpoint[name] = int(b_sorted[-1][1]) if b_sorted else 0
+        out["latency_p95_by_endpoint"] = dict(
+            sorted(p95_by_endpoint.items(), key=lambda kv: kv[1], reverse=True)[:5]
+        )
+        out["busiest_by_requests"] = [
+            {"endpoint": name, "requests": count}
+            for name, count in sorted(
+                requests_by_endpoint.items(), key=lambda kv: kv[1], reverse=True
+            )[:5]
+        ]
     except Exception as e:
         logger.warning("monitoring_summary_metrics_failed", error=str(e))
 
@@ -1439,7 +1480,10 @@ def _run_export() -> None:
 async def admin_backup_db(request: Request):
     """Create a PostgreSQL dump in data/backups/."""
     from src.cli.backup_db import main as backup_main
-    backup_main()
+
+    # pg_dump - блокирующий внешний процесс: на event loop он останавливает весь
+    # воркер на всё время дампа.
+    await asyncio.to_thread(backup_main)
     await audit_action(request, "admin.db.backup")
     return {"status": "ok", "message": "Backup created"}
 
