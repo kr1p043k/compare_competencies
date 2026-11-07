@@ -135,6 +135,16 @@ class Settings(BaseSettings):
     LLM_CHAT_API_KEY: SecretStr | None = None
     LLM_CHAT_MODEL: str = "deepseek-ai/DeepSeek-V4.1-Flash"
 
+    # ---------- LLM chat assessment (opt-in, deterministic fallback) ----------
+    # Точка входа сервиса llm_chat: сборка grounded-контекста + два вызова LLM
+    # (текст + структурные блоки). Off = детерминированный шаблон из метрик,
+    # без вызова модели.
+    LLM_ASSESS_ENABLED: bool = False
+    # Модель для структурных блоков (второй вызов). Текст использует LLM_CHAT_MODEL.
+    LLM_CHAT_BLOCKS_MODEL: str = "deepseek-ai/DeepSeek-V4-Pro-0813"
+    # Бюджет контекста в токенах для промптов обоих вызовов.
+    LLM_CHAT_CONTEXT_TOKEN_BUDGET: int = 8000
+
     # ---------- LLM enhancement (opt-in, fallback-first) ----------
     LLM_ENABLED: bool = True
     LLM_ENHANCE_STUDENT: bool = False
@@ -423,6 +433,9 @@ QWEN_MAX_TOKENS = settings.QWEN_MAX_TOKENS
 LLM_CHAT_URL = settings.LLM_CHAT_URL
 LLM_CHAT_API_KEY = settings.LLM_CHAT_API_KEY
 LLM_CHAT_MODEL = settings.LLM_CHAT_MODEL
+LLM_ASSESS_ENABLED = settings.LLM_ASSESS_ENABLED
+LLM_CHAT_BLOCKS_MODEL = settings.LLM_CHAT_BLOCKS_MODEL
+LLM_CHAT_CONTEXT_TOKEN_BUDGET = settings.LLM_CHAT_CONTEXT_TOKEN_BUDGET
 
 LLM_ENABLED = settings.LLM_ENABLED
 LLM_ENHANCE_STUDENT = settings.LLM_ENHANCE_STUDENT
