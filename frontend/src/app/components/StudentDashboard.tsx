@@ -6,6 +6,7 @@ import { Button } from "./ui/button";
 import { SelfProfileEditor } from "./SelfProfileEditor";
 import { StudentKrm } from "./StudentKrm";
 import { StudentStartHere } from "./StudentStartHere";
+import { LlmChatPanel } from "./LlmChatPanel";
 import { request } from "../../lib/api";
 import { reportError } from "../../lib/errors";
 
@@ -108,6 +109,7 @@ export function StudentDashboard({ onNavigate }: { onNavigate?: (tab: string) =>
         </CardContent>
       </Card>
       <SelfProfileEditor />
+      <LlmChatPanel role="student" />
     </div>
   );
 }

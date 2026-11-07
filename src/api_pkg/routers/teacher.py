@@ -108,6 +108,7 @@ def _load_foundational() -> list[str]:
     try:
         data = _load_json(_foundational_path())
     except Exception:
+        logger.warning("foundational_load_failed", exc_info=True)
         return []
     if isinstance(data, dict):
         items = data.get("skills", [])
@@ -180,6 +181,7 @@ def _list_krm_directions() -> list[dict]:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
+            logger.warning("direction_meta_parse_failed", exc_info=True)
             continue
         info = next(iter(data.values()), {}) if isinstance(data, dict) else {}
         dirs.append({
@@ -201,6 +203,7 @@ def _load_krm_direction(dir_code: str) -> dict:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
+        logger.warning("krm_data_read_failed", exc_info=True)
         raise HTTPException(status_code=503, detail="KRM data unavailable") from None
     if not isinstance(data, dict) or not data:
         return {}
@@ -398,6 +401,7 @@ async def krm_scope_summary(request: Request, dir_code: str = "09.03.02",
                 if e.get("coverage_level") != "no_data" and e.get("name") in scope_set
             )
     except Exception:
+        logger.warning("scope_analysis_failed", exc_info=True)
         analyzed = None
 
     return {
@@ -506,6 +510,7 @@ async def krm_add_recommendation(request: Request):
     try:
         raw = await request.json()
     except Exception:
+        logger.debug("krm_recommendation_json_invalid", exc_info=True)
         raise HTTPException(status_code=400, detail="Некорректный JSON.") from None
     rec = RecommendationIn(**raw)
     recs = _load_json(config.TEACHER_RECOMMENDATIONS_PATH)
@@ -662,6 +667,7 @@ async def suggest_skill(request: Request):
     try:
         raw = await request.json()
     except Exception:
+        logger.debug("add_skill_json_invalid", exc_info=True)
         raise HTTPException(status_code=400, detail="Некорректный JSON.") from None
     skill = ((raw or {}).get("skill", "") if isinstance(raw, dict) else "")
     hint = ((raw or {}).get("category_hint", "") if isinstance(raw, dict) else "")
@@ -729,6 +735,7 @@ async def krm_seed_auto_recommendations(request: Request, dir_code: str = "09.03
         try:
             disc = json.loads(files[0].read_text(encoding="utf-8"))
         except Exception:
+            logger.warning("discipline_recs_parse_failed", exc_info=True)
             continue
         recs = [r for r in (disc.get("recommendations") or [])
                 if (r.get("message") or "").strip()]
@@ -987,6 +994,7 @@ async def export_vacancies_excel(request: Request, search: str | None = None,
             try:
                 skills = json.loads(skills)
             except Exception:
+                logger.debug("skills_parse_failed", exc_info=True)
                 skills = []
         skill_names = [s.get("name", str(s)) if isinstance(s, dict) else str(s)
                        for s in (skills or []) if s]
@@ -1154,6 +1162,7 @@ async def get_analysis_meta(dir_code: str = "09.03.02"):
             "WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0"
         )
     except Exception:
+        logger.warning("vacancy_hash_query_failed", exc_info=True)
         current_hash = None
     stale, reason = report_staleness(meta, current_hash, CODE_VERSION)
     return {"meta": meta, "stale": stale, "stale_reason": reason,
@@ -1205,6 +1214,7 @@ async def admin_student_skills(request: Request, email: str = ""):
     try:
         updated = datetime.fromtimestamp(probe.stat().st_mtime).isoformat()
     except Exception:
+        logger.debug("profile_mtime_failed", exc_info=True)
         updated = None
     try:
         row = await get_pool().fetchrow(
@@ -1313,6 +1323,7 @@ async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.0
     try:
         flags = _load_foundational()
     except Exception:
+        logger.warning("foundational_flags_failed", exc_info=True)
         flags = []
     if isinstance(data, dict) and isinstance(data.get("recommendations"), list):
         visible, hidden = _apply_foundational_filter(data["recommendations"], flags)

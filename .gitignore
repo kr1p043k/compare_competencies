@@ -17,6 +17,7 @@ temp/
 temp*
 .tmp_*
 *.tmp
+logs_*.txt
 
 # Кэши инструментов
 .pytest_cache/

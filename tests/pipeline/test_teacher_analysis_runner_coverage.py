@@ -410,6 +410,9 @@ class TestEnhanceDisciplinesWithGapAnalysis:
         result = runner._enhance_disciplines_with_gap_analysis(
             disc, [], {}, output_dir, summary)
         assert result is summary
+        assert result["diag"]["degraded"] is False
+        assert result["diag"]["failed_channels"] == []
+        assert result["diag"]["count"] == 0
 
     def test_build_failure_returns_summary(self, output_dir, monkeypatch):
         disc = {"D": {"competencies": {"К1": ["python"]}, "ksa": {}}}
@@ -427,6 +430,9 @@ class TestEnhanceDisciplinesWithGapAnalysis:
         result = runner._enhance_disciplines_with_gap_analysis(
             disc, ["python"], {"python": 0.5}, output_dir, summary)
         assert result is summary
+        assert result["diag"]["degraded"] is True
+        assert "gap_enhance.embeddings" in result["diag"]["failed_channels"]
+        assert result["diag"]["count"] == 1
 
 
 class TestFailPipelineRun:

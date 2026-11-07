@@ -38,7 +38,7 @@ interface DisciplineAnalysis {
     weighted_coverage?: number;
     strong_coverage?: number;
     coverage_level: string;
-    top_market_matched_skills: { skill: string; frequency: number; match_type: string }[];
+    top_market_matched_skills: { skill: string; matched_as?: string; frequency: number; match_type: string }[];
     gaps_in_curriculum: string[];
     emerging_market_skills_not_in_rpd: { skill: string; frequency: number }[];
   };
@@ -246,9 +246,21 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
                   };
                   const cls = mtColors[s.match_type] || "bg-gray-50 dark:bg-slate-900 text-gray-500 dark:text-slate-400";
                   return (
-                    <Badge key={i} variant="outline" className={`${cls} border text-xs`}>
+                    <Badge
+                      key={i}
+                      variant="outline"
+                      className={`${cls} border text-xs`}
+                      title={[
+                        `Совпало с рыночным навыком${s.matched_as && s.matched_as !== s.skill ? ` «${s.matched_as}»` : ""}`,
+                        `тип совпадения: ${s.match_type}`,
+                        `вакансий с навыком: ${s.frequency}`,
+                      ].join("; ")}
+                    >
                       {s.skill}
                       <span className="text-xs opacity-50">{s.match_type}</span>
+                      <span className="text-xs opacity-60" title={`Вакансий с этим навыком: ${s.frequency}`}>
+                        {s.frequency} вк.
+                      </span>
                     </Badge>
                   );
                 })}
