@@ -371,7 +371,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             <CardHeader className="border-b border-border/50 dark:border-border/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-sky-600 rounded-lg">
+                  <div className="p-2 bg-blue-700 rounded-lg">
                     <Rocket className="size-5 text-white" />
                   </div>
                   <div>
@@ -640,7 +640,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             <CardContent className="p-4">
               <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
                 <div className="flex items-center gap-3 flex-1">
-                  <div className="p-2 bg-sky-600 rounded-lg shrink-0">
+                  <div className="p-2 bg-blue-700 rounded-lg shrink-0">
                     <Rocket className="size-5 text-white" />
                   </div>
                   <div className="flex-1">
@@ -655,7 +655,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Button
                   onClick={() => setShowPipelineSetup(true)}
                   disabled={pipelineLoading}
-                  className="h-9 bg-card hover:bg-muted dark:bg-muted dark:hover:bg-slate-200 px-6 whitespace-nowrap"
+                  className="h-9 bg-blue-700 hover:bg-blue-800 text-white px-6 whitespace-nowrap"
                   size="sm"
                 >
                   {pipelineLoading ? (
@@ -786,7 +786,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     onClick={handleSearch}
                     disabled={loading}
                     aria-label="Найти"
-                    className="h-10 w-11 bg-blue-700 hover:bg-blue-800 text-white rounded-lg"
+                    className="h-10 w-10 bg-blue-700 hover:bg-blue-800 text-white rounded-lg"
                   >
                     {loading ? (
                       <Loader2 className="size-4 animate-spin" />
