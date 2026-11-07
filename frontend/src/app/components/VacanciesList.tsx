@@ -638,12 +638,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         >
           <Card className="border-0 shadow-sm bg-muted dark:bg-card">
             <CardContent className="p-4">
-              <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
-                <div className="flex items-center gap-3 flex-1">
-                  <div className="p-2 bg-blue-700 rounded-lg shrink-0">
+              <div className="flex flex-col md:flex-row md:flex-wrap items-start md:items-center gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="p-2 bg-primary rounded-lg shrink-0">
                     <Rocket className="size-5 text-white" />
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground dark:text-muted-foreground">
                       Сбор вакансий
                     </p>
@@ -655,13 +655,13 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Button
                   onClick={() => setShowPipelineSetup(true)}
                   disabled={pipelineLoading}
-                  className="h-9 bg-blue-700 hover:bg-blue-800 text-white px-6 whitespace-nowrap"
+                  className="h-9 px-6 has-[>svg]:px-6 gap-2 w-full md:w-auto shadow-xs"
                   size="sm"
                 >
                   {pipelineLoading ? (
-                    <Loader2 className="size-4 mr-1 animate-spin" />
+                    <Loader2 className="size-4 animate-spin" />
                   ) : (
-                    <Rocket className="size-4 mr-1" />
+                    <Rocket className="size-4" />
                   )}
                   Собрать вакансии
                 </Button>
