@@ -243,8 +243,8 @@ export function LoginPage({
     if (!challenge) return;
     setError("");
     if (useRecovery) {
-      if (!/^[0-9a-f]{8}$/i.test(code)) {
-        setError("Резервный код - 8 символов: цифры и латинские буквы a-f.");
+      if (!/^[0-9a-f]{16}$/i.test(code)) {
+        setError("Резервный код - 16 символов: цифры и латинские буквы a-f.");
         codeRef.current?.focus();
         return;
       }
@@ -446,7 +446,7 @@ export function LoginPage({
               </h2>
               <p className="mt-1.5 text-sm text-muted-foreground">
                 {useRecovery
-                  ? "Введите резервный код - 8 символов."
+                  ? "Введите резервный код - 16 символов."
                   : "Введите 6-значный код из приложения-аутентификатора."}
               </p>
 
@@ -464,15 +464,15 @@ export function LoginPage({
                       className={inputClass}
                       value={code}
                       onChange={(e) =>
-                        setCode(e.target.value.replace(/[^0-9a-fA-F]/g, "").slice(0, 8))
+                        setCode(e.target.value.replace(/[^0-9a-fA-F]/g, "").slice(0, 16))
                       }
                       inputMode="text"
                       autoComplete="off"
                       autoCapitalize="characters"
                       autoCorrect="off"
                       spellCheck={false}
-                      maxLength={8}
-                      placeholder="XXXXXXXX"
+                      maxLength={16}
+                      placeholder="XXXXXXXXXXXXXXXX"
                       required
                     />
                   </Field>

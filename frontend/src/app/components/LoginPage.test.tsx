@@ -136,13 +136,41 @@ describe("LoginPage", () => {
     await submitCredentials(user);
     await screen.findByRole("region", { name: "Двухфакторное подтверждение входа" });
     await user.click(screen.getByRole("button", { name: "Использовать резервный код" }));
-    await user.type(screen.getByLabelText("Резервный код"), "a1b2c3d4");
+    await user.type(screen.getByLabelText("Резервный код"), "a1b2c3d4e5f6a7b8");
     await user.click(screen.getByRole("button", { name: "Подтвердить" }));
 
     await waitFor(() => expect(onLogin).toHaveBeenCalledWith("tok-rec", "rop", "Мария"));
     expect(requestMock).toHaveBeenCalledWith("/api/auth/2fa/recovery", {
       method: "POST",
-      body: { challenge_id: "ch-42", code: "a1b2c3d4" },
+      body: { challenge_id: "ch-42", code: "a1b2c3d4e5f6a7b8" },
+      anonymous: true,
+    });
+  });
+
+  it("16-символьный резервный код уходит на /api/auth/2fa/recovery целиком", async () => {
+    const user = userEvent.setup();
+    // Сервер выдаёт recovery-коды через secrets.token_hex(8): 16 hex-символов.
+    routeChallenge("/api/auth/2fa/recovery", {
+      token: "tok-full-rec",
+      role: "admin",
+      name: "Иван Петров",
+    });
+    render(<LoginPage onLogin={onLogin} />);
+
+    await submitCredentials(user);
+    await screen.findByRole("region", { name: "Двухфакторное подтверждение входа" });
+    await user.click(screen.getByRole("button", { name: "Использовать резервный код" }));
+    const field = screen.getByLabelText("Резервный код");
+    await user.type(field, "0123456789abcdef");
+
+    // Ни maxLength, ни фильтр ввода не обрезают код: в поле все 16 символов.
+    expect(field).toHaveValue("0123456789abcdef");
+    await user.click(screen.getByRole("button", { name: "Подтвердить" }));
+
+    await waitFor(() => expect(onLogin).toHaveBeenCalledWith("tok-full-rec", "admin", "Иван Петров"));
+    expect(requestMock).toHaveBeenCalledWith("/api/auth/2fa/recovery", {
+      method: "POST",
+      body: { challenge_id: "ch-42", code: "0123456789abcdef" },
       anonymous: true,
     });
   });

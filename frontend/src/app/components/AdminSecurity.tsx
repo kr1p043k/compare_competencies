@@ -214,7 +214,7 @@ export function AdminSecurity() {
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                   placeholder="123456"
                   inputMode="numeric"
-                  maxLength={8}
+                  maxLength={6}
                   className="h-9 w-32"
                 />
                 <Button size="sm" onClick={confirmSetup} disabled={busy || code.length < 6}>
