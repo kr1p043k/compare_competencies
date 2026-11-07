@@ -49,9 +49,15 @@ def _secret_key_from_environment() -> str | None:
 
     for raw_line in env_file.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
-        if line.startswith("SECRET_KEY="):
-            value = line.split("=", 1)[1].strip()
-            return value.strip("\"'") or None
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        if key.strip() != "SECRET_KEY":
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        return value or None
     return None
 
 
