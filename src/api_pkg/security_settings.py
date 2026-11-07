@@ -13,6 +13,14 @@ logger = structlog.get_logger(__name__)
 
 TWO_FACTOR_KEY = "security.two_factor"
 
+
+class TwoFactorSettingUnavailableError(RuntimeError):
+    """Состояние 2FA не удалось прочитать из БД: "state unknown, deny".
+
+    Означает fail-closed: вызывающий код обязан отклонить запрос (или вернуть
+    503), а НЕ считать 2FA выключенной и пропускать админа без второго фактора.
+    """
+
 _TABLE_DDL = """
 CREATE TABLE IF NOT EXISTS app_settings (
     key        TEXT PRIMARY KEY,
@@ -67,8 +75,10 @@ async def _ensure_table(pool: asyncpg.Pool) -> None:
 async def get_two_factor_enabled(pool: asyncpg.Pool | None) -> bool:
     """Мастер-выключатель 2FA. По умолчанию выключено.
 
-    Возвращает False, если пула нет, таблицы/строки нет или БД ответила ошибкой:
-    фича выключена по умолчанию, поэтому сбой чтения не должен ломать вход.
+    Чтение fail-closed:
+    - пула нет (pool is None) -> False: без БД аутентификация всё равно не пройдёт;
+    - таблица ещё не создана (свежий деплой до миграции) -> warning и False;
+    - любая другая ошибка чтения -> TwoFactorSettingUnavailable ("deny").
     """
     if pool is None:
         return False
@@ -84,9 +94,15 @@ async def get_two_factor_enabled(pool: asyncpg.Pool | None) -> bool:
         if not isinstance(value, dict):
             return False
         return bool(value.get("enabled"))
-    except Exception as exc:
-        logger.warning("two_factor_setting_read_failed", error=str(exc))
+    except asyncpg.UndefinedTableError as exc:
+        logger.warning("two_factor_table_missing", error=str(exc))
         return False
+    except Exception as exc:
+        logger.error("two_factor_setting_read_failed", error=str(exc))
+        raise TwoFactorSettingUnavailableError(
+            "Состояние 2FA неизвестно при чтении из БД (state unknown, deny): "
+            f"{exc}"
+        ) from exc
 
 
 async def set_two_factor_enabled(
