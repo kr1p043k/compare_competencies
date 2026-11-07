@@ -26,6 +26,7 @@ from src.analyzers.trend_analyzer import SnapshotTrendAnalyzer
 from src.db import close_pool, create_pool, get_pool
 from src.errors import AnalysisRunnerError
 from src.models.teacher_analysis import DirectionSummary, GapAnalysisResult
+from src.pipeline.channel_diag import ChannelDiag
 from src.predictors.curriculum_optimizer import CurriculumOptimizer
 from src.predictors.curriculum_recommender import CurriculumRecommender
 from src.result import Err, Ok, Result
@@ -240,17 +241,22 @@ def _enhance_disciplines_with_gap_analysis(
     market_skill_names: list[str],
     skill_weights_dict: dict[str, float],
     output_dir: Path,
-    dir_summary: dict,
+    dir_summary: dict | None = None,
 ) -> dict:
     """Run embedding-based coverage + LTR/SHAP for each discipline.
 
-    Falls back silently if LTR model / embeddings unavailable.
+    Falls back silently if LTR model / embeddings unavailable, but records the
+    failed channel into ``dir_summary["diag"]`` so a degraded run is visible.
     Returns dir_summary with enhanced fields merged in.
     """
+    if dir_summary is None:
+        dir_summary = {}
+    diag = ChannelDiag()
     logger.info("gap_enhance_start", disciplines=len(disciplines), market_skills=len(market_skill_names))
     if not market_skill_names:
         logger.warning("gap_enhance_skipped_no_market_skills")
         print("TEACHER-ANALYSIS STAGE-SKIP: gap_enhance (no market skills)", file=sys.stderr, flush=True)
+        dir_summary["diag"] = diag.as_dict()
         return dir_summary
 
     # - 1. Build EmbeddingComparator with market skills -
@@ -262,8 +268,10 @@ def _enhance_disciplines_with_gap_analysis(
         comp.build_market_index(market_skill_names, level="all")
         logger.info("market_embedding_index_built", skills=len(market_skill_names))
     except Exception as exc:
+        diag.fail("gap_enhance.embeddings")
         logger.warning("gap_enhance_skip_embedding", error=str(exc))
         print(f"TEACHER-ANALYSIS STAGE-SKIP: gap_enhance build failed: {exc}", file=sys.stderr, flush=True)
+        dir_summary["diag"] = diag.as_dict()
         return dir_summary
 
     # - 2. Load LTR model for SHAP -
@@ -278,9 +286,11 @@ def _enhance_disciplines_with_gap_analysis(
                 case Ok(_):
                     logger.info("ltr_model_loaded_for_shap")
                 case Err(e):
+                    diag.fail("gap_enhance.ltr")
                     logger.warning("ltr_model_load_skipped", error=str(e))
                     ltr_engine = None
         except Exception as exc:
+            diag.fail("gap_enhance.ltr")
             logger.warning("ltr_model_load_failed", error=str(exc))
             ltr_engine = None
 
@@ -318,6 +328,7 @@ def _enhance_disciplines_with_gap_analysis(
                                 "vetoed_skills": [m["skill"] for m in vetoed[:15]],
                             }
                         except Exception as exc:
+                            diag.fail("gap_enhance.hub_gate")
                             logger.warning("hub_gate_hook_failed", discipline=dname, error=str(exc))
                     # LLM-судья хвоста (заготовка, default off): вердикты
                     # записываются, совпадения НЕ фильтруются (судья не валидирован).
@@ -336,10 +347,13 @@ def _enhance_disciplines_with_gap_analysis(
                                 "skipped": judged["skipped"],
                             }
                         except Exception as exc:
+                            diag.fail("gap_enhance.llm_judge")
                             logger.warning("llm_judge_hook_failed", discipline=dname, error=str(exc))
                 case _:
+                    diag.fail("gap_enhance.embed_coverage")
                     embed_coverage = {}
         except Exception as exc:
+            diag.fail("gap_enhance.embed_coverage")
             logger.warning("embed_coverage_failed", discipline=dname, error=str(exc))
             embed_coverage = {}
 
@@ -378,8 +392,10 @@ def _enhance_disciplines_with_gap_analysis(
                             "shap_values": shap_per_skill,
                         }
                     case Err(e):
+                        diag.fail("gap_enhance.ltr_shap")
                         logger.warning("ltr_shap_skipped", discipline=dname, error=str(e))
             except Exception as exc:
+                diag.fail("gap_enhance.ltr_shap")
                 logger.warning("ltr_shap_error", discipline=dname, error=str(exc))
 
         # - 4. Merge enhanced data into existing JSON -
@@ -395,6 +411,7 @@ def _enhance_disciplines_with_gap_analysis(
                 json_file.write_text(json.dumps(existing, ensure_ascii=False, indent=1), encoding="utf-8")
                 enhanced_total += 1
             except Exception as exc:
+                diag.fail("gap_enhance.merge")
                 logger.warning("enhanced_merge_failed", discipline=dname, error=str(exc))
 
     logger.info("gap_enhance_done", enhanced=enhanced_total, total=len(disciplines))
@@ -418,6 +435,7 @@ def _enhance_disciplines_with_gap_analysis(
         # C6 fix: flag only if at least one discipline was actually enhanced
         dir_summary["has_enhanced_gap"] = enhanced_total > 0
 
+    dir_summary["diag"] = diag.as_dict()
     return dir_summary
 
 
@@ -1079,22 +1097,26 @@ async def run_teacher_analysis(
                 )
 
     # - enhanced gap analysis (embedding + LTR/SHAP) -
+    _enhance_diag: dict | None = None
     try:
         market_skill_names_for_enhance = list(market_skills.keys())
         skill_weights_path = DATA_DIR / "processed" / "skill_weights.json"
         sw: dict[str, float] = {}
         if skill_weights_path.exists():
             sw = json.loads(skill_weights_path.read_text(encoding="utf-8"))
-        _enhance_disciplines_with_gap_analysis(
+        _enhance_result = _enhance_disciplines_with_gap_analysis(
             disciplines=disciplines,
             market_skill_names=market_skill_names_for_enhance,
             skill_weights_dict=sw,
             output_dir=out_dir,
             dir_summary=None,
         )
+        if isinstance(_enhance_result, dict):
+            _enhance_diag = _enhance_result.get("diag") or None
     except Exception as exc:
         logger.warning("enhanced_gap_analysis_skipped", error=str(exc))
         print(f"TEACHER-ANALYSIS STAGE-SKIP: enhanced gap analysis: {exc}", file=sys.stderr, flush=True)
+        _enhance_diag = {"degraded": True, "failed_channels": ["gap_enhance"], "count": 1}
 
     # Completion order varies across runs: sort for deterministic summary (v18).
     discipline_reports.sort(key=lambda item: item[0])
@@ -1265,6 +1287,9 @@ async def run_teacher_analysis(
         },
         "disciplines": summary.disciplines,
         "target_professions": list(profession_taxonomy.keys())[:10],
+        # Деградация каналов обогащения (embedding/LTR/hub/llm/shap) не должна
+        # выглядеть как ok: явный признак в сводке направления.
+        "diag": _enhance_diag or {"degraded": False, "failed_channels": [], "count": 0},
         "generated_at": datetime.now(UTC).isoformat(),
     }
 
@@ -1335,7 +1360,9 @@ async def run_teacher_analysis(
                 stats={"direction": dir_code,
                        "discipline_filter": discipline_filter,
                        "disciplines": len(discipline_reports),
-                       "partial": True, "avg_coverage": avg_cov},
+                       "partial": True, "avg_coverage": avg_cov,
+                       "degraded": bool(_enhance_diag and _enhance_diag.get("degraded")),
+                       "failed_channels": (_enhance_diag or {}).get("failed_channels", [])},
             )
         except Exception as exc:
             logger.warning("partial_pipeline_run_close_failed", error=str(exc))
@@ -1350,6 +1377,7 @@ async def run_teacher_analysis(
             "total_gaps_across_all": len(all_gaps),
             "partial": True,
             "disciplines": [dn for dn, _ in discipline_reports],
+            "diag": _enhance_diag or {"degraded": False, "failed_channels": [], "count": 0},
             "generated_at": datetime.now(UTC).isoformat(),
         })
 
@@ -1503,6 +1531,9 @@ async def run_teacher_analysis(
     try:
         params = {"direction": dir_code, "discipline_filter": discipline_filter, "disciplines": len(disciplines)}
         stats = {**params, "avg_coverage": avg_cov, "total_disciplines": len(discipline_reports)}
+        if _enhance_diag:
+            stats["degraded"] = bool(_enhance_diag.get("degraded"))
+            stats["failed_channels"] = _enhance_diag.get("failed_channels", [])
         await complete_pipeline_run(run_id, status="completed", stats=stats)
 
         from src.pipeline.db_writer import save_to_analysis_results

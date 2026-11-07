@@ -105,17 +105,31 @@ class EnsembleEngine:
         market_skills: list[str],
     ) -> Result[dict, DomainError]:
         results: dict[str, ComparisonResult] = {}
+        failed_channels: list[str] = []
+        zero_result = dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[])
         for name, (engine, _weight) in self.engines.items():
-            match engine.compare(student_skills, market_skills):
-                case Ok(res):
-                    results[name] = res
-                case Err(err):
-                    logger.warning("engine_compare_failed", engine=name, error=str(err))
-                    results[name] = dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[])
+            try:
+                match engine.compare(student_skills, market_skills):
+                    case Ok(res):
+                        results[name] = res
+                    case Err(err):
+                        logger.warning("engine_compare_failed", engine=name, error=str(err))
+                        results[name] = dict(zero_result)
+                        failed_channels.append(name)
+            except Exception as exc:
+                logger.warning("engine_compare_failed", engine=name, error=str(exc))
+                results[name] = dict(zero_result)
+                failed_channels.append(name)
+
+        diag = {
+            "degraded": bool(failed_channels),
+            "failed_channels": sorted(failed_channels),
+            "count": len(failed_channels),
+        }
 
         total_weight = sum(w for _, w in self.engines.values())
         if total_weight <= 0:
-            return Ok(dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[]))
+            return Ok(dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[], diag=diag))
 
         combined_score = sum(
             results[name].get("score", 0.0) * w
@@ -145,6 +159,7 @@ class EnsembleEngine:
             matches=sorted_matches,
             missing=[],
             details=engine_details,
+            diag=diag,
         ))
 
 
