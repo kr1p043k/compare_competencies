@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api";
@@ -8,6 +9,16 @@ import { TeacherDashboard } from "./TeacherDashboard";
 // teacher-анализа, тест проверяет рендер payload, а не HTTP.
 vi.mock("../api", () => ({
   api: vi.fn(() => Promise.reject(new Error("api mock not configured"))),
+}));
+
+// Панель чата подменена заглушкой: тест проверяет СВЯЗЬ дашборда с панелью
+// (какой ключ контекста он передаёт), а не рендер самой панели.
+const { chatProps } = vi.hoisted(() => ({ chatProps: vi.fn() }));
+vi.mock("./LlmChatPanel", () => ({
+  LlmChatPanel: (props: Record<string, unknown>) => {
+    chatProps(props);
+    return null;
+  },
 }));
 
 // reportError уходит в /api/log реальным fetch - в jsdom он не нужен.
@@ -26,6 +37,13 @@ const DISCIPLINES = [
   { id: "d1", name: "Базы данных", in_scope: true, competencies_count: 3, skills_count: 12 },
   { id: "d2", name: "Web-разработка", in_scope: true, competencies_count: 2, skills_count: 9 },
 ];
+
+/** Ответ /teacher/krm/disciplines/<имя>: деталка направления без dir_code. */
+const DISCIPLINE_DETAIL = {
+  id: "d1",
+  name: "Базы данных",
+  competencies: [],
+};
 
 /**
  * Ответ /teacher/analysis: срез направления с парами метрик.
@@ -86,6 +104,8 @@ function route(endpoint: string): Promise<unknown> {
   if (endpoint.startsWith("/teacher/analysis")) return Promise.resolve(ANALYSIS);
   if (endpoint.startsWith("/teacher/krm/recommendations")) return Promise.resolve([]);
   if (endpoint.startsWith("/teacher/krm/directions")) return Promise.resolve(DIRECTIONS);
+  // деталка дисциплины: общий префикс со списком, поэтому проверка раньше.
+  if (endpoint.startsWith("/teacher/krm/disciplines/")) return Promise.resolve(DISCIPLINE_DETAIL);
   if (endpoint.startsWith("/teacher/krm/disciplines")) return Promise.resolve(DISCIPLINES);
   if (endpoint.startsWith("/teacher/krm/scope-summary")) {
     return Promise.resolve({
@@ -175,5 +195,36 @@ describe("TeacherDashboard", () => {
     expect(
       screen.getByTitle("Вакансий с этим навыком: 3 · основа отбора: рост спроса"),
     ).toBeInTheDocument();
+  });
+
+  it("передаёт чату код направления, а не имя дисциплины", async () => {
+    const user = userEvent.setup();
+    await renderDashboard();
+
+    // До выбора дисциплины: ключ контекста - уже код направления из KRM
+    // (selectedDir), а не null и не человекочитаемое имя.
+    expect(chatProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ role: "teacher", discipline: "09.03.02" }),
+    );
+
+    // Выбор дисциплины («Базы данных») меняет подпись (contextLabel),
+    // но НЕ ключ: бэкенд llm_chat читает teacher/<код>/_summary.json и
+    // krm_disciplines_<код>.json, имя давало пустой контекст.
+    await user.click(screen.getByRole("button", { name: /Базы данных/ }));
+    await waitFor(() =>
+      expect(chatProps).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          role: "teacher",
+          discipline: "09.03.02",
+          contextLabel: "Базы данных",
+        }),
+      ),
+    );
+
+    // Ни в одном рендере ключом не было человеческого имени/названия.
+    for (const [props] of chatProps.mock.calls) {
+      expect(props.discipline).not.toBe("Базы данных");
+      expect(props.discipline).not.toBe("Информационные системы");
+    }
   });
 });
