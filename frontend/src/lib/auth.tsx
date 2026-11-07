@@ -166,10 +166,12 @@ export function handleUnauthorized() {
   } catch (err) {
     reportError("lib/auth.tsx:handleUnauthorized", err);
   }
+  // Не перезагружаем страницу: любой повторный 401 на "/" запустил бы reload
+  // снова, и так по кругу (страница «вечно обновлялась» при заходе). Вместо
+  // этого сбрасываем React-состояние сессии - экран входа отрисуется сам.
+  notify(EMPTY);
   if (window.location.pathname !== "/") {
     window.location.assign("/");
-  } else {
-    window.location.reload();
   }
 }
 
