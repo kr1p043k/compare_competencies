@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import src.api_pkg.routers.clusters as cl
+from tests.conftest import open_all_gates
 
 
 class _FakeClusterer:
@@ -29,11 +30,9 @@ def client():
     from src.api_pkg import create_app
 
     app = create_app()
-    # Роль не важна: маршрут требует только авторизацию, её отключаем.
-    for route in app.routes:
-        dep = getattr(route, "dependant", None)
-        for sub in (getattr(dep, "dependencies", None) or []):
-            app.dependency_overrides[sub.call] = lambda: {"r": "admin"}
+    # FastAPI 0.162 включает роутеры лениво, поэтому обход app.routes зависимостей
+    # не видит; open_all_gates снимает гейты правильно.
+    open_all_gates(app, role="admin")
     for lim in [getattr(app.state, "limiter", None), getattr(cl, "limiter", None)]:
         if lim is not None:
             lim.reset()
