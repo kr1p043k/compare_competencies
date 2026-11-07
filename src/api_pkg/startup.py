@@ -167,7 +167,13 @@ async def _set_waiting_mode():
     deps.vacancy_load_error = "not_found"
     deps.skill_freq = {}
     deps.skill_weights = {}
-    deps.taxonomy = None
+    # Таксономия файловая (data/reference/skill_taxonomy.json) и от вакансий
+    # не зависит: в режиме ожидания она нужна, иначе /api/taxonomy/* отдаёт 503.
+    try:
+        deps.taxonomy = SkillTaxonomy()
+    except Exception:
+        logger.exception("taxonomy_load_failed_in_waiting_mode")
+        deps.taxonomy = None
     deps.current_skills_set = set()
     deps.competency_mapping = {}
     deps.hybrid_weights = {}
@@ -524,6 +530,7 @@ async def _warmup_background(basic_vacancies, raw_file):
         try:
             deps.taxonomy = SkillTaxonomy()
         except Exception:
+            logger.exception("taxonomy_load_failed")
             deps.taxonomy = None
         whitelist = load_it_skills()
         deps.current_skills_set = whitelist

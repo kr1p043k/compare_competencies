@@ -1,389 +1,258 @@
-# RUNBOOK - эксплуатация
+# RUNBOOK: compare_competencies (прод)
 
-Практическое руководство: как запустить, остановить, выкатить, откатить и что
-делать при инцидентах. Проект - Competency Gap Analyzer (`compare_online` /
-`compare_competencies`). Все пути - от корня репозитория.
-
-> Быстрая проверка перед всем: `powershell -ExecutionPolicy Bypass -File
-> tools\release.ps1 -Action Precheck` (ruff, pytest, tsc/vitest/build, alembic,
-> pip-audit). Дольше 15-20 минут.
-
----
-
-## 1. Запуск и остановка (локально, без Docker)
-
-Нужны три процесса: PostgreSQL, backend (FastAPI), frontend (Vite).
-
-### PostgreSQL
-
-Служба Windows `postgresql-x64-17`. Запуск/остановка требуют прав
-администратора (UAC):
-
-```powershell
-# Статус
-Get-Service postgresql-x64-17
-
-# Запуск/остановка (из PowerShell, запущенного от имени администратора)
-Start-Service postgresql-x64-17
-Stop-Service  postgresql-x64-17
-```
-
-Параметры подключения - в `.env` (`DATABASE_URL`, `POSTGRES_*`).
-
-### Backend
-
-```powershell
-uvicorn src.api_pkg:app --host 0.0.0.0 --port 8000 --reload
-```
-
-- API: http://localhost:8000
-- Swagger: http://localhost:8000/docs
-- Prometheus (raw): http://localhost:8000/metrics
-- Health: http://localhost:8000/health
-
-### Frontend
-
-```powershell
-cd frontend
-npm install          # один раз
-npm run dev          # http://localhost:3000
-```
-
-Dev-сервер Vite проксирует `/api` и `/ws` на `http://localhost:8000`
-(`frontend/vite.config.ts`, порт 3000).
-
-### Docker (всё сразу)
+Аварийный справочник по прод-серверy `compareserver`. Все команды выполняются
+на сервере из каталога приложения:
 
 ```bash
-docker compose build
-docker compose up -d
-docker compose logs -f
-docker compose down          # остановка
-docker compose down -v       # остановка + удаление томов БД
+ssh admin_server@compareserver
+cd /home/admin_server/compare_competencies
 ```
 
-Сервисы и порты - в `README.md` (раздел «Запуск через Docker»).
+Смежные документы: `deploy/README.md` (как устроен деплой), `MONITORING` -
+`monitoring/README.md` (правила алертов), `docs/ARCHITECTURE.md`.
 
----
-
-## 2. PostgreSQL не стартует
-
-Служба `postgresql-x64-17` в статусе `Stopped` или не поднимается.
-
-1. **Права.** `Start-Service` из обычного PowerShell падает с «Access denied» -
-   запустите консоль от администратора (UAC) и повторите.
-2. **Порт занят.** Проверьте, не слушает ли 5432 другой процесс (в т.ч. Docker-
-   контейнер `competency-postgres`):
-   ```powershell
-   netstat -ano | findstr :5432
-   ```
-   Если порт держит контейнер, локальная служба не нужна - работайте через
-   Docker или смените порт в `.env`.
-3. **Данные повреждены / служба не поднимается после падения.** Смотрите лог
-   PostgreSQL:
-   ```
-   C:\Program Files\PostgreSQL\17\data\log\
-   ```
-   Часто помогает проверка `pg_ctl` и свободного места на диске.
-4. **Служба вообще не создана.** Переинициализация - вне этого runbook; сначала
-   восстановите из бэкапа (раздел 6).
-
-Диагностика подключения:
-
-```powershell
-& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -h localhost -p 5432 -U postgres -d compare_competencies -c "SELECT 1;"
-```
-
-(Пароль - `POSTGRES_PASSWORD` из `.env`.)
-
----
-
-## 3. Деплой
-
-Релиз делается скриптом `tools/release.ps1`, который гоняет полный гейт и
-переносит изменения в целевую ветку (по умолчанию `for_Nikita`):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools\release.ps1 -Action All
-```
-
-`-Action All` = Precheck -> Merge -> Push. Гейт останавливается на первой
-проблеме (грязный worktree, регресс ruff, падение тестов, ошибки tsc/build,
-несколько alembic-head, новая уязвимая зависимость).
-
-Отдельные шаги:
-
-```powershell
-tools\release.ps1 -Action Precheck          # только проверки
-tools\release.ps1 -Action Merge             # слить в for_Nikita
-tools\release.ps1 -Action Push              # push в origin/for_Nikita
-tools\release.ps1 -Action Precheck -SkipBackend   # быстрый прогон без pytest (не для релиза)
-```
-
-Для Docker-развёртывания в проде есть `update-deployment.sh` (бэкап ->
-git pull -> compose down/build/up -> health check -> авто-rollback при ошибке).
-
----
-
-## 4. Откат на предыдущий коммит
-
-Сначала посмотрите, куда откатываться:
+## 0. Быстрая проверка: что задеплоено
 
 ```bash
-git log --oneline -20
-git status            # worktree должен быть чистым
+cat ~/.cc-deployed-sha          # коммит, который подтвердил cc-autodeploy
+git log -1 --oneline            # фактический HEAD рабочего дерева
+git rev-parse origin/main       # что лежит в origin/main
+journalctl -u cc-autodeploy -n 50 --no-pager
+docker compose ps
+curl -sf http://localhost:8000/health && echo " backend OK"
 ```
 
-### Безопасный откат (обратный коммит, история сохраняется)
+Как устроен деплой: systemd-таймер `cc-autodeploy.timer` раз в 5 минут запускает
+`deploy/cc-autodeploy.sh`, который вызывает `scripts/deploy.sh` (маркер
+`~/.cc-deployed-sha`, лог `logs/autodeploy.log`). `.github/workflows/deploy.yml` -
+ручной фолбэк. `APP_DIR=/home/admin_server/compare_competencies`,
+`HEALTH_URL=http://localhost:8000/health`, `HEALTH_TIMEOUT=300`.
 
-Рекомендуется для уже запушенной в `for_Nikita` истории:
+---
+
+## 1. Откат (rollback)
+
+### 1.1. Остановить автодеплой, чтобы не перекатил обратно на `main`
 
 ```bash
-git revert <bad_sha>          # создаёт коммит, отменяющий изменения
-git push origin for_Nikita
+sudo systemctl stop cc-autodeploy.timer
 ```
 
-### Жёсткий откат ветки (перезапись истории, только если ветка не расшарена)
+Не забыть вернуть после починки: `sudo systemctl start cc-autodeploy.timer`.
+
+### 1.2. Быстрый откат по образам (если плохой релиз, миграции совместимы)
+
+`deploy.sh` при живом `/health` перетегирует текущие образы:
+`compare_competencies-backend:latest` -> `:latest.previous` (и то же для frontend).
 
 ```bash
-git reset --hard <good_sha>   # локальная ветка на нужный коммит
-git push --force origin for_Nikita
+docker tag compare_competencies-backend:latest.previous  compare_competencies-backend:latest
+docker tag compare_competencies-frontend:latest.previous compare_competencies-frontend:latest
+docker compose up -d backend frontend --force-recreate
+curl -sf http://localhost:8000/health && echo " health OK"
 ```
 
-`--force` запрещён без явного согласования - это необратимо для тех, кто уже
-забрал ветку.
-
-### Откат Docker-деплоя
-
-`update-deployment.sh` сохраняет предыдущий образ и откатывается автоматически,
-если health check не прошёл. Вручную:
+### 1.3. Откат по коммиту (если нужен и код, и образ)
 
 ```bash
-docker compose down
-git checkout <good_sha>
-docker compose up -d --build
+cd /home/admin_server/compare_competencies
+git fetch origin main
+git reset --hard <GOOD_SHA>
+git rev-parse HEAD > ~/.cc-deployed-sha   # маркер: таймер не будет тянуть main заново
+docker compose build backend
+docker compose run --rm --no-deps --entrypoint alembic backend upgrade heads
+docker compose up -d backend frontend --force-recreate
+curl -sf http://localhost:8000/health && echo " health OK"
+```
+
+Откат миграций выполняется отдельно, см. раздел «Сбой миграции».
+
+---
+
+## 2. Восстановление БД (restore) с проверкой целостности
+
+В репозитории ТРИ разных механизма бэкапа, не путать:
+
+| Механизм | Команда / файл | Формат | Восстанавливается |
+|---|---|---|---|
+| CLI (основной) | `python -m src.cli backup` -> `data/backups/backup_<UTC>.sql` | pg_dump `--format=custom` | `pg_restore`, в т.ч. `python -m src.cli backup --restore latest\|PATH` |
+| update-deployment | `./update-deployment.sh backup` -> `backups/db_<date>.sql` | plain SQL | только `psql -f` (НЕ `pg_restore`) |
+| volume tars | `./backup-volumes.sh` -> `backups/<volume>_<date>.tar.gz` | tar каталогов томов | распаковкой, не дамп БД |
+
+### 2.1. Проверка целостности ПЕРЕД восстановлением
+
+```bash
+cd /home/admin_server/compare_competencies
+LATEST=$(ls -1t data/backups/backup_*.sql | head -n1)
+echo "Проверяю: $LATEST"
+
+# 1) дамп вообще читается как custom-format
+cat "$LATEST" | docker exec -i competency-postgres pg_restore --list > /tmp/dump.list \
+  && echo "dump.list OK" || { echo "ДАМП БИТЫЙ"; exit 1; }
+
+# 2) в дампе есть таблица users (значит бэкап не пустой)
+grep -q "TABLE public users" /tmp/dump.list && echo "users: OK" || echo "users: НЕ НАЙДЕНА"
+```
+
+Если проверка не прошла, восстановление не запускать: искать другой бэкап
+(`ls -1t data/backups/backup_*.sql | head`).
+
+### 2.2. Снимок текущего состояния (на случай, если бэкап тоже плохой)
+
+```bash
+python -m src.cli backup     # создаст свежий data/backups/backup_<UTC>.sql
+```
+
+### 2.3. Восстановление
+
+Остановить backend, чтобы не было записи во время restore:
+
+```bash
+docker compose stop backend
+cat "$LATEST" | docker exec -i competency-postgres pg_restore \
+  --clean --if-exists --no-owner --no-privileges \
+  --dbname=postgresql://postgres@localhost:5432/compare_competencies
+docker compose start backend
+curl -sf http://localhost:8000/health && echo " health OK"
+```
+
+Альтернатива из CLI (то же самое, но без явного DSN): `python -m src.cli backup
+--restore "$LATEST"`. Всегда указывайте явный путь, а не `latest`: `latest` может
+указать на свежий «страховочный» снимок из 2.2, а не на проверенный дамп.
+
+### 2.4. Пост-проверка данных
+
+```bash
+docker exec competency-postgres psql -U postgres -d compare_competencies -tAc "SELECT count(*) FROM users;"
 ```
 
 ---
 
-## 5. Инциденты
+## 3. Сбой миграции (migration failure)
 
-### 5xx на API
+Симптом: `deploy.sh` падает на шаге `migrations (alembic upgrade heads)`, либо
+backend не поднимается после миграции. Сначала остановить автодеплой (раздел 1.1).
 
-Сначала - прогон всех GET-эндпоинтов на 5xx:
+```bash
+cd /home/admin_server/compare_competencies
 
-```powershell
-python tools\smoke-get.py
-python tools\smoke-get.py --base http://127.0.0.1:8000
+# где мы и куда идём; голова должна быть одна
+docker compose run --rm --no-deps --entrypoint alembic backend current
+docker compose run --rm --no-deps --entrypoint alembic backend heads
+# ожидаемая единственная голова: retention_fk_on_delete
+
+# кто держит блокировку (миграция ждёт ALTER TABLE)
+docker exec competency-postgres psql -U postgres -d compare_competencies -c \
+  "SELECT pid, state, wait_event_type, left(query,80) FROM pg_stat_activity WHERE state IS DISTINCT FROM 'idle';"
 ```
 
-Скрипт логинится под admin и обходит все GET, печатая 500-е с именем
-эндпоинта. Дальше - лог backend'а (structlog) и стек по конкретному пути.
-Типовые причины: ошибка в ридере данных, отсутствующий артефакт в `data/`,
-недоступная внешняя зависимость (hh.ru, Ollama).
+Если применена плохая ревизия, откатить её на одну назад и вернуть код/образ
+(раздел 1.3):
 
-### 401/403 у всех после выката
+```bash
+docker compose run --rm --no-deps --entrypoint alembic backend downgrade -1
+```
 
-Признак: массовые «Unauthorized» сразу после релиза, хотя пользователи не
-менялись. Почти всегда это **смена `SECRET_KEY`**.
-
-- `SECRET_KEY` подписывает JWT/cookie-сессии. При его изменении все выданные
-  токены становятся недействительными, плюс срабатывает deny-list.
-- **Проверьте `.env`: значение `SECRET_KEY` должно совпадать с предыдущим
-  деплоем.** Не генерируйте новый ключ при обычном выкате.
-- Восстановление: вернуть прежний `SECRET_KEY` (из бэкапа `.env` / секрет-
-  хранилища) и перезапустить backend. Если прежнего ключа нет - пользователям
-  придётся залогиниться заново.
-
-### Зависшие прогоны пайплайна
-
-«Зависший» прогон - это задача в статусе `running`, которая не двигается.
-
-1. Посмотреть активные задачи: `GET /api/pipeline/active` (admin/teacher/rop)
-   или `data/cache/pipeline_tasks.json`.
-2. Отменить конкретную: `POST /api/pipeline/cancel/{task_id}`.
-3. Почистить накопленные устаревшие записи (прогоны, логи запросов):
-   ```powershell
-   python -m src.cli retention            # dry-run: показывает, что удалится
-   python -m src.cli retention --apply    # фактическое удаление
-   ```
-4. Если процесс реально висит на внешнем вызове - смотрите лог и метрики
-   `pipeline_*` в Prometheus; при необходимости перезапустите backend.
+Частая причина зависания - активные читатели таблицы, которую мигрируют.
+Дождаться/остановить долгие запросы, повторить `upgrade heads`. После починки
+обязательно выставить маркер `git rev-parse HEAD > ~/.cc-deployed-sha` и вернуть
+таймер.
 
 ---
 
-## 6. Бэкапы
+## 4. Шторм 5xx и недоступность API
 
-### Где лежат
+Важно: middleware пишет в `api_requests_total` ТОЛЬКО пути `/api/*`
+(`src/api_pkg/request_logger.py`). `/health` и `/ready` в эти метрики НЕ попадают.
 
-- `data/backup/` - основной каталог дампов (скрипты проверки смотрят его;
-  при пустоте - запасной `data/backups/`).
-- `data/backups/` - каталог, который использует CLI `src/cli/backup_db.py`.
-- `./backups/` - tar-архивы Docker-томов из `backup-volumes.sh` /
-  `update-deployment.sh`.
-- Имя дампа: `backup_YYYYMMDD_HHMMSS.sql`.
+```bash
+# 5xx по метрикам (нужен METRICS_TOKEN из .env; без него /metrics отдаёт 403)
+TOKEN=$(grep -E '^METRICS_TOKEN=' .env | cut -d= -f2-)
+curl -s -H "X-Metrics-Token: $TOKEN" http://localhost:8000/metrics \
+  | grep -E '^api_requests_total'
 
-### Создать дамп
+# свежие ошибки и логи
+docker logs --tail 200 compare-competencies-api
+tail -n 200 logs/backend.log
 
-```powershell
-python -m src.cli backup                 # дамп в data/backups/
+# соединения и тяжёлые запросы
+docker exec competency-postgres psql -U postgres -d compare_competencies -c \
+  "SELECT count(*), state FROM pg_stat_activity GROUP BY state;"
 ```
 
-### Проверить дамп (читает, ничего не меняет)
+Порядок действий:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\verify_backup.ps1
-powershell -ExecutionPolicy Bypass -File scripts\verify_backup.ps1 -Dir data\backups
-```
-
-Проверяет: файл существует и не пуст, есть маркеры plain-SQL дампа
-(`PostgreSQL database dump`) и данные (`COPY` / `INSERT INTO`), считает число
-таблиц. Exit 0 - дамп пригоден; exit 1 - проблема (файла нет, пустой, битый
-или нет данных).
-
-### Проверить восстановимость (в отдельную БД, рабочие данные не трогаются)
-
-```powershell
-# Сначала dry-run: печатает план и выходит
-powershell -ExecutionPolicy Bypass -File scripts\restore_check.ps1
-
-# Реальное восстановление в cc_restore_check (создаст и удалит БД)
-powershell -ExecutionPolicy Bypass -File scripts\restore_check.ps1 -Confirm
-```
-
-Скрипт поднимает временную БД `cc_restore_check`, восстанавливает в неё дамп,
-проверяет что таблиц > 0, и удаляет БД (`-Keep` оставит её для разбора).
-
-### Восстановить рабочие данные
-
-```powershell
-python -m src.cli backup --restore latest        # последний дамп
-python -m src.cli backup --restore data\backups\backup_20260101_120000.sql
-```
-
-Docker-тома - вручную из `./backups/*.tar.gz`. Перед восстановлением остановите
-backend, чтобы не было пишущих транзакций.
+1. `curl -sf http://localhost:8000/ready` - если `not_ready`, смотреть `problems`
+   (`data_not_loaded`, `db_pool_unavailable`).
+2. Если 5xx начался сразу после деплоя - откат по образам (раздел 1.2).
+3. Если БД перегружена - снять тяжёлые запросы, затем при необходимости
+   `docker compose restart backend`.
+4. Если ошибки из-за размеров данных - `retention` (раздел 5).
 
 ---
 
-## 7. 2FA администратора
+## 5. Диск заполнен (disk full)
 
-TOTP-двухфакторка. Секрет и recovery-коды хранятся в таблице `admin_totp`
-(секрет - зашифрован).
+Ориентиры: `data` ~724 MB, `logs` ~48.7 MB, `uploads` ~0.1 MB. Логи backend
+ротируются в `logs/backend.log.1..5`.
 
-Есть два независимых уровня:
+```bash
+df -h /
+du -sh data logs uploads 2>/dev/null
+docker system df
 
-| Что | Где | По умолчанию |
-|---|---|---|
-| **Мастер-переключатель** (для всей системы) | таблица `app_settings`, ключ `security.two_factor` | **выключен** |
-| Личное подключение TOTP | `admin_totp`, по пользователю | не подключено |
+# безопасная уборка
+docker image prune -f
+ls -1t data/backups/*.sql 2>/dev/null | tail -n +6 | xargs -r rm --   # оставить 5 свежих
+rm -f backups/*_<старая_дата>.tar.gz
 
-Мастер-переключатель - единственный источник правды: его читают и вход по
-паролю, и SSO. Пока он выключен, код не спрашивается ни у кого и эндпоинты
-`/auth/2fa/*` отвечают `404` («отключена администратором»). Подключения
-пользователей при выключении **не удаляются** - при следующем включении те же
-люди снова получают запрос кода.
-
-### Выключить / включить (одним кликом)
-
-Админка → вкладка **Безопасность** → кнопка «Включить»/«Выключить».
-API-эквивалент:
-
-```
-GET  /api/admin/security/2fa/settings   -> { "enabled": bool, "enrolled_admins": int }
-PUT  /api/admin/security/2fa/settings   { "enabled": true }
+# чистка БД (dry-run по умолчанию, удаление только с --apply)
+python -m src.cli retention
+python -m src.cli retention --apply
 ```
 
-Выключение кода не требует (это аварийный тумблер). Каждое переключение
-пишется в аудит как `admin.2fa.toggle`.
+`retention` удаляет устаревшие `vacancies` (2 года), `request_logs` (90 дней),
+`pipeline_runs` (1 год); значения дней ограничены диапазоном 1..36500.
 
-Проверить состояние без авторизации (для экрана входа):
+Не запускать `logs.sh`: он ссылается на отсутствующий `docker-compose.prod.yml`.
+Смотреть логи так:
 
+```bash
+docker logs -f --tail=100 compare-competencies-api
+tail -f logs/backend.log
 ```
-GET /api/auth/2fa/policy   -> { "enabled": bool }
-```
-
-### Включить 2FA себе
-
-1. Мастер-переключатель должен быть **включён** (иначе `404`).
-2. Админка → Безопасность → «Подключить приложение-аутентификатор», либо:
-   ```
-   POST /api/auth/2fa/setup
-   ```
-   В ответе - `otpauth_uri` и `secret`. Отсканируйте QR из `otpauth_uri`
-   (или вбейте `secret`) в Google Authenticator / Aegis / аналоги.
-3. Подтвердить одноразовым кодом:
-   ```
-   POST /api/auth/2fa/confirm   { "code": "123456" }
-   ```
-   В ответе `recovery_codes` - **сохраните их в надёжном месте**. Коды
-   одноразовые, каждый срабатывает ровно раз.
-4. После подключения вход становится двухшаговым:
-   - `POST /api/auth/login` возвращает `challenge_id` (не токен);
-   - `POST /api/auth/2fa/verify { "challenge_id": "...", "code": "..." }`
-     выдаёт токен. Challenge живёт 5 минут.
-
-### Вход при включённом переключателе
-
-| Кто | Что вернёт `/auth/login` |
-|---|---|
-| подключил TOTP | `{"status": "totp_required", "challenge_id": ...}` |
-| админ без TOTP | `{"status": "totp_setup_required", "enroll_id": ...}` - сначала настройка |
-| не админ без TOTP | обычный токен (иначе включение заперло бы всех сразу) |
-
-Пропуск `enroll_id` одноразовый и живёт 10 минут. Настройка по нему проходит
-**без сессии**: `POST /auth/2fa/setup {"enroll_id": ...}` →
-`POST /auth/2fa/confirm {"code": ..., "enroll_id": ...}`. Подтверждение сразу
-отдаёт токен и recovery-коды, чтобы не гонять человека по кругу.
-
-> SSO через академический API подчиняется тому же переключателю: выключен -
-> код не спрашиваем, включён - у подключённых SSO-вход тоже двухшаговый.
-
-### Потеря телефона
-
-1. **Recovery-код** (резервный способ входа):
-   ```
-   POST /api/auth/2fa/recovery { "challenge_id": "...", "code": "<recovery-код>" }
-   ```
-   `challenge_id` берётся из ответа `/auth/login`. Использованный код удаляется.
-2. **Отключить 2FA** (нужен действующий TOTP- или recovery-код и активная
-   admin-сессия):
-   ```
-   POST /api/auth/2fa/disable { "code": "<код>" }
-   ```
-   После этого таблица `admin_totp` очищается, вход снова одношаговый -
-   настройте 2FA заново на новом телефоне.
-3. Если утеряны и телефон, и recovery-коды, а войти нельзя - остаётся прямой
-   доступ к БД: очистить строку в `admin_totp` для нужного `user_id`, затем
-   залогиниться и настроить 2FA заново.
-
-### Защита от перебора
-
-Неверные коды считаются: после `_TOTP_MAX_FAILURES` срабатывает блокировка с
-ответом `429` и заголовком `Retry-After`.
 
 ---
 
-## 8. Retention (очистка устаревших данных)
+## 6. Ротация секретов (secret rotation)
 
-Удаляет старые вакансии, логи запросов и прогоны пайплайна. По умолчанию -
-**dry-run**: печатает план и ничего не удаляет.
+### 6.1. SECRET_KEY
 
-```powershell
-python -m src.cli retention                                  # dry-run
-python -m src.cli retention --apply                          # удалить
-python -m src.cli retention --vacancies-days 730 --logs-days 90 --run-days 365 --apply
+Ротация `SECRET_KEY` немедленно инвалидирует:
+
+- все сессионные токены (пользователи разлогинены);
+- секреты admin TOTP (Fernet-ключ выводится из `SECRET_KEY`) - админам нужно
+  заново привязать 2FA;
+- academic SSO-токены, сохранённые в `sessions.sso_token`.
+
+```bash
+openssl rand -hex 32          # новый SECRET_KEY
+# записать новое значение в .env -> SECRET_KEY=...
+docker compose up -d backend --force-recreate
+curl -sf http://localhost:8000/health && echo " health OK"
 ```
 
-Все пороги должны быть >= 1. Сначала смотрите dry-run, затем запускайте
-`--apply` (можно завернуть в cron/планировщик).
+Предупредить пользователей об повторном входе и админов о перепривязке TOTP.
 
----
+### 6.2. METRICS_TOKEN (доступ к /metrics)
 
-## 9. Полезные ссылки
+```bash
+openssl rand -hex 32 > prometheus/metrics_token   # файл читает Prometheus
+# то же значение в .env -> METRICS_TOKEN=...
+docker compose up -d backend prometheus --force-recreate
+```
 
-- `tools\release.ps1 -Action Precheck` - полный гейт перед релизом
-- `python tools\smoke-get.py` - обход GET-эндпоинтов на 5xx
-- `scripts\verify_backup.ps1`, `scripts\restore_check.ps1` - бэкапы
-- `docs\API-CHANGELOG.md` - изменения API
-- `README.md` - запуск (локально и Docker)
+Проверить: `curl -s -o /dev/null -w '%{http_code}\n' -H "X-Metrics-Token: $TOKEN" http://localhost:8000/metrics`
+должен вернуть `200`. Имя заголовка `X-Metrics-Token` - часть контракта
+`/metrics`: Prometheus шлёт его через `http_headers` в `prometheus/prometheus.yml`,
+а не через `Authorization: Bearer` (см. `monitoring/README.md`).

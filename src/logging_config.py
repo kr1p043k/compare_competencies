@@ -4,6 +4,7 @@ import contextlib
 import logging
 import os
 import re
+import sys
 from logging.handlers import RotatingFileHandler
 
 import structlog
@@ -31,8 +32,38 @@ class SecretsMasker:
         return event_dict
 
 
+class SafeStreamHandler(logging.StreamHandler):
+    """StreamHandler, который не может уронить вызывающий код.
+
+    Логирование кириллицы в консоль с cp1251 выбрасывало UnicodeEncodeError.
+    Он улетал из logger.* наружу, попадал в собственный `except Exception`
+    обработчика и превращал нормальный ответ в 503. Поэтому здесь глотаем любые
+    ошибки записи: лог важен, но ответ пользователю важнее лога.
+    """
+
+    def emit(self, record):
+        try:
+            super().emit(record)
+        except RecursionError:
+            raise
+        except Exception:  # noqa: BLE001 — защитный слой логирования
+            pass
+
+    def handleError(self, record):  # noqa: N802 — имя задано API logging.Handler
+        # Никогда не печатаем в stderr: он и есть источник проблемы с кодировкой.
+        pass
+
+
+def _harden_stdio_streams() -> None:
+    """Переводит stdout/stderr в utf-8 с backslashreplace, если это возможно."""
+    for stream in (_stream for _stream in (sys.stdout, sys.stderr)):
+        with contextlib.suppress(Exception):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def setup_structlog(console_level: int = None):
     root_logger = logging.getLogger()
+    _harden_stdio_streams()
 
     def _has_file_handler():
         return any(
@@ -57,7 +88,7 @@ def setup_structlog(console_level: int = None):
 
     file_handler.doRollover = _safe_rollover
 
-    console_handler = logging.StreamHandler()
+    console_handler = SafeStreamHandler()
     console_handler.setLevel(console_level)
 
     use_colors = (
@@ -88,7 +119,11 @@ def setup_structlog(console_level: int = None):
     )
 
     root_logger.addHandler(file_handler)
-    if not any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers):
+    has_console = any(
+        isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
+        for h in root_logger.handlers
+    )
+    if not has_console:
         root_logger.addHandler(console_handler)
     root_logger.setLevel(logging.DEBUG)
 
