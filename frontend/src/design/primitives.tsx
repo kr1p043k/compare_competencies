@@ -237,6 +237,57 @@ export function StatCard({
   );
 }
 
+/* --------------------------------------------------------------- MetricPair */
+
+export interface MetricPairProps {
+  /** Основное значение (например, покрытие). Не одиночный процент:
+   *  рядом рисуется сопутствующая метрика, если она есть в данных. */
+  primaryValue: ReactNode;
+  primaryTitle?: string;
+  primaryClassName?: string;
+  /** Пара к основному (например, качество). Нет в payload - не выводится. */
+  secondaryValue?: ReactNode;
+  secondaryLabel?: ReactNode;
+  secondaryTitle?: string;
+  secondaryClassName?: string;
+  className?: string;
+}
+
+/**
+ * Пара метрик на одной строке: базовое значение + сопутствующее
+ * (качество/взвешенное/строгое), чтобы ни один процент не читался
+ * как единственная оценка. Second-значение выводится только когда
+ * вызывающий передал его: отсутствующих полей не изобретаем.
+ */
+export function MetricPair({
+  primaryValue,
+  primaryTitle,
+  primaryClassName,
+  secondaryValue,
+  secondaryLabel,
+  secondaryTitle,
+  secondaryClassName,
+  className,
+}: MetricPairProps) {
+  const hasSecondary = secondaryValue !== undefined && secondaryValue !== null;
+  return (
+    <span className={cn("inline-flex items-baseline gap-1.5", className)}>
+      <span title={primaryTitle} className={cn("tabular", primaryClassName)}>
+        {primaryValue}
+      </span>
+      {hasSecondary ? (
+        <span
+          title={secondaryTitle}
+          className={cn("text-xs text-muted-foreground tabular", secondaryClassName)}
+        >
+          {secondaryLabel ? `${secondaryLabel}: ` : ""}
+          {secondaryValue}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 /* ------------------------------------------------------- Empty / Error states */
 
 export function EmptyState({
