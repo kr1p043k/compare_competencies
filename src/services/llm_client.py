@@ -1,4 +1,5 @@
 import time
+from functools import lru_cache
 from typing import Any
 
 import structlog
@@ -10,8 +11,68 @@ from src.monitoring.metrics import (
     llm_response_length,
     llm_token_usage,
 )
+from src.services.llm_pricing import estimate_cost_usd
 
 logger = structlog.get_logger(__name__)
+
+# ─────────────── LLM interaction persistence (sync, own connection) ──────────
+
+_sync_url = config.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+
+
+@lru_cache(maxsize=1)
+def _sync_engine():
+    from sqlalchemy import create_engine
+
+    return create_engine(
+        _sync_url,
+        pool_pre_ping=True,
+        pool_size=2,
+        max_overflow=4,
+    )
+
+
+def _persist_interaction(
+    model: str,
+    prompt_tokens: int,
+    response_tokens: int,
+    duration_ms: int,
+    cost_usd: float | None,
+) -> None:
+    """Write one row to llm_interactions (best-effort, never raises)."""
+    try:
+        import uuid
+        from datetime import UTC, datetime
+
+        from sqlalchemy import text
+
+        eng = _sync_engine()
+        with eng.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO llm_interactions "
+                    "(id, model, prompt_tokens, response_tokens, "
+                    " duration_ms, cost_usd, created_at) "
+                    "VALUES (:id, :model, :pt, :rt, :dur, :cost, :ts)"
+                ),
+                {
+                    "id": str(uuid.uuid4()),
+                    "model": model,
+                    "pt": prompt_tokens or 0,
+                    "rt": response_tokens or 0,
+                    "dur": duration_ms,
+                    "cost": cost_usd,
+                    "ts": datetime.now(UTC),
+                },
+            )
+    except Exception:
+        logger.warning(
+            "llm_interaction_persist_failed",
+            model=model,
+            prompt_tokens=prompt_tokens,
+            response_tokens=response_tokens,
+            exc_info=True,
+        )
 
 
 class LLMClient:
@@ -47,6 +108,8 @@ class LLMClient:
         max_tokens = max_tokens if max_tokens is not None else config.QWEN_MAX_TOKENS
 
         start = time.time()
+        prompt_tokens: int | None = None
+        response_tokens: int | None = None
         try:
             response = self._client.chat.completions.create(
                 model=self.model,
@@ -58,9 +121,15 @@ class LLMClient:
             llm_requests_total.labels(model=self.model, status="ok").inc()
             if hasattr(response, "usage") and response.usage:
                 if response.usage.prompt_tokens:
-                    llm_token_usage.labels(model=self.model, type="prompt").inc(response.usage.prompt_tokens)
+                    prompt_tokens = response.usage.prompt_tokens
+                    llm_token_usage.labels(model=self.model, type="prompt").inc(
+                        prompt_tokens
+                    )
                 if response.usage.completion_tokens:
-                    llm_token_usage.labels(model=self.model, type="completion").inc(response.usage.completion_tokens)
+                    response_tokens = response.usage.completion_tokens
+                    llm_token_usage.labels(model=self.model, type="completion").inc(
+                        response_tokens
+                    )
             if not stream and hasattr(response, "choices") and response.choices:
                 content = response.choices[0].message.content or ""
                 llm_response_length.labels(model=self.model).observe(len(content))
@@ -71,6 +140,26 @@ class LLMClient:
         finally:
             duration = time.time() - start
             llm_request_duration_seconds.labels(model=self.model).observe(duration)
+            # Persist interaction (best-effort – pricing never breaks a request)
+            try:
+                dur_ms = int(duration * 1000)
+                if prompt_tokens is not None and response_tokens is not None:
+                    cost = estimate_cost_usd(self.model, prompt_tokens, response_tokens)
+                    _persist_interaction(
+                        model=self.model,
+                        prompt_tokens=prompt_tokens,
+                        response_tokens=response_tokens,
+                        duration_ms=dur_ms,
+                        cost_usd=cost,
+                    )
+            except Exception:
+                logger.warning(
+                    "llm_cost_calculation_failed",
+                    model=self.model,
+                    prompt_tokens=prompt_tokens,
+                    response_tokens=response_tokens,
+                    exc_info=True,
+                )
 
     def generate(
         self,
