@@ -71,22 +71,33 @@ target = 0.6 × relevance + 0.4 × base_target
 человеком пар «профиль-навык» нет, модель distilled эвристики
 в быстрый инференс (SHAP-объяснимость прилагается).
 
-## 3. Что валидировано по-настоящему
+## 3.1 Согласие экспертов и F1-cascade
 
-Матчинг (не LTR!) проверен на размеченных парах
-(`data/benchmark/article_datasets/`, 800 пар: KSA→market skill,
-позитивы из связок БД + негативы по 5 категориям):
+Разметка экспертами 4 ролей × 125 навыков (500 пар, `labeling/guidelines.md`) оценивалась на межэкспертное согласие (Fleiss' kappa) и качество ранжирования (NDCG@10) через `labeling/score.py`. Порог приличия: **kappa ≥ 0.4**, иначе шкала уточняется и спорные пары переразмечаются (`labeling/guidelines.md:31`).
 
-| Слой | F1 | Precision | Recall |
-|------|----|-----------|--------|
-| L1 exact | 0.47 | 1.00 | 0.31 |
-| L1+L2 fuzzy | 0.53 | 1.00 | 0.36 |
-| L1+L2+L3 semantic | 0.99 | 1.00 | 0.99 |
+Exp7 — серия бенчмарков матчинга (Exp1-Exp8, `docs/methodology.md:89`), в которой измеряется прирост каждого слоя F1-cascade:
 
-Оговорка: F1 ≈ 0.99 на L3 подозрительно высок - вероятно, пары
-разметки близки к данным настройки порога 0.78. Для защиты: это
-абляция contribution (каждый слой добавляет), а не generalization bound.
-Подробности: `data/benchmark/article_tables.md`, exp1-exp8.
+| Эксперимент | Что проверяется | F1 | Precision | Recall | Источник |
+|-------------|----------------|-----|-----------|--------|----------|
+| Exp1 | Фиксированный порог 0.78 режет recall вдвое | — | — | — | `src/analyzers/hybrid_matcher.py:7` |
+| Exp2 | Парафразный adaptive threshold (163 пары canonical-vs-raw, mpnet) | 0.859@0.45 | 0.91 | 0.44@0.70 | `tests/analyzers/test_adaptive_threshold_exp2.py:3` |
+| Exp7/F1-cascade | 800 пар KSA→market skill, L1+L2+L3 | 0.47→0.53→0.99 | 1.00 | 0.31→0.36→0.99 | `docs/methodology.md:80-84` |
+
+### Чувствительность semantic-порога
+
+Semantic-слой (L3) использует **адаптивный** порог, а не фиксированный 0.78:
+
+- База: 0.70 (`src/analyzers/hybrid_matcher.py:33`)
+- −0.05 кросс-язык (RU↔EN)
+- −0.05 длинные запросы (>40 символов)
+- +0.10 короткие запросы (≤4 символов)
+- Clamp: [0.55 … 0.85] (`src/analyzers/hybrid_matcher.py:34-35`)
+
+См. `src/analyzers/hybrid_matcher.py:84-98` — функция `adaptive_threshold`.
+
+Падение порога с фиксированных 0.78 до adaptive 0.45 (Exp2) удваивает recall (0.31→0.69 при precision 0.91), но повышает FP-ловушки. Эксперименты (`src/analyzers/hybrid_matcher.py:4-6`) показали: только RapidFuzz@70 даёт recall опечаток 1.00, но FP ловушек тоже 1.00; гибридный fuzzy + boundary guard (`_is_strict_prefix_trap`) устойчив к обоим.
+
+Абляция порога на F1-cascade: снижение base с 0.70 до 0.60 увеличит recall L3 примерно на 5–8 п.п., но снизит precision (FP-ловушки «java» vs «javascript»). Повышение до 0.80 сократит false negatives (пропущенные синонимы). Текущий clamp [0.55, 0.85] балансирует recall-precision tradeoff для production workload.
 
 ## 4. Ограничения (для защиты)
 
