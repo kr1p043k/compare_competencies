@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import uuid
 
 import asyncpg
 import structlog
@@ -21,15 +23,45 @@ CREATE TABLE IF NOT EXISTS app_settings (
 """
 
 _table_ready = False
+#: Замок на создание таблицы: без него два первых параллельных запроса
+#: выполняют CREATE TABLE IF NOT EXISTS одновременно и один из них падает
+#: (гонка в каталоге pg_type), причём на пути записи это 500.
+_ensure_lock: asyncio.Lock | None = None
+
+
+def _is_uuid(value: str | None) -> bool:
+    """updated_by ссылается на users(id) UUID: чужой формат даст DataError."""
+    if not value:
+        return False
+    try:
+        uuid.UUID(str(value))
+    except (ValueError, AttributeError, TypeError):
+        return False
+    return True
 
 
 async def _ensure_table(pool: asyncpg.Pool) -> None:
-    """Страховка на случай деплоя без миграции."""
-    global _table_ready
+    """Страховка на случай деплоя без миграции (app_settings_table.py)."""
+    global _table_ready, _ensure_lock
+
     if _table_ready:
         return
-    await pool.execute(_TABLE_DDL)
-    _table_ready = True
+    if _ensure_lock is None:
+        _ensure_lock = asyncio.Lock()
+    async with _ensure_lock:
+        if _table_ready:
+            return
+        try:
+            await pool.execute(_TABLE_DDL)
+        except Exception:
+            # Проигравший гонку получил ошибку каталога: таблица уже есть -
+            # проверяем фактическое наличие, иначе ошибку не глотаем.
+            exists = await pool.fetchval(
+                "SELECT to_regclass('public.app_settings') IS NOT NULL"
+            )
+            if not exists:
+                raise
+        _table_ready = True
 
 
 async def get_two_factor_enabled(pool: asyncpg.Pool | None) -> bool:
@@ -75,5 +107,5 @@ async def set_two_factor_enabled(
         """,
         TWO_FACTOR_KEY,
         json.dumps({"enabled": enabled}),
-        user_id,
+        user_id if _is_uuid(user_id) else None,
     )

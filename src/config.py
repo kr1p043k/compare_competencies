@@ -77,6 +77,9 @@ class Settings(BaseSettings):
 
     # ---------- безопасность ----------
     SECRET_KEY: SecretStr | None = None
+    # Ограничитель частоты. Выключать только для нагрузочных замеров:
+    # иначе результат измеряет работу лимитера, а не сервера.
+    RATELIMIT_ENABLED: bool = True
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8000"
     TOKEN_TTL_DAYS: int = 7
     # Токен для скрейпинга /metrics (Prometheus). Если задан, эндпоинт
@@ -123,6 +126,24 @@ class Settings(BaseSettings):
     OLLAMA_EMBEDDING_MODEL: str = "qwen2.5:0.5b"
     QWEN_TEMPERATURE: float = 0.7
     QWEN_MAX_TOKENS: int = 2000
+
+    # ---------- LLM chat client (шлюз reformboss, ключ-1) ----------
+    # Слоты подключения отдельного чат-клиента к шлюзу reformboss. URL уже
+    # оканчивается на /v1 (шлюз OpenAI-совместим), ключ читается из env
+    # LLM_CHAT_API_KEY (необязателен). Поведение Ollama (OLLAMA_URL/Model) не трогаем.
+    LLM_CHAT_URL: str = "http://127.0.0.1:8797/k1/v1"
+    LLM_CHAT_API_KEY: SecretStr | None = None
+    LLM_CHAT_MODEL: str = "deepseek-ai/DeepSeek-V4.1-Flash"
+
+    # ---------- LLM chat assessment (opt-in, deterministic fallback) ----------
+    # Точка входа сервиса llm_chat: сборка grounded-контекста + два вызова LLM
+    # (текст + структурные блоки). Off = детерминированный шаблон из метрик,
+    # без вызова модели.
+    LLM_ASSESS_ENABLED: bool = False
+    # Модель для структурных блоков (второй вызов). Текст использует LLM_CHAT_MODEL.
+    LLM_CHAT_BLOCKS_MODEL: str = "deepseek-ai/DeepSeek-V4-Pro-0813"
+    # Бюджет контекста в токенах для промптов обоих вызовов.
+    LLM_CHAT_CONTEXT_TOKEN_BUDGET: int = 8000
 
     # ---------- LLM enhancement (opt-in, fallback-first) ----------
     LLM_ENABLED: bool = True
@@ -408,6 +429,13 @@ OLLAMA_MODEL = settings.OLLAMA_MODEL
 OLLAMA_EMBEDDING_MODEL = settings.OLLAMA_EMBEDDING_MODEL
 QWEN_TEMPERATURE = settings.QWEN_TEMPERATURE
 QWEN_MAX_TOKENS = settings.QWEN_MAX_TOKENS
+
+LLM_CHAT_URL = settings.LLM_CHAT_URL
+LLM_CHAT_API_KEY = settings.LLM_CHAT_API_KEY
+LLM_CHAT_MODEL = settings.LLM_CHAT_MODEL
+LLM_ASSESS_ENABLED = settings.LLM_ASSESS_ENABLED
+LLM_CHAT_BLOCKS_MODEL = settings.LLM_CHAT_BLOCKS_MODEL
+LLM_CHAT_CONTEXT_TOKEN_BUDGET = settings.LLM_CHAT_CONTEXT_TOKEN_BUDGET
 
 LLM_ENABLED = settings.LLM_ENABLED
 LLM_ENHANCE_STUDENT = settings.LLM_ENHANCE_STUDENT

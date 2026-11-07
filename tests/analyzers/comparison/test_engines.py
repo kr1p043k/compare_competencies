@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src import Ok, Result
+from src import Err, Ok, Result
 from src.analyzers.comparison.engines import BM25Engine, EnsembleEngine, JaccardEngine, SimilarityEngine
 
 
@@ -188,3 +188,34 @@ class TestEnsembleEngine:
         res = _unwrap(ensemble.compare(["python"], ["py"]))
         for key in ("score", "weighted_coverage", "avg_similarity", "matches", "missing", "details"):
             assert key in res
+
+    def test_diag_healthy_when_all_channels_ok(self):
+        e1 = MagicMock(spec=SimilarityEngine)
+        e1.compare.return_value = Ok({"score": 0.8, "matches": [{"skill": "py", "similarity": 0.8}]})
+        ensemble = EnsembleEngine({"e1": (e1, 1.0)})
+        res = _unwrap(ensemble.compare(["python"], ["py"]))
+        assert res["diag"]["degraded"] is False
+        assert res["diag"]["failed_channels"] == []
+        assert res["diag"]["count"] == 0
+
+    def test_diag_records_err_channel(self):
+        e1 = MagicMock(spec=SimilarityEngine)
+        e1.compare.return_value = Err("engine broken")
+        e2 = MagicMock(spec=SimilarityEngine)
+        e2.compare.return_value = Ok({"score": 0.5, "matches": []})
+        ensemble = EnsembleEngine({"e1": (e1, 0.5), "e2": (e2, 0.5)})
+        res = _unwrap(ensemble.compare(["python"], ["py"]))
+        assert res["diag"]["degraded"] is True
+        assert res["diag"]["failed_channels"] == ["e1"]
+        assert res["diag"]["count"] == 1
+
+    def test_diag_records_exception_channel(self):
+        e1 = MagicMock(spec=SimilarityEngine)
+        e1.compare.side_effect = RuntimeError("boom")
+        e2 = MagicMock(spec=SimilarityEngine)
+        e2.compare.return_value = Ok({"score": 0.5, "matches": []})
+        ensemble = EnsembleEngine({"e1": (e1, 0.5), "e2": (e2, 0.5)})
+        res = _unwrap(ensemble.compare(["python"], ["py"]))
+        assert res["diag"]["degraded"] is True
+        assert "e1" in res["diag"]["failed_channels"]
+        assert res["diag"]["count"] == 1

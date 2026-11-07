@@ -1,0 +1,179 @@
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { api } from "../api";
+import { TeacherDashboard } from "./TeacherDashboard";
+
+// Сетевой слой подменён целиком: TeacherDashboard на маунте тянет агрегаты
+// teacher-анализа, тест проверяет рендер payload, а не HTTP.
+vi.mock("../api", () => ({
+  api: vi.fn(() => Promise.reject(new Error("api mock not configured"))),
+}));
+
+// reportError уходит в /api/log реальным fetch - в jsdom он не нужен.
+vi.mock("../../lib/errors", () => ({
+  reportError: vi.fn(() => ""),
+  onError: vi.fn(() => () => {}),
+}));
+
+/** Ответ /teacher/krm/directions: одно направление. */
+const DIRECTIONS = [
+  { dir_code: "09.03.02", name: "Информационные системы", profile: "", disciplines_count: 2 },
+];
+
+/** Ответ /teacher/krm/disciplines: список слева. */
+const DISCIPLINES = [
+  { id: "d1", name: "Базы данных", in_scope: true, competencies_count: 3, skills_count: 12 },
+  { id: "d2", name: "Web-разработка", in_scope: true, competencies_count: 2, skills_count: 9 },
+];
+
+/**
+ * Ответ /teacher/analysis: срез направления с парами метрик.
+ * weighted_coverage есть только у «Базы данных» - вторая дисциплина
+ * проверяет, что пара «кач.» не рисуется из ничего.
+ */
+const ANALYSIS = {
+  direction: "09.03.02",
+  direction_name: "Информационные системы",
+  profile: "",
+  total_disciplines: 2,
+  average_coverage: 0.9,
+  average_market_top_coverage: 0.62,
+  average_market_top_reliable: true,
+  average_market_weight_coverage: 0.48,
+  coverage_level: "medium",
+  total_gaps_across_all: 9,
+  top_cross_discipline_gaps: [
+    { skill: "OceanBase", disciplines: 3 },
+    { skill: "Berkeley DBXML", disciplines: 1 },
+  ],
+  top_emerging_across_all: [
+    { skill: "Ray ML", frequency: 3, change_pct: 12.7, basis: "рост спроса" },
+    { skill: "k6", frequency: 4 },
+  ],
+  recommendations: [],
+  trends: { rising: [], declining: [] },
+  disciplines: [
+    {
+      name: "Базы данных",
+      coverage_ratio: 0.55,
+      weighted_coverage: 0.4,
+      coverage_level: "medium",
+      gaps: 2,
+      emerging: 1,
+      market_top_coverage: 0.6,
+      market_weight_coverage: 0.5,
+      market_top_total: 10,
+      market_top_reliable: true,
+      market_top_source: "explicit",
+      years: [2025],
+    },
+    {
+      name: "Web-разработка",
+      coverage_ratio: 0.3,
+      coverage_level: "low",
+      gaps: 4,
+      emerging: 0,
+      years: [2025],
+    },
+  ],
+  generated_at: "2026-01-01T00:00:00Z",
+};
+
+function route(endpoint: string): Promise<unknown> {
+  // meta проверяем раньше анализа: у обоих общий префикс /teacher/analysis.
+  if (endpoint.startsWith("/teacher/analysis/meta")) return Promise.resolve({ stale: false });
+  if (endpoint.startsWith("/teacher/analysis")) return Promise.resolve(ANALYSIS);
+  if (endpoint.startsWith("/teacher/krm/recommendations")) return Promise.resolve([]);
+  if (endpoint.startsWith("/teacher/krm/directions")) return Promise.resolve(DIRECTIONS);
+  if (endpoint.startsWith("/teacher/krm/disciplines")) return Promise.resolve(DISCIPLINES);
+  if (endpoint.startsWith("/teacher/krm/scope-summary")) {
+    return Promise.resolve({
+      total: 2,
+      in_scope: 2,
+      excluded_manual: 0,
+      excluded_no_data: 0,
+      analyzed: 2,
+    });
+  }
+  if (endpoint.startsWith("/teacher/krm/stats")) {
+    return Promise.resolve({
+      total_disciplines: 2,
+      total_competencies: 5,
+      total_skills: 30,
+      total_reports: 2,
+    });
+  }
+  if (endpoint.startsWith("/teacher/rpd/sources")) return Promise.resolve({ yandex_covered: [] });
+  return Promise.reject(new Error(`unexpected endpoint: ${endpoint}`));
+}
+
+beforeEach(() => {
+  vi.mocked(api).mockReset();
+  vi.mocked(api).mockImplementation(route as never);
+});
+
+/** Рендер + ожидание данных анализа (приходят последним эффектом). */
+async function renderDashboard() {
+  render(<TeacherDashboard />);
+  await screen.findByText("по спросу: 48.0%");
+}
+
+describe("TeacherDashboard", () => {
+  it("показывает строгий охват рынка с парой «по спросу» в сводке", async () => {
+    await renderDashboard();
+    // Строгий охват - в двух местах: сводка слева и KPI направления.
+    expect(screen.getAllByText("62.0%")).toHaveLength(2);
+    expect(screen.getByText("Средний охват рынка")).toBeInTheDocument();
+    // Пара есть и в KPI, со своим пояснением.
+    expect(screen.getByText("взвешенный охват: 48.0%")).toBeInTheDocument();
+    expect(
+      screen.getByTitle(
+        "Взвешенный охват (по спросу): насколько востребовано то из топа рынка, что реально покрыто. Может быть выше или ниже строгого",
+      ),
+    ).toBeInTheDocument();
+    // Происхождение знаменателя: explicit у одной дисциплины, у второй
+    // поля нет - она честно показана как n/a (TeacherDashboard.tsx:837).
+    expect(screen.getByText("источник рынка - explicit: 1, n/a: 1")).toBeInTheDocument();
+    // Знаменатель достоверен: предупреждения нет.
+    expect(screen.queryByText(/недостоверно/)).not.toBeInTheDocument();
+  });
+
+  it("рисует пару «кач.» в строке дисциплины только из payload", async () => {
+    await renderDashboard();
+    // У «Базы данных» weighted_coverage есть: строгий + качество рядом.
+    expect(screen.getByText("55%")).toBeInTheDocument();
+    expect(screen.getByText("кач.: 40%")).toBeInTheDocument();
+    // У «Web-разработка» поля нет: пара не появилась, весь дашборд держит
+    // ровно одну подпись «кач.».
+    expect(screen.getByText("30%")).toBeInTheDocument();
+    expect(screen.getAllByText(/кач\./)).toHaveLength(1);
+  });
+
+  it("выводит разрывы РПД и emerging-навыки с происхождением", async () => {
+    await renderDashboard();
+    // Кнопка суб-навигации и якорь раздела.
+    expect(screen.getByRole("button", { name: "Разрывы" })).toBeInTheDocument();
+    expect(document.getElementById("t-gaps")).not.toBeNull();
+
+    expect(screen.getByText("Разрывы между планом и рынком")).toBeInTheDocument();
+    expect(screen.getByText("OceanBase")).toBeInTheDocument();
+    expect(screen.getByText("3 дисциплины")).toBeInTheDocument();
+    expect(screen.getByText("1 дисциплина")).toBeInTheDocument();
+    // Тултип объясняет, откуда взялся чип разрыва.
+    expect(
+      screen.getByTitle("Навык есть в планах 3 дисциплинах, но в свежих вакансиях спроса нет"),
+    ).toBeInTheDocument();
+
+    // Emerging: частота вакансий у обоих, динамика - только где она есть.
+    expect(screen.getByText("Ray ML")).toBeInTheDocument();
+    expect(screen.getByText("3 вк.")).toBeInTheDocument();
+    expect(screen.getByText("+13%")).toBeInTheDocument();
+    expect(screen.getAllByText(/^\+\d+%$/)).toHaveLength(1);
+    expect(screen.getByText("k6")).toBeInTheDocument();
+    expect(screen.getByText("4 вк.")).toBeInTheDocument();
+    expect(
+      screen.getByTitle("Вакансий с этим навыком: 3 · основа отбора: рост спроса"),
+    ).toBeInTheDocument();
+  });
+});

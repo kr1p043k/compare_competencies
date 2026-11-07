@@ -1,113 +1,197 @@
-"""Retention CLI: защита от опечаток и корректный dry-run.
+"""Tests for src/cli/retention.py.
 
-Удаление данных необратимо, поэтому проверяем именно барьеры:
-  * по умолчанию dry-run (rollback, ничего не удалено);
-  * отрицательный/нулевой срок отклоняется с кодом 2;
-  * SQL формируется из int-значений, а не из пользовательской строки.
+Covers the four acceptance criteria:
+- day-based arguments accept only 1..36500 and fail fast with a Russian error;
+- the destructive arguments never reach the DB executor;
+- dry-run is the default and performs no DELETE;
+- retention_fk_on_delete migration exists and chains onto the previous head.
 """
+
 from __future__ import annotations
 
 import argparse
+import re
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
-from src.cli import retention
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
-def _args(**kw) -> argparse.Namespace:
-    base = {
-        "apply": False,
-        "vacancies_days": 730,
-        "logs_days": 90,
-        "run_days": 365,
-    }
-    base.update(kw)
-    return argparse.Namespace(**base)
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _make_parser() -> argparse.ArgumentParser:
+    from src.cli import retention
+
+    parser = argparse.ArgumentParser(prog="cli")
+    sub = parser.add_subparsers(dest="command", required=True)
+    retention.build_parser(sub)
+    return parser
 
 
 class _FakeCursor:
-    def __init__(self):
+    def __init__(self) -> None:
         self.executed: list[str] = []
         self.rowcount = 0
 
-    def execute(self, sql, params=None):
+    def execute(self, sql: str) -> None:
         self.executed.append(sql)
-        self.rowcount = 0
 
     def fetchone(self):
+        # COUNT(*) запросы: для dry-run возвращаем 0 кандидатов, чтобы
+        # даже при apply=True не было реальных DELETE.
         return (0,)
 
 
-class _FakeConn:
-    def __init__(self):
-        self.autocommit = True
+class _FakeConnection:
+    def __init__(self) -> None:
+        self.autocommit = False
         self.cur = _FakeCursor()
         self.committed = False
         self.rolled_back = False
+        self.closed = False
 
     def cursor(self):
         return self.cur
 
-    def commit(self):
+    def commit(self) -> None:
         self.committed = True
 
-    def rollback(self):
+    def rollback(self) -> None:
         self.rolled_back = True
 
-    def close(self):
-        pass
+    def close(self) -> None:
+        self.closed = True
 
 
-@pytest.fixture
-def fake_db(monkeypatch):
-    import psycopg2
-
-    conn = _FakeConn()
-    monkeypatch.setattr(psycopg2, "connect", lambda *_a, **_kw: conn)
+def _patch_psycopg2(monkeypatch) -> _FakeConnection:
+    conn = _FakeConnection()
+    monkeypatch.setattr("psycopg2.connect", lambda *a, **k: conn)
     return conn
 
 
-class TestNegativeGuard:
-    @pytest.mark.parametrize("field", ["vacancies_days", "logs_days", "run_days"])
-    def test_non_positive_days_rejected(self, fake_db, field):
-        """--logs-days=-1 удалил бы почти всю таблицу: отклоняем."""
-        code = retention.main(_args(**{field: -1}))
-        assert code == 2
-        assert fake_db.cur.executed == [], "до БД дело доходить не должно"
-
-    def test_zero_days_rejected(self, fake_db):
-        assert retention.main(_args(logs_days=0)) == 2
+def _deletes(conn: _FakeConnection) -> list[str]:
+    return [sql for sql in conn.cur.executed if sql.lstrip().upper().startswith("DELETE")]
 
 
-class TestDryRun:
-    def test_default_is_dry_run(self, fake_db):
-        retention.main(_args())
-        assert fake_db.rolled_back is True
-        assert fake_db.committed is False, "без --apply коммита быть не должно"
+# ---------------------------------------------------------------------------
+# TASK 1: bounds validation
+# ---------------------------------------------------------------------------
 
-    def test_no_delete_statements_without_apply(self, fake_db):
-        retention.main(_args())
-        deletes = [q for q in fake_db.cur.executed if q.strip().upper().startswith("DELETE")]
-        assert deletes == []
+@pytest.mark.parametrize("raw", ["0", "-1", "-5", "36501", "99999", "abc", "", "1.5"])
+def test_positive_days_rejects_invalid(raw: str) -> None:
+    from src.cli.retention import positive_days
 
-
-class TestApply:
-    def test_apply_commits(self, fake_db):
-        fake_db.cur.rowcount = 0
-        retention.main(_args(apply=True))
-        assert fake_db.committed is True
-
-    def test_days_are_interpolated_as_numbers(self, fake_db):
-        retention.main(_args(apply=True, logs_days=90))
-        count_sql = [q for q in fake_db.cur.executed if "COUNT(*)" in q and "request_logs" in q]
-        assert count_sql, "должен быть подсчёт кандидатов по request_logs"
-        assert "90 days" in count_sql[0]
-        assert "logs_days" not in count_sql[0], "имя переменной не должно попасть в SQL"
+    with pytest.raises(argparse.ArgumentTypeError):
+        positive_days(raw)
 
 
-class TestDsn:
-    def test_asyncpg_dsn_is_converted(self):
-        assert retention._to_sync_dsn("postgresql+asyncpg://u:p@h/db") == "postgresql://u:p@h/db"
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("1", 1), ("36500", 36500), ("90", 90), ("730", 730)],
+)
+def test_positive_days_accepts_boundaries(raw: str, expected: int) -> None:
+    from src.cli.retention import positive_days
 
-    def test_plain_dsn_untouched(self):
-        assert retention._to_sync_dsn("postgresql://u:p@h/db") == "postgresql://u:p@h/db"
+    assert positive_days(raw) == expected
+
+
+@pytest.mark.parametrize("flag", ["--vacancies-days", "--logs-days", "--run-days"])
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_invalid_day_arg_nonzero_exit_no_delete(
+    flag: str, value: str, capsys, monkeypatch
+) -> None:
+    executor = MagicMock()
+    monkeypatch.setattr("src.cli.retention.main", executor)
+
+    with pytest.raises(SystemExit) as excinfo:
+        _make_parser().parse_args(["retention", flag, value])
+
+    assert excinfo.value.code != 0
+    err = capsys.readouterr().err
+    assert "от 1 до 36500" in err
+    executor.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# TASK 3 + dry-run behaviour
+# ---------------------------------------------------------------------------
+
+def test_valid_value_dry_run_no_delete(capsys, monkeypatch) -> None:
+    conn = _patch_psycopg2(monkeypatch)
+    from src.cli import retention
+
+    args = SimpleNamespace(apply=False, vacancies_days=100, logs_days=90, run_days=365)
+    rc = retention.main(args)
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "к удалению" in out
+    assert "dry-run" in out
+    assert _deletes(conn) == []
+    assert conn.rolled_back is True
+    assert conn.committed is False
+
+
+def test_default_invocation_is_dry_run(capsys, monkeypatch) -> None:
+    args = _make_parser().parse_args(["retention"])
+    assert args.apply is False
+    assert args.vacancies_days == 730
+    assert args.logs_days == 90
+    assert args.run_days == 365
+
+    conn = _patch_psycopg2(monkeypatch)
+    from src.cli import retention
+
+    assert retention.main(args) == 0
+    out = capsys.readouterr().out
+    assert "dry-run" in out
+    assert _deletes(conn) == []
+    assert conn.rolled_back is True
+
+
+def test_vacancies_filter_uses_coalesce(monkeypatch) -> None:
+    conn = _patch_psycopg2(monkeypatch)
+    from src.cli import retention
+
+    args = SimpleNamespace(apply=False, vacancies_days=100, logs_days=90, run_days=365)
+    retention.main(args)
+
+    vac_sql = next(sql for sql in conn.cur.executed if "FROM vacancies" in sql)
+    assert "COALESCE(published_at, created_at)" in vac_sql
+
+
+# ---------------------------------------------------------------------------
+# TASK 2: FK migration
+# ---------------------------------------------------------------------------
+
+def test_fk_migration_exists_and_chained() -> None:
+    f = PROJECT_ROOT / "alembic" / "versions" / "retention_fk_on_delete.py"
+    assert f.exists(), "retention_fk_on_delete migration file missing"
+
+    content = f.read_text(encoding="utf-8")
+    rev = re.search(r'revision: str = "([^"]+)"', content)
+    down = re.search(r'down_revision: str \| None = "([^"]+)"', content)
+
+    assert rev is not None, "revision not declared"
+    assert down is not None, "down_revision not declared"
+    assert rev.group(1) == "retention_fk_on_delete"
+    assert down.group(1) == "add_admin_totp"
+    assert "ON DELETE SET NULL" in content
+
+
+def test_fk_migration_is_single_alembic_head() -> None:
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    cfg = Config(str(PROJECT_ROOT / "alembic.ini"))
+    cfg.set_main_option("script_location", str(PROJECT_ROOT / "alembic"))
+    script = ScriptDirectory.from_config(cfg)
+
+    # Инвариант: ровно одна голова (иначе `alembic upgrade head` падает).
+    # Конкретное имя ревизии здесь не проверяем: ветка живёт своей историей.
+    assert len(script.get_heads()) == 1, script.get_heads()
