@@ -8,7 +8,6 @@ import { VacanciesList } from "./components/VacanciesList";
 const ArticlesPage = lazy(() => import("./components/ArticlesPage").then(m => ({ default: m.ArticlesPage })));
 import { ScientificTrendsTab } from "./components/ScientificTrendsTab";
 const PublicationsTab = lazy(() => import("./components/PublicationsTab").then(m => ({ default: m.PublicationsTab })));
-import { ArticlesPanel } from "./components/ArticlesPanel";
 import { PipelineProgress } from "./components/PipelineProgress";
 import { PredictionsTab } from "./components/PredictionsTab";
 const MonitoringTab = lazy(() => import("./components/MonitoringTab").then(m => ({ default: m.MonitoringTab })));
@@ -568,9 +567,6 @@ export default function App() {
           <TabsContent value="scientific-trends">
             <ErrorBoundary scope="scientific-trends">
               <MemoScientificTrendsTab />
-              <div className="mt-6">
-                <ArticlesPanel />
-              </div>
             </ErrorBoundary>
           </TabsContent>
           <TabsContent value="publications">
