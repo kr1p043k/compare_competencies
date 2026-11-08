@@ -96,3 +96,44 @@ def test_build_pdf_falls_back_to_profile_name(tmp_path: Path):
     rec.pop("target_profession")
     data = pdf_report.build_profile_pdf("myprofile", rec, tmp_path)
     assert data.startswith(b"%PDF")
+
+
+def _pdf_text(blob: bytes) -> str:
+    import io
+
+    import pypdf
+
+    reader = pypdf.PdfReader(io.BytesIO(blob))
+    return "\n".join((page.extract_text() or "") for page in reader.pages)
+
+
+def test_pdf_contains_key_sections(tmp_path: Path):
+    # Синтетика, повторяющая структуру full_recommendations_*.json:
+    # и разделы, и ключевой текст (включая emoji в why_important) рендерятся.
+    rec = _full_rec()
+    rec["gaps"] = {
+        "sql": {"skill": "sql", "importance": 0.4463, "category": "missing"},
+        "python": {"skill": "python", "importance": 0.4136, "category": "missing"},
+        "llm": {"skill": "llm", "importance": 0.1076, "category": "weak"},
+    }
+    rec["domain_coverage"] = {
+        "Backend": {"domain": "Backend", "user_has": 17, "total_required": 138,
+                    "coverage": 0.123, "importance": 0.0769},
+    }
+    rec["recommendations"] = [
+        {"rank": 1, "skill": "python", "importance_score": 0.99,
+         "importance_base": 0.65, "importance_bonus": 0.34, "priority": "HIGH",
+         "why_important": "🔴 Высокий спрос на Python",
+         "how_to_learn": "Практика: 10+ задач",
+         "expected_timeframe": "1-2 месяца", "expected_outcome": "рост"},
+    ]
+
+    data = pdf_report.build_profile_pdf("base", rec, tmp_path)
+    text = _pdf_text(data)
+
+    assert "Топ-пробелы" in text
+    assert "Покрытие по доменам" in text
+    assert "Рекомендации" in text
+    # emoji убран, а текст после него сохранён и извлекается.
+    assert "Высокий спрос" in text
+    assert "отсутствует" in text  # статус пробела "missing" локализован
