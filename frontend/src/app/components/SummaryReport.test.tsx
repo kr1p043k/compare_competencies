@@ -86,11 +86,34 @@ describe("SummaryReport", () => {
 
     const user = userEvent.setup();
     await user.click(originSummaries[0]);
-    expect(screen.getByText("спрос J: 70%")).toBeInTheDocument();
-    expect(screen.getByText("спрос M: 75%")).toBeInTheDocument();
-    expect(screen.getByText("спрос S: 80%")).toBeInTheDocument();
-    expect(screen.getByText("уровень: 10%")).toBeInTheDocument();
-    expect(screen.getByText("кластер: 66%")).toBeInTheDocument();
+    // Человекочитаемые подписи вместо сырых ключей gap_m / спрос J / ...
+    // разрыв Junior не дублируем: он уже в заголовке строки («+100%»).
+    expect(screen.getByText("Разрыв (M/S)")).toBeInTheDocument();
+    expect(screen.getByText("Спрос (J/M/S)")).toBeInTheDocument();
+    expect(screen.getByText("Ваш уровень")).toBeInTheDocument();
+    expect(screen.getByText("Кластер")).toBeInTheDocument();
+    // Те же значения, что и раньше; доступное имя бара = tooltip «что это».
+    expect(
+      screen.getByRole("meter", { name: "Разрыв на уровне Middle: насколько не хватает до требуемого" }),
+    ).toHaveTextContent("80%");
+    expect(
+      screen.getByRole("meter", { name: "Разрыв на уровне Senior: насколько не хватает до требуемого" }),
+    ).toHaveTextContent("60%");
+    expect(
+      screen.getByRole("meter", { name: "Востребованность на рынке, уровень Junior" }),
+    ).toHaveTextContent("70%");
+    expect(
+      screen.getByRole("meter", { name: "Востребованность на рынке, уровень Middle" }),
+    ).toHaveTextContent("75%");
+    expect(
+      screen.getByRole("meter", { name: "Востребованность на рынке, уровень Senior" }),
+    ).toHaveTextContent("80%");
+    expect(
+      screen.getByRole("meter", { name: "Ваш текущий уровень владения навыком" }),
+    ).toHaveTextContent("10%");
+    expect(
+      screen.getByRole("meter", { name: "Релевантность навыка кластеру целевых вакансий" }),
+    ).toHaveTextContent("66%");
 
     // Короткий gap без происхождения: строки GapRow на месте, «откуда взято» один.
     expect(screen.getByText("Windows Server")).toBeInTheDocument();

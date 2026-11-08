@@ -3,6 +3,7 @@ import { Award, BarChart3, ChevronDown, ChevronUp } from "lucide-react";
 import { MetricPair } from "../../design";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
+import { GapBreakdown } from "./ui/gap-metrics";
 import {
   Table,
   TableBody,
@@ -124,29 +125,20 @@ function GapRow({ skill, entry }: { skill: string; entry: GapDetail }) {
           <summary className="text-[11px] text-gray-400 dark:text-slate-500 cursor-pointer select-none hover:text-gray-600 dark:hover:text-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded">
             откуда взято
           </summary>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-0.5 text-[11px] text-gray-500 dark:text-slate-400 mt-1 tabular">
-            {entry.gap_m != null && (
-              <span title="Разрыв на уровне Middle">gap_m: {(entry.gap_m * 100).toFixed(0)}%</span>
-            )}
-            {entry.gap_s != null && (
-              <span title="Разрыв на уровне Senior">gap_s: {(entry.gap_s * 100).toFixed(0)}%</span>
-            )}
-            {entry.demand_j != null && (
-              <span title="Востребованность на рынке, уровень Junior">спрос J: {(entry.demand_j * 100).toFixed(0)}%</span>
-            )}
-            {entry.demand_m != null && (
-              <span title="Востребованность на рынке, уровень Middle">спрос M: {(entry.demand_m * 100).toFixed(0)}%</span>
-            )}
-            {entry.demand_s != null && (
-              <span title="Востребованность на рынке, уровень Senior">спрос S: {(entry.demand_s * 100).toFixed(0)}%</span>
-            )}
-            {entry.user_level != null && (
-              <span title="Ваш текущий уровень владения навыком">уровень: {(entry.user_level * 100).toFixed(0)}%</span>
-            )}
-            {entry.cluster_relevance != null && (
-              <span title="Релевантность навыка кластеру целевых вакансий">кластер: {(entry.cluster_relevance * 100).toFixed(0)}%</span>
-            )}
-          </div>
+          {/* gap_j и важность уже в заголовке строки («+100%», «важность …%») - в
+              расшифровке не дублируем, подпись уровней строится по факту полей. */}
+          <GapBreakdown
+            className="mt-1.5"
+            fields={{
+              gapM: entry.gap_m,
+              gapS: entry.gap_s,
+              demandJ: entry.demand_j,
+              demandM: entry.demand_m,
+              demandS: entry.demand_s,
+              userLevel: entry.user_level,
+              cluster: entry.cluster_relevance,
+            }}
+          />
         </details>
       )}
     </div>

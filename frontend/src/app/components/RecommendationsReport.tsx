@@ -10,6 +10,7 @@ import {
   StatCard,
 } from "../../design";
 import { ShowMore } from "./ui/show-more";
+import { GapBreakdown } from "./ui/gap-metrics";
 import {
   TrendingUp,
   Target,
@@ -218,27 +219,20 @@ function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
         </div>
       </div>
       {expanded && (
-        <div className="mt-3 space-y-2">
-          <p className="text-xs text-muted-foreground italic">
-              разрыв - насколько навыка не хватает до требуемого (0% = нет разрыва),
-              спрос - востребованность навыка на рынке. Ниже - детали по уровням.
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-muted-foreground">
-            <div title="Разрыв на уровне Junior">gap_j: {(entry.gap_j * 100).toFixed(0)}%</div>
-            <div title="Разрыв на уровне Middle">gap_m: {(entry.gap_m * 100).toFixed(0)}%</div>
-            <div title="Разрыв на уровне Senior">gap_s: {(entry.gap_s * 100).toFixed(0)}%</div>
-            <div title="Востребованность на уровне Junior">demand_j: {(entry.demand_j * 100).toFixed(0)}%</div>
-            <div title="Востребованность на уровне Middle">demand_m: {(entry.demand_m * 100).toFixed(0)}%</div>
-            <div title="Востребованность на уровне Senior">demand_s: {(entry.demand_s * 100).toFixed(0)}%</div>
-            <div title="Ваш текущий уровень">user_level: {(entry.user_level * 100).toFixed(0)}%</div>
-            <div title="Общая важность навыка">importance: {(entry.importance * 100).toFixed(0)}%</div>
-            {entry.cluster_relevance != null && (
-              <div title="Насколько навык релевантен кластеру целевых вакансий (вес кластера)">
-                кластер: {(entry.cluster_relevance * 100).toFixed(0)}%
-              </div>
-            )}
-          </div>
-        </div>
+        <GapBreakdown
+          className="mt-3"
+          fields={{
+            gapJ: entry.gap_j,
+            gapM: entry.gap_m,
+            gapS: entry.gap_s,
+            demandJ: entry.demand_j,
+            demandM: entry.demand_m,
+            demandS: entry.demand_s,
+            userLevel: entry.user_level,
+            importance: entry.importance,
+            cluster: entry.cluster_relevance ?? undefined,
+          }}
+        />
       )}
       <button
         onClick={() => setExpanded(!expanded)}
