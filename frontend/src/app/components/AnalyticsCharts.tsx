@@ -15,9 +15,10 @@ import {
   CartesianGrid,
   Cell,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
+import { Alert, AlertDescription } from "./ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Radar as RadarIcon, X, Loader2 } from "lucide-react";
+import { Radar as RadarIcon, X, Loader2, AlertTriangle, ChevronDown } from "lucide-react";
 import { api } from "../api";
 import { useTheme } from "../../lib/theme";
 import { profileLabel } from "../../lib/profiles";
@@ -54,6 +55,8 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
   const [error, setError] = useState<string | null>(null);
   const [drill, setDrill] = useState<Drill>(null);
   const [drillLoading, setDrillLoading] = useState(false);
+  // Блок покрытия по умолчанию свёрнут в компактный свод: диаграмма раскрывается по клику.
+  const [coverageOpen, setCoverageOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -108,6 +111,17 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
     } finally {
       setDrillLoading(false);
     }
+  };
+
+  // Открыть детали покрытия уровня (списки «есть/нет»), как при клике по столбцу диаграммы.
+  const openCoverageDrill = (key: LevelKey) => {
+    setDrill({
+      skill: `__coverage__${key}`,
+      frequency: 0,
+      weight: 0,
+      category: "",
+      has: { base: false, dc: false, top_dc: false },
+    });
   };
 
   const radarData = useMemo(() => {
@@ -300,45 +314,94 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
         <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
           <CardHeader>
             <CardTitle className="text-base">Покрытие топ-50 навыков рынка по уровням</CardTitle>
-            <CardDescription>Доля топовых рыночных навыков в эталонном профиле. Клик по столбцу покажет списки</CardDescription>
+            <CardDescription>
+              {coverageOpen
+                ? "Доля топовых рыночных навыков в эталонном профиле. Клик по столбцу покажет списки"
+                : "Доля топовых рыночных навыков в эталонном профиле. Клик по уровню откроет списки"}
+            </CardDescription>
+            <CardAction>
+              <button
+                type="button"
+                onClick={() => setCoverageOpen((v) => !v)}
+                aria-expanded={coverageOpen}
+                aria-controls="coverage-chart"
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 shadow-sm transition-all hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer"
+              >
+                <ChevronDown
+                  className={`size-3.5 transition-transform duration-200 ${coverageOpen ? "rotate-180" : ""}`}
+                  aria-hidden="true"
+                />
+                {coverageOpen ? "Свернуть" : "Показать диаграмму"}
+              </button>
+            </CardAction>
           {profileError && (
-            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{profileError}</p>
+            <Alert className="mt-2 border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+              <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
+              <AlertDescription className="text-amber-700 dark:text-amber-300">{profileError}</AlertDescription>
+            </Alert>
           )}
           </CardHeader>
           <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={coverageData} layout="vertical" margin={{ left: 8, right: 24 }}>
-                  <CartesianGrid stroke={grid} strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" domain={[0, 100]} tick={{ fill: tick, fontSize: 11 }} unit="%" />
-                  <YAxis type="category" dataKey="level" tick={{ fill: tick, fontSize: 12 }} width={170} />
-                  <ReTooltip
-                    contentStyle={tipStyle}
-                    cursor={{ fill: dk ? "rgba(148, 163, 184, 0.12)" : "rgba(100, 116, 139, 0.12)" }}
-                    formatter={(value: any) => [`${value}%`, "Покрытие"]}
-                  />
-                  <Bar
-                    dataKey="pct"
-                    radius={[0, 6, 6, 0]}
-                    cursor="pointer"
-                    onClick={(data: any) =>
-                      data?.payload &&
-                      setDrill({
-                        skill: `__coverage__${data.payload.key}`,
-                        frequency: 0,
-                        weight: 0,
-                        category: "",
-                        has: { base: false, dc: false, top_dc: false },
-                      })
-                    }
+            {coverageOpen ? (
+              <div id="coverage-chart" className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={coverageData} layout="vertical" margin={{ left: 8, right: 24 }}>
+                    <CartesianGrid stroke={grid} strokeDasharray="3 3" horizontal={false} />
+                    <XAxis type="number" domain={[0, 100]} tick={{ fill: tick, fontSize: 11 }} unit="%" />
+                    <YAxis type="category" dataKey="level" tick={{ fill: tick, fontSize: 12 }} width={170} />
+                    <ReTooltip
+                      contentStyle={tipStyle}
+                      cursor={{ fill: dk ? "rgba(148, 163, 184, 0.12)" : "rgba(100, 116, 139, 0.12)" }}
+                      formatter={(value: any) => [`${value}%`, "Покрытие"]}
+                    />
+                    <Bar
+                      dataKey="pct"
+                      radius={[0, 6, 6, 0]}
+                      cursor="pointer"
+                      onClick={(data: any) => data?.payload && openCoverageDrill(data.payload.key)}
+                    >
+                      {coverageData.map((c) => (
+                        <Cell key={c.key} fill={LEVEL_COLORS[c.key]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 lg:flex-row" aria-label="Сводка покрытия по уровням">
+                {coverageData.map((c) => (
+                  <button
+                    type="button"
+                    key={c.key}
+                    onClick={() => openCoverageDrill(c.key)}
+                    aria-label={`${c.level}: покрытие ${c.pct}% топ-50, открыть списки навыков`}
+                    title={`Покрытие топ-50: ${c.pct}%. Клик покажет списки навыков`}
+                    className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2 text-left transition-colors hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer"
                   >
-                    {coverageData.map((c) => (
-                      <Cell key={c.key} fill={LEVEL_COLORS[c.key]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+                    <span className="flex min-w-0 items-center gap-1.5 text-xs text-gray-700 dark:text-slate-300">
+                      <span
+                        className="size-2 shrink-0 rounded-full"
+                        style={{ background: LEVEL_COLORS[c.key] }}
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{c.level}</span>
+                    </span>
+                    <span
+                      className="h-1.5 min-w-10 flex-1 shrink overflow-hidden rounded-full bg-gray-100 dark:bg-slate-800"
+                      aria-hidden="true"
+                    >
+                      <span
+                        className="block h-full rounded-full"
+                        style={{ width: `${c.pct}%`, background: LEVEL_COLORS[c.key] }}
+                      />
+                    </span>
+                    <span className="shrink-0 text-xs font-semibold tabular-nums text-gray-900 dark:text-slate-100">
+                      {c.pct}%
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </section>
