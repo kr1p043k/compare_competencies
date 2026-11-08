@@ -91,8 +91,16 @@ async def _second_session(client: AsyncClient, secret: str) -> str:
 
 
 @pytest.fixture()
-async def env() -> AsyncIterator[dict[str, Any]]:
+async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
     import src.db as dbmod
+
+    # Флаг подменяем в модуле, а не в общей БД: соседний воркер на той же базе
+    # может переключить app_settings посреди теста. Админский эндпоинт читает
+    # флаг из БД сам, но проверки входа идут через эту подмену.
+    async def _flag_on(_pool: Any) -> bool:
+        return True
+
+    monkeypatch.setattr(auth_mod, "get_two_factor_enabled", _flag_on)
 
     old = dbmod.pool
     try:
@@ -112,7 +120,6 @@ async def env() -> AsyncIterator[dict[str, Any]]:
         EMAIL,
         PASSWORD,
     )
-    await set_two_factor_enabled(pool, True)
     app = create_app()
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
