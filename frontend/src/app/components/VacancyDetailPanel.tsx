@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Badge } from "./ui/badge";
+import { Badge as ToneBadge } from "../../design";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import {
@@ -62,6 +62,14 @@ export function VacancyDetailPanel({
   const extracted = (detail?.skills ?? []).filter((s: string) => (s || "").trim());
   const parsed = detail?.description ? parseSkillsFromHtml(detail.description) : [];
   const displaySkills = extracted.length > 0 ? extracted : parsed;
+
+  /** «Ключевые навыки» из ответа hh.ru: элементы - строки или { name }. */
+  const keySkills = (detail?.key_skills ?? [])
+    .map((ks) =>
+      typeof ks === "string" ? ks : (ks as { name?: string })?.name ?? "",
+    )
+    .map((label) => label.trim())
+    .filter(Boolean);
 
   // Логотип: сначала из детального ответа, затем из строки списка.
   const logoUrl =
@@ -150,52 +158,73 @@ export function VacancyDetailPanel({
                 ) : (
                   <>
                     <div className="shrink-0 space-y-4">
-                      {detail?.key_skills && detail.key_skills.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            <Star className="size-3" />
-                            Ключевые навыки (HH)
+                      {/* Ключевые навыки: работодатель сам выделил их на hh.ru.
+                          Акцентный тон primary отличает их от найденных парсером. */}
+                      {keySkills.length > 0 && (
+                        <section aria-labelledby="vdp-key-skills" className="space-y-2.5">
+                          <div className="flex items-center gap-2">
+                            <span
+                              aria-hidden="true"
+                              className="grid size-6 shrink-0 place-items-center rounded-md bg-primary-soft text-primary-soft-foreground"
+                            >
+                              <Star className="size-3.5" />
+                            </span>
+                            <h3
+                              id="vdp-key-skills"
+                              className="text-xs font-semibold uppercase tracking-wider text-foreground"
+                            >
+                              Ключевые навыки (HH)
+                            </h3>
+                            <ToneBadge tone="neutral" className="tabular-nums">
+                              {keySkills.length}
+                            </ToneBadge>
                           </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {(detail.key_skills as unknown[])
-                              .filter((ks) =>
-                                ((typeof ks === "string" ? ks : (ks as { name?: string })?.name) || "").trim(),
-                              )
-                              .map((ks) => {
-                                const label =
-                                  typeof ks === "string" ? ks : (ks as { name?: string }).name || "";
-                                return (
-                                  <Badge
-                                    key={label}
-                                    variant="secondary"
-                                    className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                                  >
-                                    {label}
-                                  </Badge>
-                                );
-                              })}
-                          </div>
-                        </div>
+                          <ul className="flex flex-wrap gap-1.5">
+                            {keySkills.map((label, index) => (
+                              <li key={`${label}-${index}`}>
+                                <ToneBadge tone="primary">{label}</ToneBadge>
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
                       )}
 
+                      {/* Найденные навыки: результат парсера (или технологии из
+                          описания). Нейтральный тон + точка и полужирный текст
+                          отделяют их от ключевых навыков работодателя. */}
                       {displaySkills.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            <Tags className="size-3" />
-                            {extracted.length > 0 ? "Найденные навыки" : "Технологии из описания"}
+                        <section aria-labelledby="vdp-found-skills" className="space-y-2.5">
+                          <div className="flex items-center gap-2">
+                            <span
+                              aria-hidden="true"
+                              className="grid size-6 shrink-0 place-items-center rounded-md bg-info-soft text-info"
+                            >
+                              <Tags className="size-3.5" />
+                            </span>
+                            <h3
+                              id="vdp-found-skills"
+                              className="text-xs font-semibold uppercase tracking-wider text-foreground"
+                            >
+                              {extracted.length > 0 ? "Найденные навыки" : "Технологии из описания"}
+                            </h3>
+                            <ToneBadge tone="neutral" className="tabular-nums">
+                              {displaySkills.length}
+                            </ToneBadge>
                           </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {displaySkills.map((skill: string) => (
-                              <Badge
-                                key={skill}
-                                variant="outline"
-                                className="border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-                              >
-                                {skill}
-                              </Badge>
+                          <ul className="flex flex-wrap gap-1.5">
+                            {displaySkills.map((skill: string, index: number) => (
+                              <li key={`${skill}-${index}`}>
+                                <ToneBadge tone="neutral" className="font-semibold">
+                                  <span
+                                    aria-hidden="true"
+                                    className="size-1.5 shrink-0 rounded-full bg-current opacity-70"
+                                  />
+                                  {skill}
+                                </ToneBadge>
+                              </li>
                             ))}
-                          </div>
-                        </div>
+                          </ul>
+                        </section>
                       )}
 
                       {detail?.alternate_url && (
@@ -208,10 +237,20 @@ export function VacancyDetailPanel({
                       )}
                     </div>
 
-                    <div className="mt-5 flex min-h-0 flex-1 flex-col">
-                      <div className="mb-2 flex shrink-0 items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        <FileText className="size-3" />
-                        Описание вакансии
+                    <section className="mt-5 flex min-h-0 flex-1 flex-col" aria-labelledby="vdp-description">
+                      <div className="mb-2 flex shrink-0 items-center gap-2">
+                        <span
+                          aria-hidden="true"
+                          className="grid size-6 shrink-0 place-items-center rounded-md bg-muted text-foreground"
+                        >
+                          <FileText className="size-3.5" />
+                        </span>
+                        <h3
+                          id="vdp-description"
+                          className="text-xs font-semibold uppercase tracking-wider text-foreground"
+                        >
+                          Описание вакансии
+                        </h3>
                       </div>
                       {detail?.description ? (
                         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
@@ -222,7 +261,7 @@ export function VacancyDetailPanel({
                       ) : (
                         <p className="text-sm text-slate-400">Нет описания</p>
                       )}
-                    </div>
+                    </section>
                   </>
                 )}
               </CardContent>
