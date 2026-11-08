@@ -57,6 +57,33 @@ def _normalize_for_matching(text: str) -> str:
     return t
 
 
+def _slice_base(text: str, text_norm: str) -> str:
+    """Строка, по индексам которой вырезается оригинал навыка.
+
+    `_normalize_for_matching` свёртывает регистр и гомоглифы посимвольно, поэтому
+    позиции в `text_norm` совпадают с позициями в `text.lower()`. Для обычного
+    текста `lower()` длину не меняет, тогда режем прямо из исходной строки и
+    сохраняем точное написание; иначе (редкий случай смены длины при lower)
+    откатываемся на lower-версию, где соответствие позиций гарантировано.
+    """
+    return text if len(text) == len(text_norm) else text.lower()
+
+
+def _iter_tokens(segment: str, splitter: re.Pattern):
+    """Разбить `segment` по `splitter`, отдавая (токен, смещение_в_segment).
+
+    Нужно, чтобы не терять позиции: `re.split` их не сохраняет, а нам нужно
+    вырезать оригинальный фрагмент по абсолютным индексам исходного текста.
+    """
+    pos = 0
+    for m in splitter.finditer(segment):
+        if m.start() > pos:
+            yield segment[pos:m.start()], pos
+        pos = m.end()
+    if pos < len(segment):
+        yield segment[pos:], pos
+
+
 _VERSION_RE = re.compile(r"[-\s]*v?\d+(?:\.\d+)*")
 
 
@@ -529,13 +556,15 @@ class SkillParser:
             # Разделители: `·` (U+00B7) наравне с `•` (U+2022) - был пропущен.
             separators = re.compile(r"[\n,•·\-*;]")
 
+            base = _slice_base(text, text_norm)
             for heading in heading_pat.finditer(text_norm):
                 region_start = heading.end()
                 next_heading = heading_pat.search(text_norm, region_start)
                 region_end = next_heading.start() if next_heading else len(text_norm)
                 region = text_norm[region_start:region_end]
-                for token in separators.split(region):
-                    token = token.strip()
+                for raw_token, tok_off in _iter_tokens(region, separators):
+                    lead = len(raw_token) - len(raw_token.lstrip())
+                    token = raw_token.strip()
                     # min 2 символа: выровнено с фильтром `len(t) >= 2` в techs
                     # (было <= 3 - терялись `sql`, `git`, `go`).
                     if len(token) < 2 or len(token) >= 100:
@@ -553,7 +582,13 @@ class SkillParser:
                         context = token[start:m.end() + 50]
                         if any(neg in context for neg in _negation_norms):
                             continue
-                        skills.append(ExtractedSkill(text=tech, source=source, raw_match=tech, confidence=0.8))
+                        # В text пишем ОРИГИНАЛ (точное написание из описания),
+                        # а не свёрнутую латиницу: свёртка нужна только для
+                        # сопоставления. Позиции text_norm == позиции base.
+                        abs_start = region_start + tok_off + lead + m.start()
+                        abs_end = region_start + tok_off + lead + m.end()
+                        original = base[abs_start:abs_end].strip() or tech
+                        skills.append(ExtractedSkill(text=original, source=source, raw_match=tech, confidence=0.8))
                         self._update_stats(source)
 
             return Ok(skills)
@@ -583,35 +618,46 @@ class SkillParser:
                 (r"(?:" + _rx_p4 + r")\s+([a-zа-яё0-9\s\+\#\-]+)", 0.80),
             ]
 
+            base = _slice_base(text, text_norm)
+            token_split = re.compile(r"[,;]\s*|\s+и\s+|\s+или\s+")
             for pattern, confidence in patterns:
                 for m in re.finditer(pattern, text_norm):
-                    match = m.group(1).strip()
-                    if 3 < len(match) < 100:
-                        # Split multi-skill phrases into individual tokens (C1 fix)
-                        tokens = re.split(r'[,;]\s*|\s+и\s+|\s+или\s+', match)
-                        for token in tokens:
-                            token = token.strip()
-                            if 2 < len(token) < 50:
-                                # Filter locations/abbreviations per-token (C1 fix)
-                                if any(p.search(token) for p in LOCATION_PATTERNS):
+                    group = m.group(1)
+                    if not (3 < len(group.strip()) < 100):
+                        continue
+                    group_start = m.start(1)
+                    # Split multi-skill phrases into individual tokens (C1 fix),
+                    # сохраняя смещения внутри группы для вырезания оригинала.
+                    for raw_token, tok_off in _iter_tokens(group, token_split):
+                        lead = len(raw_token) - len(raw_token.lstrip())
+                        token = raw_token.strip()
+                        if 2 < len(token) < 50:
+                            # Filter locations/abbreviations per-token (C1 fix)
+                            if any(p.search(token) for p in LOCATION_PATTERNS):
+                                continue
+                            if ABBREV_RE.match(token):
+                                continue
+                            # P0: только whitelist-навыки (свёртка+нормализация)
+                            match SkillNormalizer.normalize(token):
+                                case Ok(norm) if norm and _normalize_for_matching(norm) in self.TECH_SKILLS:
+                                    pass
+                                case _:
                                     continue
-                                if ABBREV_RE.match(token):
-                                    continue
-                                # P0: только whitelist-навыки (свёртка+нормализация)
-                                match SkillNormalizer.normalize(token):
-                                    case Ok(norm) if norm and _normalize_for_matching(norm) in self.TECH_SKILLS:
-                                        pass
-                                    case _:
-                                        continue
-                                # P5: отрицание рядом - не навык
-                                start = max(0, m.start() - 50)
-                                context = text_norm[start:m.end() + 50]
-                                if any(neg in context for neg in _negation_norms):
-                                    continue
-                                skills.append(ExtractedSkill(
-                                    text=norm, source=source, raw_match=match, confidence=confidence
-                                ))
-                                self._update_stats(source)
+                            # P5: отрицание рядом - не навык
+                            start = max(0, m.start() - 50)
+                            context = text_norm[start:m.end() + 50]
+                            if any(neg in context for neg in _negation_norms):
+                                continue
+                            # В text - ОРИГИНАЛ (точное написание), не свёртка; `norm`
+                            # остаётся только ключом whitelist-проверки.
+                            abs_start = group_start + tok_off + lead
+                            abs_end = abs_start + len(token)
+                            original = base[abs_start:abs_end].strip() or norm
+                            skills.append(ExtractedSkill(
+                                text=original, source=source, raw_match=group.strip(),
+                                confidence=confidence
+                            ))
+                            self._update_stats(source)
 
             return Ok(skills)
         except Exception as e:
