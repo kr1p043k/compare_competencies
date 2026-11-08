@@ -160,15 +160,21 @@ def _rank_publications(
         from src.parsing.api.embedding_loader import get_embedding_model
 
         model = get_embedding_model()
-        query_emb = np.asarray(model.encode([query], convert_to_numpy=True)[0], dtype=float)
+        texts = [
+            " ".join(_str(item.get(k)) for k in ("title", "abstract", "keywords")).strip()
+            for item in items
+        ]
+        # Один батч-вызов encode вместо N отдельных: запрос + все тексты публикаций.
+        embeddings = np.asarray(
+            model.encode([query, *texts], convert_to_numpy=True), dtype=float
+        )
+        query_emb = embeddings[0]
         query_norm = float(np.linalg.norm(query_emb)) or 1.0
         scored: list[tuple[float, dict[str, Any]]] = []
-        for item in items:
-            text = " ".join(_str(item.get(k)) for k in ("title", "abstract", "keywords")).strip()
+        for item, text, emb in zip(items, texts, embeddings[1:], strict=True):
             if not text:
                 scored.append((0.0, item))
                 continue
-            emb = np.asarray(model.encode([text], convert_to_numpy=True)[0], dtype=float)
             denom = float(np.linalg.norm(emb)) or 1.0
             sim = float(np.dot(query_emb, emb) / (query_norm * denom))
             scored.append((sim, item))
@@ -377,24 +383,37 @@ def _context_text(context: dict[str, Any]) -> str:
     return " ".join(text.split())[: budget * _CHARS_PER_TOKEN]
 
 
-def _text_prompt(context_text: str) -> str:
-    return (
+def _text_prompt(context_text: str, message: str = "", history_text: str = "") -> str:
+    lines = [
         "Ty analitik navykov. Na osnove konteksta sostav kratkuyu soderzhatelnuyu svodku "
         "o tekushem sostoyanii obiekta: pokrytie, kachestvo, glavnye probely. "
-        "Ne vydumyvay dannyh, kotoryh net v kontekste. Otvechaesh tekstom.\n"
-        f"Kontekst:\n{context_text}"
-    )
+        "Ne vydumyvay dannyh, kotoryh net v kontekste. Otvechaesh tekstom.",
+    ]
+    if history_text:
+        lines.append(f"Poslednie hody dialoga (kratko):\n{history_text}")
+    lines.append(f"Vopros polzovatelya:\n{_str(message)}")
+    lines.append(f"Kontekst:\n{context_text}")
+    return "\n".join(lines)
 
 
-def _blocks_prompt(context_text: str, text: str) -> str:
-    return (
+def _blocks_prompt(
+    context_text: str, text: str, message: str = "", history_text: str = ""
+) -> str:
+    lines = [
         "Na osnove konteksta i svodki predstav otvet v vide STROGO JSON obiekta: "
         '{"blocks": [...]}. Kazhdyi blok - slovar s polem "type" iz spiska: '
         '"metric", "citation", "chart", "action_list", "text". '
         'Primer: {"type":"metric","name":"pokrytie","value":82}, '
-        '{"type":"text","content":"..."}. Ne vydumyvay dannyh.\n'
-        f"Kontekst:\n{context_text}\nSvodka:\n{text}\nJSON:"
-    )
+        '{"type":"text","content":"..."}. Ne vydumyvay dannyh.',
+    ]
+    if history_text:
+        lines.append(f"Poslednie hody dialoga (kratko):\n{history_text}")
+    if _str(message):
+        lines.append(f"Vopros polzovatelya:\n{_str(message)}")
+    lines.append(f"Kontekst:\n{context_text}")
+    lines.append(f"Svodka:\n{text}")
+    lines.append("JSON:")
+    return "\n".join(lines)
 
 
 def _parse_blocks(raw: str, text: str) -> list[dict[str, Any]]:
@@ -436,14 +455,54 @@ def _blocks_text(blocks: list[dict[str, Any]]) -> str:
     return " ".join(parts)
 
 
+def _history_text(history: list | None, limit: int = 10) -> str:
+    """Краткая сводка последних ходов треда для подстановки в промпт.
+
+    ``history`` - список записей вида ``{"role", "blocks", "ts"}`` (как отдаёт
+    ``get_thread_history``). Для user-ходов ``blocks`` - ``{"text": ...}``, для
+    assistant - ``{"text": ..., "blocks": [...]}``.
+    """
+    if not history:
+        return ""
+    lines: list[str] = []
+    for entry in list(history)[-limit:]:
+        if not isinstance(entry, dict):
+            continue
+        role = _str(entry.get("role") or "")
+        blocks = entry.get("blocks")
+        text = ""
+        if isinstance(blocks, dict):
+            text = _str(blocks.get("text") or "")
+            if not text:
+                inner = blocks.get("blocks")
+                if isinstance(inner, list):
+                    text = _blocks_text(inner)
+        elif blocks:
+            text = _str(blocks)
+        if text:
+            lines.append(f"{role}: {text}" if role else text)
+    return "\n".join(lines)
+
+
 # ── два LLM-вызова (синхронные; модель выбирается конфигом) ────────────────
 
-def answer_text(context: dict[str, Any], client: Any | None = None) -> str:
-    """Текстовый ответ моделью `config.LLM_CHAT_MODEL`. Любая ошибка -> ""."""
+def answer_text(
+    context: dict[str, Any],
+    client: Any | None = None,
+    message: str = "",
+    history: list | None = None,
+) -> str:
+    """Текстовый ответ моделью `config.LLM_CHAT_MODEL`. Любая ошибка -> "".
+
+    Без вопроса пользователя (``message`` пуст) LLM не вызывается и возвращается
+    пустая строка: ответ без вопроса не строим.
+    """
+    if not _str(message):
+        return ""
     try:
         if client is None:
             client = LLMClient(model=config.LLM_CHAT_MODEL)
-        prompt = _text_prompt(_context_text(context))
+        prompt = _text_prompt(_context_text(context), message, _history_text(history))
         return client.generate(prompt)
     except Exception:
         logger.exception("llm_chat_answer_text_failed")
@@ -451,21 +510,38 @@ def answer_text(context: dict[str, Any], client: Any | None = None) -> str:
 
 
 def answer_blocks(
-    context: dict[str, Any], text: str, client: Any | None = None
+    context: dict[str, Any],
+    text: str,
+    client: Any | None = None,
+    message: str = "",
+    history: list | None = None,
+    *,
+    status: list[bool] | None = None,
 ) -> list[dict[str, Any]]:
     """Структурные блоки моделью `config.LLM_CHAT_BLOCKS_MODEL`.
 
     Строгий JSON ``{"blocks": [...]}``; невалидный ответ -> один text-блок.
     Любая ошибка -> один text-блок с переданной сводкой.
+
+    ``client`` - инжектированный клиент (тот же, что и для текстового вызова);
+    конструируется внутри только когда не передан.
+
+    ``status`` - необязательный out-список: в него добавляется ``True``, если
+    блоки получены от LLM (``generate`` не выбросил исключение), иначе ``False``.
     """
     try:
         if client is None:
             client = LLMClient(model=config.LLM_CHAT_BLOCKS_MODEL)
-        prompt = _blocks_prompt(_context_text(context), text)
+        prompt = _blocks_prompt(_context_text(context), text, message, _history_text(history))
         raw = client.generate(prompt)
-        return _parse_blocks(raw, text)
+        blocks = _parse_blocks(raw, text)
+        if status is not None:
+            status.append(True)
+        return blocks
     except Exception:
         logger.exception("llm_chat_answer_blocks_failed")
+        if status is not None:
+            status.append(False)
         return [{"type": "text", "content": text}]
 
 
@@ -507,6 +583,8 @@ async def assess(
     context_key: str,
     *,
     client: Any | None = None,
+    message: str = "",
+    history: list | None = None,
     enabled: bool | None = None,
     summary_loader: Loader | None = None,
     recs_loader: Loader | None = None,
@@ -516,8 +594,14 @@ async def assess(
 ) -> dict[str, Any]:
     """Полный проход: контекст -> текст (LLM_CHAT_MODEL) -> блоки (BLOCKS_MODEL).
 
+    ``message`` (вопрос пользователя) и ``history`` (последние ходы треда)
+    попадают в промпт обоих LLM-вызовов. Без вопроса ответ не строим.
+
     При `LLM_ASSESS_ENABLED=False` (или `enabled=False`) LLM не вызывается -
     возвращается детерминированный шаблон из метрик. Никогда не бросает наружу.
+
+    ``llm_used`` честно: True только когда и текст, и блоки получены от LLM;
+    при любом детерминированном фолбэке (включая упавший текстовый вызов) - False.
     """
     ctx_type = "teacher" if _str(context_type).lower() == "teacher" else "student"
     llm_enabled = config.LLM_ASSESS_ENABLED if enabled is None else bool(enabled)
@@ -534,8 +618,7 @@ async def assess(
     text_model = config.LLM_CHAT_MODEL
     blocks_model = config.LLM_CHAT_BLOCKS_MODEL
 
-    if not llm_enabled:
-        blocks = _deterministic_blocks(context)
+    def _fallback(blocks: list[dict[str, Any]]) -> dict[str, Any]:
         return {
             "context_type": ctx_type,
             "context_key": context_key,
@@ -547,34 +630,41 @@ async def assess(
             "llm_used": False,
         }
 
+    # Без вопроса (или с выключенным LLM) ответ не строим.
+    if not llm_enabled or not _str(message):
+        return _fallback(_deterministic_blocks(context))
+
     try:
-        text = answer_text(context, client=client)
-        blocks = answer_blocks(context, text) if text else _deterministic_blocks(context)
+        text = answer_text(context, client=client, message=message, history=history)
+        if not text:
+            # Текстовый вызов упал (answer_text вернул "") -> детерминированный
+            # фолбэк; llm_used=False, блоки НЕ считаются полученными от LLM.
+            return _fallback(_deterministic_blocks(context))
+        blocks_status: list[bool] = []
+        blocks = answer_blocks(
+            context,
+            text,
+            client=client,
+            message=message,
+            history=history,
+            status=blocks_status,
+        )
         if not blocks:
             blocks = _deterministic_blocks(context)
+        llm_used = bool(blocks_status and blocks_status[0])
         return {
             "context_type": ctx_type,
             "context_key": context_key,
             "context": context,
-            "text": text or _blocks_text(blocks),
+            "text": text,
             "blocks": blocks,
             "text_model": text_model,
             "blocks_model": blocks_model,
-            "llm_used": True,
+            "llm_used": llm_used,
         }
     except Exception:
         logger.exception("llm_chat_assess_failed", context_type=ctx_type, context_key=context_key)
-        blocks = _deterministic_blocks(context)
-        return {
-            "context_type": ctx_type,
-            "context_key": context_key,
-            "context": context,
-            "text": _blocks_text(blocks),
-            "blocks": blocks,
-            "text_model": text_model,
-            "blocks_model": blocks_model,
-            "llm_used": False,
-        }
+        return _fallback(_deterministic_blocks(context))
 
 
 # ── персистенция (ошибки БД пробрасываются: это не LLM-путь) ───────────────
@@ -674,46 +764,53 @@ async def get_thread_history(
     context_type: str,
     context_key: str,
     *,
+    limit: int = 200,
     session: Any | None = None,
 ) -> dict[str, Any]:
     """История треда: ``{"thread_id", "messages": [{"role", "blocks", "ts"}]}``.
 
-    Сообщения упорядочены по ``seq``. Если треда ещё нет - ``thread_id`` = None и
-    пустой список. Ошибки БД пробрасываются вызывающему (как append_turn/
+    Возвращает последние ``limit`` сообщений, упорядоченные по ``seq`` (ORDER BY
+    seq + LIMIT на стороне БД). Если треда ещё нет - ``thread_id`` = None и пустой
+    список. Ошибки БД пробрасываются вызывающему (как append_turn/
     get_or_create_thread): тихий swallow скрыл бы потерю данных.
     """
     from sqlalchemy import select
-    from sqlalchemy.orm import selectinload
 
     from src.database import async_session_factory
-    from src.models.krm_models import ChatThread
+    from src.models.krm_models import ChatMessage, ChatThread
 
     owns = session is None
     if session is None:
         session = async_session_factory()
     try:
-        result = await session.execute(
-            select(ChatThread)
-            .options(selectinload(ChatThread.messages))
-            .where(
+        thread_result = await session.execute(
+            select(ChatThread.id).where(
                 ChatThread.user_id == user_id,
                 ChatThread.context_type == context_type,
                 ChatThread.context_key == context_key,
             )
         )
-        thread = result.scalars().first()
-        if thread is None:
+        thread_id = thread_result.scalars().first()
+        if thread_id is None:
             return {"thread_id": None, "messages": []}
-        ordered = sorted(thread.messages, key=lambda m: (m.seq or 0))
+        # Последние ``limit`` по seq: DESC, затем разворот в ASC в Python.
+        messages_result = await session.execute(
+            select(ChatMessage)
+            .where(ChatMessage.thread_id == thread_id)
+            .order_by(ChatMessage.seq.desc())
+            .limit(limit)
+        )
+        messages = list(messages_result.scalars().all())
+        messages.reverse()
         return {
-            "thread_id": thread.id,
+            "thread_id": thread_id,
             "messages": [
                 {
                     "role": m.role,
                     "blocks": m.blocks_json,
                     "ts": m.created_at.isoformat() if m.created_at else None,
                 }
-                for m in ordered
+                for m in messages
             ],
         }
     except Exception:

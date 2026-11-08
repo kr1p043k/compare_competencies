@@ -122,6 +122,19 @@ jobs:
         run: pip install --index-url https://download.pytorch.org/whl/cpu torch
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
+      # Дрейф openapi.json ловится здесь: экспортёр пишет схему во временный
+      # файл, и diff падает, если закоммиченный артефакт разошёлся с backend.
+      # SECRET_KEY нужен только чтобы импортировать фабрику приложения
+      # (src/config.py валидирует его при создании Settings), БД не требуется.
+      - name: OpenAPI drift check
+        run: |
+          python scripts/export_openapi.py --output openapi.generated.json
+          if ! diff -u openapi.json openapi.generated.json; then
+            echo "openapi.json is out of date. Run: python scripts/export_openapi.py"
+            exit 1
+          fi
+        env:
+          SECRET_KEY: 0123456789abcdef0123456789abcdef
       # Measured on auto/night-ux: 69% (3281 passed, 94 skipped) after the
       # Course Trends client, normaliser and articles feed were added.
       # The floor tracks the measured value so a real regression fails the

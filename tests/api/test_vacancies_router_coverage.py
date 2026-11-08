@@ -56,12 +56,12 @@ class FakePool:
 @pytest.fixture()
 def client():
     from src.api_pkg import create_app
+    from tests.conftest import open_all_gates
 
     app = create_app()
-    for route in app.routes:
-        dep = getattr(route, "dependant", None)
-        for sub in (getattr(dep, "dependencies", None) or []):
-            app.dependency_overrides[sub.call] = lambda: {"r": "admin"}
+    # FastAPI 0.162 включает роутеры лениво, поэтому обход app.routes не находит
+    # зависимости; open_all_gates делает это правильно.
+    open_all_gates(app, role="admin")
     for lim in (getattr(app.state, "limiter", None), getattr(vac, "limiter", None)):
         if lim is not None:
             lim.reset()

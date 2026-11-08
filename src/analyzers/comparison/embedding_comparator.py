@@ -56,46 +56,81 @@ class EmbeddingComparator:
         return self.cache_dir / f"{name}_{level}.joblib"
 
     def _load_skill_cache(self) -> None:
-        """Load persisted per-skill embeddings (shared JSON cache)."""
+        """Load persisted per-skill embeddings (npz binary cache).
+
+        Prefers the binary ``skill_embeddings.npz`` (a single float32 matrix,
+        no per-entry list->ndarray conversion). If only the legacy
+        ``skill_embeddings.json`` exists, it is migrated transparently once and
+        a one-time info event is logged; no entry is dropped.
+        """
         if self._skill_cache_loaded:
             return
         self._skill_cache_loaded = True
+        npz_path = self.cache_dir / "skill_embeddings.npz"
+        json_path = self.cache_dir / "skill_embeddings.json"
         try:
-            cache_file = self.cache_dir / "skill_embeddings.json"
-            if not cache_file.exists():
+            if npz_path.exists():
+                with self._skill_cache_lock:
+                    self._skill_cache = self._load_skill_cache_npz(npz_path)
                 return
-            import json
-
-            with open(cache_file, encoding="utf-8") as f:
-                data = json.load(f)
-            with self._skill_cache_lock:
-                self._skill_cache = {
-                    s: np.asarray(e, dtype=np.float32)
-                    for s, e in data.get("embeddings", {}).items()
-                }
+            if json_path.exists():
+                cache = self._load_skill_cache_json(json_path)
+                with self._skill_cache_lock:
+                    self._skill_cache = cache
+                logger.info(
+                    "skill_cache_migrated",
+                    from_format="json",
+                    to_format="npz",
+                    entries=len(self._skill_cache),
+                )
+                self._save_skill_cache()
         except Exception as exc:
             logger.warning("skill_cache_load_failed", error=str(exc))
 
+    def _load_skill_cache_npz(self, path: Path) -> dict[str, np.ndarray]:
+        """Read the binary cache into a dict of row views over one matrix."""
+        with np.load(path, allow_pickle=False) as data:
+            keys = [str(k) for k in data["keys"]]
+            matrix = np.asarray(data["embeddings"], dtype=np.float32)
+        if len(keys) != matrix.shape[0]:
+            raise ValueError("skill npz cache length mismatch")
+        return {k: matrix[i] for i, k in enumerate(keys)}
+
+    def _load_skill_cache_json(self, path: Path) -> dict[str, np.ndarray]:
+        import json
+
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return {
+            s: np.asarray(e, dtype=np.float32)
+            for s, e in data.get("embeddings", {}).items()
+        }
+
     def _save_skill_cache(self) -> None:
         try:
-            import json
-            import os
-            import tempfile
-
-            cache_file = self.cache_dir / "skill_embeddings.json"
+            npz_path = self.cache_dir / "skill_embeddings.npz"
             with self._skill_cache_lock:
                 snapshot = dict(self._skill_cache)
-            data = {
-                "model_version": self.model.model_version(),
-                "embeddings": {
-                    s: [float(x) for x in e] for s, e in snapshot.items()
-                },
-            }
-            fd, tmp_path = tempfile.mkstemp(dir=cache_file.parent, suffix=".json.tmp")
+            if not snapshot:
+                return
+            skills = list(snapshot.keys())
+            matrix = np.stack(
+                [np.asarray(snapshot[s], dtype=np.float32) for s in skills]
+            )
+            fd, tmp_path = tempfile.mkstemp(dir=npz_path.parent, suffix=".npz")
             os.close(fd)
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False)
-            os.replace(tmp_path, cache_file)
+            try:
+                np.savez_compressed(
+                    tmp_path,
+                    model_version=str(self.model.model_version()),
+                    keys=np.asarray(skills),
+                    embeddings=matrix,
+                )
+                os.replace(tmp_path, npz_path)
+            except Exception:
+                with suppress(Exception):
+                    os.unlink(tmp_path)
+                raise
         except Exception as exc:
             logger.warning("skill_cache_save_failed", error=str(exc))
 
