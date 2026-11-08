@@ -1781,13 +1781,14 @@ class TwoFactorSettingsPatch(BaseModel):
 
 
 async def _two_factor_payload() -> dict[str, Any]:
-    from src.api_pkg.security_settings import get_two_factor_enabled
+    from src.api_pkg.security_settings import get_two_factor_status
     from src.db import get_pool
 
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    enabled = await get_two_factor_enabled(pool)
+    status = await get_two_factor_status(pool)
+    enabled = status["enabled"]
     enrolled = 0
     try:
         enrolled = int(
@@ -1796,7 +1797,9 @@ async def _two_factor_payload() -> dict[str, Any]:
     except Exception:
         # Таблицы может не быть до применения миграции - это не ошибка экрана.
         enrolled = 0
-    return {"enabled": enabled, "enrolled_admins": enrolled}
+    # read_ok=False означает "флаг не прочитан, показано значение по умолчанию":
+    # админ должен видеть это, а не думать, что 2FA выключена осознанно.
+    return {"enabled": enabled, "enrolled_admins": enrolled, "read_ok": status["read_ok"]}
 
 
 @router.get("/admin/security/2fa/settings", dependencies=[Depends(require_any_role("admin"))])

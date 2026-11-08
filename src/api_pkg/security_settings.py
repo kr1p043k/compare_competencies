@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+import weakref
 
 import asyncpg
 import structlog
@@ -23,10 +24,19 @@ CREATE TABLE IF NOT EXISTS app_settings (
 """
 
 _table_ready = False
-#: Замок на создание таблицы: без него два первых параллельных запроса
-#: выполняют CREATE TABLE IF NOT EXISTS одновременно и один из них падает
-#: (гонка в каталоге pg_type), причём на пути записи это 500.
-_ensure_lock: asyncio.Lock | None = None
+#: Замки на создание таблицы, по одному на event loop. Иначе замок привязывается
+#: к первому loop (в тестах их несколько) и повторное использование падает
+#: RuntimeError "is bound to a different event loop".
+_ensure_locks: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+
+def _ensure_lock() -> asyncio.Lock:
+    loop = asyncio.get_running_loop()
+    lock = _ensure_locks.get(loop)
+    if lock is None:
+        lock = asyncio.Lock()
+        _ensure_locks[loop] = lock
+    return lock
 
 
 def _is_uuid(value: str | None) -> bool:
@@ -42,13 +52,11 @@ def _is_uuid(value: str | None) -> bool:
 
 async def _ensure_table(pool: asyncpg.Pool) -> None:
     """Страховка на случай деплоя без миграции (app_settings_table.py)."""
-    global _table_ready, _ensure_lock
+    global _table_ready
 
     if _table_ready:
         return
-    if _ensure_lock is None:
-        _ensure_lock = asyncio.Lock()
-    async with _ensure_lock:
+    async with _ensure_lock():
         if _table_ready:
             return
         try:
@@ -64,14 +72,16 @@ async def _ensure_table(pool: asyncpg.Pool) -> None:
         _table_ready = True
 
 
-async def get_two_factor_enabled(pool: asyncpg.Pool | None) -> bool:
-    """Мастер-выключатель 2FA. По умолчанию выключено.
+async def get_two_factor_status(pool: asyncpg.Pool | None) -> dict[str, bool]:
+    """Состояние мастер-выключателя 2FA + признак, что чтение удалось.
 
-    Возвращает False, если пула нет, таблицы/строки нет или БД ответила ошибкой:
-    фича выключена по умолчанию, поэтому сбой чтения не должен ломать вход.
+    Нужен отдельно от get_two_factor_enabled: сам логин остаётся fail-open
+    (ошибка чтения = выключено, чтобы сбой БД не запирал админов), но панель
+    должна честно показать, что флаг прочитан по значению по умолчанию, иначе
+    "тихое" отключение 2FA из-за сбоя никто не заметит.
     """
     if pool is None:
-        return False
+        return {"enabled": False, "read_ok": False}
     try:
         await _ensure_table(pool)
         raw = await pool.fetchval(
@@ -79,14 +89,24 @@ async def get_two_factor_enabled(pool: asyncpg.Pool | None) -> bool:
             TWO_FACTOR_KEY,
         )
         if raw is None:
-            return False
+            # Строки нет - это нормальное "выключено", чтение успешно.
+            return {"enabled": False, "read_ok": True}
         value = json.loads(raw) if isinstance(raw, str) else raw
         if not isinstance(value, dict):
-            return False
-        return bool(value.get("enabled"))
+            return {"enabled": False, "read_ok": False}
+        return {"enabled": bool(value.get("enabled")), "read_ok": True}
     except Exception as exc:
         logger.warning("two_factor_setting_read_failed", error=str(exc))
-        return False
+        return {"enabled": False, "read_ok": False}
+
+
+async def get_two_factor_enabled(pool: asyncpg.Pool | None) -> bool:
+    """Мастер-выключатель 2FA. По умолчанию выключено (fail-open для логина).
+
+    Возвращает False, если пула нет, таблицы/строки нет или БД ответила ошибкой:
+    фича выключена по умолчанию, поэтому сбой чтения не должен ломать вход.
+    """
+    return (await get_two_factor_status(pool))["enabled"]
 
 
 async def set_two_factor_enabled(
