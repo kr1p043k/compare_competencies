@@ -1,8 +1,8 @@
 import {
   AlertCircle,
   Award,
-  BarChart3,
   Briefcase,
+  Clock,
   Database,
   Download,
   FileText,
@@ -32,6 +32,7 @@ import { MarketView } from "./MarketView";
 import { ProfileView } from "./ProfileView";
 import { RecommendationsReport } from "./RecommendationsReport";
 import { SummaryReport } from "./SummaryReport";
+import { Badge } from "../../design";
 import { profileLabel } from "../../lib/profiles";
 
 /**
@@ -52,7 +53,6 @@ export function DataTab({
   gapMsg,
   onLoadRecommendations,
   onLoadProfileDetail,
-  onLoadMarket,
   onLoadSummary,
   onRunGapAnalysis,
   professionsList,
@@ -73,7 +73,6 @@ export function DataTab({
   gapMsg: string;
   onLoadRecommendations: () => void;
   onLoadProfileDetail: () => void;
-  onLoadMarket: () => void;
   onLoadSummary: () => void;
   onRunGapAnalysis: () => void;
   professionsList: string[];
@@ -85,6 +84,22 @@ export function DataTab({
   onDownloadPdf: () => void;
   onPrintReport: () => void;
 }) {
+  const lastLoadedIso = resultLoadedAt[profile];
+  const lastLoadedDate = lastLoadedIso ? new Date(lastLoadedIso) : null;
+  const lastLoadedText = !lastLoadedIso
+    ? "ещё не подгружались"
+    : lastLoadedDate && !isNaN(lastLoadedDate.getTime())
+      ? lastLoadedDate.toLocaleString("ru-RU")
+      : lastLoadedIso;
+  const generatedAt = (lastResult as { generated_at?: string } | null)?.generated_at;
+  let staleDays: number | null = null;
+  if (typeof generatedAt === "string") {
+    const ageMs = Date.now() - new Date(generatedAt).getTime();
+    if (!isNaN(ageMs) && ageMs >= 7 * 864e5) {
+      staleDays = Math.floor(ageMs / 864e5);
+    }
+  }
+
   return (
     <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
       <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
@@ -152,16 +167,6 @@ export function DataTab({
             Рекомендации
           </Button>
           <Button
-            onClick={onLoadMarket}
-            disabled={loading || isStudent}
-            title={isStudent ? "Только для преподавателя" : undefined}
-            variant="outline"
-            className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <BarChart3 className="mr-2 size-4" />
-            Рынок
-          </Button>
-          <Button
             onClick={onLoadSummary}
             disabled={loading || isStudent}
             title={isStudent ? "Только для преподавателя" : undefined}
@@ -213,22 +218,27 @@ export function DataTab({
           </div>
         </div>
         )}
-        <p className="text-xs text-gray-500 dark:text-slate-400">
-          Последняя подгрузка результатов [{profileLabel(profile)}]: {(() => {
-            const iso = resultLoadedAt[profile];
-            if (!iso) return "ещё не подгружались";
-            const d = new Date(iso);
-            return isNaN(d.getTime()) ? iso : d.toLocaleString("ru-RU");
-          })()}
-        </p>
-        {(() => {
-          const g = (lastResult as any)?.generated_at;
-          if (typeof g !== "string") return null;
-          const age = Date.now() - new Date(g).getTime();
-          if (isNaN(age) || age < 7 * 864e5) return null;
-          const days = Math.floor(age / 864e5);
-          return <span className="ml-2 px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200">данные устарели ({days} дн.)</span>;
-        })()}
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge
+            tone={lastLoadedIso ? "info" : "neutral"}
+            className="text-xs"
+            title={`Последняя подгрузка результатов для профиля ${profileLabel(profile)}`}
+          >
+            <Clock className="size-3 shrink-0" aria-hidden="true" />
+            <span>
+              Последняя подгрузка результатов [{profileLabel(profile)}]: {lastLoadedText}
+            </span>
+          </Badge>
+          {staleDays !== null && (
+            <Badge
+              tone="warning"
+              className="text-xs"
+              title="Результат старше 7 дней: запустите gap-анализ для обновления"
+            >
+              данные устарели ({staleDays} дн.)
+            </Badge>
+          )}
+        </div>
 
         <div className="flex flex-wrap items-center gap-2 no-print">
           <Button
@@ -316,12 +326,12 @@ export function DataTab({
           if (msg && (msg.includes("не найдены") || msg.includes("not found"))) {
             return (
               <Card className="border-2 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
-                <CardContent className="pt-6 text-center py-12">
+                <CardContent className="text-center py-12">
                   <AlertCircle className="size-12 text-amber-400 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-200 mb-2">{msg}</h3>
                   <p className="text-sm text-amber-600 mb-4">Запустите gap-анализ для расчёта покрытия</p>
-                   <Button
-                     onClick={onRunGapAnalysis}
+                  <Button
+                    onClick={onRunGapAnalysis}
                      disabled={gapRunning || isStudent}
                      title={isStudent ? "Только для преподавателя" : undefined}
                      className="bg-amber-600 hover:bg-amber-700"
