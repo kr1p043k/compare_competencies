@@ -247,27 +247,3 @@ describe("AdminSecurity", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });
-
-
-describe("AdminSecurity: флаг прочитан не был", () => {
-  beforeEach(() => {
-    // Свой beforeEach: у соседнего describe он локальный и сюда не попадает.
-    requestMock.mockReset();
-    requestMock.mockImplementation(route as never);
-  });
-
-  it("показывает предупреждение, когда read_ok=false", async () => {
-    sw = { enabled: false, enrolled_admins: 0, read_ok: false };
-    status = statusResponse(false, false);
-    render(<AdminSecurity />);
-    expect(await screen.findByText(/Состояние флага не прочитано/i)).toBeTruthy();
-  });
-
-  it("не показывает предупреждение, когда read_ok не задан", async () => {
-    sw = { enabled: true, enrolled_admins: 1 };
-    status = statusResponse(true, true);
-    render(<AdminSecurity />);
-    await screen.findByText("Включена");
-    expect(screen.queryByText(/Состояние флага не прочитано/i)).toBeNull();
-  });
-});

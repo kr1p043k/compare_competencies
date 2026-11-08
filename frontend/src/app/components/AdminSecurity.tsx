@@ -13,8 +13,6 @@ interface SwitchState {
   /** false = хранилище флага не читается, `enabled` - значение по умолчанию. */
   read_ok?: boolean;
   enrolled_admins: number;
-  /** false - флаг не прочитан (ошибка БД), показано значение по умолчанию. */
-  read_ok?: boolean;
 }
 
 interface MyState {

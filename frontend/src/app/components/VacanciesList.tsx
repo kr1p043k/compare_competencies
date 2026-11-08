@@ -1217,11 +1217,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     size="icon"
                     onClick={() => setCurrentPage(pageNum)}
                     disabled={loading}
-                    className={`size-10 ${
-                      currentPage === pageNum
-                        ? "bg-card dark:bg-muted"
-                        : ""
-                    }`}
+                    aria-current={currentPage === pageNum ? "page" : undefined}
+                    className="size-10"
                   >
                     {pageNum}
                   </Button>
