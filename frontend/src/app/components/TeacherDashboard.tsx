@@ -5,6 +5,17 @@ import { AnalysisPanel } from "./AnalysisPanel";
 import { MetricsGlossary } from "./MetricsGlossary";
 import { TaxonomyBrowser } from "./TaxonomyBrowser";
 import CompetencyTrendsPanel from "./CompetencyTrendsPanel";
+import {
+  competencyFilterCounts,
+  disciplineFilterCounts,
+  filterCompetencies,
+  filterDisciplines,
+  filterRecommendations,
+  sortDisciplines,
+  type CompFilter,
+  type DiscFilter,
+  type DiscSort,
+} from "./teacherFilters";
 import { reportError } from "./../../lib/errors";
 import { ApiError, request } from "../../lib/api";
 
@@ -183,6 +194,15 @@ export function TeacherDashboard() {
   const [suggestion, setSuggestion] = useState("");
   const [recType, setRecType] = useState("modify");
   const [search, setSearch] = useState("");
+  // Фильтры и сортировка списка дисциплин (поиск — выше).
+  const [discFilter, setDiscFilter] = useState<DiscFilter>("all");
+  const [discSort, setDiscSort] = useState<DiscSort>("plan");
+  // Фильтры шага «Компетенции и ЗУН».
+  const [compSearch, setCompSearch] = useState("");
+  const [compFilter, setCompFilter] = useState<CompFilter>("all");
+  // Фильтры шага «Рекомендации».
+  const [recComp, setRecComp] = useState("");
+  const [recTypeF, setRecTypeF] = useState("");
   const [loading, setLoading] = useState(true);
   const [directions, setDirections] = useState<Direction[]>([]);
   const [selectedDir, setSelectedDir] = useState("09.03.02");
@@ -539,9 +559,14 @@ export function TeacherDashboard() {
       const data = await api<DisciplineDetail>(`/teacher/krm/disciplines/${encodeURIComponent(name)}?dir_code=${selectedDir}&year=${intakeYear}`);
       setSelected(data);
       setShowAnalysis(false);
-      // Каждая дисциплина начинается с первого шага и свёрнутого аккордеона.
+      // Каждая дисциплина начинается с первого шага, свёрнутого аккордеона
+      // и чистых фильтров.
       setDisciplineView("coverage");
       setOpenComp(null);
+      setCompSearch("");
+      setCompFilter("all");
+      setRecComp("");
+      setRecTypeF("");
     } catch (err) { reportError("app/components/TeacherDashboard.tsx:500", err); }
   }
 
@@ -617,12 +642,28 @@ export function TeacherDashboard() {
   }
 
   const analysisByName = new Map((analysis?.disciplines ?? []).map((a) => [a.name, a]));
-  const filtered = disciplines.filter((d) => {
-    if (!d.name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (yearFilter === 0) return true;
-    const years = analysisByName.get(d.name)?.years;
-    return Array.isArray(years) && years.includes(yearFilter);
+  // Поиск + чипы-фильтры задают состав списка, сортировка — только порядок.
+  const filteredSet = filterDisciplines(disciplines, analysisByName, {
+    search,
+    year: yearFilter,
+    filter: discFilter,
   });
+  const filtered = sortDisciplines(filteredSet, analysisByName, discSort);
+  const discCounts = disciplineFilterCounts(disciplines, analysisByName, { search, year: yearFilter });
+  const discFiltersActive =
+    !!search.trim() || yearFilter !== 0 || discFilter !== "all" || discSort !== "plan";
+  // Шаг «Компетенции и ЗУН»: поиск + наличие ЗУН.
+  const compsVisible = selected
+    ? filterCompetencies(selected.competencies, { search: compSearch, filter: compFilter })
+    : [];
+  const compCounts = selected
+    ? competencyFilterCounts(filterCompetencies(selected.competencies, { search: compSearch }))
+    : null;
+  const compFiltersActive = !!compSearch.trim() || compFilter !== "all";
+  // Шаг «Рекомендации»: по компетенции и по типу.
+  const discRecCount = selected ? recs.filter((r) => r.discipline_id === selected.name).length : 0;
+  const recsVisible = selected ? filterRecommendations(recs, selected.name, { comp: recComp, type: recTypeF }) : [];
+  const recFiltersActive = !!recComp || !!recTypeF;
 
   // Класс-эквивалент прежнего inline-стиля `card` (фактические значения совпадают:
   // radius 8px = rounded-lg, padding 14px = p-3.5, margin 10px = mb-2.5).
@@ -919,7 +960,7 @@ export function TeacherDashboard() {
               {metaStale && (<span className="text-xs text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950 rounded px-1.5 py-0.5">данные устарели - обновите анализ</span>)}
             </div>
           </div>
-          <div className="flex gap-1.5 px-2 pb-2">
+          <div className="flex gap-1.5 px-2 pb-1.5 flex-wrap items-center">
             {([0, 2024, 2025] as const).map((y) => (
               <button
                 key={y}
@@ -935,6 +976,72 @@ export function TeacherDashboard() {
               </button>
             ))}
           </div>
+          {/* Чипы-фильтры по данным анализа: считать их из заголовков неудобно,
+              поэтому на каждом чипе — сколько дисциплин он даст. */}
+          <div className="flex gap-1.5 px-2 pb-1.5 flex-wrap items-center">
+            {([
+              ["all", "Все", "Без дополнительного фильтра"],
+              ["gaps", "С пробелами", "Есть навыки рынка, которых дисциплина не закрывает"],
+              ["low", "Слабый охват", "Охват ниже 50% — в списке подсвечен янтарным/красным"],
+              ["nodata", "Нет данных", "Нет данных анализа: вне учёта или без извлечённых навыков"],
+            ] as const).map(([id, label, hint]) => (
+              <button
+                key={id}
+                onClick={() => setDiscFilter(id)}
+                aria-pressed={discFilter === id}
+                title={hint}
+                className={
+                  "text-xs px-2 py-0.5 rounded border cursor-pointer " +
+                  (discFilter === id
+                    ? "border-violet-400 bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
+                    : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300")
+                }
+              >
+                {label} ({discCounts[id]})
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2 px-2 pb-2 items-center">
+            <select
+              value={discSort}
+              onChange={(e) => setDiscSort(e.target.value as DiscSort)}
+              aria-label="Сортировка дисциплин"
+              title="Порядок дисциплин в списке"
+              className="text-xs px-1.5 py-1 rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-700 dark:text-slate-300 outline-none"
+            >
+              <option value="plan">По учебному плану</option>
+              <option value="name">По алфавиту</option>
+              <option value="coverage">Худший охват сверху</option>
+              <option value="gaps">Больше пробелов сверху</option>
+            </select>
+            <span className="text-[11px] text-gray-400 dark:text-slate-500 ml-auto whitespace-nowrap">
+              {filtered.length} из {disciplines.length}
+            </span>
+            {discFiltersActive && (
+              <button
+                onClick={() => { setSearch(""); setYearFilter(0); setDiscFilter("all"); setDiscSort("plan"); }}
+                className="text-[11px] text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline whitespace-nowrap"
+              >
+                Сбросить
+              </button>
+            )}
+          </div>
+          {filtered.length === 0 && (
+            <div className="text-center text-xs text-gray-400 dark:text-slate-500 py-8 px-4">
+              Ничего не найдено
+              {discFiltersActive && (
+                <>
+                  {" — "}
+                  <button
+                    onClick={() => { setSearch(""); setYearFilter(0); setDiscFilter("all"); setDiscSort("plan"); }}
+                    className="text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline"
+                  >
+                    сбросить фильтры
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           {filtered.map((d) => {
             const discAnalysis = analysis?.disciplines.find((a) => a.name === d.name);
             return (
@@ -1393,7 +1500,61 @@ export function TeacherDashboard() {
               )}
             </div>
 
-            {selected.competencies.map((comp) => {
+            {/* Фильтры по компетенциям: длинные списки (10+) без поиска
+                приходится прокручивать вслепую. */}
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <input
+                placeholder="Поиск: код или название…"
+                aria-label="Поиск компетенции"
+                value={compSearch}
+                onChange={(e) => setCompSearch(e.target.value)}
+                className="h-8 w-56 px-2.5 rounded-md text-xs box-border bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-slate-100 outline-none"
+              />
+              {([
+                ["all", "Все", "Без дополнительного фильтра"],
+                ["no-ksa", "Без ЗУН", "Компетенции без единого пункта знаний/умений/навыков — часто требуют дозаполнения"],
+                ["with-ksa", "С ЗУН", "Компетенции хотя бы с одним пунктом знаний/умений/навыков"],
+              ] as const).map(([id, label, hint]) => (
+                <button
+                  key={id}
+                  onClick={() => setCompFilter(id)}
+                  aria-pressed={compFilter === id}
+                  title={hint}
+                  className={
+                    "text-xs px-2 py-0.5 rounded border cursor-pointer " +
+                    (compFilter === id
+                      ? "border-violet-400 bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
+                      : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300")
+                  }
+                >
+                  {label}{compCounts ? ` (${compCounts[id]})` : ""}
+                </button>
+              ))}
+              <span className="text-[11px] text-gray-400 dark:text-slate-500 ml-auto whitespace-nowrap">
+                {compsVisible.length} из {selected.competencies.length}
+              </span>
+              {compFiltersActive && (
+                <button
+                  onClick={() => { setCompSearch(""); setCompFilter("all"); }}
+                  className="text-[11px] text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline whitespace-nowrap"
+                >
+                  Сбросить
+                </button>
+              )}
+            </div>
+            {compsVisible.length === 0 && (
+              <div className="text-center text-xs text-gray-400 dark:text-slate-500 py-6 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                По фильтру ничего не найдено —{" "}
+                <button
+                  onClick={() => { setCompSearch(""); setCompFilter("all"); }}
+                  className="text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline"
+                >
+                  сбросить
+                </button>
+              </div>
+            )}
+
+            {compsVisible.map((comp) => {
               const ksa = comp.ksa;
               const hasGroups = !!ksa && (
                 (ksa.knowledge?.length || 0) + (ksa.abilities?.length || 0) + (ksa.skills?.length || 0)
@@ -1613,30 +1774,86 @@ export function TeacherDashboard() {
                   )}
                 </div>
               )}
-              {recs.filter((r) => r.discipline_id === selected?.name).length === 0 ? (
+              {discRecCount > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <select
+                    value={recComp}
+                    onChange={(e) => setRecComp(e.target.value)}
+                    aria-label="Фильтр по компетенции"
+                    title="Показать рекомендации только по одной компетенции"
+                    className="h-8 px-2 rounded-md text-xs bg-white dark:bg-slate-950 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-slate-100"
+                  >
+                    <option value="">Все компетенции</option>
+                    {selected.competencies.map((c) => (
+                      <option key={c.code} value={c.code}>{c.code}{c.name ? ` — ${c.name}` : ""}</option>
+                    ))}
+                  </select>
+                  {([
+                    ["", "Все"],
+                    ["modify", "Изменить"],
+                    ["add", "Добавить"],
+                    ["remove", "Удалить"],
+                  ] as const).map(([id, label]) => (
+                    <button
+                      key={id || "all"}
+                      onClick={() => setRecTypeF(id)}
+                      aria-pressed={recTypeF === id}
+                      title={id ? `Только рекомендации типа «${label.toLowerCase()}»` : "Все типы рекомендаций"}
+                      className={
+                        "text-xs px-2 py-0.5 rounded border cursor-pointer " +
+                        (recTypeF === id
+                          ? "border-violet-400 bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
+                          : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300")
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <span className="text-[11px] text-gray-400 dark:text-slate-500 ml-auto whitespace-nowrap">
+                    {recsVisible.length} из {discRecCount}
+                  </span>
+                  {recFiltersActive && (
+                    <button
+                      onClick={() => { setRecComp(""); setRecTypeF(""); }}
+                      className="text-[11px] text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline whitespace-nowrap"
+                    >
+                      Сбросить
+                    </button>
+                  )}
+                </div>
+              )}
+              {discRecCount === 0 ? (
                 <div className="text-xs text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-900 rounded-lg p-4 text-center">
                   Для этой дисциплины рекомендаций пока нет
                 </div>
+              ) : recsVisible.length === 0 ? (
+                <div className="text-xs text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-900 rounded-lg p-4 text-center">
+                  По фильтру ничего не найдено —{" "}
+                  <button
+                    onClick={() => { setRecComp(""); setRecTypeF(""); }}
+                    className="text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline"
+                  >
+                    сбросить
+                  </button>
+                </div>
               ) : (
-                recs
-                  .filter((r) => r.discipline_id === selected?.name)
-                  .map((r, i) => (
-                    <div
-                      key={r.id ?? i}
-                      className="mb-2 rounded-lg border border-violet-200 bg-violet-50/40 p-3 text-sm dark:border-violet-900 dark:bg-violet-950/20"
-                    >
-                      <div className="text-gray-400 dark:text-slate-500 mb-1 text-xs">
-                        [{r.suggestion_type}] {r.competency_id}
-                      </div>
-                      <div className="text-gray-900 dark:text-slate-100">{r.suggestion}</div>
-                      <button
-                        onClick={() => { if (window.confirm("Удалить рекомендацию безвозвратно?")) deleteRec(r.id); }}
-                        className="mt-2 text-xs text-red-500 border border-red-500 rounded px-2 py-0.5 hover:bg-red-50 transition-colors bg-transparent cursor-pointer"
-                      >
-                        Удалить
-                      </button>
+                recsVisible.map((r, i) => (
+                  <div
+                    key={r.id ?? i}
+                    className="mb-2 rounded-lg border border-violet-200 bg-violet-50/40 p-3 text-sm dark:border-violet-900 dark:bg-violet-950/20"
+                  >
+                    <div className="text-gray-400 dark:text-slate-500 mb-1 text-xs">
+                      [{r.suggestion_type}] {r.competency_id || "—"}
                     </div>
-                  ))
+                    <div className="text-gray-900 dark:text-slate-100">{r.suggestion}</div>
+                    <button
+                      onClick={() => { if (window.confirm("Удалить рекомендацию безвозвратно?")) deleteRec(r.id); }}
+                      className="mt-2 text-xs text-red-500 border border-red-500 rounded px-2 py-0.5 hover:bg-red-50 transition-colors bg-transparent cursor-pointer"
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                ))
               )}
             </div>
             )}
