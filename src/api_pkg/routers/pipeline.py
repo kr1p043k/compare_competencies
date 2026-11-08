@@ -692,7 +692,7 @@ async def run_pipeline_action_sync(
     run_gap_analysis: bool = Query(True, description="Запустить gap-анализ после обучения"),
     regions: str = Query("0", description="Регионы для сбора вакансий (через запятую)"),
     query: str = Query("", description="Профессия/запрос для поиска вакансий"),
-    max_pages: int = Query(20, ge=1, le=100, description="Количество страниц"),
+    max_pages: int = Query(20, ge=1, le=20, description="Страниц: 1-20 (по 100; hh макс 2000 результатов)"),
     period: int = Query(30, ge=1, le=365, description="Период поиска в днях"),
 ):
     """Запустить действие пайплайна."""

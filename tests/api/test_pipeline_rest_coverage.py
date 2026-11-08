@@ -205,6 +205,21 @@ def test_gap_analysis_rejected_when_scheduler_busy(monkeypatch):
     assert r.status_code == 409
 
 
+def test_max_pages_over_20_rejected_422(monkeypatch):
+    """max_pages > 20 отклоняется на эндпоинте /pipeline/{action} (le=20)."""
+    client = _client(monkeypatch)
+    r = client.post("/api/pipeline/full-cycle", params={"max_pages": "100"})
+    assert r.status_code == 422
+
+
+def test_max_pages_equal_20_accepted(monkeypatch):
+    """max_pages=20 проходит валидацию и доходит до обработчика."""
+    monkeypatch.setattr("src.pipeline.background_collector.is_scheduler_busy", lambda: False)
+    client = _client(monkeypatch)
+    r = client.post("/api/pipeline/full-cycle", params={"max_pages": "20"})
+    assert r.status_code == 200
+
+
 # --------------------------------------------------------------------------- /pipeline/gap-progress/{id}
 
 

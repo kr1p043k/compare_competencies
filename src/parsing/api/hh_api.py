@@ -23,6 +23,11 @@ from src.result import Err, Ok, Result
 
 logger = structlog.get_logger(__name__)
 
+# hh.ru get-vacancies: глубина результатов не больше 2000. При per_page=100
+# это максимум 20 страниц, поэтому больший max_pages бессмысленен и лишь
+# создаёт риск запросить page*per_page > 2000.
+MAX_HH_PAGES = 20
+
 class HeadHunterAPI:
     """
     Синхронный API клиент для hh.ru.
@@ -250,6 +255,14 @@ class HeadHunterAPI:
         self, text, area, period_days=30, max_pages=20, per_page=100, industry=None, date_from=None, date_to=None,
         since_id: int | None = None, professional_role: str | list[str] | None = None,
     ) -> Result[list, ApiError]:
+        # Гарантия против page*per_page > 2000 (глубина hh.ru): эффективный
+        # максимум страниц всегда клампится к MAX_HH_PAGES.
+        if max_pages > MAX_HH_PAGES:
+            logger.warning(
+                "search_vacancies_max_pages_clamped",
+                requested=max_pages, effective=MAX_HH_PAGES,
+            )
+            max_pages = MAX_HH_PAGES
         params = {
             "text": text,
             "area": area,

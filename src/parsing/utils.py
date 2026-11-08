@@ -179,18 +179,30 @@ def collect_vacancies_multiple(
             _write_progress_pct(5 + int(combo_idx / total_combos * 5), f"Поиск: {query[:40]} (регион {area_id})")
             logger.info("search_started", query=query, area_id=area_id)
 
-            match hh_api.search_vacancies(
-                text=query, area=area_id, period_days=period_days, max_pages=1, per_page=100,
-                industry=industry, professional_role=professional_role,
-            ):
-                case Ok(_):
-                    last_resp = getattr(hh_api, "last_response", None)
-                    total_found = last_resp.get("found", 0) if last_resp else 0
-                case Err(e):
-                    logger.warning("search_estimate_failed", query=query, area=area_id, error=str(e))
-                    total_found = 0
+            # Параметр hh `period` надёжен только до 30 дней: при большем
+            # значении выдача неполная/некорректная. Поэтому при period_days > 30
+            # СРАЗУ идём через date_chunks (date_from/date_to), не оценивая
+            # total_found через period и не отправляя period в запрос вовсе.
+            use_chunks = period_days > 30
+            total_found = 0
 
-            if total_found <= chunk_threshold or period_days <= date_chunk_days:
+            if not use_chunks:
+                match hh_api.search_vacancies(
+                    text=query, area=area_id, period_days=period_days, max_pages=1, per_page=100,
+                    industry=industry, professional_role=professional_role,
+                ):
+                    case Ok(_):
+                        last_resp = getattr(hh_api, "last_response", None)
+                        total_found = last_resp.get("found", 0) if last_resp else 0
+                    case Err(e):
+                        logger.warning("search_estimate_failed", query=query, area=area_id, error=str(e))
+                        total_found = 0
+                # Даже при period_days <= 30 чанкуем, если результатов больше
+                # лимита глубины hh (2000) и окно шире одного чанка.
+                if total_found > chunk_threshold and period_days > date_chunk_days:
+                    use_chunks = True
+
+            if not use_chunks:
                 match hh_api.search_vacancies(
                     text=query, area=area_id, period_days=period_days, max_pages=max_pages,
                     per_page=100, industry=industry, professional_role=professional_role,
