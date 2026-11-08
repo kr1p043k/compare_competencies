@@ -683,17 +683,9 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
             </div>
           ) : professions.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
-              <BookOpen className="size-8 mb-3 text-gray-300" />
-              <p className="text-sm text-gray-500 dark:text-slate-400">Снапшоты появятся после прогона анализа.</p>
-              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1 max-w-md">
-                Снимки частот навыков по профессиям строятся из базы вакансий (freq_profession_*.json). Запустите сбор
-                вручную командой:
-              </p>
-              <code className="mt-3 rounded-md bg-gray-100 dark:bg-slate-800 px-3 py-1.5 text-xs font-mono text-gray-700 dark:text-slate-300 break-all">
-                python -m src.cli.snapshot_professions
-              </code>
-              <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">
-                либо дождитесь планового фонового сбора: сервер обновляет снапшоты не чаще раза в сутки.
+              <BookOpen className="size-8 mb-3 text-gray-300" aria-hidden="true" />
+              <p className="text-sm text-gray-500 dark:text-slate-400">
+                Данные по профессиям появятся после запуска анализа.
               </p>
             </div>
           ) : (

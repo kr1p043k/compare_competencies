@@ -100,15 +100,18 @@ beforeEach(() => {
 });
 
 describe("ArticlesPage. Тренды по профессиям", () => {
-  it("при пустом списке показывает честный empty-state с командой запуска анализа", async () => {
+  it("при пустом списке показывает короткий empty-state без служебных команд", async () => {
     apiMock.mockImplementation(route([]) as never);
     render(<ArticlesPage />);
 
-    expect(await screen.findByText("Снапшоты появятся после прогона анализа.")).toBeInTheDocument();
     expect(
-      screen.getByText(/python -m src\.cli\.snapshot_professions/)
+      await screen.findByText("Данные по профессиям появятся после запуска анализа.")
     ).toBeInTheDocument();
-    expect(screen.getByText(/не чаще раза в сутки/)).toBeInTheDocument();
+    // Служебные детали (CLI-команда, имена файлов) не показываются пользователю.
+    expect(screen.queryByText(/python/i)).toBeNull();
+    expect(screen.queryByText(/freq_profession/)).toBeNull();
+    expect(screen.queryByText(/snapshot_professions/)).toBeNull();
+    expect(screen.queryByText(/не чаще раза в сутки/)).toBeNull();
     // Селектора нет: выбирать не из чего.
     expect(screen.queryByRole("combobox")).toBeNull();
   });
