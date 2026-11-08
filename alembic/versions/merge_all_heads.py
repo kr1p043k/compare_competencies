@@ -8,19 +8,14 @@
 from collections.abc import Sequence
 
 revision: str = "merge_all_heads"
+# Родители — только НАСТОЯЩИЕ концы веток. Прочие ревизии из прежнего
+# списка (add_discipline_intake_year, merge_for_nikita_main, ...) уже
+# являются предками add_audit_logs и применены в БД: перечисление их
+# родителями превращало применённые ревизии в лишние точки ветвления, и
+# `alembic upgrade heads` падал с KeyError в head_maintainer.
 down_revision: tuple[str, ...] = (
     "add_audit_logs",
-    "add_discipline_intake_year",
-    "add_sessions_sso_token",
-    "add_subs_and_notifs",
-    "discipline_scope_table",
-    "fix_pipeline_cancelled",
-    "merge_for_nikita_main",
-    "pipeline_runs_owner_dir",
-    "remove_non_it_disciplines",
     "retention_fk_on_delete",
-    "vacancies_published_nulls_last",
-    "vacancy_employer_logo",
 )
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
