@@ -3,6 +3,7 @@
 Отвечает ТОЛЬКО за извлечение навыков, не за валидацию!
 """
 
+import contextlib
 import json
 import re
 from dataclasses import dataclass, field
@@ -187,6 +188,58 @@ def _load_it_skills() -> set[str]:
         return set()
 
 
+# Де-гомоглификация для поиска канона (утверждено пользователем).
+# Русское слово приводим к кириллице, латинский акроним - к латинице; смесь
+# недопустима. Таблицы применяются только для ПОИСКА канона, в базу пишется
+# написание самого канона из белого списка.
+_LAT_TO_CYR_LOOKALIKE = str.maketrans({
+    "a": "а", "b": "в", "c": "с", "e": "е", "o": "о", "x": "х",
+    "y": "у", "k": "к", "m": "м", "t": "т", "n": "н", "p": "р",
+})
+_CYR_TO_LAT_LOOKALIKE = str.maketrans({
+    "а": "a", "в": "b", "с": "c", "е": "e", "ё": "e", "н": "h",
+    "к": "k", "м": "m", "о": "o", "р": "p", "т": "t", "х": "x", "у": "y",
+})
+
+
+def _load_canon_map() -> dict[str, str]:
+    """folded-ключ -> каноническое написание из белого списка.
+
+    Белый список: it_skills.json + skill_taxonomy.json (categories.*.skills) +
+    hard_skills.json. Первое встреченное написание для свёрнутого ключа
+    выигрывает (порядок: it_skills, taxonomy, hard_skills).
+    """
+    from src import config as _cfg
+
+    canons: list[str] = []
+    with contextlib.suppress(Exception):
+        raw = json.loads(_cfg.IT_SKILLS_PATH.read_text(encoding="utf-8"))
+        if isinstance(raw, dict):
+            raw = list(raw.keys())
+        canons.extend(str(s) for s in raw)
+    with contextlib.suppress(Exception):
+        tax = json.loads(_cfg.SKILL_TAXONOMY_PATH.read_text(encoding="utf-8"))
+        for cat in (tax.get("categories") or {}).values():
+            canons.extend(str(s) for s in (cat.get("skills") or []))
+    with contextlib.suppress(Exception):
+        hard = json.loads(_cfg.HARD_SKILLS_PATH.read_text(encoding="utf-8"))
+        if isinstance(hard, dict):
+            hard = list(hard.keys())
+        canons.extend(str(s) for s in hard)
+
+    # Soft skills - валидные каноны, но живут в SOFT_SKILLS, а не в трёх файлах
+    # белого списка; без них канонизация отбрасывала бы их целиком.
+    canons.extend(SOFT_SKILLS.keys())
+
+    canon_map: dict[str, str] = {}
+    for c in canons:
+        c = c.strip()
+        if not c:
+            continue
+        canon_map.setdefault(_normalize_for_matching(c), c)
+    return canon_map
+
+
 class SkillSource(Enum):
     """Источник извлечения навыка"""
 
@@ -243,6 +296,9 @@ class SkillParser:
     # populated in __init__ from it_skills.json; kept as fallback
     TECH_SKILLS: set[str] = set()
 
+    # folded-ключ -> каноническое написание из белого списка (см. _load_canon_map)
+    _CANON_MAP: dict[str, str] = {}
+
     # (frozenset_of_skills, index) - index: first-char -> skills, cached once
     _DIRECT_INDEX: tuple[frozenset, dict] | None = None
 
@@ -279,6 +335,39 @@ class SkillParser:
         self.stats = ParsingStats()
         if not SkillParser.TECH_SKILLS:
             SkillParser.TECH_SKILLS = _load_it_skills()
+        if not SkillParser._CANON_MAP:
+            SkillParser._CANON_MAP = _load_canon_map()
+
+    def _canonicalize(self, text: str) -> str | None:
+        """Привести навык к канону белого списка или вернуть None.
+
+        Порядок важен: сначала прямой канон из белого списка (по свёрнутому
+        ключу), чтобы русское слово осталось кириллицей, а не переводилось
+        SkillNormalizer в латинский синоним (вебхуки -> webhook). Затем
+        де-гомоглификация к чистой кириллице/латинице. И только в конце
+        SkillNormalizer - для синонимов (js -> javascript). Написание берётся
+        из белого списка, поэтому смесь алфавитов в результат не попадает.
+        """
+        cand = (text or "").strip()
+        if not cand:
+            return None
+        # 1) прямой канон
+        canon = self._CANON_MAP.get(_normalize_for_matching(cand))
+        if canon:
+            return canon
+        # 2) де-гомоглификация: сначала к кириллице, затем к латинице
+        low = cand.lower()
+        for table in (_LAT_TO_CYR_LOOKALIKE, _CYR_TO_LAT_LOOKALIKE):
+            canon = self._CANON_MAP.get(_normalize_for_matching(low.translate(table)))
+            if canon:
+                return canon
+        # 3) синонимы через SkillNormalizer
+        res = SkillNormalizer.normalize(cand)
+        if res.is_ok():
+            canon = self._CANON_MAP.get(_normalize_for_matching(res.unwrap()))
+            if canon:
+                return canon
+        return None
 
     def parse_vacancy(self, vacancy: Vacancy) -> Result[list[ExtractedSkill], DomainError]:
         """Извлекает все навыки из вакансии"""
@@ -325,12 +414,16 @@ class SkillParser:
             deduped = []
             seen: set[str] = set()
             for s in skills:
-                if not (s.text or "").strip():
+                # В parsed_skills храним ТОЛЬКО канон белого списка в его точном
+                # написании (кириллица для русских канонов, латиница для
+                # акронимов). Не-каноны отбрасываем. Дедуп - по свёрнутому ключу.
+                canon = self._canonicalize(s.text)
+                if not canon:
                     continue
-                norm = s.text.lower().translate(_HOMOGLYPH_MAP)
+                norm = canon.lower().translate(_HOMOGLYPH_MAP)
                 if norm not in seen:
                     seen.add(norm)
-                    s.text = s.text.strip()
+                    s.text = canon
                     deduped.append(s)
             return Ok(deduped)
         except Exception as e:

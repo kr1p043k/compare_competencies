@@ -1,8 +1,10 @@
-"""Homoglyph regression: dedup key must not overwrite original skill text.
+"""Контракт parsed_skills: хранятся ТОЛЬКО каноны белого списка.
 
-Bug: skill_parser dedup did `s.text = norm` (Cyrillic lookalikes folded to
-Latin), persisting mixed-script garbage ("bыcтpaиbaть пpoцeccы") into
-vacancies.parsed_skills. Fix: dedup by folded key, keep original text.
+Раньше dedup делал `s.text = norm` (свёртка в латиницу) и в БД попадала
+смешанная каша ("bыcтpaиbaть"). Затем кратко хранили первый оригинал. Теперь
+действует утверждённое правило: в parsed_skills попадает канон белого списка
+в точном написании (кириллица для русских канонов, латиница для акронимов),
+не-каноны отбрасываются.
 """
 from src import Ok
 from src.models.vacancy import Area, Employer, KeySkill, Snippet, Vacancy
@@ -21,26 +23,31 @@ def _vac(*names):
     )
 
 
-def test_homoglyph_dupes_collapse_to_first_original():
+def test_homoglyph_variants_collapse_to_single_canon():
     parser = SkillParser()
-    result = parser.parse_vacancy(_vac("аванс", "aвaнc"))
+    result = parser.parse_vacancy(_vac("вебхуки", "beбxykи"))
     assert isinstance(result, Ok)
-    texts = [s.text for s in result.unwrap()]
-    assert texts == ["аванс"]
+    assert [s.text for s in result.unwrap()] == ["вебхуки"]
 
 
-def test_distinct_skills_not_collapsed():
-    # Обратная сторона дедупа: разные навыки не должны схлопываться,
-    # оригиналы хранятся как есть.
+def test_distinct_canonical_skills_not_collapsed():
     parser = SkillParser()
-    result = parser.parse_vacancy(_vac("сервис", "докер", "Mysql"))
+    result = parser.parse_vacancy(_vac("вебхуки", "базы знаний", "MySQL"))
     assert isinstance(result, Ok)
-    texts = [s.text for s in result.unwrap()]
-    assert texts == ["сервис", "докер", "Mysql"]
+    # русские каноны - кириллицей, акроним - латиницей
+    assert [s.text for s in result.unwrap()] == ["вебхуки", "базы знаний", "mysql"]
 
 
-def test_triple_homoglyph_variants_collapse_to_first():
+def test_non_canonical_key_skills_are_dropped():
+    # Новый контракт: key_skills без канона в белом списке не попадают в вывод.
     parser = SkillParser()
-    result = parser.parse_vacancy(_vac("аванс", "aвaнc", "аванс"))
+    result = parser.parse_vacancy(_vac("аванс", "сервис"))
     assert isinstance(result, Ok)
-    assert [s.text for s in result.unwrap()] == ["аванс"]
+    assert [s.text for s in result.unwrap()] == []
+
+
+def test_triple_homoglyph_variants_collapse_to_canon():
+    parser = SkillParser()
+    result = parser.parse_vacancy(_vac("вебхуки", "beбxykи", "вeбхуки"))
+    assert isinstance(result, Ok)
+    assert [s.text for s in result.unwrap()] == ["вебхуки"]
