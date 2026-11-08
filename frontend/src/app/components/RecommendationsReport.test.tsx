@@ -104,12 +104,33 @@ describe("RecommendationsReport", () => {
     render(<RecommendationsReport data={makeData()} />);
 
     await user.click(screen.getByText("подробнее"));
-    expect(screen.getByText("gap_j: 100%")).toBeInTheDocument();
-    expect(screen.getByText("gap_m: 80%")).toBeInTheDocument();
-    expect(screen.getByText("gap_s: 60%")).toBeInTheDocument();
-    expect(screen.getByText("demand_j: 70%")).toBeInTheDocument();
-    expect(screen.getByText("user_level: 10%")).toBeInTheDocument();
-    expect(screen.getByText("importance: 80%")).toBeInTheDocument();
-    expect(screen.getByText("кластер: 66%")).toBeInTheDocument();
+    // Человекочитаемые подписи вместо сырых ключей gap_j / demand_j / ...
+    expect(screen.getByText("Разрыв (J/M/S)")).toBeInTheDocument();
+    expect(screen.getByText("Спрос (J/M/S)")).toBeInTheDocument();
+    expect(screen.getByText("Ваш уровень")).toBeInTheDocument();
+    expect(screen.getByText("Важность")).toBeInTheDocument();
+    expect(screen.getByText("Кластер")).toBeInTheDocument();
+    // Те же значения, что и раньше; доступное имя бара = tooltip «что это».
+    expect(
+      screen.getByRole("meter", { name: "Разрыв на уровне Junior: насколько не хватает до требуемого" }),
+    ).toHaveTextContent("100%");
+    expect(
+      screen.getByRole("meter", { name: "Разрыв на уровне Middle: насколько не хватает до требуемого" }),
+    ).toHaveTextContent("80%");
+    expect(
+      screen.getByRole("meter", { name: "Разрыв на уровне Senior: насколько не хватает до требуемого" }),
+    ).toHaveTextContent("60%");
+    expect(
+      screen.getByRole("meter", { name: "Востребованность на рынке, уровень Junior" }),
+    ).toHaveTextContent("70%");
+    expect(
+      screen.getByRole("meter", { name: "Ваш текущий уровень владения навыком" }),
+    ).toHaveTextContent("10%");
+    expect(
+      screen.getByRole("meter", { name: "Общая важность навыка" }),
+    ).toHaveTextContent("80%");
+    expect(
+      screen.getByRole("meter", { name: "Релевантность навыка кластеру целевых вакансий" }),
+    ).toHaveTextContent("66%");
   });
 });
