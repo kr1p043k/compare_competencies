@@ -3,7 +3,7 @@ Verifies FP/FN breakdown, examples content, counts consistency.
 """
 import sys
 
-sys.path.insert(0, str(__import__("pathlib").Path.home() / "workvs" / "compare_competencies" / "scripts"))
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent / "scripts"))
 import benchmark_matching as bm
 
 
