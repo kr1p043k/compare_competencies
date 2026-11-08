@@ -85,12 +85,14 @@ async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
     with contextlib.suppress(Exception):
         auth_mod.limiter._storage.reset()
     await auth_mod._ensure_totp_table(pool)
-    # 2FA включена на время тестов: флаг пишется в app_settings напрямую.
-    from src.api_pkg.security_settings import set_two_factor_enabled
-    await set_two_factor_enabled(pool, True)
+    # Флаг подменяем в модуле, а не в общей БД: соседняя сессия на той же
+    # базе может переключать app_settings, и тогда поток TOTP начинает
+    # зависеть от чужого прогона (флап на ровном месте).
+    async def _flag_on(_pool: Any) -> bool:
+        return True
+
+    monkeypatch.setattr(auth_mod, "get_two_factor_enabled", _flag_on)
     await _make_admin(pool)
-    # 2FA теперь за глобальным рубильником (по умолчанию выключен): эти тесты
-    # проверяют поведение включённой 2FA, поэтому флаг включаем точечно.
 
     app = create_app()
     try:
@@ -463,12 +465,16 @@ async def test_disable_wrong_code_400(env):
 
 # --------------------------------------------------------- feature flag
 
-async def test_login_with_totp_flag_off_returns_token(env):
+async def test_login_with_totp_flag_off_returns_token(env, monkeypatch):
     """Kill-switch: при выключенном флаге TOTP-пользователь входит как обычно."""
     client = env["client"]
     token = await _admin_token(client)
     await _enable(client, token)
-    await _set_totp_feature(client, token, False)
+
+    async def _off(_pool):
+        return False
+
+    monkeypatch.setattr(auth_mod, "get_two_factor_enabled", _off)
 
     r = await _login(client)
     assert r.status_code == 200, r.text
@@ -477,17 +483,21 @@ async def test_login_with_totp_flag_off_returns_token(env):
     assert "challenge_id" not in body
 
 
-async def test_setup_flag_off_returns_403(env):
+async def test_setup_flag_off_returns_403(env, monkeypatch):
     """Kill-switch: настройка 2FA недоступна пока флаг выключен."""
     client = env["client"]
     token = await _admin_token(client)
-    await _set_totp_feature(client, token, False)
+
+    async def _off(_pool):
+        return False
+
+    monkeypatch.setattr(auth_mod, "get_two_factor_enabled", _off)
 
     r = await client.post("/api/auth/2fa/setup", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 403, r.text
 
 
-async def test_status_reflects_global_flag(env):
+async def test_status_reflects_global_flag(env, monkeypatch):
     """GET /auth/2fa/status показывает globally_enabled по состоянию флага."""
     client = env["client"]
     token = await _admin_token(client)
@@ -496,31 +506,31 @@ async def test_status_reflects_global_flag(env):
     assert on.status_code == 200, on.text
     assert on.json()["globally_enabled"] is True
 
-    await _set_totp_feature(client, token, False)
+    async def _off(_pool):
+        return False
+
+    monkeypatch.setattr(auth_mod, "get_two_factor_enabled", _off)
     off = await client.get("/api/auth/2fa/status", headers={"Authorization": f"Bearer {token}"})
     assert off.status_code == 200, off.text
     assert off.json()["globally_enabled"] is False
 
 
 async def test_admin_toggle_endpoint_roundtrip(env):
-    """PUT /admin/features/totp_2fa_enabled переключает флаг, GET отражает."""
+    """PUT /admin/security/2fa/settings переключает флаг, GET отражает."""
     client = env["client"]
     token = await _admin_token(client)
+    headers = {"Authorization": f"Bearer {token}"}
 
-    r = await client.get(
-        "/api/admin/security/2fa/settings", headers={"Authorization": f"Bearer {token}"}
-    )
-    assert r.status_code == 200, r.text
-    assert r.json()["enabled"] is True
+    try:
+        await _set_totp_feature(client, token, True)
+        r = await client.get("/api/admin/security/2fa/settings", headers=headers)
+        assert r.status_code == 200, r.text
+        assert r.json()["enabled"] is True
 
-    await _set_totp_feature(client, token, False)
-    r = await client.get(
-        "/api/admin/security/2fa/settings", headers={"Authorization": f"Bearer {token}"}
-    )
-    assert r.json()["enabled"] is False
-
-    await _set_totp_feature(client, token, True)
-    r = await client.get(
-        "/api/admin/security/2fa/settings", headers={"Authorization": f"Bearer {token}"}
-    )
-    assert r.json()["enabled"] is True
+        await _set_totp_feature(client, token, False)
+        r = await client.get("/api/admin/security/2fa/settings", headers=headers)
+        assert r.json()["enabled"] is False
+    finally:
+        # Флаг - общее состояние БД: возвращаем дефолт, иначе соседние прогоны
+        # стартуют с включённой 2FA.
+        await _set_totp_feature(client, token, False)
