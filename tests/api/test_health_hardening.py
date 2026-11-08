@@ -92,6 +92,18 @@ class TestMetricsToken:
         resp = _client().get("/metrics", headers={"X-Metrics-Token": "wrong"})
         assert resp.status_code in (401, 403)
 
+    def test_metrics_200_with_bearer_authorization(self, monkeypatch):
+        # Prometheus из scrape-конфига (authorization: Bearer) не умеет
+        # произвольные заголовки, поэтому Bearer тоже должен приниматься.
+        monkeypatch.setattr(config.settings, "METRICS_TOKEN", TOKEN)
+        resp = _client().get("/metrics", headers={"Authorization": f"Bearer {TOKEN}"})
+        assert resp.status_code == 200
+
+    def test_metrics_401_with_wrong_bearer(self, monkeypatch):
+        monkeypatch.setattr(config.settings, "METRICS_TOKEN", TOKEN)
+        resp = _client().get("/metrics", headers={"Authorization": "Bearer wrong"})
+        assert resp.status_code in (401, 403)
+
     def test_metrics_200_for_admin_override(self, monkeypatch):
         import src.api_pkg.routers.auth as auth
 

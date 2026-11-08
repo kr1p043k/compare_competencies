@@ -32,6 +32,18 @@ PREV=$(git rev-parse --short HEAD)
 git reset --hard origin/main
 log "code: $PREV -> $(git rev-parse --short HEAD)"
 
+# Дамп БД до миграций: alembic не откатывается, восстановиться можно только
+# из бэкапа. Храним последние 14 (дамп ~300 МБ, это ~4 ГБ потолком).
+mkdir -p "$APP_DIR/backups"
+STAMP=$(date -u +%Y%m%d_%H%M%S)
+if docker exec competency-postgres pg_dump -U postgres -Fc compare_competencies \
+     > "$APP_DIR/backups/db_${STAMP}.dump" 2>/tmp/deploy_dump_err; then
+  log "db backup: backups/db_${STAMP}.dump ($(du -h "$APP_DIR/backups/db_${STAMP}.dump" | cut -f1))"
+  ls -1t "$APP_DIR/backups"/db_*.dump 2>/dev/null | tail -n +15 | xargs -r rm -f
+else
+  log "WARN: pg_dump не удался ($(head -c 200 /tmp/deploy_dump_err)); продолжаем без дампа"
+fi
+
 BACKEND_IMAGE="compare_competencies-backend:latest"
 FRONTEND_IMAGE="compare_competencies-frontend:latest"
 BACKEND_PREV="${BACKEND_IMAGE}.previous"
@@ -93,6 +105,22 @@ if [ "$code" != "401" ]; then
   log "WARN: /api/academic/programs вернул $code, ожидали 401 без токена"
 fi
 
+# Откатные теги старше одного поколения (rollback-*) больше не нужны:
+# актуальный откат — это latest.previous. Каждый деплой строит новый образ
+# (~7 ГБ бэкенд), без чистки диск уходит в 85%+ за неделю.
+for img in $(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E '^compare_competencies-(backend|frontend):rollback-'); do
+  docker image rm "$img" >/dev/null 2>&1 || true
+done
 docker image prune -f >/dev/null 2>&1 || true
+
+# Build-кэш нужен для быстрых деплоев, но копится (~14 ГБ за неделю).
+# Жертвуем скоростью сборки только когда диск уже забит.
+used_pct=$(df --output=pcent / | tail -1 | tr -dc '0-9')
+if [ "${used_pct:-0}" -ge 75 ]; then
+  log "диск ${used_pct}% — чищу build-кэш"
+  docker builder prune -af >/dev/null 2>&1 || true
+fi
+log "диск: $(df -h / | tail -1 | awk '{print $3 " использовано, " $4 " свободно"}')"
+
 docker compose ps
 log "готово"
