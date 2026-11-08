@@ -332,8 +332,21 @@ class LoginRequest(BaseModel):
 
 
 def _make_token(user_id: str, email: str, role: str) -> str:
+    """Собрать сессионный токен.
+
+    В полезную нагрузку кладём случайный одноразовый nonce: без него токен
+    полностью детерминирован (uid+почта+роль+секунда), и два входа одного
+    админа в одну секунду дают ОДИН токен - то есть одну сессию. Тогда выход
+    на одном устройстве выкидывает и второе, а отзыв сессий не работает.
+    """
     payload = json.dumps(
-        {"uid": user_id, "u": email, "r": role, "t": int(time.time()) + TOKEN_TTL},
+        {
+            "uid": user_id,
+            "u": email,
+            "r": role,
+            "t": int(time.time()) + TOKEN_TTL,
+            "n": secrets.token_urlsafe(9),
+        },
         separators=(",", ":"),
     )
     sig = hmac.new(SECRET_KEY.encode(), payload.encode(), hashlib.sha256).digest()
