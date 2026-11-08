@@ -197,6 +197,39 @@ describe("TeacherDashboard", () => {
     ).toBeInTheDocument();
   });
 
+  it("различает набор (перезагружает данные) и фильтр видимости списка", async () => {
+    const user = userEvent.setup();
+    await renderDashboard();
+
+    // Оба контроля названы по роли: «Набор» грузит данные, «Показать в
+    // списке» лишь скрывает строки. Тултипы проговаривают разницу.
+    expect(screen.getByText("Набор:")).toBeInTheDocument();
+    expect(screen.getByTitle(/запрашивает данные с сервера/)).toBeInTheDocument();
+    expect(screen.getByText(/Показать в списке:/)).toBeInTheDocument();
+    expect(screen.getByTitle(/Данные не перезагружает/)).toBeInTheDocument();
+
+    // Фильтр видимости: у обеих дисциплин из мока years=[2025],
+    // поэтому «в плане 2024» прячет строки и НЕ обращается к API.
+    const callsBefore = vi.mocked(api).mock.calls.length;
+    await user.click(screen.getByRole("button", { name: "в плане 2024" }));
+    expect(screen.queryByRole("button", { name: /Базы данных/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Web-разработка/ })).not.toBeInTheDocument();
+    expect(vi.mocked(api).mock.calls.length).toBe(callsBefore);
+
+    // Набор: то же «2024» здесь - новое source of truth, анализ
+    // запрашивается заново с year=2024.
+    await user.click(screen.getByRole("button", { name: "2024" }));
+    await waitFor(() => {
+      const yearCalls = vi.mocked(api).mock.calls.filter(([p]) => String(p).includes("year=2024"));
+      expect(yearCalls.length).toBeGreaterThan(0);
+    });
+
+    // Фильтр не сбросился сам: вернуть строки - кнопка «все».
+    await user.click(screen.getByRole("button", { name: "все" }));
+    expect(screen.getByRole("button", { name: /Базы данных/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Web-разработка/ })).toBeInTheDocument();
+  });
+
   it("передаёт чату код направления, а не имя дисциплины", async () => {
     const user = userEvent.setup();
     await renderDashboard();

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import { ListFilter } from "lucide-react";
 import { api } from "../api";
-import { MetricPair, Skeleton } from "../../design";
+import { Badge, MetricPair, Skeleton } from "../../design";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { MetricsGlossary } from "./MetricsGlossary";
 import { TaxonomyBrowser } from "./TaxonomyBrowser";
@@ -136,10 +137,12 @@ export function TeacherDashboard() {
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   const [selected, setSelected] = useState<DisciplineDetail | null>(null);
   const [scopeSaving, setScopeSaving] = useState<string | null>(null);
-  // Фильтр по году набора: дисциплина может быть только в одном плане.
+  // Фильтр видимости («Показать в списке»): скрывает строки уже
+  // загруженного списка по году набора, данных не перезагружает.
   const [yearFilter, setYearFilter] = useState<0 | 2024 | 2025>(0);
-  // Набор, по которому загружается анализ. Это НЕ фильтр списка: у наборов
-  // разные планы и разные KRM, поэтому анализ запрашивается заново.
+  // Набор («Набор» в сайдбаре): по его плану ЗАГРУЖАЮТСЯ данные. Это НЕ
+  // фильтр видимости: у наборов разные планы и разные KRM, поэтому
+  // дисциплины, охваты и анализ запрашиваются заново.
   const [intakeYear, setIntakeYear] = useState<2024 | 2025>(2025);
   // Арифметика «в наборе -> в учёте -> в анализе»: без неё три разных числа
   // дисциплин выглядят как ошибка, а не как разные выборки.
@@ -863,21 +866,22 @@ export function TeacherDashboard() {
             onChange={(e) => setSearch(e.target.value)}
         className="w-full mt-2.5 px-3 py-2 rounded-md text-[13px] box-border bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-slate-100 outline-none"
           />
-          {/* Год анализа: переключает набор, по которому ЗАГРУЖАЮТСЯ данные
-              (см. useEffect на [selectedDir, intakeYear]). */}
-          <div className="flex gap-1.5 mt-2 items-center flex-wrap">
+          {/* Набор: переключает набор, по которому ЗАГРУЖАЮТСЯ данные
+              (см. useEffect на [selectedDir, intakeYear]). Это НЕ фильтр
+              видимости: строки ниже фильтрует «Показать в списке». */}
+          <div className="flex gap-1.5 mt-2 items-center flex-wrap" role="group" aria-label="Набор: загрузка данных">
             <span
               className="text-xs text-gray-500 dark:text-slate-400"
-              title="Список дисциплин и анализ загружаются по учебному плану выбранного набора"
+              title="Учебный план какого набора грузить: от него зависят список дисциплин, охваты и весь анализ. Переключение заново запрашивает данные с сервера."
             >
-              Год анализа:
+              Набор:
             </span>
             {([2025, 2024] as const).map((y) => (
               <button
                 key={y}
                 onClick={() => setIntakeYear(y)}
                 aria-pressed={intakeYear === y}
-                title={`Анализ по учебному плану набора ${y}`}
+                title={`Загрузить список дисциплин и анализ по учебному плану набора ${y}`}
                 className={
                   "text-xs px-2 py-0.5 rounded border cursor-pointer " +
                   (intakeYear === y
@@ -889,17 +893,38 @@ export function TeacherDashboard() {
               </button>
             ))}
           </div>
+          {/* Видимая подсказка: то, что раньше было только в тултипах,
+              пользователь не читал и путал набор с фильтром. */}
+          <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
+            по плану выбранного набора грузятся список, охваты и анализ
+          </div>
         </div>
         <div className="flex-1 overflow-auto">
-          <div className="px-4 py-1.5 text-xs text-gray-500 dark:text-slate-400 border-b border-gray-200 dark:border-slate-700">
-{scopeChain ? (
-              <>В наборе {scopeChain.total} · в учёте {scopeChain.in_scope} · в анализе {scopeChain.analyzed ?? "-"}
-                <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-0.5">
-                  исключено методикой: {scopeChain.excluded_manual}, без данных: {scopeChain.excluded_no_data}
-                </div>
-              </>
+          {/* Чипы вместо текстовой цепочки с точками: каждый шаг
+              снабжён тултипом, откуда взялось число. */}
+          <div className="px-4 py-1.5 border-b border-gray-200 dark:border-slate-700">
+            {scopeChain ? (
+              <div className="flex gap-1.5 flex-wrap items-center">
+                <Badge tone="neutral" title="Все дисциплины учебного плана выбранного набора">
+                  в наборе {scopeChain.total}
+                </Badge>
+                <Badge tone="primary" title="Отмечены галочками «Учитывать в анализе»">
+                  в учёте {scopeChain.in_scope}
+                </Badge>
+                <Badge tone="success" title="Реально участвуют в анализе: в учёте и хватает данных">
+                  в анализе {scopeChain.analyzed ?? "-"}
+                </Badge>
+                <Badge tone="warning" title="Исключены скриптом методики; галочку можно вернуть">
+                  исключено методикой {scopeChain.excluded_manual}
+                </Badge>
+                <Badge tone="neutral" title="Не участвуют в анализе: в плане нет компетенций, навыков или их связей">
+                  без данных {scopeChain.excluded_no_data}
+                </Badge>
+              </div>
             ) : (
-              <>В учёте {disciplines.filter((x) => x.in_scope ?? true).length} из {disciplines.length}</>
+              <div className="text-xs text-gray-500 dark:text-slate-400">
+                В учёте {disciplines.filter((x) => x.in_scope ?? true).length} из {disciplines.length}
+              </div>
             )}
             {scopeMsg && (<div className="text-amber-800 mt-0.5">{scopeMsg}</div>)}
             <div className="flex gap-1.5 mt-1 items-center flex-wrap">
@@ -914,29 +939,31 @@ export function TeacherDashboard() {
               {metaStale && (<span className="text-xs text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950 rounded px-1.5 py-0.5">данные устарели - обновите анализ</span>)}
             </div>
           </div>
-          {/* Фильтр списка: только скрывает строки, данных не перезагружает
-              (в отличие от «Год анализа» выше). */}
-          <div className="flex gap-1.5 px-2 pb-2 items-center flex-wrap">
+          {/* «Показать в списке» - фильтр видимости: только скрывает строки
+              уже загруженного списка, данных не перезагружает (в отличие от
+              выбора набора выше). */}
+          <div className="flex gap-1.5 px-2 pb-2 items-center flex-wrap" role="group" aria-label="Показать в списке: фильтр видимости">
             <span
               className="text-xs text-gray-500 dark:text-slate-400"
-              title="Скрывает дисциплины других наборов; данные не перезагружает"
+              title="Видимость строк уже загруженного списка. Данные не перезагружает: набор выбирается в блоке «Набор»."
             >
-              Фильтр списка:
+              <ListFilter className="inline-block size-3.5 -mt-0.5 mr-0.5 text-gray-400 dark:text-slate-500" aria-hidden="true" />
+              Показать в списке:
             </span>
             {([0, 2024, 2025] as const).map((y) => (
               <button
                 key={y}
                 onClick={() => setYearFilter(y)}
                 aria-pressed={yearFilter === y}
-                title={y === 0 ? "Показать все дисциплины списка" : `Только дисциплины, входящие в план набора ${y}`}
+                title={y === 0 ? "Все строки выбранного набора без фильтра" : `Только дисциплины, которые входят и в учебный план набора ${y}`}
                 className={
                   "text-xs px-2 py-0.5 rounded border cursor-pointer " +
                   (yearFilter === y
-                    ? "border-violet-400 bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
+                    ? "border-slate-400 bg-slate-100 text-slate-700 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-200"
                     : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300")
                 }
               >
-                {y === 0 ? "Все" : y}
+                {y === 0 ? "все" : `в плане ${y}`}
               </button>
             ))}
           </div>
