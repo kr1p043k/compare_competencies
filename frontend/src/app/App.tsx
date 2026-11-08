@@ -193,8 +193,6 @@ export default function App() {
   const {
     pipelineStep,
     pipelineLoading,
-    pipelineMaxPages,
-    pipelinePeriod,
     restartFlag,
     startPipeline,
     cancelPipeline,
@@ -517,8 +515,6 @@ export default function App() {
                 pipelineLoading={pipelineLoading}
                 restartFlag={restartFlag}
                 onStartPipeline={effectiveRole === "student" ? undefined : (regionIds, profession, maxPages, periodDays) => startPipeline(regionIds, profession, maxPages, periodDays)}
-                pipelineMaxPages={pipelineMaxPages}
-                pipelinePeriod={pipelinePeriod}
                 canRunPipeline={effectiveRole !== "student"}
               />
             </ErrorBoundary>

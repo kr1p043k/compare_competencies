@@ -125,8 +125,6 @@ interface VacanciesListProps {
   pipelineLoading?: boolean;
   restartFlag?: number;
   onStartPipeline?: (regionIds: string, profession: string, maxPages?: number, periodDays?: number) => void;
-  pipelineMaxPages?: number;
-  pipelinePeriod?: number;
   canRunPipeline?: boolean;
 }
 
@@ -138,7 +136,7 @@ const MemoVacancyCard = memo(VacancyCard);
 // и столько же добавляем при «Показать ещё» / прокрутке к sentinel.
 const PAGE_SIZE = 24;
 
-export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onStartPipeline, pipelineMaxPages, pipelinePeriod, canRunPipeline = true }: VacanciesListProps) {
+export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onStartPipeline, canRunPipeline = true }: VacanciesListProps) {
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -367,12 +365,6 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               <ToneBadge tone="info">Записи с {fmtDateRU(vacancyInfo.date_range.from)}</ToneBadge>
             )}
             <ToneBadge tone="primary">всего вакансий собрано: {vacancyInfo.count.toLocaleString("ru-RU")}</ToneBadge>
-            {(showPipelineSetup || pipelineStep?.status === "running") && pipelineMaxPages && (
-              <ToneBadge tone="neutral">стр: {pipelineMaxPages}</ToneBadge>
-            )}
-            {(showPipelineSetup || pipelineStep?.status === "running") && pipelinePeriod && (
-              <ToneBadge tone="neutral">период: {pipelinePeriod} дн.</ToneBadge>
-            )}
           </div>
         )}
       </div>
@@ -426,12 +418,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   <Input
                     type="number"
                     min={1}
-                    max={100}
+                    max={20}
                     value={pipelineMaxPagesLocal}
-                    onChange={(e) => setPipelineMaxPagesLocal(Math.max(1, Math.min(100, Number(e.target.value) || 20)))}
+                    onChange={(e) => setPipelineMaxPagesLocal(Math.max(1, Math.min(20, Number(e.target.value) || 20)))}
                     className="h-10"
                   />
-                  <p className="text-xs text-muted-foreground">1-100 (по 100 вакансий на страницу)</p>
+                  <p className="text-xs text-muted-foreground">1-20 (по 100 вакансий на страницу)</p>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
@@ -454,7 +446,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Button
                   variant={!cityMode ? "default" : "outline"}
                   onClick={() => { setCityMode(false); setSelectedCities([]); setPipelineRegion("0"); setPipelineProfession(""); }}
-                  className={`flex-1 h-10 gap-2 ${!cityMode ? "bg-card text-white hover:bg-muted dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
+                  aria-pressed={!cityMode}
+                  className="flex-1 h-10 gap-2"
                 >
                   <Globe className="size-4" />
                   Весь рынок
@@ -462,7 +455,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Button
                   variant={cityMode ? "default" : "outline"}
                   onClick={() => { setCityMode(true); if (selectedCities.length === 0) setSelectedCities([...HH_REGIONS]); }}
-                  className={`flex-1 h-10 gap-2 ${cityMode ? "bg-card text-white hover:bg-muted dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
+                  aria-pressed={cityMode}
+                  className="flex-1 h-10 gap-2"
                 >
                   <MapPin className="size-4" />
                   Выбрать города
