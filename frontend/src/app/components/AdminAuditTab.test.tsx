@@ -2,7 +2,7 @@
  * AdminAuditTab: список событий, фильтр по действию, пустой журнал, экспорт CSV.
  * Сеть мокается на уровне lib/api (request + saveBlob), fetch не вызывается.
  */
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -129,5 +129,79 @@ describe("AdminAuditTab", () => {
     expect(lines[1]).toContain("u-teacher");
     expect(lines[1]).toContain("10.0.0.9");
     expect(lines[1]).toContain("req-17");
+  });
+
+  it("быстрый диапазон «24ч» заполняет С/По и шлёт since/until (ISO)", async () => {
+    const user = userEvent.setup();
+    render(<AdminAuditTab />);
+    await screen.findByText("root@sfedu.ru");
+    expect(auditCalls()).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: "24ч" }));
+    await waitFor(() => expect(auditCalls()).toHaveLength(2));
+    expect(screen.getByRole("button", { name: "24ч" })).toHaveAttribute("aria-pressed", "true");
+
+    const params = new URLSearchParams(auditCalls()[1].split("?")[1]);
+    expect(params.get("since")).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    expect(params.get("until")).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    // окно - примерно 24 часа от текущего момента (усечение до минут -> допуск 60 с)
+    const now = Date.now();
+    expect(now - Date.parse(params.get("until") ?? "")).toBeLessThan(60_000);
+    expect(Math.abs(now - 24 * 60 * 60 * 1000 - Date.parse(params.get("since") ?? ""))).toBeLessThan(
+      60_000,
+    );
+    // ручные поля показывают подставленное окно
+    expect((screen.getByLabelText("С") as HTMLInputElement).value).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect((screen.getByLabelText("По") as HTMLInputElement).value).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("«повторить фильтр» пересчитывает окно и перезапрашивает журнал", async () => {
+    const user = userEvent.setup();
+    render(<AdminAuditTab />);
+    await screen.findByText("root@sfedu.ru");
+    await user.click(screen.getByRole("button", { name: "24ч" }));
+    await waitFor(() => expect(auditCalls()).toHaveLength(2));
+
+    await user.click(screen.getByRole("link", { name: "повторить фильтр" }));
+    await waitFor(() => expect(auditCalls()).toHaveLength(3));
+
+    const params = new URLSearchParams(auditCalls()[2].split("?")[1]);
+    expect(params.get("since")).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(params.get("until")).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("«Всё» очищает окно: поля пустые, в запросе нет since/until", async () => {
+    const user = userEvent.setup();
+    render(<AdminAuditTab />);
+    await screen.findByText("root@sfedu.ru");
+    await user.click(screen.getByRole("button", { name: "24ч" }));
+    await waitFor(() => expect(auditCalls()).toHaveLength(2));
+
+    await user.click(screen.getByRole("button", { name: "Всё" }));
+    await waitFor(() => expect(auditCalls()).toHaveLength(3));
+    expect(screen.getByRole("button", { name: "Всё" })).toHaveAttribute("aria-pressed", "true");
+
+    const params = new URLSearchParams(auditCalls()[2].split("?")[1]);
+    expect(params.get("since")).toBeNull();
+    expect(params.get("until")).toBeNull();
+    expect((screen.getByLabelText("С") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("По") as HTMLInputElement).value).toBe("");
+  });
+
+  it("ручная правка «С» сбрасывает быстрый диапазон и прячет «повторить фильтр»", async () => {
+    const user = userEvent.setup();
+    render(<AdminAuditTab />);
+    await screen.findByText("root@sfedu.ru");
+    await user.click(screen.getByRole("button", { name: "1ч" }));
+    await waitFor(() => expect(auditCalls()).toHaveLength(2));
+    expect(screen.getByRole("link", { name: "повторить фильтр" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("С"), { target: { value: "2026-01-01T10:00" } });
+    await waitFor(() => expect(auditCalls()).toHaveLength(3));
+
+    expect(screen.getByRole("button", { name: "1ч" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("link", { name: "повторить фильтр" })).toBeNull();
+    const params = new URLSearchParams(auditCalls()[2].split("?")[1]);
+    expect(params.get("since")).toContain("2026-01-01");
   });
 });
