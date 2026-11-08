@@ -126,6 +126,10 @@ describe("SummaryReport", () => {
     expect(screen.getByText("Средний разрыв")).toBeInTheDocument();
     // profession_coverage отсутствует в payload - строка скрыта.
     expect(screen.queryByText("Покрытие профессии")).not.toBeInTheDocument();
+    // Дубль из API (coverage_weighted == skill_coverage) не рисуем
+    // отдельной строкой: взвешенное встречается ровно один раз в таблице.
+    expect(screen.queryByText("Покрытие (взвешенное, API)")).not.toBeInTheDocument();
+    expect(screen.getAllByText("58.9%")).toHaveLength(1);
   });
 
   it("категория и важность видны в строках разрывов", async () => {
