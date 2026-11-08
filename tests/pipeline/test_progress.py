@@ -36,7 +36,12 @@ def test_writes_uses_provided_logs(tmp_path):
 
 def test_writes_skips_duplicate_logs(tmp_path):
     f = tmp_path / "cache" / "pipeline_progress.json"
-    with patch("src.pipeline.progress.PROGRESS_FILE", f):
+    # Лог-запись содержит [HH:MM:SS]; два вызова, попавшие в разные секунды,
+    # дают разные строки и тест мигает. Время фиксируем: проверяем дедупликацию,
+    # а не поведение часов.
+    with patch("src.pipeline.progress.PROGRESS_FILE", f), patch(
+        "src.pipeline.progress.time.strftime", return_value="00:00:00"
+    ):
         write(10, "same")
         write(20, "same")
     data = json.loads(f.read_text(encoding="utf-8"))

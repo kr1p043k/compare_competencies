@@ -81,6 +81,14 @@ async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
     except Exception:  # pragma: no cover
         pytest.skip("local postgres unavailable")
     dbmod.pool = pool
+    # Флаг 2FA - одна глобальная строка в app_settings общей БД. Параллельные
+    # воркеры переключали бы её друг у друга (roundtrip падал на чужом False).
+    # Даём этому процессу собственный ключ: поведение то же, гонки нет.
+    import src.api_pkg.security_settings as security_settings
+
+    monkeypatch.setattr(
+        security_settings, "TWO_FACTOR_KEY", f"security.two_factor.{os.getpid()}"
+    )
     _ENROLLED.clear()
     with contextlib.suppress(Exception):
         auth_mod.limiter._storage.reset()
@@ -100,9 +108,10 @@ async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
         # Вернуть рубильник в исходное (выключенное) состояние: иначе флаг
         # протечёт в следующие тестовые модули.
         with contextlib.suppress(Exception):
-            from src.api_pkg.security_settings import set_two_factor_enabled
+            # Свой ключ процесса убираем целиком: не копим строки в app_settings.
+            from src.api_pkg.security_settings import TWO_FACTOR_KEY
 
-            await set_two_factor_enabled(pool, False)
+            await pool.execute("DELETE FROM app_settings WHERE key = $1", TWO_FACTOR_KEY)
         await _drop_user(pool)
         dbmod.pool = old
         await pool.close()
