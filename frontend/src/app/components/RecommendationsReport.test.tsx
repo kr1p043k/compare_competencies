@@ -72,16 +72,35 @@ function makeData() {
 describe("RecommendationsReport", () => {
   it("описывает составные проценты хинтами на StatCard", () => {
     render(<RecommendationsReport data={makeData()} />);
+    // Готовность: рядом только средний разрыв, без дубля «рынка»
+    // (рынок - значение соседней карточки, а не формула готовности).
     expect(
-      screen.getByText("рынок: 46% · средний разрыв: 54.9%"),
+      screen.getByText("средний разрыв по навыкам: 54.9%"),
     ).toBeInTheDocument();
+    // Соответствие рынку: расшифровка состава вместо повтора чужих чисел.
     expect(
-      screen.getByText("рынок 46% · навыки 59% · готовность 41%"),
+      screen.getByText("среднее трёх метрик: покрытие · навыки · готовность"),
     ).toBeInTheDocument();
-    expect(screen.getByText("строгое: 28.1%")).toBeInTheDocument();
+    // Покрытие рынка: состав формулы, без повторов значений других карточек.
     expect(
-      screen.getByText("Взвешенное по спросу: 58.9% · область: топ-200 рынка"),
+      screen.getByText("складывается из навыков (60%) и доменов (40%)"),
     ).toBeInTheDocument();
+    // Навыки профиля: область сравнения + взвешенная пара в одной подписи.
+    expect(
+      screen.getByText("топ-200 рынка · взвешенное по спросу: 58.9%"),
+    ).toBeInTheDocument();
+  });
+
+  it("заменяет сырой scope «market» на человекочитаемую область", () => {
+    const data = makeData();
+    data.summary.coverage_strict_scope = "market";
+    render(<RecommendationsReport data={data} />);
+    expect(
+      screen.getByText("по всему рынку · взвешенное по спросу: 58.9%"),
+    ).toBeInTheDocument();
+    // Сырой ключ из API больше не попадает в интерфейс.
+    expect(screen.queryByText(/область:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/область: market/)).not.toBeInTheDocument();
   });
 
   it("не показывает summary.confidence отдельной метрикой", () => {

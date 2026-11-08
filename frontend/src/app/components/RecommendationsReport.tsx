@@ -126,6 +126,19 @@ function scoreTone(score: number): "success" | "warning" | "danger" {
   return "danger";
 }
 
+/** База строгого сравнения навыков: сырым ключам API (market, profession)
+ *  даём человекочитаемую подпись; кастомный scope (например, «топ-200
+ *  рынка») показываем как есть, ничего не изобретаем. */
+const STRICT_SCOPE_RU: Record<string, string> = {
+  market: "по всему рынку",
+  profession: "по целевой профессии",
+};
+
+function strictScopeRu(scope?: string): string | null {
+  if (!scope) return null;
+  return STRICT_SCOPE_RU[scope.trim().toLowerCase()] ?? scope;
+}
+
 /** Тон бейджа приоритета: высокий - опасность, средний - внимание, низкий - акцент. */
 const PRIORITY_TONE: Record<string, BadgeTone> = {
   HIGH: "danger",
@@ -265,41 +278,75 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
     }
   };
 
+  const summary = data.summary;
+  // Подпись «Готовности»: рядом только средний разрыв, без дубля «рынка»
+  // (рынок - значение своей карточки ниже, а не формула готовности).
+  const avgGapHint = Number.isFinite(summary.avg_gap)
+    ? `средний разрыв по навыкам: ${summary.avg_gap.toFixed(1)}%`
+    : undefined;
+  // Подпись «Навыков профиля»: область строгого сравнения + взвешенная
+  // пара. Объясняет разницу: строгое - без скидок, взвешенное - со спросом.
+  const skillsHintParts = [
+    strictScopeRu(summary.coverage_strict_scope),
+    Number.isFinite(summary.coverage_weighted ?? summary.skill_coverage)
+      ? `взвешенное по спросу: ${(summary.coverage_weighted ?? summary.skill_coverage).toFixed(1)}%`
+      : null,
+  ];
+  const skillsHint = skillsHintParts.filter(Boolean).join(" · ") || undefined;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="space-y-6"
     >
-      {/* Summary Cards */}
+      {/* Summary Cards: сверху вниз - от итоговой оценки к фактам. Числа не
+          дублируются между карточками: каждая метрика показана один раз,
+          состав композитных индексов объяснён подписью и подсказкой. */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          icon={<CheckCircle2 className="size-4" />}
-          label={<span title="Композитный индекс 0-100. Readiness = 0.45 × market + 0.30 × strong% − 0.25 × weak%: покрытие рынка, доля сильных и слабых навыков">Готовность</span>}
-          value={`${data.summary.readiness_score.toFixed(1)}%`}
-          hint={`рынок: ${data.summary.market_coverage_score.toFixed(0)}% · средний разрыв: ${data.summary.avg_gap.toFixed(1)}%`}
-          tone={scoreTone(data.summary.readiness_score)}
+          icon={<Target className="size-4" />}
+          label={
+            <span title="Итоговая оценка: среднее трёх метрик — покрытие рынка, взвешенные навыки и готовность. Композитный индекс, а не доля освоенных навыков">
+              Соответствие рынку
+            </span>
+          }
+          value={`${summary.match_score.toFixed(1)}%`}
+          hint="среднее трёх метрик: покрытие · навыки · готовность"
+          tone={scoreTone(summary.match_score)}
         />
         <StatCard
-          icon={<Target className="size-4" />}
-          label={<span title="Средневзвешенная оценка по трём метрикам. Match Score = (Market Coverage + Skill Coverage + Readiness) / 3">Соответствие рынку</span>}
-          value={`${data.summary.match_score.toFixed(1)}%`}
-          hint={`рынок ${data.summary.market_coverage_score.toFixed(0)}% · навыки ${data.summary.skill_coverage.toFixed(0)}% · готовность ${data.summary.readiness_score.toFixed(0)}%`}
-          tone={scoreTone(data.summary.match_score)}
+          icon={<CheckCircle2 className="size-4" />}
+          label={
+            <span title="Готовность к рынку с поправкой на силу навыков: 45% — покрытие рынка, +30% — доля сильных навыков, −25% — доля слабых">
+              Готовность
+            </span>
+          }
+          value={`${summary.readiness_score.toFixed(1)}%`}
+          hint={avgGapHint}
+          tone={scoreTone(summary.readiness_score)}
         />
         <StatCard
           icon={<TrendingUp className="size-4" />}
-          label={<span title="Доля навыков студента от всех навыков на рынке. Market Coverage = (Σ весов навыков студента) / (Σ весов всех навыков) × 100">Покрытие рынка</span>}
-          value={`${data.summary.market_coverage_score.toFixed(1)}%`}
-          hint={`строгое: ${data.summary.market_skill_coverage.toFixed(1)}%`}
-          tone={scoreTone(data.summary.market_coverage_score)}
+          label={
+            <span title="Сколько требований рынка закрывает профиль: 60% — взвешенные навыки, 40% — домены. Навыки весят больше: работодатель нанимает за навыки">
+              Покрытие рынка
+            </span>
+          }
+          value={`${summary.market_coverage_score.toFixed(1)}%`}
+          hint="складывается из навыков (60%) и доменов (40%)"
+          tone={scoreTone(summary.market_coverage_score)}
         />
         <StatCard
           icon={<Award className="size-4" />}
-          label={<span title="Строгое: доля навыков студента среди рыночных (бинарно, без весов). Взвешенное ниже - с учётом спроса, может быть выше строгого">Навыки профиля (строго)</span>}
-          value={data.summary.coverage_strict === undefined ? "-" : `${data.summary.coverage_strict.toFixed(1)}%`}
-          hint={`Взвешенное по спросу: ${(data.summary.coverage_weighted ?? data.summary.skill_coverage).toFixed(1)}%${data.summary.coverage_strict_scope ? ` · область: ${data.summary.coverage_strict_scope}` : ""}`}
-          tone={data.summary.coverage_strict === undefined ? "default" : scoreTone(data.summary.coverage_strict)}
+          label={
+            <span title="Строгое покрытие: сколько рыночных навыков у вас есть без скидок — навык либо есть, либо нет. Взвешенное учитывает спрос и силу владения, поэтому обычно выше">
+              Навыки профиля
+            </span>
+          }
+          value={summary.coverage_strict == null ? "-" : `${summary.coverage_strict.toFixed(1)}%`}
+          hint={skillsHint}
+          tone={summary.coverage_strict == null ? "default" : scoreTone(summary.coverage_strict)}
         />
       </div>
 

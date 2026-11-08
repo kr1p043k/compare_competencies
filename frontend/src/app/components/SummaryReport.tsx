@@ -20,14 +20,13 @@ interface MetricDef {
 }
 
 const METRICS: MetricDef[] = [
-  { key: "market_coverage_score", label: "Покрытие рынка", hint: "Доля востребованных на рынке навыков" },
-  { key: "skill_coverage", label: "Покрытие навыков (взвеш.)", hint: "Взвешено по спросу; может льстить" },
-  { key: "readiness_score", label: "Готовность к рынку", hint: "0.45×рынок + 0.30×сильные% − 0.25×слабые%" },
-  { key: "domain_coverage_score", label: "Покрытие доменов", hint: "Охват профессиональных доменов" },
+  { key: "market_coverage_score", label: "Покрытие рынка", hint: "Сколько требований рынка закрывает профиль: 60% навыки + 40% домены" },
+  { key: "readiness_score", label: "Готовность", hint: "Покрытие рынка с поправкой на силу навыков: +за сильные, −за слабые" },
+  { key: "market_skill_coverage", label: "Навыки (строгое)", hint: "Сколько рыночных навыков у вас есть, без скидок" },
+  { key: "skill_coverage", label: "Навыки (взвешенные)", hint: "Сильный навык идёт целиком, слабый — наполовину; вес — по спросу" },
+  { key: "domain_coverage_score", label: "Покрытие доменов", hint: "Охват профессиональных областей" },
   { key: "profession_coverage", label: "Покрытие профессии", hint: "Совпадение с целевой профессией" },
-  { key: "market_skill_coverage", label: "Покрытие (строгое)", hint: "Бинарное пересечение со спросом" },
-  { key: "coverage_weighted", label: "Покрытие (взвешенное, API)", hint: "То же, что «взвеш.» выше - поле API" },
-  { key: "avg_gap", label: "Средний разрыв", hint: "Разрыв между текущим и требуемым уровнем" },
+  { key: "avg_gap", label: "Средний разрыв", hint: "Насколько в среднем не хватает до требуемого уровня" },
 ];
 
 function rowVisible(key: string, evals: Record<string, EvalEntry>, profiles: string[]): boolean {
@@ -175,13 +174,13 @@ function ProfileDetails({ name, ev }: { name: string; ev: EvalEntry }) {
                 ? `${ev.market_coverage_score.toFixed(1)}%`
                 : "-"
             }
-            primaryTitle="Покрытие рынка: доля востребованных навыков, которые у вас есть"
+            primaryTitle="Покрытие рынка: 60% взвешенные навыки + 40% домены"
             primaryClassName={`font-mono font-bold text-lg ${scoreColor(ev.market_coverage_score ?? 0)}`}
             secondaryValue={
               ev.skill_coverage !== undefined ? `${ev.skill_coverage.toFixed(1)}%` : undefined
             }
             secondaryLabel="взвеш."
-            secondaryTitle="Покрытие навыков (взвешенное по спросу): может льстить - подробности в таблице метрик"
+            secondaryTitle="Навыки взвешенно: сильный навык идёт целиком, слабый — наполовину; может завышать. Подробнее — в таблице метрик"
             secondaryClassName="font-mono text-gray-500 dark:text-slate-400"
           />
           {open ? <ChevronUp className="size-4 text-gray-400 dark:text-slate-500" /> : <ChevronDown className="size-4 text-gray-400 dark:text-slate-500" />}
