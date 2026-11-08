@@ -14,7 +14,7 @@
  *  - на узких экранах кнопка растягивается на колонку (w-full md:w-auto),
  *    строка умеет переноситься (flex-wrap) и не жмёт текст.
  */
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -119,5 +119,99 @@ describe("VacanciesList: CTA «Собрать вакансии»", () => {
     await user.click(btn);
     expect(await screen.findByRole("button", { name: "Запустить сбор" })).toBeInTheDocument();
     expect(screen.getByText("Настройки сбора вакансий")).toBeInTheDocument();
+  });
+});
+
+describe("VacanciesList: панель сбора и «Поиск по всему рынку»", () => {
+  /** Открыть панель настроек сбора, затем блок списка городов. */
+  async function openCityPicker(): Promise<HTMLElement> {
+    const user = userEvent.setup();
+    render(<VacanciesList />);
+    const cta = await screen.findByRole("button", { name: "Собрать вакансии" });
+    await user.click(cta);
+    const toggler = await screen.findByRole("button", {
+      name: "Показать список городов и вакансий для сбора",
+    });
+    await user.click(toggler);
+    return screen.getByRole("group", { name: "Города для сбора" });
+  }
+
+  it("«Запустить сбор» - CTA на токенах, читаем в обеих темах", async () => {
+    const user = userEvent.setup();
+    render(<VacanciesList />);
+    await user.click(await screen.findByRole("button", { name: "Собрать вакансии" }));
+    const run = await screen.findByRole("button", { name: "Запустить сбор" });
+    const cls = classList(run.className);
+    // явные акцентные токены вместо bg-card/bg-muted
+    expect(cls).toContain("bg-primary");
+    expect(cls).toContain("text-primary-foreground");
+    expect(cls).toContain("hover:bg-primary/90");
+    // старый вид: плашка цвета карточки + текст primary-foreground (белый на белом)
+    expect(cls).not.toContain("bg-card");
+    expect(cls).not.toContain("hover:bg-muted");
+    expect(cls).not.toContain("dark:bg-muted");
+    expect(cls).not.toContain("dark:hover:bg-slate-200");
+  });
+
+  it("«Поиск по всему рынку» без счётчиков базы", async () => {
+    const group = await openCityPicker();
+    expect(group).toBeInTheDocument();
+    // счётчик «(в базе: 2 шт., с навыками: 2 шт.)» убран из текста блока
+    expect(screen.queryByText(/в базе:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/с навыками:/)).not.toBeInTheDocument();
+    const p = screen.getByText(/Будут собраны вакансии/);
+    expect(p.textContent).not.toMatch(/шт\./);
+  });
+
+  it("«Поиск по всему рынку» на нейтральных токенах, без голубой обёртки", async () => {
+    await openCityPicker();
+    const header = screen.getByText("Поиск по всему рынку");
+    const wrap = classList(header.parentElement?.className ?? "");
+    expect(wrap).toContain("bg-muted");
+    expect(wrap).toContain("border-border");
+    // голубой хардкод обёртки удалён
+    expect(wrap).not.toContain("bg-primary-soft");
+    expect(wrap).not.toContain("dark:bg-blue-950/20");
+    expect(wrap).not.toContain("border-primary/30");
+    expect(classList(header.className)).not.toContain("text-blue-800");
+  });
+
+  it("города: chip-сетка из дизайн-системы, без букв и сырых счётчиков", async () => {
+    const group = await openCityPicker();
+    // одна плоская сетка кнопок-городов: ровно 100 чипов HH_REGIONS,
+    // букв-заголовков А/Б/В и плашек «n/m» больше нет
+    const chips = within(group).getAllByRole("button");
+    expect(chips).toHaveLength(100);
+    for (const chip of chips) {
+      expect(chip.getAttribute("aria-pressed")).toMatch(/^(true|false)$/);
+    }
+    expect(within(group).queryByText(/^\d+\/\d+$/)).not.toBeInTheDocument();
+  });
+
+  it("города: поиск «Найти город...» и мультивыбор сохранены", async () => {
+    const group = await openCityPicker();
+    const search = screen.getByPlaceholderText("Найти город...");
+    // мультивыбор: два города независимо переключаются
+    const moscow = within(group).getByRole("button", { name: "Москва" });
+    expect(moscow.getAttribute("aria-pressed")).toBe("false");
+    const user = userEvent.setup();
+    await user.click(moscow);
+    expect(moscow.getAttribute("aria-pressed")).toBe("true");
+    expect(await screen.findByText("выбрано: 1")).toBeInTheDocument();
+    const ufa = within(group).getByRole("button", { name: "Уфа" });
+    await user.click(ufa);
+    expect(ufa.getAttribute("aria-pressed")).toBe("true");
+    expect(await screen.findByText("выбрано: 2")).toBeInTheDocument();
+    // повторный клик снимает выбор
+    await user.click(moscow);
+    expect(moscow.getAttribute("aria-pressed")).toBe("false");
+    expect(await screen.findByText("выбрано: 1")).toBeInTheDocument();
+    // поиск фильтрует сетку, не сбрасывая выборку
+    await user.type(search, "Моск");
+    expect(within(group).queryByRole("button", { name: "Уфа" })).not.toBeInTheDocument();
+    const filtered = within(group).getByRole("button", { name: "Москва" });
+    expect(filtered).toBeInTheDocument();
+    expect(filtered.getAttribute("aria-pressed")).toBe("false");
+    expect(await screen.findByText("выбрано: 1")).toBeInTheDocument();
   });
 });

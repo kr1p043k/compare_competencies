@@ -5,7 +5,8 @@ import { VacancyDetailPanel } from "./VacancyDetailPanel";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { Skeleton, Badge as ToneBadge } from "../../design";
+import { Badge as ToneBadge, Button as DesignButton, inputClass, Skeleton } from "../../design";
+import { cn } from "./ui/utils";
 import {
   Select,
   SelectContent,
@@ -153,7 +154,6 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [, setPipelineRegion] = useState("0");
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
   const [cityQuery, setCityQuery] = useState("");
-  const [openLetters, setOpenLetters] = useState<Record<string, boolean>>({});
   const [filterOpen, setFilterOpen] = useState(false);
   const [cityMode, setCityMode] = useState(false);
   const [pipelineProfession, setPipelineProfession] = useState("");
@@ -529,82 +529,66 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
-                      className="border border-primary/30 dark:border-blue-800 bg-primary-soft dark:bg-blue-950/20 rounded-lg p-4 space-y-3"
+                      className="border border-border bg-muted rounded-lg p-4 space-y-3"
                     >
-                      <div className="flex items-center gap-2 text-sm font-medium text-blue-800 dark:text-blue-200">
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                         <Globe className="size-4" />
                         Поиск по всему рынку
                       </div>
-                      <p className="text-xs text-blue-700 dark:text-blue-300">
-                        Будут собраны вакансии {vacancyInfo?.count ? `(в базе: ${vacancyInfo.count} шт.${vacancyInfo.with_skills ? `, с навыками: ${vacancyInfo.with_skills} шт.` : ""})` : ""} по всем IT-направлениям: Data Scientist, ML Engineer, Python/Java/Fullstack/Frontend/Backend Developer, DevOps, QA, Security, SRE, Mobile Dev, Analyst, Architect, Team Lead, UX/UI Designer, Game Dev и другим
+                      <p className="text-xs text-muted-foreground">
+                        Будут собраны вакансии по всем IT-направлениям: Data Scientist, ML Engineer, Python/Java/Fullstack/Frontend/Backend Developer, DevOps, QA, Security, SRE, Mobile Dev, Analyst, Architect, Team Lead, UX/UI Designer, Game Dev и другим
                       </p>
-                      <div className="text-xs text-primary dark:text-primary">
-                        <span className="font-medium">Города ({HH_REGIONS.length}):</span>
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-xs font-medium text-foreground">Города</span>
+                          <ToneBadge>{HH_REGIONS.length}</ToneBadge>
+                          {selectedCities.length > 0 && (
+                            <ToneBadge tone="primary">выбрано: {selectedCities.length}</ToneBadge>
+                          )}
+                        </div>
                         <input
+                          type="text"
                           value={cityQuery}
                           onChange={(e) => setCityQuery(e.target.value)}
                           placeholder="Найти город..."
-                          className="mt-2 w-full h-8 px-3 text-xs rounded-lg border border-primary/30 dark:border-blue-800 bg-white dark:bg-background text-foreground outline-none"
+                          aria-label="Поиск города для сбора"
+                          className={cn(inputClass, "h-8 text-xs")}
                         />
-                        <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-primary/30/60 dark:border-blue-800/60 divide-y divide-blue-100 dark:divide-blue-900/40">
-                          {(() => {
-                            const q = cityQuery.trim().toLowerCase();
-                            const filtered = HH_REGIONS.filter((c) => !q || c.toLowerCase().includes(q));
-                            const groups = new Map<string, string[]>();
-                            for (const c of filtered) {
-                              const letter = (c[0] || "#").toUpperCase();
-                              if (!groups.has(letter)) groups.set(letter, []);
-                              groups.get(letter)!.push(c);
-                            }
-                            if (filtered.length === 0) {
-                              return <EmptyState size="compact" icon={Search} title="Ничего не найдено" />;
-                            }
-                            return [...groups.entries()]
-                              .sort(([a], [b]) => a.localeCompare(b, "ru"))
-                              .map(([letter, cities]) => {
-                                const sel = cities.filter((c) => selectedCities.includes(c)).length;
-                                const open = openLetters[letter] ?? (q.length > 0 || sel > 0);
-                                return (
-                                  <div key={letter}>
-                                    <button
-                                      onClick={() => setOpenLetters((p) => ({ ...p, [letter]: !(p[letter] ?? (q.length > 0 || sel > 0)) }))}
-                                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-blue-800 dark:text-blue-200 hover:bg-white/60 dark:hover:bg-muted/60 cursor-pointer"
+                        {(() => {
+                          const q = cityQuery.trim().toLowerCase();
+                          const filtered = HH_REGIONS.filter((c) => !q || c.toLowerCase().includes(q));
+                          if (filtered.length === 0) {
+                            return <EmptyState size="compact" icon={Search} title="Ничего не найдено" />;
+                          }
+                          return (
+                            <div
+                              role="group"
+                              aria-label="Города для сбора"
+                              className="max-h-56 overflow-y-auto rounded-lg border border-border bg-card p-2"
+                            >
+                              <div className="flex flex-wrap gap-1.5 p-1">
+                                {filtered.map((c) => {
+                                  const on = selectedCities.includes(c);
+                                  return (
+                                    <DesignButton
+                                      key={c}
+                                      type="button"
+                                      size="sm"
+                                      variant={on ? "primary" : "secondary"}
+                                      aria-pressed={on}
+                                      title={on ? "Убрать из выборки" : "Добавить к выборке"}
+                                      onClick={() =>
+                                        setSelectedCities((prev) => (on ? prev.filter((x) => x !== c) : [...prev, c]))
+                                      }
                                     >
-                                      <ChevronDown className={`size-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
-                                      {letter}
-                                      <span className="ml-auto font-normal text-primary">
-                                        {sel > 0 ? `${sel}/${cities.length}` : cities.length}
-                                      </span>
-                                    </button>
-                                    {open && (
-                                      <div className="px-3 pb-2 flex flex-wrap gap-1">
-                                        {cities.map((c) => {
-                                          const on = selectedCities.includes(c);
-                                          return (
-                                            <button
-                                              key={c}
-                                              onClick={() => setSelectedCities((prev) => (on ? prev.filter((x) => x !== c) : [...prev, c]))}
-                                              title={on ? "Убрать из выборки" : "Добавить к выборке"}
-                                              className={`px-2 py-0.5 text-xs rounded-full border transition-colors cursor-pointer ${
-                                                on
-                                                  ? "bg-primary text-white border-blue-600"
-                                                  : "bg-white/70 dark:bg-muted/70 text-blue-700 dark:text-blue-300 border-primary/30 dark:border-blue-800 hover:border-primary"
-                                              }`}
-                                            >
-                                              {c}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              });
-                          })()}
-                        </div>
-                        {selectedCities.length > 0 && (
-                          <p className="mt-1 text-xs text-primary">Выбрано для сбора: {selectedCities.length}</p>
-                        )}
+                                      {c}
+                                    </DesignButton>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </motion.div>
                   )}
@@ -621,7 +605,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     runPipeline(regionIds);
                   }}
                   disabled={pipelineLoading}
-                  className="flex-1 h-11 bg-card hover:bg-muted dark:bg-muted dark:hover:bg-slate-200 gap-2"
+                  className="flex-1 h-11 bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
                 >
                   {pipelineLoading ? (
                     <Loader2 className="size-4 animate-spin" />
