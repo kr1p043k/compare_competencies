@@ -528,7 +528,6 @@ export default function App() {
                 gapRunning={gapRunning}
                 gapMsg={gapMsg}
                 onLoadRecommendations={loadRecommendations}
-                onLoadProfileDetail={loadProfileDetail}
                 onLoadSummary={loadSummary}
                 onRunGapAnalysis={runGapAnalysis}
                 professionsList={professionsList}
