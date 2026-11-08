@@ -611,12 +611,18 @@ class TestRecommendationEngineExtended:
                 case Ok(result):
                     assert len(result.recommendations) > 0
 
-    def test_explanation_taxonomy_exception(self, mock_profile_evaluator):
+    def test_explanation_taxonomy_exception(self, mock_profile_evaluator, monkeypatch):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         eval_copy = _unwrap(mock_profile_evaluator.evaluate_profile.return_value).copy()
         eval_copy["cluster_context"] = None               # убираем кластер
         eval_copy["skill_metrics"] = {"docker": {"cluster_relevance": 0, "category": "missing"}}
-        engine._taxonomy.get_category_label = MagicMock(side_effect=Exception("taxonomy error"))
+        # SkillTaxonomy - синглтон, поэтому правка через monkeypatch,
+        # иначе мок утекает в другие тесты и валит их.
+        monkeypatch.setattr(
+            engine._taxonomy,
+            "get_category_label",
+            MagicMock(side_effect=Exception("taxonomy error")),
+        )
         expl = engine._generate_explanation("docker", 0.8, eval_copy)
         assert "технический" in expl
 
