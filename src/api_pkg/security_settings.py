@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from dataclasses import dataclass
+from enum import Enum
 
 import asyncpg
 import structlog
@@ -64,14 +66,41 @@ async def _ensure_table(pool: asyncpg.Pool) -> None:
         _table_ready = True
 
 
-async def get_two_factor_enabled(pool: asyncpg.Pool | None) -> bool:
-    """Мастер-выключатель 2FA. По умолчанию выключено.
+class TwoFactorReadState(Enum):
+    """Три состояния чтения мастер-флага 2FA.
 
-    Возвращает False, если пула нет, таблицы/строки нет или БД ответила ошибкой:
-    фича выключена по умолчанию, поэтому сбой чтения не должен ломать вход.
+    OK     - значение прочитано и распарсено;
+    EMPTY  - значения нет (пула/таблицы/строки нет) - дефолт False;
+    ERROR  - БД ответила ошибкой, флаг неизвестен (считаем False).
+    """
+
+    OK = "ok"
+    EMPTY = "empty"
+    ERROR = "error"
+
+
+@dataclass(frozen=True)
+class TwoFactorRead:
+    """Результат чтения мастер-флага: значение + состояние чтения."""
+
+    enabled: bool
+    state: TwoFactorReadState
+
+    @property
+    def read_ok(self) -> bool:
+        """True при успешном чтении (ok/empty); False только при ошибке."""
+        return self.state is not TwoFactorReadState.ERROR
+
+
+async def read_two_factor(pool: asyncpg.Pool | None) -> TwoFactorRead:
+    """Прочитать мастер-флаг 2FA с различением ok/empty/error.
+
+    ok     - успешно прочитан {"enabled": ...};
+    empty  - нет пула/таблицы/строки (значение по умолчанию False);
+    error  - БД ответила ошибкой (значение неизвестно, считаем False).
     """
     if pool is None:
-        return False
+        return TwoFactorRead(False, TwoFactorReadState.EMPTY)
     try:
         await _ensure_table(pool)
         raw = await pool.fetchval(
@@ -79,14 +108,24 @@ async def get_two_factor_enabled(pool: asyncpg.Pool | None) -> bool:
             TWO_FACTOR_KEY,
         )
         if raw is None:
-            return False
+            return TwoFactorRead(False, TwoFactorReadState.EMPTY)
         value = json.loads(raw) if isinstance(raw, str) else raw
         if not isinstance(value, dict):
-            return False
-        return bool(value.get("enabled"))
+            return TwoFactorRead(False, TwoFactorReadState.EMPTY)
+        return TwoFactorRead(bool(value.get("enabled")), TwoFactorReadState.OK)
     except Exception as exc:
         logger.warning("two_factor_setting_read_failed", error=str(exc))
-        return False
+        return TwoFactorRead(False, TwoFactorReadState.ERROR)
+
+
+async def get_two_factor_enabled(pool: asyncpg.Pool | None) -> bool:
+    """Мастер-выключатель 2FA (булево представление read_two_factor).
+
+    Возвращает False, если пула нет, таблицы/строки нет или БД ответила ошибкой:
+    фича выключена по умолчанию, поэтому сбой чтения не должен ломать вход.
+    Когда чтение прошло успешно (ok), возвращает сохранённое значение.
+    """
+    return (await read_two_factor(pool)).enabled
 
 
 async def set_two_factor_enabled(
