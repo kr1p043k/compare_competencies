@@ -39,7 +39,7 @@ afterEach(() => {
 const requestMock = vi.mocked(request);
 
 /** Состояние глобального флага: ответ GET и PUT /api/admin/security/2fa/settings. */
-let sw: { enabled: boolean; enrolled_admins: number };
+let sw: { enabled: boolean; enrolled_admins: number; read_ok?: boolean };
 
 /**
  * Ответ GET /api/auth/2fa/status: сервер отдаёт оба набора имён сразу -
@@ -225,5 +225,29 @@ describe("AdminSecurity", () => {
     // Секрет больше не показывается, аккаунт после перезагрузки статуса защищён.
     expect(screen.queryByText(SECRET)).toBeNull();
     expect(screen.getByText("защищена")).toBeInTheDocument();
+  });
+});
+
+
+describe("AdminSecurity: флаг прочитан не был", () => {
+  beforeEach(() => {
+    // Свой beforeEach: у соседнего describe он локальный и сюда не попадает.
+    requestMock.mockReset();
+    requestMock.mockImplementation(route as never);
+  });
+
+  it("показывает предупреждение, когда read_ok=false", async () => {
+    sw = { enabled: false, enrolled_admins: 0, read_ok: false };
+    status = statusResponse(false, false);
+    render(<AdminSecurity />);
+    expect(await screen.findByText(/Состояние флага не прочитано/i)).toBeTruthy();
+  });
+
+  it("не показывает предупреждение, когда read_ok не задан", async () => {
+    sw = { enabled: true, enrolled_admins: 1 };
+    status = statusResponse(true, true);
+    render(<AdminSecurity />);
+    await screen.findByText("Включена");
+    expect(screen.queryByText(/Состояние флага не прочитано/i)).toBeNull();
   });
 });

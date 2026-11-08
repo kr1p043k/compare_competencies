@@ -11,6 +11,8 @@ import { Input } from "./ui/input";
 interface SwitchState {
   enabled: boolean;
   enrolled_admins: number;
+  /** false - флаг не прочитан (ошибка БД), показано значение по умолчанию. */
+  read_ok?: boolean;
 }
 
 interface MyState {
@@ -168,6 +170,16 @@ export function AdminSecurity() {
             подключено админов: {state?.enrolled_admins ?? 0}
           </span>
         </div>
+
+        {state && state.read_ok === false && (
+          <p
+            role="alert"
+            className="text-xs rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+          >
+            Состояние флага не прочитано (ошибка БД): показано значение по умолчанию -
+            выключено. Проверьте доступ к таблице app_settings и обновите страницу.
+          </p>
+        )}
 
         <p className="text-xs text-muted-foreground">
           Выключено - вход по паролю для всех. Включено - код спрашивается у админов,

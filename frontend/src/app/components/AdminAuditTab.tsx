@@ -59,6 +59,22 @@ interface AuditPage {
 }
 
 /** datetime-local -> ISO 8601 (UTC) или пустая строка, если поле не заполнено. */
+/** Локальное значение для input[type=datetime-local] (без секунд и TZ). */
+function toLocalInput(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}`;
+}
+
+/** Быстрые периоды: последние N часов (7 д = 168 ч, 30 д = 720 ч). */
+const PERIOD_PRESETS: { label: string; hours: number }[] = [
+  { label: "1 ч", hours: 1 },
+  { label: "24 ч", hours: 24 },
+  { label: "7 д", hours: 168 },
+  { label: "30 д", hours: 720 },
+];
+
 function toIso(localValue: string): string {
   if (!localValue) return "";
   const d = new Date(localValue);
@@ -155,6 +171,13 @@ export function AdminAuditTab() {
 
   const bumpReload = () => setReloadKey((k) => k + 1);
 
+  /** Быстрый период: since = сейчас - hours, until пуст (до сейчас). null = всё время. */
+  const applyPeriod = (hours: number | null) => {
+    setSince(hours === null ? "" : toLocalInput(new Date(Date.now() - hours * 3600_000)));
+    setUntil("");
+    setOffset(0);
+  };
+
   const resetFilters = () => {
     setAction("");
     setActor("");
@@ -213,6 +236,25 @@ export function AdminAuditTab() {
           description="Кто, что и когда делал в системе. Фильтры применяются на сервере."
           actions={
             <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1" role="group" aria-label="Быстрый период">
+                {PERIOD_PRESETS.map((p) => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    className="rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-muted"
+                    onClick={() => applyPeriod(p.hours)}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-muted"
+                  onClick={() => applyPeriod(null)}
+                >
+                  Всё
+                </button>
+              </div>
               <Button
                 size="sm"
                 variant="secondary"

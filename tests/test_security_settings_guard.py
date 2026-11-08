@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import weakref
 
 import pytest
 
@@ -35,10 +36,10 @@ class _FakePool:
 @pytest.fixture(autouse=True)
 def _reset_state():
     ss._table_ready = False
-    ss._ensure_lock = None
+    ss._ensure_locks = weakref.WeakKeyDictionary()
     yield
     ss._table_ready = False
-    ss._ensure_lock = None
+    ss._ensure_locks = weakref.WeakKeyDictionary()
 
 
 async def test_ensure_table_created_once_under_concurrency():

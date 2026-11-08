@@ -83,7 +83,6 @@ def main(args: argparse.Namespace) -> int:
         if value < 1:
             print(f"Ошибка: --{name} должно быть >= 1 (получено {value})")
             return 2
-    audit_days = int(getattr(args, "audit_days", DEFAULT_AUDIT_DAYS))
 
     plan = [
         (

@@ -131,3 +131,46 @@ describe("AdminAuditTab", () => {
     expect(lines[1]).toContain("req-17");
   });
 });
+
+
+describe("AdminAuditTab: быстрые периоды", () => {
+  beforeEach(() => {
+    page = { entries: [], total: 0, limit: 50, offset: 0 };
+    requestMock.mockReset();
+    requestMock.mockImplementation(route as never);
+  });
+
+  /** Последний запрос списка журнала (без справочника action). */
+  const lastAuditUrl = () =>
+    requestMock.mock.calls.map(([url]) => String(url)).filter((u) => u.startsWith("/api/admin/audit?")).at(-1) ?? "";
+
+  it("«24 ч» подставляет since и не задаёт until", async () => {
+    const user = userEvent.setup();
+    render(<AdminAuditTab />);
+    await screen.findByText("Журнал аудита");
+
+    await user.click(screen.getByRole("button", { name: "24 ч" }));
+
+    await waitFor(() => {
+      const url = lastAuditUrl();
+      expect(url).toContain("since=");
+      expect(url).not.toContain("until=");
+    });
+  });
+
+  it("«Всё» очищает период", async () => {
+    const user = userEvent.setup();
+    render(<AdminAuditTab />);
+    await screen.findByText("Журнал аудита");
+
+    await user.click(screen.getByRole("button", { name: "7 д" }));
+    await waitFor(() => expect(lastAuditUrl()).toContain("since="));
+
+    await user.click(screen.getByRole("button", { name: "Всё" }));
+    await waitFor(() => {
+      const url = lastAuditUrl();
+      expect(url).not.toContain("since=");
+      expect(url).not.toContain("until=");
+    });
+  });
+});
