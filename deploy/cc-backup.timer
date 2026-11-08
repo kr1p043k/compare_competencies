@@ -1,0 +1,10 @@
+[Unit]
+Description=compare_competencies: таймер ежедневного бэкапа БД
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
