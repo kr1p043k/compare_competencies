@@ -5,6 +5,10 @@
  * &since=&until=&limit=&offset=. Действия для подсказок берутся из
  * GET /api/admin/audit/actions. Клик по строке или кнопке «Подробнее» открывает
  * карточку события, «Экспорт CSV» выгружает текущую страницу в файл.
+ *
+ * Поверх ручных полей «С»/«По» есть быстрые диапазоны (1ч / 24ч / 7д / всё):
+ * клик подставляет в поля окно от текущего момента. Ссылка «повторить фильтр»
+ * пересчитывает выбранное относительное окно заново - от нового «сейчас».
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { request, saveBlob } from "../../lib/api";
@@ -58,28 +62,27 @@ interface AuditPage {
   offset: number;
 }
 
-/** datetime-local -> ISO 8601 (UTC) или пустая строка, если поле не заполнено. */
-/** Локальное значение для input[type=datetime-local] (без секунд и TZ). */
-function toLocalInput(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
-    date.getHours(),
-  )}:${pad(date.getMinutes())}`;
-}
-
-/** Быстрые периоды: последние N часов (7 д = 168 ч, 30 д = 720 ч). */
-const PERIOD_PRESETS: { label: string; hours: number }[] = [
-  { label: "1 ч", hours: 1 },
-  { label: "24 ч", hours: 24 },
-  { label: "7 д", hours: 168 },
-  { label: "30 д", hours: 720 },
-];
-
 function toIso(localValue: string): string {
   if (!localValue) return "";
   const d = new Date(localValue);
   return isNaN(d.getTime()) ? "" : d.toISOString();
 }
+
+/** Дата -> значение для input type="datetime-local" (локальное время, до минут). */
+function toLocalInput(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+type QuickRange = "1h" | "24h" | "7d" | "all";
+
+/** Быстрые диапазоны поверх ручных since/until; ms=null («всё») очищает поля. */
+const QUICK_RANGES: { key: QuickRange; label: string; ms: number | null }[] = [
+  { key: "1h", label: "1ч", ms: 60 * 60 * 1000 },
+  { key: "24h", label: "24ч", ms: 24 * 60 * 60 * 1000 },
+  { key: "7d", label: "7д", ms: 7 * 24 * 60 * 60 * 1000 },
+  { key: "all", label: "Всё", ms: null },
+];
 
 function formatMeta(meta: unknown): string {
   if (meta === null || meta === undefined) return "{}";
@@ -112,6 +115,7 @@ export function AdminAuditTab() {
   const [targetType, setTargetType] = useState("");
   const [since, setSince] = useState("");
   const [until, setUntil] = useState("");
+  const [quickRange, setQuickRange] = useState<QuickRange | null>(null);
   const [limit, setLimit] = useState(50);
   const [offset, setOffset] = useState(0);
 
@@ -171,11 +175,27 @@ export function AdminAuditTab() {
 
   const bumpReload = () => setReloadKey((k) => k + 1);
 
-  /** Быстрый период: since = сейчас - hours, until пуст (до сейчас). null = всё время. */
-  const applyPeriod = (hours: number | null) => {
-    setSince(hours === null ? "" : toLocalInput(new Date(Date.now() - hours * 3600_000)));
-    setUntil("");
+/**
+   * Применить быстрый диапазон: подставить окно от текущего момента в поля
+   * «С»/«По» (или очистить их для «всё»). Ручное редактирование полей
+   * сбрасывает выбранный диапазон (quickRange=null).
+   *
+   * reloadKey обеспечивает перезапрос и при повторном клике/«повторить
+   * фильтр» в ту же минуту, когда окно не меняется.
+   */
+  const applyQuickRange = (r: QuickRange) => {
+    const ms = QUICK_RANGES.find((x) => x.key === r)?.ms ?? null;
+    if (ms === null) {
+      setSince("");
+      setUntil("");
+    } else {
+      const now = new Date();
+      setSince(toLocalInput(new Date(now.getTime() - ms)));
+      setUntil(toLocalInput(now));
+    }
     setOffset(0);
+    setQuickRange(r);
+    bumpReload();
   };
 
   const resetFilters = () => {
@@ -184,6 +204,7 @@ export function AdminAuditTab() {
     setTargetType("");
     setSince("");
     setUntil("");
+    setQuickRange(null);
     setOffset(0);
   };
 
@@ -236,25 +257,6 @@ export function AdminAuditTab() {
           description="Кто, что и когда делал в системе. Фильтры применяются на сервере."
           actions={
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1" role="group" aria-label="Быстрый период">
-                {PERIOD_PRESETS.map((p) => (
-                  <button
-                    key={p.label}
-                    type="button"
-                    className="rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-muted"
-                    onClick={() => applyPeriod(p.hours)}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-muted"
-                  onClick={() => applyPeriod(null)}
-                >
-                  Всё
-                </button>
-              </div>
               <Button
                 size="sm"
                 variant="secondary"
@@ -277,6 +279,43 @@ export function AdminAuditTab() {
           }
         />
         <CardBody className="space-y-4">
+          {/* быстрые диапазоны поверх ручных since/until */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span id="audit-quick-range-label" className="text-xs font-medium text-muted-foreground">
+              Быстрый диапазон
+            </span>
+            <div
+              role="group"
+              aria-labelledby="audit-quick-range-label"
+              className="flex flex-wrap items-center gap-1.5"
+            >
+              {QUICK_RANGES.map((r) => (
+                <Button
+                  key={r.key}
+                  type="button"
+                  size="sm"
+                  variant={quickRange === r.key ? "primary" : "secondary"}
+                  aria-pressed={quickRange === r.key}
+                  onClick={() => applyQuickRange(r.key)}
+                >
+                  {r.label}
+                </Button>
+              ))}
+              {quickRange !== null && quickRange !== "all" && (
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    applyQuickRange(quickRange);
+                  }}
+                  className="text-xs text-primary underline-offset-2 hover:underline"
+                >
+                  повторить фильтр
+                </a>
+              )}
+            </div>
+          </div>
+
           {/* фильтры */}
           <div className="flex flex-wrap items-end gap-3">
             <Field
@@ -333,6 +372,7 @@ export function AdminAuditTab() {
                 onChange={(e) => {
                   setSince(e.target.value);
                   setOffset(0);
+                  setQuickRange(null);
                 }}
               />
             </Field>
@@ -345,6 +385,7 @@ export function AdminAuditTab() {
                 onChange={(e) => {
                   setUntil(e.target.value);
                   setOffset(0);
+                  setQuickRange(null);
                 }}
               />
             </Field>
