@@ -9,6 +9,7 @@ no hash is copied or reused.
 Cleanup: sessions + user rows deleted, self files unlinked.
 """
 import contextlib
+import socket
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,17 @@ TEACHER_EMAIL = "test.teacher.view@compare-competencies.local"
 TEACHER_PW = "Teacher_View_123"
 TEACHER_NAME = "Test Teacher Viewer"
 SKILLS = ["Python", "SQL", "Docker"]
+
+
+def _db_reachable() -> bool:
+    try:
+        with socket.create_connection(("localhost", 5432), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+pytestmark = pytest.mark.skipif(not _db_reachable(), reason="postgres unavailable")
 
 
 async def _drop_user(pool, email: str) -> None:

@@ -1,6 +1,22 @@
 """Integration: save_vacancies_batch persists extracted_skills (fake hh_id, cleaned up)."""
 import asyncpg
 
+import socket
+
+import pytest
+
+
+def _db_reachable() -> bool:
+    """Postgres не поднят (например, в CI без сервиса) - тесты БД скипаем."""
+    try:
+        with socket.create_connection(("localhost", 5432), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+pytestmark = pytest.mark.skipif(not _db_reachable(), reason="postgres unavailable")
+
 DSN = "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies"
 FAKE_HH = -777777777
 

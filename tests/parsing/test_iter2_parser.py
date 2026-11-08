@@ -166,7 +166,7 @@ class TestSynonymMap:
     def test_no_duplicate_keys(self):
         import pathlib
         import re
-        path = pathlib.Path.home() / "workvs" / "compare_competencies" / "src" / "parsing" / "skills" / "skill_normalizer.py"
+        path = pathlib.Path(__file__).resolve().parent.parent.parent / "src" / "parsing" / "skills" / "skill_normalizer.py"
         text = path.read_text(encoding="utf-8")
         keys = re.findall(r'^\s+"([^"]+)":\s*\[', text, re.MULTILINE)
         # Filter to SYNONYM_MAP section only (before _canonical_map)

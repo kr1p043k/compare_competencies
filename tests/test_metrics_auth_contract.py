@@ -43,11 +43,18 @@ def test_metrics_wrong_token_rejected(monkeypatch):
     assert resp.status_code != 200
 
 
-def test_metrics_bearer_authorization_alone_rejected(monkeypatch):
-    # Регрессия: prometheus.yml раньше слал Authorization: Bearer <token>.
-    # Backend этот заголовок для /metrics не читает -> должен вернуть не 200.
+def test_metrics_bearer_authorization_accepted(monkeypatch):
+    # Prometheus ставит только `authorization: {type: Bearer}` (prometheus.yml),
+    # поэтому /metrics принимает токен и в `Authorization: Bearer`, и в
+    # `X-Metrics-Token` (см. _metrics_access в src/api_pkg/__init__.py).
     monkeypatch.setattr(config.settings, "METRICS_TOKEN", TOKEN)
     resp = _client().get("/metrics", headers={"Authorization": f"Bearer {TOKEN}"})
+    assert resp.status_code == 200
+
+
+def test_metrics_wrong_bearer_rejected(monkeypatch):
+    monkeypatch.setattr(config.settings, "METRICS_TOKEN", TOKEN)
+    resp = _client().get("/metrics", headers={"Authorization": "Bearer wrong-token"})
     assert resp.status_code != 200
 
 

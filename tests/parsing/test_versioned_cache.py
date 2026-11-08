@@ -1,7 +1,7 @@
 """Tests for versioned normalize cache"""
 import sys
 
-sys.path.insert(0, str(__import__("pathlib").Path.home() / "workvs" / "compare_competencies"))
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent.parent))
 
 def test_cache_hit():
     from src.parsing.skills.skill_normalizer import SkillNormalizer

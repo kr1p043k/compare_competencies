@@ -18,7 +18,10 @@ Covers:
 from __future__ import annotations
 
 import json
+import socket
 from types import SimpleNamespace
+
+import pytest
 
 from src import config as cfg
 from src.services import llm_cache as dbcache
@@ -26,6 +29,14 @@ from src.services.llm_extract import _validate, extract_skills
 from src.services.llm_recommend import enhance_student_recs, enhance_teacher_recs
 
 VOCAB = ["Python", "SQL", "Docker", "FastAPI"]
+
+
+def _db_reachable() -> bool:
+    try:
+        with socket.create_connection(("localhost", 5432), timeout=1):
+            return True
+    except OSError:
+        return False
 
 
 class FakeChatClient:
@@ -87,6 +98,7 @@ class TestExtractValidator:
 # ---------------------------------------------------------------------------
 # (b) cache - REAL Postgres tables (cleaned up)
 # ---------------------------------------------------------------------------
+@pytest.mark.skipif(not _db_reachable(), reason="postgres unavailable")
 class TestCache:
     TASK = "phase2-test"
 
