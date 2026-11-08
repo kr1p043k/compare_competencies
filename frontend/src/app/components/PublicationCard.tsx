@@ -10,7 +10,7 @@ import { resolveHubLink, shortenAbstract, type Publication } from "./publication
  * Общие константы и помощники вкладки «Публикации»: их используют карточка,
  * диалог деталей и контейнер списка, поэтому держим их в одном модуле.
  */
-export const TYPE_BADGE = "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300";
+export const TYPE_BADGE = "border-transparent bg-transparent text-gray-600 dark:text-slate-300";
 export const OUTLINE_BADGE = "text-gray-600 dark:text-slate-300 border-gray-300 dark:border-slate-600";
 export const EXTERNAL_LINK = "text-blue-600 dark:text-blue-400 hover:underline";
 
