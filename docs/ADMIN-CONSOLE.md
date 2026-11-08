@@ -16,7 +16,7 @@
 | POST | /auth/2fa/disable | admin | отключить 2FA | auth.2fa.disabled |
 | GET | /auth/2fa/status | admin | состояние 2FA текущего админа (мастер-флаг + личное подключение) | нет |
 | GET | /auth/2fa/policy | public | статус 2FA (вкл/выкл) — показывать ли шаг кода на экране входа | нет |
-| GET | /admin/security/2fa/settings | admin | состояние мастер-переключателя 2FA | нет |
+| GET | /admin/security/2fa/settings | admin | состояние мастер-переключателя 2FA (`read_ok=false` = флаг не прочитан, показано значение по умолчанию) | нет |
 | PUT | /admin/security/2fa/settings | admin | включить/выключить 2FA | admin.2fa.toggle |
 | GET | /admin/users | admin | чтение списка (q, role, is_active) | нет |
 | POST | /admin/users/create | admin | создать пользователя | admin.user.create |
@@ -43,6 +43,22 @@
 | POST | /admin/scheduler/collect/now | admin | ручной сбор, 409 если занят | admin.scheduler.collect |
 | POST | /admin/scheduler/gap/now | admin | ручной gap-анализ, 409 если занят | admin.scheduler.gap |
 | GET | /admin/features | admin | legacy: JSON-переключатели функций, не используются для 2FA | нет |
+| GET | /admin/logs | admin | последние записи request_logs (буфер + БД, limit) | нет |
+| GET | /admin/logs/file | admin | хвост файлового лога | нет |
+| GET | /admin/scheduler/status | admin | состояние планировщика (следующий запуск, занятость) | нет |
+| GET | /admin/monitoring | admin | метрики Prometheus (фильтр по именам, пагинация) | нет |
+| GET | /admin/monitoring/summary | admin | p95 по эндпоинтам, топ по нагрузке, ошибки за 1ч, сессии, свежесть | нет |
+| GET | /admin/students | admin | профили студентов из каталога data/students (чтение в потоке) | нет |
+| GET | /admin/directions | admin | направления из КРМ | нет |
+| GET | /admin/student-actions | admin | агрегат действий студентов | нет |
+| GET | /admin/whitelist | admin | текущий it_skills (кэш по mtime) | нет |
+| GET | /admin/users/{id}/directions | admin | направления пользователя | нет |
+| GET | /admin/skills/suggestions | admin | предложенные навыки (фильтр по статусу) | нет |
+| POST | /admin/whitelist/add | admin | добавить навык в whitelist | skills.whitelist.add |
+| POST | /admin/whitelist/remove | admin | убрать навык из whitelist | skills.whitelist.remove |
+| POST | /admin/skills/suggestions/{id}/approve | admin | одобрить предложенный навык | skills.suggestion.approve |
+| POST | /admin/skills/suggestions/{id}/reject | admin | отклонить предложенный навык | skills.suggestion.reject |
+| POST | /admin/pipeline/trigger | admin | запустить полный конвейер вручную | pipeline.trigger.manual |
 
 ## Аудит-действия
 
@@ -55,9 +71,10 @@
   `admin.embeddings.generate`, `admin.students.import`, `admin.export.excel`,
   `admin.export.full-report`.
 - Планировщик: `admin.scheduler.settings`, `admin.scheduler.collect`, `admin.scheduler.gap`.
+- Конвейер: `pipeline.trigger.manual`.
 - Навыки: `admin.skills.whitelist.backup`, `skills.whitelist.add`, `skills.whitelist.remove`,
-  `skills.extend.start`, `skills.categorize`, `admin.skills.suggestion.approve`,
-  `admin.skills.suggestion.reject`.
+  `skills.whitelist.add`, `skills.whitelist.remove`, `skills.extend.start`,
+  `skills.categorize`, `skills.suggestion.approve`, `skills.suggestion.reject`.
 - 2FA: `auth.2fa.setup`, `auth.2fa.enabled`, `auth.2fa.login`, `auth.2fa.disabled`,
   `auth.2fa.recovery_used`, `admin.2fa.toggle`.
 
@@ -77,6 +94,10 @@
   `_ensure_table` (CREATE TABLE IF NOT EXISTS). Чтение мастера fail-open:
   любая ошибка БД = `False`, то есть при сбое чтения флага доступ по паролю
   не блокируется - это осознанный размен, но его стоит поверхностно проверять в мониторинге.
+- Если таблицы `audit_logs` нет (миграцию не применяли), `request_logger` создаёт
+  её при первой записи аудита (`CREATE TABLE IF NOT EXISTS` + индексы), как
+  `auth._ensure_totp_table` для `admin_totp`. Флаг `_audit_table_missing` поднимается
+  только если DDL запрещён ролью БД - тогда события аудита потеряются (в логе ERROR).
 - Retention: `DEFAULT_AUDIT_DAYS = 730`; `python -m src.cli retention --audit-days 730`
   (dry-run; удаление с `--apply`). Шаг `audit_logs` пропускается без таблицы.
 
