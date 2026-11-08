@@ -74,7 +74,7 @@
             "type": "string"
           },
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           },
@@ -2917,13 +2917,6 @@
       },
       "ValidationError": {
         "properties": {
-          "ctx": {
-            "title": "Context",
-            "type": "object"
-          },
-          "input": {
-            "title": "Input"
-          },
           "loc": {
             "items": {
               "anyOf": [
@@ -4006,7 +3999,7 @@
     },
     "/api/admin/features": {
       "get": {
-        "description": "Состояние переключателей функций (2FA и прочие).",
+        "description": "Состояние переключателей функций.\n\nФлаг 2FA здесь не отдаём: в этом модуле он был вторым источником правды\n(файл features.json), а реальный переключатель живёт в app_settings. Пока\nпоказывать его тут, оператор включит его и решит, что 2FA работает.",
         "operationId": "admin_features_api_admin_features_get",
         "responses": {
           "200": {
@@ -4452,7 +4445,7 @@
         ]
       },
       "put": {
-        "description": "Включить/выключить 2FA одним кликом (только админ).\n\nВыключение не требует кода: это аварийный тумблер.\n\nВНИМАНИЕ: при выключении действующие подключения не удаляются - при\nследующем включении те же админы снова будут спрашивать код.",
+        "description": "Включить/выключить 2FA одним кликом (только админ).\n\nВыключение не требует кода: это аварийный тумблер.\n\nПри ВКЛЮЧЕНИИ сессии остальных админов отзываются: иначе сессия, добытая\nдо включения второго фактора, продолжает жить (до суток) и обходит новую\nзащиту. Сессия того, кто включает, сохраняется, иначе он выкинул бы себя.\nПодключения пользователей при выключении не удаляются.",
         "operationId": "two_factor_settings_update_api_admin_security_2fa_settings_put",
         "requestBody": {
           "content": {
@@ -7617,14 +7610,14 @@
             }
           },
           {
-            "description": "Количество страниц",
+            "description": "Страниц: 1-20 (по 100; hh макс 2000 результатов)",
             "in": "query",
             "name": "max_pages",
             "required": false,
             "schema": {
               "default": 20,
-              "description": "Количество страниц",
-              "maximum": 100,
+              "description": "Страниц: 1-20 (по 100; hh макс 2000 результатов)",
+              "maximum": 20,
               "minimum": 1,
               "title": "Max Pages",
               "type": "integer"
