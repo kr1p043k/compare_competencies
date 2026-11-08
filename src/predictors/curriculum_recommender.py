@@ -33,7 +33,12 @@ def _to_sync_dsn(url: str) -> str:
 def _resolve_sync_dsn() -> str:
     try:
         from src import config as _cfg
-        dsn = _to_sync_dsn(_cfg.DATABASE_URL or "")
+        # DATABASE_URL живёт в config.settings; на уровне модуля config его нет,
+        # из-за чего прямой доступ падал с AttributeError и резолвер молча
+        # уходил в переменные окружения.
+        settings = getattr(_cfg, "settings", None)
+        url = getattr(settings, "DATABASE_URL", "") or getattr(_cfg, "DATABASE_URL", "")
+        dsn = _to_sync_dsn(str(url or ""))
         if dsn:
             return dsn
     except Exception:
