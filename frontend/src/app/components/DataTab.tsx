@@ -52,7 +52,6 @@ export function DataTab({
   gapRunning,
   gapMsg,
   onLoadRecommendations,
-  onLoadProfileDetail,
   onLoadSummary,
   onRunGapAnalysis,
   professionsList,
@@ -72,7 +71,6 @@ export function DataTab({
   gapRunning: boolean;
   gapMsg: string;
   onLoadRecommendations: () => void;
-  onLoadProfileDetail: () => void;
   onLoadSummary: () => void;
   onRunGapAnalysis: () => void;
   professionsList: string[];
@@ -139,29 +137,20 @@ export function DataTab({
           </Select>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Button
             onClick={onLoadRecommendations}
             disabled={loading}
-            className="h-11 bg-blue-700 hover:bg-blue-800 text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
+            className="h-11"
           >
             <Search className="mr-2 size-4" />
             Показать сохранённые
           </Button>
           <Button
-            onClick={onLoadProfileDetail}
-            disabled={loading || isStudent}
-            title={isStudent ? "Только для преподавателя" : undefined}
-            className="h-11 bg-emerald-600 hover:bg-emerald-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
-          >
-            <FileText className="mr-2 size-4" />
-            Профиль
-          </Button>
-          <Button
             onClick={onLoadRecommendations}
             disabled={loading || isStudent}
             title={isStudent ? "Только для преподавателя" : undefined}
-            className="h-11 bg-blue-600 hover:bg-blue-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
+            className="h-11"
           >
             <Sparkles className="mr-2 size-4" />
             Рекомендации
@@ -171,7 +160,7 @@ export function DataTab({
             disabled={loading || isStudent}
             title={isStudent ? "Только для преподавателя" : undefined}
             variant="outline"
-            className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            className="h-11"
           >
             <FileText className="mr-2 size-4" />
             Сводка
@@ -180,7 +169,7 @@ export function DataTab({
             onClick={onRunGapAnalysis}
             disabled={loading || gapRunning || isStudent}
             title={isStudent ? "Только для преподавателя" : undefined}
-            className="h-11 bg-amber-600 hover:bg-amber-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
+            className="h-11"
           >
             <Zap className="mr-2 size-4" />
             Запустить gap-анализ
@@ -210,7 +199,7 @@ export function DataTab({
             <Button
               onClick={onCompareWithProfession}
               disabled={loading || !targetProfession}
-              className="h-11 bg-violet-600 hover:bg-violet-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:outline-none sm:w-auto w-full"
+              className="h-11 w-full sm:w-auto"
             >
               <Briefcase className="mr-2 size-4" />
               Сравнить с профессией
@@ -247,7 +236,7 @@ export function DataTab({
             title={isStudent ? "Только для преподавателя" : undefined}
             variant="outline"
             size="sm"
-            className="border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50 gap-1.5"
+            className="gap-1.5"
           >
             <Download className="size-3.5" />
             Отчёт (PDF)
@@ -257,7 +246,7 @@ export function DataTab({
             variant="outline"
             size="sm"
             title="Печать текущей вкладки в PDF через браузер"
-            className="border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-900/50 gap-1.5"
+            className="gap-1.5"
           >
             <Download className="size-3.5" />
             Печать / PDF (браузер)
@@ -332,10 +321,9 @@ export function DataTab({
                   <p className="text-sm text-amber-600 mb-4">Запустите gap-анализ для расчёта покрытия</p>
                   <Button
                     onClick={onRunGapAnalysis}
-                     disabled={gapRunning || isStudent}
-                     title={isStudent ? "Только для преподавателя" : undefined}
-                     className="bg-amber-600 hover:bg-amber-700"
-                   >
+                    disabled={gapRunning || isStudent}
+                    title={isStudent ? "Только для преподавателя" : undefined}
+                  >
                     <Zap className="size-4 mr-2" />
                     Запустить gap-анализ
                   </Button>
