@@ -289,23 +289,6 @@ def suppress_http_logging():
 
 
 @pytest.fixture(autouse=True)
-def isolate_skill_taxonomy_singleton():
-    """Drop the SkillTaxonomy singleton between tests.
-
-    SkillTaxonomy is a process-wide singleton, so a test that patches
-    ``get_category_label`` on the instance leaves the mock in place for every
-    later test in the same xdist worker. That surfaced as an order-dependent
-    failure in tests/visualization/test_correlation_coverage.py. Resetting the
-    singleton per test makes each test see a freshly loaded taxonomy.
-    """
-    from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
-
-    SkillTaxonomy._instance = None
-    yield
-    SkillTaxonomy._instance = None
-
-
-@pytest.fixture(autouse=True)
 def clean_logging_handlers():
     root = logging.getLogger()
     for handler in root.handlers[:]:
