@@ -15,6 +15,10 @@ from pathlib import Path
 
 import pytest
 
+# Скрипт работает через psycopg3 (prod использует asyncpg), поэтому без него
+# тест пропускается, а не падает на импорте.
+pytest.importorskip("psycopg")
+
 ROOT = Path(__file__).resolve().parent.parent
 # Скрипты импортируют соседний _dsn; при запуске файлом эта папка
 # уже в sys.path, при импорте из тестов её надо добавить руками.
