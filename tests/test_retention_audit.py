@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 from types import SimpleNamespace
 
@@ -161,3 +162,61 @@ def test_default_audit_days_applied_when_attribute_missing(monkeypatch):
 def test_positive_days_type_rejects_non_positive(value):
     with pytest.raises(Exception):
         retention.positive_days(str(value))
+
+
+def _cli(argv: list[str]) -> argparse.Namespace:
+    """Разбор аргументов тем же каркасом, что и src/cli/__main__.py."""
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="command", required=True)
+    retention.build_parser(sub)
+    return parser.parse_args(argv)
+
+
+def test_cli_parser_wires_audit_days_flag():
+    """Флаг --audit-days 730 доезжает до main, остальные дни - своими дефолтами."""
+    args = _cli(["retention", "--audit-days", "730"])
+    assert args.audit_days == 730
+    assert args.vacancies_days == retention.DEFAULT_VACANCY_DAYS
+    assert args.logs_days == retention.DEFAULT_LOG_DAYS
+    assert args.run_days == retention.DEFAULT_RUN_DAYS
+    assert args.apply is False
+
+
+def test_cli_parser_defaults_when_flag_omitted():
+    """Без --audit-days используется DEFAULT_AUDIT_DAYS, dry-run по умолчанию."""
+    args = _cli(["retention"])
+    assert args.audit_days == retention.DEFAULT_AUDIT_DAYS
+    assert args.apply is False
+
+
+def test_cli_parser_rejects_days_out_of_range(capsys):
+    """"--audit-days 0" отклоняется ещё argparse-ом (code 2), не доходит до SQL."""
+    with pytest.raises(SystemExit) as exc:
+        _cli(["retention", "--audit-days", "0"])
+    assert exc.value.code == 2
+    assert "вне допустимого диапазона" in capsys.readouterr().err
+
+
+def test_cli_dispatch_dry_run_shows_audit_step(monkeypatch, capsys):
+    """Полный путь "python -m src.cli retention --audit-days 730" (диспетчер
+    __main__): dry-run показывает шаг audit_logs и не делает DELETE.
+    psycopg2 подменён, боевая БД не затрагивается.
+    """
+    cursor = _Cursor(
+        {"vacancies": 0, "request_logs": 0, "pipeline_runs": 0, "audit_logs": 9}, missing=set()
+    )
+    conn = _Conn(cursor)
+    _install_fake_psycopg2(monkeypatch, conn)
+
+    import src.cli.__main__ as cli_main
+
+    monkeypatch.setattr(sys, "argv", ["src.cli", "retention", "--audit-days", "730"])
+    cli_main.main()
+
+    executed = "\n".join(cursor.executed)
+    assert "FROM audit_logs " in executed
+    assert "730 days" in executed
+    assert "DELETE" not in executed, "dry-run не должен удалять"
+    assert conn.commits == 0 and conn.rollbacks == 1
+    out = capsys.readouterr().out
+    assert "audit_logs" in out and "к удалению: 9" in out

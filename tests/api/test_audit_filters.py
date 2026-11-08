@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import contextlib
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -26,6 +27,7 @@ class _UndefinedTableError(Exception):
 class _FakeSession:
     def __init__(self, *, error: BaseException | None = None, scalar: int = 0, rows=None):
         self.queries: list[str] = []
+        self.params: list[dict] = []
         self.error = error
         self._scalar = scalar
         self._rows = list(rows or [])
@@ -43,14 +45,21 @@ class _FakeSession:
         except Exception:
             return str(stmt)
 
-    async def scalar(self, stmt):
+    def _record(self, stmt) -> None:
         self.queries.append(self._compile(stmt))
+        try:
+            self.params.append(dict(stmt.compile().params))
+        except Exception:
+            self.params.append({})
+
+    async def scalar(self, stmt):
+        self._record(stmt)
         if self.error is not None:
             raise self.error
         return self._scalar
 
     async def execute(self, stmt):
-        self.queries.append(self._compile(stmt))
+        self._record(stmt)
         if self.error is not None:
             raise self.error
         return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: self._rows))
@@ -154,3 +163,85 @@ def test_parse_iso_naive_and_z_and_invalid():
         audit_mod._parse_iso("not-a-date", "since")
     assert exc.value.status_code == 400
     assert "since" in str(exc.value.detail)
+
+
+@pytest.mark.parametrize(
+    ("param", "value"),
+    [
+        ("since", "not-a-date"),
+        ("until", "not-a-date"),
+        ("since", "2026-02-30T00:00:00"),
+        ("until", "31.12.2026 00:00"),
+    ],
+)
+def test_audit_endpoint_rejects_broken_datetimes_with_400(monkeypatch, param, value):
+    """Битая since/until даёт 400 от самого эндпоинта (не 500 и не 422).
+
+    Для since/until нет Query-констрейнтов сверх max_length=40, поэтому
+    короткая мусорная строка доходит до _parse_iso и падает как 400.
+    """
+    _patch_session(monkeypatch, _FakeSession())
+    client = TestClient(_app(gated=True), raise_server_exceptions=False)
+
+    r = client.get("/api/admin/audit", params={param: value})
+    assert r.status_code == 400, r.text
+    assert r.json()["detail"] == f"Invalid {param}: expected ISO 8601 datetime"
+
+
+def test_audit_endpoint_treats_naive_datetimes_as_utc(monkeypatch):
+    """Эндпоинт принимает даты без таймзоны: в SQL уходят aware-значения UTC.
+
+    Проверяем сами bind-параметры скомпилированных запросов (count + select),
+    а не только внутренний _parse_iso: naive since/until не должен дойти
+    до DateTime(timezone=True)-сравнения без tzinfo.
+    """
+    session = _FakeSession(scalar=0)
+    _patch_session(monkeypatch, session)
+    client = TestClient(_app(gated=True), raise_server_exceptions=False)
+
+    r = client.get(
+        "/api/admin/audit",
+        params={"since": "2026-03-01T10:00:00", "until": "2026-03-02T10:00:00"},
+    )
+    assert r.status_code == 200, r.text
+
+    dts = [v for p in session.params for v in p.values() if isinstance(v, datetime)]
+    assert dts, "datetime-фильтры должны попасть в параметры SQL"
+    assert all(v.utcoffset() is not None for v in dts), f"naive datetime прошёл в SQL: {dts}"
+    assert all(v.utcoffset().total_seconds() == 0 for v in dts)
+
+
+@pytest.mark.parametrize(
+    ("qs", "limit", "offset"),
+    [
+        ("limit=500&offset=0", 500, 0),
+        ("limit=1&offset=100000", 1, 100000),
+        ("", 100, 0),  # значения по умолчанию - тоже внутри границ
+    ],
+)
+def test_audit_accepts_pagination_at_bounds(monkeypatch, qs, limit, offset):
+    """Зажим limit/offset включителен: границы (500, 100000) и дефолты проходят."""
+    session = _FakeSession(scalar=0)
+    _patch_session(monkeypatch, session)
+    client = TestClient(_app(gated=True), raise_server_exceptions=False)
+
+    r = client.get(f"/api/admin/audit{('?' + qs) if qs else ''}")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["limit"] == limit
+    assert body["offset"] == offset
+    sql = "\n".join(session.queries)
+    assert f"LIMIT {limit}" in sql
+    assert f"OFFSET {offset}" in sql
+
+
+def test_audit_actions_tolerates_missing_table(monkeypatch):
+    """Без таблицы audit_logs /admin/audit/actions отдаёт пустой список, а не 500."""
+    error = SQLAlchemyError("relation does not exist")
+    error.orig = _UndefinedTableError()  # type: ignore[attr-defined]
+    _patch_session(monkeypatch, _FakeSession(error=error))
+    client = TestClient(_app(gated=True), raise_server_exceptions=False)
+
+    r = client.get("/api/admin/audit/actions")
+    assert r.status_code == 200, r.text
+    assert r.json() == {"actions": [], "total": 0}
