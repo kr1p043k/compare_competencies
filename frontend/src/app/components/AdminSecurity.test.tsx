@@ -39,7 +39,7 @@ afterEach(() => {
 const requestMock = vi.mocked(request);
 
 /** Состояние глобального флага: ответ GET и PUT /api/admin/security/2fa/settings. */
-let sw: { enabled: boolean; enrolled_admins: number };
+let sw: { enabled: boolean; read_ok?: boolean; enrolled_admins: number };
 
 /**
  * Ответ GET /api/auth/2fa/status: сервер отдаёт оба набора имён сразу -
@@ -225,5 +225,25 @@ describe("AdminSecurity", () => {
     // Секрет больше не показывается, аккаунт после перезагрузки статуса защищён.
     expect(screen.queryByText(SECRET)).toBeNull();
     expect(screen.getByText("защищена")).toBeInTheDocument();
+  });
+
+  it("read_ok=false: предупреждает, что состояние не читается и действует значение по умолчанию", async () => {
+    sw = { enabled: false, read_ok: false, enrolled_admins: 2 };
+    render(<AdminSecurity />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "состояние не читается: действует значение по умолчанию (выключено)",
+    );
+    // Показанное состояние - значение по умолчанию, а не прочитанное из БД.
+    expect(screen.getByText("Выключена")).toBeInTheDocument();
+  });
+
+  it("read_ok=true: предупреждения о нечитаемом состоянии нет", async () => {
+    sw = { enabled: false, read_ok: true, enrolled_admins: 2 };
+    render(<AdminSecurity />);
+
+    await screen.findByText("Выключена");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

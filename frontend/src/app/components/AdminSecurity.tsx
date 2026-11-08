@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { KeyRound, ShieldCheck, ShieldOff } from "lucide-react";
+import { AlertTriangle, KeyRound, ShieldCheck, ShieldOff } from "lucide-react";
 
 import { ApiError, request } from "../../lib/api";
 import { reportError } from "../../lib/errors";
@@ -10,6 +10,8 @@ import { Input } from "./ui/input";
 
 interface SwitchState {
   enabled: boolean;
+  /** false = хранилище флага не читается, `enabled` - значение по умолчанию. */
+  read_ok?: boolean;
   enrolled_admins: number;
 }
 
@@ -35,6 +37,10 @@ function errorText(err: unknown): string {
  * Мастер-переключатель по умолчанию выключен и хранится в БД: выключение
  * действует сразу для всех процессов. Подключения админов при выключении
  * не удаляются - при следующем включении код снова спрашивается.
+ *
+ * GET /api/admin/security/2fa/settings отдаёт read_ok: false, если хранилище
+ * флага недоступно для чтения - тогда показанное состояние это значение по
+ * умолчанию (выключено), а не прочитанное из БД.
  */
 export function AdminSecurity() {
   const [state, setState] = useState<SwitchState | null>(null);
@@ -73,7 +79,8 @@ export function AdminSecurity() {
         method: "PUT",
         body: { enabled: !state.enabled },
       });
-      setState(next);
+      // PUT может не вернуть read_ok - сохраняем последнее прочитанное значение.
+      setState((prev) => (prev ? { ...prev, ...next } : next));
       setMessage(next.enabled ? "Двухфакторная аутентификация включена" : "Двухфакторная аутентификация выключена");
       await load();
     } catch (err) {
@@ -168,6 +175,18 @@ export function AdminSecurity() {
             подключено админов: {state?.enrolled_admins ?? 0}
           </span>
         </div>
+
+        {state?.read_ok === false && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-lg border border-amber-300/60 bg-amber-50/60 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+          >
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <span>
+              состояние не читается: действует значение по умолчанию (выключено)
+            </span>
+          </div>
+        )}
 
         <p className="text-xs text-muted-foreground">
           Выключено - вход по паролю для всех. Включено - код спрашивается у админов,
