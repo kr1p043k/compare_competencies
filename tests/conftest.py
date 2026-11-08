@@ -1,5 +1,6 @@
 # tests/conftest.py
 import contextlib
+import copy
 import json
 import logging
 import os
@@ -23,6 +24,7 @@ from src.analyzers.gap.gap_analyzer import GapAnalyzer
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.analyzers.skills.skill_filter import SkillFilter
 from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
+from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.loaders_student.student_loader import StudentLoader
 from src.models.student import StudentProfile
 from src.models.vacancy import Area, Employer, KeySkill, Vacancy
@@ -174,6 +176,58 @@ def mock_sleep():
     with patch("time.sleep", return_value=None), \
          patch("asyncio.sleep", new_callable=AsyncMock):
         yield
+
+
+# =====================================================================
+# ИЗОЛЯЦИЯ СИНГЛТОНОВ (аудит b1-b7): нетленный снимок SkillTaxonomy
+# =====================================================================
+_PRISTINE_SKILL_TAXONOMY: dict | None = None
+
+
+def _snapshot_skill_taxonomy() -> dict:
+    """Снимок состояния SkillTaxonomy после первой загрузки из реального config.SKILL_TAXONOMY_PATH.
+
+    Берётся один раз за процесс: экземпляр, его instance-vars (слабая копия -
+    восстановление ссылки O(1)) и классовые атрибуты. Словари класса копируются
+    deepcopy, чтобы per-test restore давал каждому тесту собственные словари.
+    """
+    instance = SkillTaxonomy()
+    return {
+        "instance": instance,
+        "instance_vars": dict(vars(instance)),
+        "class_attrs": {
+            name: copy.deepcopy(value)
+            for name, value in vars(SkillTaxonomy).items()
+            if not name.startswith("__") and name != "_instance"
+        },
+    }
+
+
+@pytest.fixture(autouse=True)
+def isolate_skill_taxonomy_singleton():
+    """Аудит b1-b7: SkillTaxonomy - процесс-синглтон.
+
+    Тест, подменяющий метод напрямую на экземпляре (engine._taxonomy.get_category_label
+    = MagicMock), портил все тесты того же процесса после себя: мок жил
+    в instance-__dict__ синглтона и утекал в следующие сьюты (flaky/красный набор).
+
+    Перед каждым тестом восстанавливаем нетленное состояние: подмена уже не
+    может утечь в следующий тест. Сьюты, которым нужен свой файл таксономии
+    (tests/analyzers/test_skill_taxonomy.py), сбрасывают _instance уже ПОСЛЕ
+    этой фикстуры - их сброс не затирается.
+    """
+    global _PRISTINE_SKILL_TAXONOMY
+    if _PRISTINE_SKILL_TAXONOMY is None:
+        _PRISTINE_SKILL_TAXONOMY = _snapshot_skill_taxonomy()
+    snapshot = _PRISTINE_SKILL_TAXONOMY
+    SkillTaxonomy._instance = snapshot["instance"]
+    snapshot["instance"].__dict__.clear()
+    snapshot["instance"].__dict__.update(snapshot["instance_vars"])
+    for name, value in snapshot["class_attrs"].items():
+        # dict (общие словари навыков) - персональная копия каждому тесту;
+        # функции и прочие атрибуты - восстановление ссылки.
+        setattr(SkillTaxonomy, name, value.copy() if isinstance(value, dict) else value)
+    yield
 
 
 def pytest_configure(config):

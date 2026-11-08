@@ -14,6 +14,7 @@ from pydantic import SecretStr
 # ---------------------------------------------------------------------------
 from src import Ok, Result, config
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
+from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.models.student import StudentProfile
 from src.predictors.recommendation_engine import RecommendationEngine
 
@@ -611,14 +612,58 @@ class TestRecommendationEngineExtended:
                 case Ok(result):
                     assert len(result.recommendations) > 0
 
-    def test_explanation_taxonomy_exception(self, mock_profile_evaluator):
+    def test_explanation_taxonomy_exception(self, mock_profile_evaluator, monkeypatch):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         eval_copy = _unwrap(mock_profile_evaluator.evaluate_profile.return_value).copy()
         eval_copy["cluster_context"] = None               # убираем кластер
         eval_copy["skill_metrics"] = {"docker": {"cluster_relevance": 0, "category": "missing"}}
-        engine._taxonomy.get_category_label = MagicMock(side_effect=Exception("taxonomy error"))
+        # Синглтон не мутируем: патчим метод на классе, monkeypatch вернёт его сам.
+        monkeypatch.setattr(
+            SkillTaxonomy, "get_category_label",
+            MagicMock(side_effect=Exception("taxonomy error")),
+        )
         expl = engine._generate_explanation("docker", 0.8, eval_copy)
         assert "технический" in expl
+
+
+class TestTaxonomyIsolation:
+    """Регрессия аудита b1-b7: SkillTaxonomy - процесс-синглтон.
+
+    Первый тест пары симулирует ошибку таксономии, второй обязан видеть
+    нормальный синглтон. До фикса test_explanation_taxonomy_exception мутировал
+    экземпляр синглтона напрямую, и мок утекал во все следующие тесты процесса.
+    """
+
+    def test_taxonomy_error_first_simulates_failure(self, mock_profile_evaluator, monkeypatch):
+        """Симуляция ошибки таксономии - только через monkeypatch на классе, без мутации синглтона."""
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
+        eval_copy = _unwrap(mock_profile_evaluator.evaluate_profile.return_value).copy()
+        eval_copy["cluster_context"] = None
+        eval_copy["skill_metrics"] = {"docker": {"cluster_relevance": 0, "category": "missing"}}
+        monkeypatch.setattr(
+            SkillTaxonomy, "get_category_label",
+            MagicMock(side_effect=Exception("taxonomy error")),
+        )
+        expl = engine._generate_explanation("docker", 0.8, eval_copy)
+        assert "технический" in expl
+
+    def test_taxonomy_clean_after_previous_error_simulation(self, mock_profile_evaluator):
+        """Второй тест пары: синглтон жив после симуляции ошибки из первого теста."""
+        tax = SkillTaxonomy()
+        # 1. На экземпляре не должно остаться подменённых методов из прошлого теста.
+        assert "get_category_label" not in vars(tax), (
+            "мок протёк на синглтон SkillTaxonomy из предыдущего теста"
+        )
+        # 2. Резолвер отвечает реальной меткой, а не бросает Exception('taxonomy error').
+        label = tax.get_category_label("docker")
+        assert isinstance(label, str) and label
+        # 3. Новый движок генерирует объяснение с реальной меткой таксономии.
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
+        eval_copy = _unwrap(mock_profile_evaluator.evaluate_profile.return_value).copy()
+        eval_copy["cluster_context"] = None
+        eval_copy["skill_metrics"] = {"docker": {"cluster_relevance": 0, "category": "missing"}}
+        expl = engine._generate_explanation("docker", 0.8, eval_copy)
+        assert label in expl, f"ожидалась реальная метка '{label}' в объяснении, получено: {expl}"
 
 
 # ---------------------------------------------------------------------------
