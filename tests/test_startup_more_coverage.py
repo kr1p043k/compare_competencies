@@ -452,3 +452,35 @@ def test_warmup_background_student_loader_isolation(warmup_mocks, raw_file, tmp_
     asyncio.run(startup._warmup_background([{"name": "x"}], raw_file))
     assert "dc" in deps.student_profiles
     assert "top_dc" in deps.student_profiles
+
+
+def test_warmup_background_middle_inherits_base_without_files(warmup_mocks, raw_file, tmp_path, monkeypatch):
+    """Регресс a504afbe: dc/top_dc файлы удалены из ветки.
+
+    middle (dc) обязан включать все навыки base (иерархия эталонных
+    профилей). Иначе /api/profiles/dc?full=true молча отдаёт skills: []
+    и колонка «Data Scientist (middle)» тепловой карты пуста,
+    хотя Base (junior) заполнен.
+    """
+    from src.models.student import merge_skills_hierarchically as real_merge
+
+    # фикстура подменяет merge константой; для проверок нужен настоящий
+    monkeypatch.setattr(startup, "merge_skills_hierarchically", real_merge)
+
+    students_dir = tmp_path / "data" / "students"
+    students_dir.mkdir(parents=True, exist_ok=True)
+    (students_dir / "base_competency.json").write_text(
+        json.dumps({"компетенции": ["SS1.1"]}), encoding="utf-8"
+    )
+    # файлов dc/top_dc нет - состояние dev после a504afbe
+
+    asyncio.run(startup._warmup_background([{"name": "x"}], raw_file))
+
+    base_skills = set(deps.student_profiles["base"].skills)
+    assert base_skills == {"python"}, "нет данных из фикстуры (SS1.1 -> python)"
+    assert base_skills <= set(
+        deps.student_profiles["dc"].skills
+    ), "middle-профиль (dc) потерял навыки base -> пустая колонка тепловой карты"
+    assert base_skills <= set(
+        deps.student_profiles["top_dc"].skills
+    ), "senior-профиль (top_dc) потерял навыки base"

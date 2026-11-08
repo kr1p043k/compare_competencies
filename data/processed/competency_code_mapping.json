@@ -1,0 +1,182 @@
+{
+  "DL-1.3": {
+    "fgos_code": "ПК-2",
+    "overlap": 6,
+    "total_ss_skills": 23
+  },
+  "PL-1.2": {
+    "fgos_code": "ПК-9",
+    "overlap": 6,
+    "total_ss_skills": 16
+  },
+  "BD-5.2": {
+    "fgos_code": "ПК-18",
+    "overlap": 4,
+    "total_ss_skills": 10
+  },
+  "ML-2.2": {
+    "fgos_code": "ПК-7",
+    "overlap": 4,
+    "total_ss_skills": 9
+  },
+  "LC-7.1": {
+    "fgos_code": "ПК-18",
+    "overlap": 4,
+    "total_ss_skills": 23
+  },
+  "BD-3.1": {
+    "fgos_code": "ОПК-4",
+    "overlap": 3,
+    "total_ss_skills": 13
+  },
+  "ML-2.3": {
+    "fgos_code": "ПК-9",
+    "overlap": 3,
+    "total_ss_skills": 9
+  },
+  "DL-1.6": {
+    "fgos_code": "ПК-2",
+    "overlap": 3,
+    "total_ss_skills": 11
+  },
+  "D-1.2": {
+    "fgos_code": "ПК-2",
+    "overlap": 2,
+    "total_ss_skills": 13
+  },
+  "PL-1.1": {
+    "fgos_code": "ОПК-4",
+    "overlap": 2,
+    "total_ss_skills": 15
+  },
+  "MF-3.1": {
+    "fgos_code": "ОПК-4",
+    "overlap": 1,
+    "total_ss_skills": 6
+  },
+  "BD-1.3": {
+    "fgos_code": "ПК-9",
+    "overlap": 1,
+    "total_ss_skills": 14
+  },
+  "BD-1.4": {
+    "fgos_code": "ПК-7",
+    "overlap": 1,
+    "total_ss_skills": 7
+  },
+  "BD-2.2": {
+    "fgos_code": "ПК-15",
+    "overlap": 1,
+    "total_ss_skills": 8
+  },
+  "BD-3.2": {
+    "fgos_code": "ПК-6",
+    "overlap": 1,
+    "total_ss_skills": 10
+  },
+  "BD-4.2": {
+    "fgos_code": "ПК-9",
+    "overlap": 1,
+    "total_ss_skills": 10
+  },
+  "ML-2.1": {
+    "fgos_code": "ПК-7",
+    "overlap": 1,
+    "total_ss_skills": 8
+  },
+  "ML-3.1": {
+    "fgos_code": "ОПК-4",
+    "overlap": 1,
+    "total_ss_skills": 12
+  },
+  "ML-4.1": {
+    "fgos_code": "ПК-7",
+    "overlap": 1,
+    "total_ss_skills": 8
+  },
+  "DL-1.2": {
+    "fgos_code": "ПК-9",
+    "overlap": 1,
+    "total_ss_skills": 11
+  },
+  "DL-1.12": {
+    "fgos_code": "ПК-2",
+    "overlap": 1,
+    "total_ss_skills": 8
+  },
+  "DL-4.1": {
+    "fgos_code": "ПК-24",
+    "overlap": 1,
+    "total_ss_skills": 12
+  },
+  "PL-1.4": {
+    "fgos_code": "ПК-18",
+    "overlap": 1,
+    "total_ss_skills": 19
+  },
+  "PL-3.1": {
+    "fgos_code": "ПК-10",
+    "overlap": 1,
+    "total_ss_skills": 8
+  },
+  "PL-3.3": {
+    "fgos_code": "ПК-10",
+    "overlap": 1,
+    "total_ss_skills": 7
+  },
+  "FC-1.1": {
+    "fgos_code": "ОПК-4",
+    "overlap": 1,
+    "total_ss_skills": 8
+  },
+  "FC-1.2": {
+    "fgos_code": "ПК-24",
+    "overlap": 1,
+    "total_ss_skills": 9
+  },
+  "FC-2.1": {
+    "fgos_code": "ПК-20",
+    "overlap": 1,
+    "total_ss_skills": 9
+  },
+  "FC-2.2": {
+    "fgos_code": "ПК-2",
+    "overlap": 1,
+    "total_ss_skills": 6
+  },
+  "FC-2.3": {
+    "fgos_code": "ПК-14",
+    "overlap": 1,
+    "total_ss_skills": 7
+  },
+  "FC-4.5": {
+    "fgos_code": "ОПК-4",
+    "overlap": 1,
+    "total_ss_skills": 9
+  },
+  "MI-1.2": {
+    "fgos_code": "ОПК-4",
+    "overlap": 1,
+    "total_ss_skills": 8
+  },
+  "MM-1.1": {
+    "fgos_code": "ОПК-5",
+    "overlap": 1,
+    "total_ss_skills": 9
+  },
+  "E-1.1": {
+    "fgos_code": "ОПК-5",
+    "overlap": 1,
+    "total_ss_skills": 10
+  },
+  "EI-1.1": {
+    "fgos_code": "ПК-3",
+    "overlap": 1,
+    "total_ss_skills": 7
+  },
+  "ER-1.1": {
+    "fgos_code": "ПК-3",
+    "overlap": 1,
+    "total_ss_skills": 8
+  }
+}
