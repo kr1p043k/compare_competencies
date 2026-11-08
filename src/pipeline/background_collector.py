@@ -29,6 +29,10 @@ SCHEDULER_MAX_INTERVAL_HOURS = 72
 SCHEDULER_GAP_STALE_DAYS = 7
 JSON_MAX_RECORDS = 150000
 
+# hh.ru отдаёт максимум 2000 результатов (per_page=100 -> 20 страниц). Любое
+# значение max_pages выше 20 бессмысленно и может привести к page*per_page>2000.
+HH_MAX_PAGES = 20
+
 _scheduler_cache: dict | None = None
 _scheduler_busy: str | None = None
 
@@ -361,9 +365,15 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
             return "skipped", 0
 
     max_pages = 5
+    # Гарантия против page*per_page > 2000: клампим к HH_MAX_PAGES.
+    max_pages = min(max_pages, HH_MAX_PAGES)
     period = 30
 
     if force_period_days is not None:
+        # hh период надёжно отдаёт результаты только до 30 дней; параметр
+        # period в get-vacancies не имеет верхнего ограничения по спецификации,
+        # но при >30 дней выдача неполная. Поэтому форсируем кламп, а больший
+        # период покрывается чанкованием по date_from/date_to в utils.
         period = max(1, min(int(force_period_days), 30))
         logger.info("collect_forced_period", days=period)
     elif last_run:

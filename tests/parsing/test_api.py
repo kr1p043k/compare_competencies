@@ -45,6 +45,29 @@ class TestHeadHunterAPISync:
         assert mock_get.call_count == 2
 
     @patch("src.parsing.api.hh_api.HeadHunterAPI._get_result")
+    def test_search_vacancies_clamps_max_pages_to_20(self, mock_get):
+        """max_pages > 20 клампится к MAX_HH_PAGES: не более 20 запросов страниц."""
+        api = HeadHunterAPI()
+        mock_get.return_value = Ok(
+            {"items": [{"id": str(i)} for i in range(100)], "pages": 100, "found": 2000}
+        )
+        with patch("time.sleep", return_value=None):
+            result = api.search_vacancies(text="Python", area=1, max_pages=100)
+        assert result.is_ok()
+        assert mock_get.call_count == 20
+
+    @patch("src.parsing.api.hh_api.HeadHunterAPI._get_result")
+    def test_search_vacancies_max_pages_within_limit_not_clamped(self, mock_get):
+        """max_pages <= 20 проходит без клампа."""
+        from src.parsing.api.hh_api import MAX_HH_PAGES
+
+        api = HeadHunterAPI()
+        mock_get.return_value = Ok({"items": [{"id": "1"}], "pages": 1, "found": 1})
+        result = api.search_vacancies(text="Python", area=1, max_pages=MAX_HH_PAGES)
+        assert len(result.ok()) == 1
+        mock_get.assert_called_once()
+
+    @patch("src.parsing.api.hh_api.HeadHunterAPI._get_result")
     def test_search_vacancies_stops_on_empty_page(self, mock_get):
         api = HeadHunterAPI()
         mock_get.return_value = Ok({"items": [], "pages": 5})

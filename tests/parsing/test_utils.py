@@ -273,6 +273,32 @@ def test_date_chunks():
     assert len(chunks) == 4
 
 
+def test_collect_vacancies_multiple_period_over_30_uses_date_chunks_only(monkeypatch):
+    """period_days > 30: period-параметр не передаётся, только date_from/date_to.
+
+    Регрессионный тест на ветку «period>30 без чанкования»: даже при малом
+    total_found большой период обязан идти через date_chunks, а search_vacancies
+    получает только date_from/date_to (никогда period_days/period).
+    """
+    mock_hh_api = MagicMock()
+    mock_hh_api.last_response = {"found": 10, "pages": 1}
+    mock_hh_api.search_vacancies.return_value = Ok([{"id": "1"}, {"id": "2"}])
+    monkeypatch.setattr(
+        utils, "date_chunks",
+        lambda days, chunk_size: [("2026-01-01", "2026-01-05"), ("2025-12-27", "2025-12-31")],
+    )
+    with patch("time.sleep", return_value=None):
+        vacs = utils.collect_vacancies_multiple(
+            mock_hh_api, queries=["Python"], area_ids=[1], period_days=365,
+            max_pages=20, max_vacancies_per_query=100
+        )
+    assert len(vacs) == 2
+    assert mock_hh_api.search_vacancies.call_count == 2
+    for call in mock_hh_api.search_vacancies.call_args_list:
+        assert "date_from" in call.kwargs and "date_to" in call.kwargs
+        assert "period_days" not in call.kwargs
+
+
 def test_date_chunks_short_period():
     """Период меньше размера чанка"""
     chunks = utils.date_chunks(3, chunk_size=5)
