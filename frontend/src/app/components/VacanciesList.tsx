@@ -5,7 +5,7 @@ import { VacancyDetailPanel } from "./VacancyDetailPanel";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { PageHeader, Skeleton } from "../../design";
+import { Skeleton, Badge as ToneBadge } from "../../design";
 import {
   Select,
   SelectContent,
@@ -358,19 +358,24 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   return (
     <div className="space-y-6">
       {/* Header */}
-      <PageHeader eyebrow="Рынок труда" title="Вакансии с hh.ru" />
-      {vacancyInfo && (
-      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-      {vacancyInfo.date_range && (
-      <span>Записи с {fmtDateRU(vacancyInfo.date_range.from)}</span>
-      )}
-      <span>всего вакансий собрано: {vacancyInfo.count}</span>
-      {pipelineMaxPages && <span>стр: {pipelineMaxPages}</span>}
-          {(showPipelineSetup || pipelineStep?.status === "running") && pipelinePeriod && (
-            <span>период: {pipelinePeriod} дн.</span>
-          )}
+      <div className="mb-6">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-primary">Рынок труда</div>
+        <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground">Вакансии с hh.ru</h1>
+        {vacancyInfo && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {vacancyInfo.date_range && (
+              <ToneBadge tone="info">Записи с {fmtDateRU(vacancyInfo.date_range.from)}</ToneBadge>
+            )}
+            <ToneBadge tone="primary">всего вакансий собрано: {vacancyInfo.count.toLocaleString("ru-RU")}</ToneBadge>
+            {(showPipelineSetup || pipelineStep?.status === "running") && pipelineMaxPages && (
+              <ToneBadge tone="neutral">стр: {pipelineMaxPages}</ToneBadge>
+            )}
+            {(showPipelineSetup || pipelineStep?.status === "running") && pipelinePeriod && (
+              <ToneBadge tone="neutral">период: {pipelinePeriod} дн.</ToneBadge>
+            )}
+          </div>
+        )}
       </div>
-      )}
 
       {/* Pipeline trigger / settings panel */}
       {canRunPipeline && (showPipelineSetup && (!pipelineStep || pipelineStep.status !== "running") ? (
