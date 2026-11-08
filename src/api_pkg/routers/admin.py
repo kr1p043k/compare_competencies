@@ -1794,14 +1794,13 @@ class TwoFactorSettingsPatch(BaseModel):
 
 
 async def _two_factor_payload() -> dict[str, Any]:
-    from src.api_pkg.security_settings import get_two_factor_status
+    from src.api_pkg.security_settings import read_two_factor
     from src.db import get_pool
 
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    status = await get_two_factor_status(pool)
-    enabled = status["enabled"]
+    two_factor = await read_two_factor(pool)
     enrolled = 0
     try:
         enrolled = int(
@@ -1812,7 +1811,11 @@ async def _two_factor_payload() -> dict[str, Any]:
         enrolled = 0
     # read_ok=False означает "флаг не прочитан, показано значение по умолчанию":
     # админ должен видеть это, а не думать, что 2FA выключена осознанно.
-    return {"enabled": enabled, "enrolled_admins": enrolled, "read_ok": status["read_ok"]}
+    return {
+        "enabled": two_factor.enabled,
+        "read_ok": two_factor.read_ok,
+        "enrolled_admins": enrolled,
+    }
 
 
 @router.get("/admin/security/2fa/settings", dependencies=[Depends(require_any_role("admin"))])

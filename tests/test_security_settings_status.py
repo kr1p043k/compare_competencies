@@ -34,33 +34,43 @@ def _reset():
 
 async def test_status_enabled_when_row_says_true():
     _reset()
-    st = await ss.get_two_factor_status(_Pool(raw='{"enabled": true}'))  # type: ignore[arg-type]
-    assert st == {"enabled": True, "read_ok": True}
+    st = await ss.read_two_factor(_Pool(raw='{"enabled": true}'))  # type: ignore[arg-type]
+    assert st.enabled is True
+    assert st.read_ok is True
+    assert st.state is ss.TwoFactorReadState.OK
 
 
 async def test_status_disabled_but_read_ok_when_row_missing():
     _reset()
-    st = await ss.get_two_factor_status(_Pool(raw=None))  # type: ignore[arg-type]
+    st = await ss.read_two_factor(_Pool(raw=None))  # type: ignore[arg-type]
     # Строки нет - это осознанное "выключено", а не сбой чтения.
-    assert st == {"enabled": False, "read_ok": True}
+    assert st.enabled is False
+    assert st.read_ok is True
+    assert st.state is ss.TwoFactorReadState.EMPTY
 
 
 async def test_status_read_not_ok_on_db_error():
     _reset()
-    st = await ss.get_two_factor_status(_Pool(fetch_fails=True))  # type: ignore[arg-type]
-    assert st == {"enabled": False, "read_ok": False}
+    st = await ss.read_two_factor(_Pool(fetch_fails=True))  # type: ignore[arg-type]
+    assert st.enabled is False
+    assert st.read_ok is False
+    assert st.state is ss.TwoFactorReadState.ERROR
 
 
 async def test_status_read_not_ok_when_table_cannot_be_created():
     _reset()
-    st = await ss.get_two_factor_status(_Pool(execute_fails=True))  # type: ignore[arg-type]
-    assert st == {"enabled": False, "read_ok": False}
+    st = await ss.read_two_factor(_Pool(execute_fails=True))  # type: ignore[arg-type]
+    assert st.enabled is False
+    assert st.read_ok is False
+    assert st.state is ss.TwoFactorReadState.ERROR
 
 
 async def test_status_read_not_ok_on_malformed_value():
     _reset()
-    st = await ss.get_two_factor_status(_Pool(raw="[1, 2, 3]"))  # type: ignore[arg-type]
-    assert st == {"enabled": False, "read_ok": False}
+    st = await ss.read_two_factor(_Pool(raw="[1, 2, 3]"))  # type: ignore[arg-type]
+    assert st.enabled is False
+    assert st.read_ok is False
+    assert st.state is ss.TwoFactorReadState.ERROR
 
 
 async def test_enabled_helper_stays_fail_open_boolean():

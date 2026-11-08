@@ -106,7 +106,47 @@ class LogEntry:
         self.timestamp = datetime.now(UTC)
 
 
-_log_buffer: deque[LogEntry] = deque(maxlen=MAX_LOGS)
+class _CountedDeque(deque[LogEntry]):
+    """deque буфера логов с инкрементальным счётчиком по пользователям.
+
+    get_logs_by_user() раньше пересканировал весь буфер на каждый запрос.
+    Теперь счётчик обновляется при каждом append/appendleft и сбрасывается при
+    clear() (flush). При переполнении maxlen вытесняемая запись декрементируется,
+    поэтому counts всегда отражает фактическое содержимое буфера.
+    """
+
+    def __init__(self, maxlen: int) -> None:
+        super().__init__(maxlen=maxlen)
+        self.counts: dict[str, int] = {}
+
+    def append(self, item: LogEntry) -> None:
+        if self.maxlen is not None and len(self) == self.maxlen:
+            self._decrement(self[0].user_email)
+        super().append(item)
+        self._increment(item.user_email)
+
+    def appendleft(self, item: LogEntry) -> None:
+        if self.maxlen is not None and len(self) == self.maxlen:
+            self._decrement(self[-1].user_email)
+        super().appendleft(item)
+        self._increment(item.user_email)
+
+    def clear(self) -> None:
+        super().clear()
+        self.counts.clear()
+
+    def _increment(self, email: str) -> None:
+        self.counts[email] = self.counts.get(email, 0) + 1
+
+    def _decrement(self, email: str) -> None:
+        n = self.counts.get(email, 0)
+        if n <= 1:
+            self.counts.pop(email, None)
+        else:
+            self.counts[email] = n - 1
+
+
+_log_buffer: _CountedDeque = _CountedDeque(maxlen=MAX_LOGS)
 
 #: Таблица audit_logs недоступна даже после попытки создать её (нет прав DDL):
 #: больше не пытаемся, иначе каждый аудируемый запрос тратит соединение впустую.
@@ -462,11 +502,12 @@ async def audit_action(request: Request, action: str, target: str = "") -> dict[
 
 
 def get_logs_by_user() -> dict[str, int]:
-    entries = list(_log_buffer)
-    counts: dict[str, int] = {}
-    for e in entries:
-        counts[e.user_email] = counts.get(e.user_email, 0) + 1
-    return counts
+    """Число записей в буфере на пользователя (O(1), без пересканирования).
+
+    Счётчик ведётся инкрементально в _CountedDeque.counts и сбрасывается при
+    flush (clear). Возвращается копия, чтобы вызывающий не мутировал счётчик.
+    """
+    return dict(_log_buffer.counts)
 
 
 def _metric_path(request: Request) -> str:

@@ -10,8 +10,10 @@ Usage:
 """
 
 import argparse
+import copy
 import json
 import sys
+from typing import Any, cast
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -348,9 +350,34 @@ MANUAL_OVERRIDES = {
 }
 
 
-def load_taxonomy() -> dict:
+#: (mtime, taxonomy) - кэш, чтобы таксономия не читалась с диска на каждый запрос.
+#: Паттерн как у whitelist (_load_whitelist в routers/admin.py): инвалидация по mtime.
+_taxonomy_cache: tuple[float, dict[str, Any]] | None = None
+
+
+def _read_taxonomy() -> dict[str, Any]:
     with open(TAXONOMY_PATH, encoding="utf-8") as f:
-        return json.load(f)
+        return cast("dict[str, Any]", json.load(f))
+
+
+def load_taxonomy() -> dict[str, Any]:
+    """Загрузить таксономию с кэшем по mtime (как whitelist).
+
+    Диск читается только при первом вызове или когда файл изменён. Возвращается
+    глубокая копия: вызывающие (apply_assignments, admin-эндпоинты) мутируют
+    возвращённый словарь, и кэш не должен подхватывать эти правки.
+    """
+    global _taxonomy_cache
+    try:
+        mtime = TAXONOMY_PATH.stat().st_mtime
+    except OSError:
+        _taxonomy_cache = None
+        return _read_taxonomy()
+    if _taxonomy_cache is not None and _taxonomy_cache[0] == mtime:
+        return copy.deepcopy(_taxonomy_cache[1])
+    data = _read_taxonomy()
+    _taxonomy_cache = (mtime, data)
+    return copy.deepcopy(data)
 
 
 def load_it_skills() -> set[str]:
