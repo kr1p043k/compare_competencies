@@ -390,10 +390,6 @@ export default function App() {
     window.print();
   }
 
-  function loadMarket() {
-    apiCall("/market-competencies");
-  }
-
   // Список профессий таксономии - для выбора цели сравнения на вкладке «Данные».
   useEffect(() => {
     if (activeTab !== "data" || !isAuth || professionsList.length > 0) return;
@@ -533,7 +529,6 @@ export default function App() {
                 gapMsg={gapMsg}
                 onLoadRecommendations={loadRecommendations}
                 onLoadProfileDetail={loadProfileDetail}
-                onLoadMarket={loadMarket}
                 onLoadSummary={loadSummary}
                 onRunGapAnalysis={runGapAnalysis}
                 professionsList={professionsList}
