@@ -863,8 +863,15 @@ export function TeacherDashboard() {
             onChange={(e) => setSearch(e.target.value)}
         className="w-full mt-2.5 px-3 py-2 rounded-md text-[13px] box-border bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-slate-100 outline-none"
           />
+          {/* Год анализа: переключает набор, по которому ЗАГРУЖАЮТСЯ данные
+              (см. useEffect на [selectedDir, intakeYear]). */}
           <div className="flex gap-1.5 mt-2 items-center flex-wrap">
-            <span className="text-xs text-gray-500 dark:text-slate-400">Набор:</span>
+            <span
+              className="text-xs text-gray-500 dark:text-slate-400"
+              title="Список дисциплин и анализ загружаются по учебному плану выбранного набора"
+            >
+              Год анализа:
+            </span>
             {([2025, 2024] as const).map((y) => (
               <button
                 key={y}
@@ -907,11 +914,21 @@ export function TeacherDashboard() {
               {metaStale && (<span className="text-xs text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950 rounded px-1.5 py-0.5">данные устарели - обновите анализ</span>)}
             </div>
           </div>
-          <div className="flex gap-1.5 px-2 pb-2">
+          {/* Фильтр списка: только скрывает строки, данных не перезагружает
+              (в отличие от «Год анализа» выше). */}
+          <div className="flex gap-1.5 px-2 pb-2 items-center flex-wrap">
+            <span
+              className="text-xs text-gray-500 dark:text-slate-400"
+              title="Скрывает дисциплины других наборов; данные не перезагружает"
+            >
+              Фильтр списка:
+            </span>
             {([0, 2024, 2025] as const).map((y) => (
               <button
                 key={y}
                 onClick={() => setYearFilter(y)}
+                aria-pressed={yearFilter === y}
+                title={y === 0 ? "Показать все дисциплины списка" : `Только дисциплины, входящие в план набора ${y}`}
                 className={
                   "text-xs px-2 py-0.5 rounded border cursor-pointer " +
                   (yearFilter === y
@@ -919,7 +936,7 @@ export function TeacherDashboard() {
                     : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300")
                 }
               >
-                {y === 0 ? "Все годы" : y}
+                {y === 0 ? "Все" : y}
               </button>
             ))}
           </div>
@@ -1012,11 +1029,15 @@ export function TeacherDashboard() {
           </div>
         )}
 
-        {/* Always visible mode toggle */}
+        {/* Переключатель режимов виден всегда, но «Покрытие» выключено,
+            пока не загружен анализ: контент режима всё равно закрыт
+            проверкой `analysis` ниже. */}
         <div className="flex gap-2 mb-4">
           <button
             onClick={() => setAnalysisMode("coverage")}
-        className={`px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs ${analysisMode === "coverage" ? "bg-violet-600 text-white font-bold" : "bg-gray-50 dark:bg-slate-800 text-violet-600 font-normal"}`}
+            disabled={!analysis}
+            title={analysis ? undefined : "Появится после запуска анализа направления"}
+        className={`px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs disabled:cursor-not-allowed disabled:opacity-50 ${analysisMode === "coverage" ? "bg-violet-600 text-white font-bold" : "bg-gray-50 dark:bg-slate-800 text-violet-600 font-normal"}`}
           >
             Покрытие
           </button>
