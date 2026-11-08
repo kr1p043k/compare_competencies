@@ -356,13 +356,16 @@ def create_app() -> FastAPI:
     _warn_metrics_token_unset()
 
     async def _metrics_access(request: Request) -> None:
-        """Доступ к /metrics: общий секрет X-Metrics-Token либо роль admin.
+        """Доступ к /metrics: общий секрет из METRICS_TOKEN либо роль admin.
 
-        Prometheus не умеет логиниться: при заданном METRICS_TOKEN он присылает
-        его в заголовке X-Metrics-Token, и этого достаточно. Совпадение проверяем
-        через hmac.compare_digest (константное время, не палит секрет таймингом).
-        Если токен не задан либо не совпал - падаем в обычную проверку роли admin,
-        не раскрывая сам факт наличия токена (401/403 неотличимы от «токена нет»).
+        Токен принимается двумя способами: заголовок X-Metrics-Token и
+        «Authorization: Bearer <token>». Второй обязателен для Prometheus:
+        в scrape-конфиге у него есть только authorization-схема, произвольные
+        заголовки задавать нельзя. Совпадение проверяем через
+        hmac.compare_digest (константное время, не палит секрет таймингом).
+        Если токен не задан либо не совпал - падаем в обычную проверку роли
+        admin, не раскрывая сам факт наличия токена (401/403 неотличимы от
+        «токена нет»).
         """
         token = getattr(config.settings, "METRICS_TOKEN", None)
         if token is not None:
@@ -372,7 +375,12 @@ def create_app() -> FastAPI:
                 else str(token)
             )
             supplied = request.headers.get("X-Metrics-Token", "")
-            if hmac.compare_digest(supplied.encode(), expected.encode()):
+            if not supplied:
+                # Формат Prometheus: authorization: {type: Bearer, ...}.
+                auth_header = request.headers.get("Authorization", "")
+                if auth_header.startswith("Bearer "):
+                    supplied = auth_header[len("Bearer "):].strip()
+            if supplied and hmac.compare_digest(supplied.encode(), expected.encode()):
                 return
         await require_any_role("admin")(request)
 

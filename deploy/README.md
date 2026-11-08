@@ -13,6 +13,13 @@ systemd timer (5 мин) → cc-autodeploy.sh → scripts/deploy.sh
 `scripts/deploy.sh` из **целевого** коммита. Журнал: `logs/autodeploy.log`,
 `journalctl -u cc-autodeploy`.
 
+Рядом живёт бэкап-таймер: `cc-backup.timer` (ежедневно в 03:00 UTC) →
+`deploy/cc-backup.sh` → `pg_dump -Fc` в `backups/` c ротацией «хранить 14».
+Деплой тоже снимает дамп перед выкаткой (см. `scripts/deploy.sh`). Дампы
+лежат на том же диске, что и БД: от потери диска спасает только оффсайт-копия
+`backups/`.
+
+
 Почему не GitHub Actions: сервер за провайдерским NAT (интерфейс
 `10.131.65.30`, публичный `95.174.102.182` — общий egress хостера), входящий
 SSH доступен только через Tailscale, а ключ `TAILSCALE_AUTH_KEY` для CI истёк.
@@ -34,9 +41,11 @@ GitHub-раннер получает `dial tcp 95.174.102.182:22: i/o timeout`.
 
 ```bash
 sudo install -m 755 deploy/cc-autodeploy.sh /home/admin_server/bin/cc-autodeploy.sh
-sudo install -m 644 deploy/cc-autodeploy.service deploy/cc-autodeploy.timer /etc/systemd/system/
+sudo install -m 755 deploy/cc-backup.sh /home/admin_server/bin/cc-backup.sh
+sudo install -m 644 deploy/cc-autodeploy.service deploy/cc-autodeploy.timer \
+                     deploy/cc-backup.service deploy/cc-backup.timer /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now cc-autodeploy.timer
+sudo systemctl enable --now cc-autodeploy.timer cc-backup.timer
 ```
 
 Правило sudoers (только этот chown, без пароля):

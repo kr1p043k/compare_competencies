@@ -149,9 +149,16 @@ jobs:
       # Живой базы у раннера нет, поэтому проверка согласованности KRM<->БД
       # идёт только там, где задан секрет DATABASE_URL. Локально её гоняет
       # scripts/check_krm_db_consistency.py.
+      # Важно: контекст secrets НЕДОСТУПЕН в if-условиях — GitHub из-за этого
+      # вообще не парсит workflow (все прогоны CI падали с 0 джобов).
+      # Поэтому секрет подкладываем в env, а проверку делаем в shell.
       - name: KRM/DB consistency (if a database is configured)
-        if: ${{ secrets.DATABASE_URL != '' }}
-        run: python scripts/check_krm_db_consistency.py --direction 09.03.02 --year 2025 --dsn "$DATABASE_URL"
+        run: |
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "DATABASE_URL is not configured, skipping"
+            exit 0
+          fi
+          python scripts/check_krm_db_consistency.py --direction 09.03.02 --year 2025 --dsn "$DATABASE_URL"
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
       # Диагностика, а не гейт: расхождение установленных версий с пинами
