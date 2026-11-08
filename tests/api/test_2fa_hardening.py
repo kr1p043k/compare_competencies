@@ -15,8 +15,6 @@ from fastapi import HTTPException
 
 import src.api_pkg.routers.auth as auth_mod
 
-FLAG_TOTP_2FA = "totp_2fa_enabled"
-
 
 class TestTotpFailClosed:
     """H2: СЃР±РѕР№ Р‘Р” РЅРµ РґРѕР»Р¶РµРЅ СЃРЅРёРјР°С‚СЊ РІС‚РѕСЂРѕР№ С„Р°РєС‚РѕСЂ."""
@@ -163,10 +161,19 @@ class TestSsoRequiresTotp:
         monkeypatch.setattr(acad.config, "ACADEMIC_SSO_ENABLED", True)
         monkeypatch.setattr(auth_mod, "_totp_state", _not_configured)
 
+        async def _flag_on(_pool):
+            return True
+
+        monkeypatch.setattr(auth_mod, "get_two_factor_enabled", _flag_on)
+
         from src.api_pkg.routers.academic import SsoRequest
 
+        # Флаг включён, но админ не подключил TOTP: SSO не запирает его, а
+        # просит настройку. Проверяем именно это, а не «повезло с БД».
         result = await acad.sso_login(SsoRequest(token=_hub_token()), _fake_request(), _response())
-        assert result.get("token"), "Р°РґРјРёРЅ Р±РµР· 2FA РґРѕР»Р¶РµРЅ РІС…РѕРґРёС‚СЊ РєР°Рє СЂР°РЅСЊС€Рµ"
+        assert result.get("status") == "totp_setup_required", result
+        assert result.get("enroll_id")
+        assert not result.get("token")
 
     @pytest.mark.asyncio
     async def test_admin_with_confirmed_totp_gets_token_when_flag_off(self, monkeypatch):
@@ -214,7 +221,11 @@ class TestSsoRequiresTotp:
         monkeypatch.setattr(acad, "get_pool", lambda: FakePool())
         monkeypatch.setattr(acad.config, "ACADEMIC_SSO_ENABLED", True)
         monkeypatch.setattr(auth_mod, "_totp_state", _confirmed)
-        monkeypatch.setattr("src.api_pkg.feature_flags.is_enabled", lambda _flag: False)
+
+        async def _flag_off(_pool):
+            return False
+
+        monkeypatch.setattr(auth_mod, "get_two_factor_enabled", _flag_off)
 
         from src.api_pkg.routers.academic import SsoRequest
 

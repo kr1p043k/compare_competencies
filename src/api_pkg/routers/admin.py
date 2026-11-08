@@ -1750,24 +1750,37 @@ class FeatureFlagPatch(BaseModel):
 @router.get("/admin/features", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("60/minute")
 async def admin_features(request: Request):
-    """Состояние переключателей функций (2FA и прочие)."""
-    from src.api_pkg.feature_flags import all_flags
+    """Состояние переключателей функций.
 
-    return {"features": all_flags()}
+    Флаг 2FA здесь не отдаём: в этом модуле он был вторым источником правды
+    (файл features.json), а реальный переключатель живёт в app_settings. Пока
+    показывать его тут, оператор включит его и решит, что 2FA работает.
+    """
+    from src.api_pkg.feature_flags import FLAG_TOTP_2FA, all_flags
+
+    return {"features": {k: v for k, v in all_flags().items() if k != FLAG_TOTP_2FA}}
 
 
 @router.put("/admin/features/{flag}", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("20/minute")
 async def admin_set_feature(flag: str, body: FeatureFlagPatch, request: Request):
     """Включить или выключить функцию на лету, без перезапуска сервиса."""
-    from src.api_pkg.feature_flags import all_flags, set_flag
+    from src.api_pkg.feature_flags import FLAG_TOTP_2FA, all_flags, set_flag
 
+    if flag == FLAG_TOTP_2FA:
+        # Раньше здесь был отдельный флаг 2FA, который login не читал: тумблер
+        # переключался, а второй фактор не включался. Оставлен 409 с адресом
+        # настоящего переключателя, чтобы никто не наступил на это снова.
+        raise HTTPException(
+            status_code=409,
+            detail="2FA переключается через PUT /admin/security/2fa/settings",
+        )
     try:
         set_flag(flag, body.enabled)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Unknown feature '{flag}'") from None
     logger.info("admin_feature_toggled", flag=flag, enabled=body.enabled, uid=getattr(request.state, "user_uid", None))
-    return {"features": all_flags()}
+    return {"features": {k: v for k, v in all_flags().items() if k != FLAG_TOTP_2FA}}
 
 
 
@@ -1816,10 +1829,12 @@ async def two_factor_settings_update(request: Request, body: TwoFactorSettingsPa
 
     Выключение не требует кода: это аварийный тумблер.
 
-    ВНИМАНИЕ: при выключении действующие подключения не удаляются - при
-    следующем включении те же админы снова будут спрашивать код.
+    При ВКЛЮЧЕНИИ сессии остальных админов отзываются: иначе сессия, добытая
+    до включения второго фактора, продолжает жить (до суток) и обходит новую
+    защиту. Сессия того, кто включает, сохраняется, иначе он выкинул бы себя.
+    Подключения пользователей при выключении не удаляются.
     """
-    from src.api_pkg.routers.auth import get_current_user
+    from src.api_pkg.routers.auth import _hash_token, _request_token, get_current_user
     from src.api_pkg.security_settings import set_two_factor_enabled
     from src.db import get_pool
 
@@ -1828,6 +1843,16 @@ async def two_factor_settings_update(request: Request, body: TwoFactorSettingsPa
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     user = await get_current_user(request) or {}
     await set_two_factor_enabled(pool, body.enabled, user.get("uid"))
+    if body.enabled:
+        token_hash = _hash_token(_request_token(request))
+        status = await pool.execute(
+            """DELETE FROM sessions
+                WHERE user_id IN (SELECT id FROM users WHERE role = 'admin')
+                  AND token_hash <> $1""",
+            token_hash,
+        )
+        revoked = int(status.split()[-1]) if status.startswith("DELETE") else 0
+        logger.info("two_factor_enabled_sessions_revoked", count=revoked)
     await audit_action(request, "admin.2fa.toggle", f"enabled={body.enabled}")
     logger.info("two_factor_toggled", enabled=body.enabled, by=user.get("u"))
     return await _two_factor_payload()

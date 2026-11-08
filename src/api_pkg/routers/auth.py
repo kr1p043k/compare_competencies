@@ -20,6 +20,13 @@ from src import config
 from src.api_pkg.client_ip import client_ip
 from src.api_pkg.request_logger import audit_action
 from src.api_pkg.security_settings import get_two_factor_enabled
+from src.api_pkg.twofa_token_store import (
+    consume_challenge,
+    consume_enroll,
+    issue_challenge,
+    issue_enroll,
+    peek_enroll,
+)
 from src.db import get_pool
 
 try:
@@ -76,14 +83,6 @@ _RECOVERY_CODE_COUNT = 10
 _ENROLL_TTL = 600  # 10 минут на первичную настройку при включённом 2FA
 _TOTP_STEP_SECONDS = 30  # RFC 6238: длина шага TOTP (окно кода)
 
-#: challenge_id -> (user_id, expires_at). Живёт в памяти процесса: пережить
-#: рестарт не обязан — пользователь просто начнёт вход заново.
-_totp_challenges: dict[str, tuple[str, float]] = {}
-
-#: enroll_id -> (user_id, expires_at). Пропуск на настройку для админа,
-#: который ещё не подключил TOTP при включённом мастер-переключателе.
-_totp_enrolls: dict[str, tuple[str, float]] = {}
-
 
 def _totp_fernet() -> Fernet:
     key = base64.urlsafe_b64encode(
@@ -104,7 +103,13 @@ def _decrypt_totp_secret(stored: str) -> str | None:
 
 
 def _hash_recovery_code(code: str) -> str:
-    return hashlib.sha256(f"{code}:{SECRET_KEY}".encode()).hexdigest()
+    """Хеш резервного кода для сравнения с сохранённым.
+
+    Коды это hex-строки; на мобильной клавиатуре их часто вводят в верхнем
+    регистре, поэтому нормализуем регистр и обрезаем пробелы, иначе верный код
+    не совпадает с хешем и вход не проходит.
+    """
+    return hashlib.sha256(f"{code.strip().lower()}:{SECRET_KEY}".encode()).hexdigest()
 
 
 def _generate_totp_secret() -> str:
@@ -137,62 +142,6 @@ def _verify_totp(secret: str, code: str) -> bool:
         # valid_window=1: допускаем соседнее окно на рассинхрон часов.
         return bool(pyotp.TOTP(secret).verify(code, valid_window=1))
     return hmac.compare_digest(_totp_now(secret), code)
-
-
-def _issue_challenge(user_id: str) -> str:
-    now = time.time()
-    # подчистить истёкшие, чтобы словарь не рос
-    for token, (_uid, exp) in list(_totp_challenges.items()):
-        if exp <= now:
-            _totp_challenges.pop(token, None)
-    token = secrets.token_urlsafe(32)
-    _totp_challenges[token] = (user_id, now + _TOTP_CHALLENGE_TTL)
-    return token
-
-
-def _consume_challenge(token: str) -> str | None:
-    """Вернуть user_id по challenge_id и удалить его (одноразовый)."""
-    entry = _totp_challenges.pop(token or "", None)
-    if not entry:
-        return None
-    user_id, exp = entry
-    if exp <= time.time():
-        return None
-    return user_id
-
-
-def _issue_enroll(user_id: str) -> str:
-    """Одноразовый пропуск на настройку 2FA для админа без сессии.
-
-    Нужен, когда мастер-переключатель включён, а админ ещё не подключил TOTP:
-    пароля уже недостаточно для сессии, но /auth/2fa/setup требует авторизацию -
-    без такого пропуска получился бы замкнутый круг.
-    """
-    now = time.time()
-    for token, (_uid, exp) in list(_totp_enrolls.items()):
-        if exp <= now:
-            _totp_enrolls.pop(token, None)
-    token = secrets.token_urlsafe(32)
-    _totp_enrolls[token] = (user_id, now + _ENROLL_TTL)
-    return token
-
-
-def _enroll_user_id(token: str | None) -> str | None:
-    """Проверить пропуск, не сжигая его (setup -> confirm используют один)."""
-    entry = _totp_enrolls.get(token or "")
-    if not entry:
-        return None
-    user_id, exp = entry
-    if exp <= time.time():
-        _totp_enrolls.pop(token or "", None)
-        return None
-    return user_id
-
-
-def _consume_enroll(token: str | None) -> str | None:
-    user_id = _enroll_user_id(token)
-    _totp_enrolls.pop(token or "", None)
-    return user_id
 
 
 def _two_factor_disabled() -> HTTPException:
@@ -332,8 +281,21 @@ class LoginRequest(BaseModel):
 
 
 def _make_token(user_id: str, email: str, role: str) -> str:
+    """Собрать сессионный токен.
+
+    В полезную нагрузку кладём случайный одноразовый nonce: без него токен
+    полностью детерминирован (uid+почта+роль+секунда), и два входа одного
+    админа в одну секунду дают ОДИН токен - то есть одну сессию. Тогда выход
+    на одном устройстве выкидывает и второе, а отзыв сессий не работает.
+    """
     payload = json.dumps(
-        {"uid": user_id, "u": email, "r": role, "t": int(time.time()) + TOKEN_TTL},
+        {
+            "uid": user_id,
+            "u": email,
+            "r": role,
+            "t": int(time.time()) + TOKEN_TTL,
+            "n": secrets.token_urlsafe(9),
+        },
         separators=(",", ":"),
     )
     sig = hmac.new(SECRET_KEY.encode(), payload.encode(), hashlib.sha256).digest()
@@ -564,7 +526,7 @@ async def login(body: LoginRequest, request: Request, response: Response):
         if row["role"] == "admin" and await get_two_factor_enabled(pool):
             state = await _totp_state(pool, row["id"])
             if state and state.get("confirmed"):
-                challenge = _issue_challenge(str(row["id"]))
+                challenge = await issue_challenge(pool, str(row["id"]))
                 logger.info("login_totp_required", email=row["email"], ip=ip)
                 return {
                     "status": "totp_required",
@@ -574,7 +536,7 @@ async def login(body: LoginRequest, request: Request, response: Response):
             logger.info("login_totp_setup_required", email=row["email"], ip=ip)
             return {
                 "status": "totp_setup_required",
-                "enroll_id": _issue_enroll(str(row["id"])),
+                "enroll_id": await issue_enroll(pool, str(row["id"])),
                 "expires_in": _ENROLL_TTL,
             }
 
@@ -787,12 +749,14 @@ async def _resolve_2fa_actor(request: Request, enroll_id: str | None) -> dict[st
             raise HTTPException(status_code=403, detail="Forbidden")
         return user
 
-    user_id = _enroll_user_id(enroll_id)
-    if user_id is None:
+    if not enroll_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    user_id = await peek_enroll(pool, enroll_id)
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
     row = await pool.fetchrow(
         "SELECT id, email, role FROM users WHERE id = $1 AND is_active = true",
         user_id,
@@ -920,7 +884,9 @@ async def totp_confirm(body: TotpCodeRequest, request: Request, response: Respon
         raise HTTPException(status_code=400, detail="Неверный код")
 
     # Настройку завершает именно этот вызов: пропуск одноразовый.
-    enroll_used = _consume_enroll(body.enroll_id) is not None
+    enroll_used = body.enroll_id is not None and (
+        await consume_enroll(pool, body.enroll_id)
+    ) is not None
 
     # 8 байт (64 бита), а не 4: 32-битные коды вскрываются перебором при
     # утечке БД вместе с SECRET_KEY (хэш выводится из него).
@@ -958,7 +924,7 @@ async def totp_verify(body: TotpChallengeRequest, request: Request, response: Re
     if not await get_two_factor_enabled(pool):
         raise _two_factor_disabled()
 
-    user_id = _consume_challenge(body.challenge_id)
+    user_id = await consume_challenge(pool, body.challenge_id)
     if user_id is None:
         raise HTTPException(status_code=401, detail="Challenge истёк или неверен")
 
@@ -1006,7 +972,7 @@ async def totp_recovery(body: TotpChallengeRequest, request: Request, response: 
     if not await get_two_factor_enabled(pool):
         raise _two_factor_disabled()
 
-    user_id = _consume_challenge(body.challenge_id)
+    user_id = await consume_challenge(pool, body.challenge_id)
     if user_id is None:
         raise HTTPException(status_code=401, detail="Challenge истёк или неверен")
 
