@@ -367,7 +367,9 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       <span>файл: {vacancyInfo.file_modified}</span>
       <span>{vacancyInfo.count} вакансий</span>
       {pipelineMaxPages && <span>стр: {pipelineMaxPages}</span>}
-      {pipelinePeriod && <span>период: {pipelinePeriod} дн.</span>}
+          {(showPipelineSetup || pipelineStep?.status === "running") && pipelinePeriod && (
+            <span>период: {pipelinePeriod} дн.</span>
+          )}
       </div>
       )}
 
@@ -721,7 +723,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   onClick={() => setViewMode("grid")}
                   aria-label="Отображение: сетка"
                   aria-pressed={viewMode === "grid"}
-                  className={`size-9 ${viewMode === "grid" ? "bg-card text-white hover:bg-muted dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
+                  className="size-9"
                 >
                   <LayoutGrid className="size-4" />
                 </Button>
@@ -731,7 +733,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   onClick={() => setViewMode("list")}
                   aria-label="Отображение: список"
                   aria-pressed={viewMode === "list"}
-                  className={`size-9 ${viewMode === "list" ? "bg-card text-white hover:bg-muted dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
+                  className="size-9"
                 >
                   <List className="size-4" />
                 </Button>
