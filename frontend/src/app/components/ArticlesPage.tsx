@@ -52,6 +52,13 @@ type ProfessionTrends = {
   skills: { skill: string; frequency: number }[];
 };
 
+/** Элемент /trends/professions: профессия + её последний снапшот. */
+type ProfessionOption = {
+  name: string;
+  snapshot?: string;
+  date?: string;
+};
+
 type Analytics = {
   salary_by_level: Record<string, { count: number; average: number }>;
   top_regions: { name: string; count: number }[];
@@ -196,7 +203,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
   const [coverageLoading, setCoverageLoading] = useState(true);
   const [coverageError, setCoverageError] = useState<string | null>(null);
 
-  const [professions, setProfessions] = useState<{ name: string }[]>([]);
+  const [professions, setProfessions] = useState<ProfessionOption[]>([]);
   const [profError, setProfError] = useState<string | null>(null);
   const [selectedProf, setSelectedProf] = useState("");
   const [profTrends, setProfTrends] = useState<ProfessionTrends | null>(null);
@@ -207,6 +214,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
   const [showAllRising, setShowAllRising] = useState(false);
   const [showAllFalling, setShowAllFalling] = useState(false);
   const [showAllTopSkills, setShowAllTopSkills] = useState(false);
+  const [showAllCoverage, setShowAllCoverage] = useState(false);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
 
@@ -261,7 +269,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
 
   const loadProfessions = () => {
     setProfError(null);
-    api<{ professions: { name: string }[] }>("/trends/professions")
+    api<{ professions: ProfessionOption[] }>("/trends/professions")
       .then((d) => setProfessions(d.professions || []))
       .catch((e) => setProfError(e.message));
   };
@@ -625,7 +633,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
         empty={coverageRows.length === 0}
       >
         <div className="space-y-2.5">
-          {coverageRows.map((c) => (
+          {(showAllCoverage ? coverageRows : coverageRows.slice(0, 5)).map((c) => (
             <BarRow
               key={c.id}
               label={c.label}
@@ -636,6 +644,12 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
               valueText={`${c.percent.toFixed(1)}%`}
             />
           ))}
+          <ShowMore
+            total={coverageRows.length}
+            shown={5}
+            expanded={showAllCoverage}
+            onToggle={() => setShowAllCoverage((v) => !v)}
+          />
         </div>
       </BlockCard>
 
@@ -670,19 +684,28 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
           ) : professions.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
               <BookOpen className="size-8 mb-3 text-gray-300" />
-              <p className="text-sm text-gray-500 dark:text-slate-400">Снапшоты профессий ещё не сформированы.</p>
-              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Данные появятся после первого запуска пайплайна анализа.</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Снапшоты появятся после прогона анализа.</p>
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1 max-w-md">
+                Снимки частот навыков по профессиям строятся из базы вакансий (freq_profession_*.json). Запустите сбор
+                вручную командой:
+              </p>
+              <code className="mt-3 rounded-md bg-gray-100 dark:bg-slate-800 px-3 py-1.5 text-xs font-mono text-gray-700 dark:text-slate-300 break-all">
+                python -m src.cli.snapshot_professions
+              </code>
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">
+                либо дождитесь планового фонового сбора: сервер обновляет снапшоты не чаще раза в сутки.
+              </p>
             </div>
           ) : (
             <div className="space-y-5">
               <Select value={selectedProf} onValueChange={loadProfTrends}>
-                <SelectTrigger className="w-full md:w-80">
+                <SelectTrigger className="w-full md:w-80" aria-label="Профессия для трендов">
                   <SelectValue placeholder="Выберите профессию" />
                 </SelectTrigger>
                 <SelectContent>
                   {professions.map((p) => (
                     <SelectItem key={p.name} value={p.name}>
-                      {p.name}
+                      {p.date ? `${p.name} · ${p.date}` : p.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -695,6 +718,13 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
                 </div>
               ) : profTrends && profTrends.skills.length > 0 ? (
                 <div className="space-y-2.5">
+                  {(profTrends.source === "live" || profTrends.snapshot_date) && (
+                    <p className="text-xs text-gray-400 dark:text-slate-500">
+                      {profTrends.source === "live"
+                        ? "Живой расчёт по базе: снапшота для этой профессии ещё нет."
+                        : `Снапшот от ${profTrends.snapshot_date}`}
+                    </p>
+                  )}
                   {profTrends.skills.slice(0, 15).map((s, i) => {
                     const max = profTrends!.skills[0]?.frequency || 1;
                     return (
