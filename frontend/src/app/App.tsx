@@ -385,11 +385,6 @@ export default function App() {
     }
   }
 
-  function handlePrintReport() {
-    // Вариант B (frontend): печать текущей вкладки «Данные» в PDF через браузер.
-    window.print();
-  }
-
   // Список профессий таксономии - для выбора цели сравнения на вкладке «Данные».
   useEffect(() => {
     if (activeTab !== "data" || !isAuth || professionsList.length > 0) return;
@@ -537,7 +532,6 @@ export default function App() {
                 resultLoadedAt={resultLoadedAt}
                 lastResult={lastResult}
                 onDownloadPdf={handleDownloadPdf}
-                onPrintReport={handlePrintReport}
               />
             </ErrorBoundary>
           </TabsContent>

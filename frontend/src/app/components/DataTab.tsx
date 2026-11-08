@@ -61,7 +61,6 @@ export function DataTab({
   resultLoadedAt,
   lastResult,
   onDownloadPdf,
-  onPrintReport,
 }: {
   profile: string;
   profilesList: string[];
@@ -80,7 +79,6 @@ export function DataTab({
   resultLoadedAt: Record<string, string>;
   lastResult: any;
   onDownloadPdf: () => void;
-  onPrintReport: () => void;
 }) {
   const lastLoadedIso = resultLoadedAt[profile];
   const lastLoadedDate = lastLoadedIso ? new Date(lastLoadedIso) : null;
@@ -99,7 +97,7 @@ export function DataTab({
   }
 
   return (
-    <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+    <Card className="gap-5 border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
       <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-10 h-10 bg-emerald-600 rounded-lg">
@@ -115,7 +113,7 @@ export function DataTab({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-6 space-y-6">
+      <CardContent className="p-5 space-y-5">
         <div className="space-y-2">
           <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">
             Профиль компетенций
@@ -137,11 +135,16 @@ export function DataTab({
           </Select>
         </div>
 
+        {/* Каждой кнопке - свой тон дизайн-системы (info / success / нейтральный /
+            warning), чтобы действия различались с первого взгляда. Оттенки
+            берутся на шаг темнее базовых токенов (--info #0284c7 = sky-600,
+            --success #059669 = emerald-600, --warning #d97706 = amber-600):
+            шаг 700 даёт контраст белого текста >= 4.5:1 (WCAG AA). */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Button
             onClick={onLoadRecommendations}
             disabled={loading}
-            className="h-11"
+            className="h-11 bg-sky-700 text-white hover:bg-sky-800"
           >
             <Search className="mr-2 size-4" />
             Показать сохранённые
@@ -150,7 +153,7 @@ export function DataTab({
             onClick={onLoadRecommendations}
             disabled={loading || isStudent}
             title={isStudent ? "Только для преподавателя" : undefined}
-            className="h-11"
+            className="h-11 bg-emerald-700 text-white hover:bg-emerald-800"
           >
             <Sparkles className="mr-2 size-4" />
             Рекомендации
@@ -169,7 +172,7 @@ export function DataTab({
             onClick={onRunGapAnalysis}
             disabled={loading || gapRunning || isStudent}
             title={isStudent ? "Только для преподавателя" : undefined}
-            className="h-11"
+            className="h-11 bg-amber-700 text-white hover:bg-amber-800"
           >
             <Zap className="mr-2 size-4" />
             Запустить gap-анализ
@@ -211,11 +214,11 @@ export function DataTab({
           <Badge
             tone={lastLoadedIso ? "info" : "neutral"}
             className="text-xs"
-            title={`Последняя подгрузка результатов для профиля ${profileLabel(profile)}`}
+            title={`Дата последнего сохранённого прогона (gap-анализа) для профиля ${profileLabel(profile)}`}
           >
             <Clock className="size-3 shrink-0" aria-hidden="true" />
             <span>
-              Последняя подгрузка результатов [{profileLabel(profile)}]: {lastLoadedText}
+              Сохранённый прогон [{profileLabel(profile)}]: {lastLoadedText}
             </span>
           </Badge>
           {staleDays !== null && (
@@ -229,7 +232,9 @@ export function DataTab({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 no-print">
+        {/* Выгрузка одна - серверный PDF; браузерная печать убрана,
+            кнопка прижата к правому краю карточки. */}
+        <div className="flex flex-wrap items-center justify-end gap-2 no-print">
           <Button
             onClick={onDownloadPdf}
             disabled={isStudent}
@@ -240,16 +245,6 @@ export function DataTab({
           >
             <Download className="size-3.5" />
             Отчёт (PDF)
-          </Button>
-          <Button
-            onClick={onPrintReport}
-            variant="outline"
-            size="sm"
-            title="Печать текущей вкладки в PDF через браузер"
-            className="gap-1.5"
-          >
-            <Download className="size-3.5" />
-            Печать / PDF (браузер)
           </Button>
         </div>
 
