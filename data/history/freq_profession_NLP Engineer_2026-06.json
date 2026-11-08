@@ -1,0 +1,23 @@
+{
+  "_meta": {
+    "type": "targeted_query",
+    "snapshot_date": "2026-06-28",
+    "vacancy_count": null,
+    "source": "profession_query",
+    "profession": "NLP Engineer"
+  },
+  "airflow": 1,
+  "docker": 1,
+  "git": 1,
+  "gpt": 1,
+  "langchain": 1,
+  "langgraph": 1,
+  "llm": 1,
+  "mlflow": 1,
+  "mlops": 1,
+  "nlp": 1,
+  "prompt engineering": 1,
+  "rag": 1,
+  "react": 1,
+  "transformers": 1
+}

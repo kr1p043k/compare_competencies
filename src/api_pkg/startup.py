@@ -413,6 +413,14 @@ async def _warmup_background(basic_vacancies, raw_file):
                 dc_skills = map_codes(dc_codes)
                 base_skills = map_codes(base_codes)
                 skills = merge_skills_hierarchically(top_skills, dc_skills, base_skills)
+            elif pname == "dc":
+                # middle >= junior: dc включает все навыки base (иерархия
+                # эталонных профилей, as already done for top_dc). Иначе при
+                # потере dc_competency.json API молча отдаёт skills=[] и
+                # колонка «Data Scientist (middle)» тепловой карты пуста.
+                dc_skills = map_codes(codes)
+                base_skills = map_codes(await load_student_codes("base"))
+                skills = merge_skills_hierarchically(dc_skills, base_skills, [])
             else:
                 skills = map_codes(codes)
 

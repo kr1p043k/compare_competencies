@@ -120,6 +120,17 @@ def build_profiles(all_codes: dict, competency_mapping: dict) -> dict[str, Stude
             base_skills = map_codes_to_skills(base_codes)
             student_skills = merge_skills_hierarchically(top_skills, dc_skills, base_skills)
             student_codes = top_codes
+        elif profile_name == "dc":
+            # middle >= junior: dc включает все навыки base (зеркально top_dc,
+            # as in src/api_pkg/startup.py). Иначе при потере dc_competency.json
+            # профиль dc пуст и колонка «Data Scientist (middle)» тепловой карты
+            # пуста, хотя Base (junior) заполнен (регресс удаления a504afbe).
+            dc_codes = all_codes.get("dc", [])
+            base_codes = all_codes.get("base", [])
+            dc_skills = map_codes_to_skills(dc_codes)
+            base_skills = map_codes_to_skills(base_codes)
+            student_skills = merge_skills_hierarchically(dc_skills, base_skills, [])
+            student_codes = dc_codes
         else:
             student_codes = all_codes[profile_name]
             student_skills = map_codes_to_skills(student_codes)
