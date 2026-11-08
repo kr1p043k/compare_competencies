@@ -153,8 +153,9 @@ describe("TeacherDashboard", () => {
       ),
     ).toBeInTheDocument();
     // Происхождение знаменателя: explicit у одной дисциплины, у второй
-    // поля нет - она честно показана как n/a (TeacherDashboard.tsx:837).
-    expect(screen.getByText("источник рынка - explicit: 1, n/a: 1")).toBeInTheDocument();
+    // поля нет - она честно показана как n/a. В шаговом рефакторе (main)
+    // это перенесено в tooltip карточки сводки (title), а не видимый текст.
+    expect(screen.getByTitle("источник рынка - explicit: 1, n/a: 1")).toBeInTheDocument();
     // Знаменатель достоверен: предупреждения нет.
     expect(screen.queryByText(/недостоверно/)).not.toBeInTheDocument();
   });
