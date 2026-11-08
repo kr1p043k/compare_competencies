@@ -364,8 +364,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       {vacancyInfo.date_range && (
       <span>Записи с {fmtDateRU(vacancyInfo.date_range.from)}</span>
       )}
-      <span>файл: {vacancyInfo.file_modified}</span>
-      <span>{vacancyInfo.count} вакансий</span>
+      <span>всего вакансий собрано: {vacancyInfo.count}</span>
       {pipelineMaxPages && <span>стр: {pipelineMaxPages}</span>}
           {(showPipelineSetup || pipelineStep?.status === "running") && pipelinePeriod && (
             <span>период: {pipelinePeriod} дн.</span>
