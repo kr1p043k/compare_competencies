@@ -23,6 +23,7 @@ import {
 import { Search, X, Filter, Loader2, AlertCircle, ChevronLeft, ChevronRight, ChevronUp, LayoutGrid, List, Database, Rocket, Globe, MapPin, ChevronDown, Download } from "lucide-react";
 import { reportError } from "./../../lib/errors";
 import { download, request, saveBlob } from "../../lib/api";
+import { useIncrementalList } from "../../lib/useIncrementalList";
 import { EmptyState } from "./EmptyState";
 
 const HH_REGIONS = [
@@ -132,6 +133,10 @@ interface VacanciesListProps {
 // Строки списка не перерисовываются от ререндеров VacanciesList
 // (health-poll и статусы пайплайна дёргают App сверху): React.memo обёртка.
 const MemoVacancyCard = memo(VacancyCard);
+
+// Инкрементальный рендер списка: столько карточек рисуем сразу
+// и столько же добавляем при «Показать ещё» / прокрутке к sentinel.
+const PAGE_SIZE = 24;
 
 export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onStartPipeline, pipelineMaxPages, pipelinePeriod, canRunPipeline = true }: VacanciesListProps) {
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
@@ -343,6 +348,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       )),
     [vacancies, viewMode, openVacancy],
   );
+
+  // Рисуем не весь массив, а окно: сначала PAGE_SIZE карточек, дальше -
+  // порциями через «Показать ещё» или прокрутку к sentinel (IntersectionObserver).
+  // При новой выборке (фильтры/поиск/страница) окно само сбрасывается до PAGE_SIZE.
+  const { visible, hasMore, loadMore, sentinelRef } = useIncrementalList(vacancies, PAGE_SIZE);
+  const visibleRows = useMemo(() => vacancyRows.slice(0, visible), [vacancyRows, visible]);
 
   return (
     <div className="space-y-6">
@@ -1098,8 +1109,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-muted-foreground">
               Найдено <span className="font-semibold text-foreground dark:text-muted-foreground">{total}</span> вакансий
-              {vacancies.length < total && (
-                <span> (показано {vacancies.length})</span>
+              {visible < total && (
+                <span> (показано {visible})</span>
               )}
             </p>
             <Button
@@ -1141,8 +1152,30 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 : "flex flex-col gap-2"
             }
           >
-            {vacancyRows}
+            {visibleRows}
           </div>
+
+          {/* Инкрементальная догрузка: sentinel ловит прокрутку через
+              IntersectionObserver, кнопка - ручной путь (клавиатура/мышь). */}
+          {hasMore && (
+            <>
+              <div ref={sentinelRef} aria-hidden="true" className="h-px w-full" />
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  onClick={loadMore}
+                  aria-label="Показать ещё вакансии"
+                  className="gap-2"
+                >
+                  <ChevronDown className="size-4" />
+                  Показать ещё
+                  <span className="font-normal text-muted-foreground">
+                    ({visible} из {vacancies.length})
+                  </span>
+                </Button>
+              </div>
+            </>
+          )}
 
           <VacancyDetailPanel vacancy={drawerVacancy} onClose={() => setDrawerVacancy(null)} />
 

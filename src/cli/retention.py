@@ -1,8 +1,15 @@
 """Retention: чистка устаревших данных БД.
 
-Зачем: вакансии, request_logs и pipeline_runs копились бесконечно (57k
-вакансий, сотни тысяч логов запросов). Без чистки таблицы растут, а запросы
-со временем падают по времени и по диску.
+Зачем: вакансии, request_logs, pipeline_runs и sessions копились бесконечно
+(57k вакансий, сотни тысяч логов запросов). Без чистки таблицы растут, а
+запросы со временем падают по времени и по диску.
+
+Правила чистки:
+  * sessions - только закрытые сессии (logged_out_at IS NOT NULL) старше
+    --session-days; активные сессии (logged_out_at IS NULL) не трогаются.
+  * pipeline_runs - только завершённые прогоны (status in completed/failed/
+    cancelled) старше --run-days; незавершённые (status='started') не
+    удаляются ни при каких сроках.
 
 По умолчанию - dry-run: показывает, что БУДЕТ удалено. Удаление только с
 --apply и всегда в одной транзакции, чтобы не оставить полуудалённое состояние.
@@ -11,6 +18,7 @@
     python -m src.cli retention                 # dry-run, показать план
     python -m src.cli retention --apply         # удалить
     python -m src.cli retention --vacancies-days 730 --logs-days 90 --apply
+    python -m src.cli retention --session-days 30 --run-days 365 --apply
 """
 
 from __future__ import annotations
@@ -24,9 +32,10 @@ from src import config
 logger = structlog.get_logger(__name__)
 
 #: По умолчанию: вакансии живут 2 года (нужны для прогнозов и трендов),
-#: логи запросов - 90 дней, прогоны пайплайна - год.
+#: логи запросов - 90 дней, закрытые сессии - месяц, прогоны пайплайна - год.
 DEFAULT_VACANCY_DAYS = 730
 DEFAULT_LOG_DAYS = 90
+DEFAULT_SESSION_DAYS = 30
 DEFAULT_RUN_DAYS = 365
 #: Аудит действий живёт дольше логов: он нужен для разбора инцидентов и
 #: проверок, но и он не должен расти вечно (в записях есть email и IP).
@@ -75,11 +84,13 @@ def main(args: argparse.Namespace) -> int:
     vac_days = int(args.vacancies_days)
     log_days = int(args.logs_days)
     run_days = int(args.run_days)
+    session_days = int(getattr(args, "session_days", DEFAULT_SESSION_DAYS))
     # Отрицательные значения: --logs-days=-1 удаляло бы всё, включая свежее.
     audit_days = int(getattr(args, "audit_days", DEFAULT_AUDIT_DAYS))
     # Защита от опечатки: отрицательные значения удалили бы почти всю таблицу.
     for name, value in (("vacancies-days", vac_days), ("logs-days", log_days),
-                        ("run-days", run_days), ("audit-days", audit_days)):
+                        ("run-days", run_days), ("session-days", session_days),
+                        ("audit-days", audit_days)):
         if value < 1:
             print(f"Ошибка: --{name} должно быть >= 1 (получено {value})")
             return 2
@@ -103,11 +114,27 @@ def main(args: argparse.Namespace) -> int:
             f"WHERE created_at < NOW() - INTERVAL '{log_days} days'",
         ),
         (
+            "sessions",
+            # Только закрытые сессии (logged_out_at задан) старше срока. Активные
+            # сессии (logged_out_at IS NULL) не трогаем - иначе разлогиним живых
+            # пользователей, чьи токены ещё валидны.
+            "SELECT COUNT(*) FROM sessions "
+            f"WHERE logged_out_at IS NOT NULL "
+            f"AND logged_out_at < NOW() - INTERVAL '{session_days} days'",
+            "DELETE FROM sessions "
+            f"WHERE logged_out_at IS NOT NULL "
+            f"AND logged_out_at < NOW() - INTERVAL '{session_days} days'",
+        ),
+        (
             "pipeline_runs",
+            # Только завершённые прогоны: status='started' - активный, его нельзя
+            # удалять, даже если он висит дольше срока (иначе сломаем идущий прогон).
             "SELECT COUNT(*) FROM pipeline_runs "
-            f"WHERE started_at < NOW() - INTERVAL '{run_days} days'",
+            f"WHERE status IN ('completed', 'failed', 'cancelled') "
+            f"AND started_at < NOW() - INTERVAL '{run_days} days'",
             "DELETE FROM pipeline_runs "
-            f"WHERE started_at < NOW() - INTERVAL '{run_days} days'",
+            f"WHERE status IN ('completed', 'failed', 'cancelled') "
+            f"AND started_at < NOW() - INTERVAL '{run_days} days'",
         ),
         (
             # Таблицы может не быть до миграции add_audit_logs: тогда COUNT упадёт,
@@ -156,7 +183,10 @@ def build_parser(sub) -> None:
     p = sub.add_parser("retention", help="Удалить устаревшие данные (по умолчанию dry-run)")
     p.add_argument("--vacancies-days", type=positive_days, default=DEFAULT_VACANCY_DAYS, metavar="N")
     p.add_argument("--logs-days", type=positive_days, default=DEFAULT_LOG_DAYS, metavar="N")
-    p.add_argument("--run-days", type=positive_days, default=DEFAULT_RUN_DAYS, metavar="N")
+    p.add_argument("--session-days", type=positive_days, default=DEFAULT_SESSION_DAYS, metavar="N",
+                   help="Удалять закрытые сессии (logged_out_at) старше N дней")
+    p.add_argument("--run-days", type=positive_days, default=DEFAULT_RUN_DAYS, metavar="N",
+                   help="Удалять завершённые прогоны (completed/failed/cancelled) старше N дней")
     p.add_argument("--audit-days", type=positive_days, default=DEFAULT_AUDIT_DAYS, metavar="N")
     p.add_argument("--apply", action="store_true", help="Реально удалить (без флага - dry-run)")
     p.set_defaults(func=lambda a: main(a))

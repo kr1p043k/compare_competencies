@@ -837,7 +837,9 @@ async def krm_coverage_history(request: Request, discipline: str | None = None, 
 async def krm_market_skills(request: Request, limit: int = 50):
     """Top market-demanded skills (from it_skills.json)."""
     from pathlib import Path
-    path = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json"
+    # Ровно четыре уровня до корня: routers -> api_pkg -> src -> репозиторий.
+    # С тремя путь вёл в src/data/..., файла там нет, и эндпоинт всегда отдавал [].
+    path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "reference" / "it_skills.json"
     if not path.exists():
         return []
     skills = await asyncio.to_thread(_load_json, path)
