@@ -64,7 +64,7 @@ def _full_dataset():
 class TestAllCategories:
     def test_all_ten_categories_present(self):
         import sys
-        sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent / "scripts"))
+        sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "scripts"))
         import benchmark_matching as bm
         results = _full_dataset()
         cm = bm.compute_category_metrics(results)
@@ -77,7 +77,7 @@ class TestAllCategories:
     def test_easy_categories_high_fuzzy_recall(self):
         """Article claim: fuzzy handles easy/noise well."""
         import sys
-        sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent / "scripts"))
+        sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "scripts"))
         import benchmark_matching as bm
         results = _full_dataset()
         cm = bm.compute_category_metrics(results)
@@ -89,7 +89,7 @@ class TestAllCategories:
     def test_hard_categories_need_semantic(self):
         """Article claim: long/cross-lang require semantic."""
         import sys
-        sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent / "scripts"))
+        sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "scripts"))
         import benchmark_matching as bm
         results = _full_dataset()
         cm = bm.compute_category_metrics(results)
@@ -100,7 +100,7 @@ class TestAllCategories:
     def test_negatives_measure_precision(self):
         """Article claim: negatives expose fuzzy FPs."""
         import sys
-        sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent / "scripts"))
+        sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "scripts"))
         import benchmark_matching as bm
         results = _full_dataset()
         cm = bm.compute_category_metrics(results)

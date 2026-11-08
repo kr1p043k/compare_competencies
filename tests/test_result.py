@@ -1,3 +1,8 @@
+import pytest
+
+# hypothesis — тестовая зависимость (requirements-dev.txt); без неё модуль
+# пропускается, а не ломает сбор всего прогона.
+pytest.importorskip("hypothesis")
 from hypothesis import given
 from hypothesis import strategies as st
 

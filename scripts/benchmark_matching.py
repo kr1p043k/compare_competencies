@@ -24,11 +24,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # Пароль в репозитории не храним: DSN берётся из --dsn нет, здесь из
 # окружения или .env через общий резолвер.
 try:  # запуск как файла
-    from _dsn import resolve_dsn  # noqa: E402
+    from _dsn import DSNNotConfigured, resolve_dsn  # noqa: E402
 except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
-    from scripts._dsn import resolve_dsn  # noqa: E402
+    from scripts._dsn import DSNNotConfigured, resolve_dsn  # noqa: E402
 
-os.environ["DATABASE_URL"] = resolve_dsn()
+# Резолвим DSN при импорте, чтобы src-модули, читающие DATABASE_URL при
+# старте, получили готовое значение. Но сам импорт (в тестах чистых
+# функций) не должен требовать БД: без DSN просто оставляем окружение
+# как есть — при реальном обращении к базе будет явная ошибка.
+try:
+    os.environ["DATABASE_URL"] = resolve_dsn()
+except DSNNotConfigured:
+    pass
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "benchmark"
