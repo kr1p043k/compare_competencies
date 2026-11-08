@@ -7,6 +7,17 @@ import { MetricsGlossary } from "./MetricsGlossary";
 import { TaxonomyBrowser } from "./TaxonomyBrowser";
 import CompetencyTrendsPanel from "./CompetencyTrendsPanel";
 import { LlmChatPanel } from "./LlmChatPanel";
+import {
+  competencyFilterCounts,
+  disciplineFilterCounts,
+  filterCompetencies,
+  filterDisciplines,
+  filterRecommendations,
+  sortDisciplines,
+  type CompFilter,
+  type DiscFilter,
+  type DiscSort,
+} from "./teacherFilters";
 import { reportError } from "./../../lib/errors";
 import { ApiError, request } from "../../lib/api";
 
@@ -191,6 +202,15 @@ export function TeacherDashboard() {
   const [suggestion, setSuggestion] = useState("");
   const [recType, setRecType] = useState("modify");
   const [search, setSearch] = useState("");
+  // Фильтры и сортировка списка дисциплин (поиск — выше).
+  const [discFilter, setDiscFilter] = useState<DiscFilter>("all");
+  const [discSort, setDiscSort] = useState<DiscSort>("plan");
+  // Фильтры шага «Компетенции и ЗУН».
+  const [compSearch, setCompSearch] = useState("");
+  const [compFilter, setCompFilter] = useState<CompFilter>("all");
+  // Фильтры шага «Рекомендации».
+  const [recComp, setRecComp] = useState("");
+  const [recTypeF, setRecTypeF] = useState("");
   const [loading, setLoading] = useState(true);
   const [directions, setDirections] = useState<Direction[]>([]);
   const [selectedDir, setSelectedDir] = useState("09.03.02");
@@ -198,7 +218,12 @@ export function TeacherDashboard() {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analysisMode, setAnalysisMode] = useState<"coverage" | "trends" | "taxonomy">("coverage");
   const [teacherSection, setTeacherSection] = useState("t-overview");
-  const [collapsedComps, setCollapsedComps] = useState<Record<string, boolean>>({});
+  // Пошаговый вид дисциплины: покрытие → компетенции и ЗУН → рекомендации.
+  const [disciplineView, setDisciplineView] = useState<"coverage" | "zun" | "recs">("coverage");
+  // Аккордеон компетенций: развёрнута максимум одна, по умолчанию все свёрнуты.
+  const [openComp, setOpenComp] = useState<string | null>(null);
+  // Сворачиваемая группа «Данные и РПД» в сайдбаре (раскрывается сама, пока что-то обрабатывается).
+  const [dataOpsOpen, setDataOpsOpen] = useState(false);
   const scrollTeacherTo = (id: string) => {
     setTeacherSection(id);
     try {
@@ -542,6 +567,14 @@ export function TeacherDashboard() {
       const data = await api<DisciplineDetail>(`/teacher/krm/disciplines/${encodeURIComponent(name)}?dir_code=${selectedDir}&year=${intakeYear}`);
       setSelected(data);
       setShowAnalysis(false);
+      // Каждая дисциплина начинается с первого шага, свёрнутого аккордеона
+      // и чистых фильтров.
+      setDisciplineView("coverage");
+      setOpenComp(null);
+      setCompSearch("");
+      setCompFilter("all");
+      setRecComp("");
+      setRecTypeF("");
     } catch (err) { reportError("app/components/TeacherDashboard.tsx:500", err); }
   }
 
@@ -617,12 +650,28 @@ export function TeacherDashboard() {
   }
 
   const analysisByName = new Map((analysis?.disciplines ?? []).map((a) => [a.name, a]));
-  const filtered = disciplines.filter((d) => {
-    if (!d.name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (yearFilter === 0) return true;
-    const years = analysisByName.get(d.name)?.years;
-    return Array.isArray(years) && years.includes(yearFilter);
+  // Поиск + чипы-фильтры задают состав списка, сортировка — только порядок.
+  const filteredSet = filterDisciplines(disciplines, analysisByName, {
+    search,
+    year: yearFilter,
+    filter: discFilter,
   });
+  const filtered = sortDisciplines(filteredSet, analysisByName, discSort);
+  const discCounts = disciplineFilterCounts(disciplines, analysisByName, { search, year: yearFilter });
+  const discFiltersActive =
+    !!search.trim() || yearFilter !== 0 || discFilter !== "all" || discSort !== "plan";
+  // Шаг «Компетенции и ЗУН»: поиск + наличие ЗУН.
+  const compsVisible = selected
+    ? filterCompetencies(selected.competencies, { search: compSearch, filter: compFilter })
+    : [];
+  const compCounts = selected
+    ? competencyFilterCounts(filterCompetencies(selected.competencies, { search: compSearch }))
+    : null;
+  const compFiltersActive = !!compSearch.trim() || compFilter !== "all";
+  // Шаг «Рекомендации»: по компетенции и по типу.
+  const discRecCount = selected ? recs.filter((r) => r.discipline_id === selected.name).length : 0;
+  const recsVisible = selected ? filterRecommendations(recs, selected.name, { comp: recComp, type: recTypeF }) : [];
+  const recFiltersActive = !!recComp || !!recTypeF;
 
   // Класс-эквивалент прежнего inline-стиля `card` (фактические значения совпадают:
   // radius 8px = rounded-lg, padding 14px = p-3.5, margin 10px = mb-2.5).
@@ -664,6 +713,28 @@ export function TeacherDashboard() {
             ))}
           </select>
 
+          {/* Группа «Данные и РПД»: свёрнута по умолчанию, раскрывается сама,
+              пока идёт анализ или загрузка РПД (чтобы прогресс был виден). */}
+          {(() => {
+            const processing =
+              runLoading ||
+              rpdUploading ||
+              rpdCollecting ||
+              rpdStatus?.status === "running" ||
+              rpdStatus?.status === "started";
+            const opsOpen = dataOpsOpen || processing;
+            return (
+              <div className="mt-2.5 rounded-md border border-gray-200 dark:border-slate-700">
+                <button
+                  onClick={() => setDataOpsOpen(!dataOpsOpen)}
+                  aria-expanded={opsOpen}
+                  className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-700 dark:text-slate-300 bg-gray-50 dark:bg-slate-800 border-0 rounded-md cursor-pointer"
+                >
+                  <span>Данные и РПД</span>
+                  <span aria-hidden="true">{opsOpen ? "▾" : "▸"}</span>
+                </button>
+                {opsOpen && (
+                  <div className="px-3 pb-3 pt-1">
           {/* Run analysis button */}
           <button
             ref={runAnalysisBtnRef}
@@ -796,27 +867,44 @@ export function TeacherDashboard() {
               </div>
             )}
           </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Analysis summary button */}
-          {analysis && (
+          {analysis && (() => {
+            const cov = analysis.average_market_top_coverage ?? analysis.average_coverage;
+            // Источник рынка и достоверность: процент без них читается как
+            // точный, хотя derived/relevance - это вычисленный знаменатель.
+            const src: Record<string, number> = {};
+            let unreliable = 0;
+            for (const d of analysis.disciplines ?? []) {
+              const s = d.market_top_source || "n/a";
+              src[s] = (src[s] || 0) + 1;
+              if (d.market_top_reliable === false) unreliable += 1;
+            }
+            const srcTitle =
+              "источник рынка - " +
+              Object.entries(src)
+                .sort((a, b) => b[1] - a[1])
+                .map(([k, n]) => `${k}: ${n}`)
+                .join(", ") +
+              (unreliable > 0 ? ` · недостоверно (мало навыков): ${unreliable}` : "");
+            return (
             <div
               onClick={() => setShowAnalysis(!showAnalysis)}
+              title={srcTitle}
           className={`mt-2.5 px-3 py-2 rounded-md cursor-pointer text-xs bg-gray-50 dark:bg-slate-800 border ${covBorderClass(analysis.average_coverage)}`}
             >
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center gap-2">
                 {/* Показываем охват спроса, а не coverage_ratio: второй почти
                     всегда ~100%, потому что навыки РПД уже нормализованы к
                     словарю рынка, и читается как «всё покрыто». */}
                 <span className="text-violet-600 font-semibold">Охват рынка</span>
-                <span
-                  className={`font-bold ${covTextClass(
-                    analysis.average_market_top_coverage ?? analysis.average_coverage,
-                  )}`}
-                >
-                  {((analysis.average_market_top_coverage ?? analysis.average_coverage) * 100).toFixed(1)}%
-                  <span className="block text-xs mt-0.5 font-normal text-gray-500 dark:text-slate-400">
-                    релевантных навыков рынка
-                  </span>
+                <span className={`font-bold ${covTextClass(cov)}`}>
+                  {(cov * 100).toFixed(1)}%
                 </span>
               </div>
               {/* Качественная пара к охвату: без него один процент выглядит
@@ -830,34 +918,14 @@ export function TeacherDashboard() {
                 </div>
               )}
               <div className="text-gray-500 dark:text-slate-400 mt-0.5">
-                {analysis.total_disciplines} {plural(analysis.total_disciplines, "дисциплина", "дисциплины", "дисциплин")}, {analysis.total_gaps_across_all} {plural(analysis.total_gaps_across_all, "пробел", "пробела", "пробелов")}
+                {analysis.total_disciplines} {plural(analysis.total_disciplines, "дисциплина", "дисциплины", "дисциплин")} · {analysis.total_gaps_across_all} {plural(analysis.total_gaps_across_all, "пробел", "пробела", "пробелов")}
               </div>
-              {/* Источник рынка и достоверность: процент без них читается как
-                  точный, хотя derived/relevance - это вычисленный знаменатель. */}
-              {(() => {
-                const src: Record<string, number> = {};
-                let unreliable = 0;
-                for (const d of analysis.disciplines ?? []) {
-                  const s = d.market_top_source || "n/a";
-                  src[s] = (src[s] || 0) + 1;
-                  if (d.market_top_reliable === false) unreliable += 1;
-                }
-                const parts = Object.entries(src)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([k, n]) => `${k}: ${n}`);
-                if (!parts.length) return null;
-                return (
-                  <div className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">
-                    источник рынка - {parts.join(", ")}
-                    {unreliable > 0 && ` · недостоверно (мало навыков): ${unreliable}`}
-                  </div>
-                );
-              })()}
-              <div className="mt-2">
+              <div className="mt-1.5">
                 <MetricsGlossary compact />
               </div>
             </div>
-          )}
+            );
+          })()}
 
           <input
             placeholder="Поиск дисциплин..."
@@ -967,6 +1035,72 @@ export function TeacherDashboard() {
               </button>
             ))}
           </div>
+          {/* Чипы-фильтры по данным анализа: считать их из заголовков неудобно,
+              поэтому на каждом чипе — сколько дисциплин он даст. */}
+          <div className="flex gap-1.5 px-2 pb-1.5 flex-wrap items-center">
+            {([
+              ["all", "Все", "Без дополнительного фильтра"],
+              ["gaps", "С пробелами", "Есть навыки рынка, которых дисциплина не закрывает"],
+              ["low", "Слабый охват", "Охват ниже 50% — в списке подсвечен янтарным/красным"],
+              ["nodata", "Нет данных", "Нет данных анализа: вне учёта или без извлечённых навыков"],
+            ] as const).map(([id, label, hint]) => (
+              <button
+                key={id}
+                onClick={() => setDiscFilter(id)}
+                aria-pressed={discFilter === id}
+                title={hint}
+                className={
+                  "text-xs px-2 py-0.5 rounded border cursor-pointer " +
+                  (discFilter === id
+                    ? "border-violet-400 bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
+                    : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300")
+                }
+              >
+                {label} ({discCounts[id]})
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2 px-2 pb-2 items-center">
+            <select
+              value={discSort}
+              onChange={(e) => setDiscSort(e.target.value as DiscSort)}
+              aria-label="Сортировка дисциплин"
+              title="Порядок дисциплин в списке"
+              className="text-xs px-1.5 py-1 rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-700 dark:text-slate-300 outline-none"
+            >
+              <option value="plan">По учебному плану</option>
+              <option value="name">По алфавиту</option>
+              <option value="coverage">Худший охват сверху</option>
+              <option value="gaps">Больше пробелов сверху</option>
+            </select>
+            <span className="text-[11px] text-gray-400 dark:text-slate-500 ml-auto whitespace-nowrap">
+              {filtered.length} из {disciplines.length}
+            </span>
+            {discFiltersActive && (
+              <button
+                onClick={() => { setSearch(""); setYearFilter(0); setDiscFilter("all"); setDiscSort("plan"); }}
+                className="text-[11px] text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline whitespace-nowrap"
+              >
+                Сбросить
+              </button>
+            )}
+          </div>
+          {filtered.length === 0 && (
+            <div className="text-center text-xs text-gray-400 dark:text-slate-500 py-8 px-4">
+              Ничего не найдено
+              {discFiltersActive && (
+                <>
+                  {" — "}
+                  <button
+                    onClick={() => { setSearch(""); setYearFilter(0); setDiscFilter("all"); setDiscSort("plan"); }}
+                    className="text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline"
+                  >
+                    сбросить фильтры
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           {filtered.map((d) => {
             const discAnalysis = analysis?.disciplines.find((a) => a.name === d.name);
             return (
@@ -1056,9 +1190,29 @@ export function TeacherDashboard() {
           </div>
         )}
 
-        {/* Переключатель режимов виден всегда, но «Покрытие» выключено,
-            пока не загружен анализ: контент режима всё равно закрыт
-            проверкой `analysis` ниже. */}
+        {/* Переключатель вида. Для выбранной дисциплины — пошаговые разделы
+            (покрытие → компетенции и ЗУН → рекомендации), для направления —
+            режимы анализа. Пока открыты тренды/таксономия, показываем режимы:
+            иначе нельзя было бы вернуться к покрытию дисциплины. */}
+        {selected && analysisMode === "coverage" ? (
+          <div className="flex gap-1.5 mb-4 flex-wrap" role="tablist" aria-label="Разделы дисциплины">
+            {([
+              ["coverage", "Покрытие"],
+              ["zun", `Компетенции и ЗУН (${selected.competencies.length})`],
+              ["recs", `Рекомендации (${recs.filter((r) => r.discipline_id === selected.name).length})`],
+            ] as const).map(([id, label]) => (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={disciplineView === id}
+                onClick={() => setDisciplineView(id)}
+        className={`px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs ${disciplineView === id ? "bg-violet-600 text-white font-bold" : "bg-gray-50 dark:bg-slate-800 text-violet-600 font-normal"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : (
         <div className="flex gap-2 mb-4">
           <button
             onClick={() => setAnalysisMode("coverage")}
@@ -1081,8 +1235,9 @@ export function TeacherDashboard() {
               Таксономия
             </button>
         </div>
+        )}
 
-        {analysisMode === "coverage" && analysis && (<>
+        {analysisMode === "coverage" && analysis && (!selected || disciplineView === "coverage") && (<>
           {/* Суб-навигация: при выбранной дисциплине - по её разделам, иначе по сводке */}
           <div className="inline-flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-slate-900 p-1 mb-4 sticky top-0 z-10 flex-wrap">
             {(selected
@@ -1333,16 +1488,32 @@ export function TeacherDashboard() {
             </div>
           )}
 
-        {/* Discipline detail */}
+        {/* Discipline detail: пошаговый поток */}
         {selected && (
           <>
-            <h2 className="text-xl mb-5 text-gray-900 dark:text-slate-100">
-              {selected.name}
-            </h2>
+            {/* Хлебные крошки: направление → дисциплина */}
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <button
+                onClick={() => { setSelected(null); setShowAnalysis(true); setAnalysisMode("coverage"); }}
+                className="text-xs text-violet-600 hover:text-violet-800 border border-gray-200 dark:border-slate-700 rounded-md px-2.5 py-1 bg-gray-50 dark:bg-slate-800 cursor-pointer"
+                title="Вернуться к сводке направления"
+              >
+                ← Направление {selectedDir}
+              </button>
+              <span aria-hidden="true" className="text-gray-300 dark:text-slate-600">/</span>
+              <h2 className="text-xl m-0 text-gray-900 dark:text-slate-100">
+                {selected.name}
+              </h2>
+            </div>
 
-            {/* Analysis panel for this discipline */}
-            <AnalysisPanel disciplineName={selected.name} dirCode={selectedDir} />
+            {/* Шаг 1: покрытие (готовый анализ дисциплины) */}
+            {analysisMode === "coverage" && disciplineView === "coverage" && (
+              /* Analysis panel for this discipline */
+              <AnalysisPanel disciplineName={selected.name} dirCode={selectedDir} />
+            )}
 
+            {/* Шаг 2: компетенции и их ЗУН */}
+            {analysisMode === "coverage" && disciplineView === "zun" && (<>
             <div className="mb-3">
               {!compForm ? (
                 <button onClick={() => { setCompForm(true); setCompErr({}); }}
@@ -1381,7 +1552,61 @@ export function TeacherDashboard() {
               )}
             </div>
 
-            {selected.competencies.map((comp) => {
+            {/* Фильтры по компетенциям: длинные списки (10+) без поиска
+                приходится прокручивать вслепую. */}
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <input
+                placeholder="Поиск: код или название…"
+                aria-label="Поиск компетенции"
+                value={compSearch}
+                onChange={(e) => setCompSearch(e.target.value)}
+                className="h-8 w-56 px-2.5 rounded-md text-xs box-border bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-slate-100 outline-none"
+              />
+              {([
+                ["all", "Все", "Без дополнительного фильтра"],
+                ["no-ksa", "Без ЗУН", "Компетенции без единого пункта знаний/умений/навыков — часто требуют дозаполнения"],
+                ["with-ksa", "С ЗУН", "Компетенции хотя бы с одним пунктом знаний/умений/навыков"],
+              ] as const).map(([id, label, hint]) => (
+                <button
+                  key={id}
+                  onClick={() => setCompFilter(id)}
+                  aria-pressed={compFilter === id}
+                  title={hint}
+                  className={
+                    "text-xs px-2 py-0.5 rounded border cursor-pointer " +
+                    (compFilter === id
+                      ? "border-violet-400 bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
+                      : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300")
+                  }
+                >
+                  {label}{compCounts ? ` (${compCounts[id]})` : ""}
+                </button>
+              ))}
+              <span className="text-[11px] text-gray-400 dark:text-slate-500 ml-auto whitespace-nowrap">
+                {compsVisible.length} из {selected.competencies.length}
+              </span>
+              {compFiltersActive && (
+                <button
+                  onClick={() => { setCompSearch(""); setCompFilter("all"); }}
+                  className="text-[11px] text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline whitespace-nowrap"
+                >
+                  Сбросить
+                </button>
+              )}
+            </div>
+            {compsVisible.length === 0 && (
+              <div className="text-center text-xs text-gray-400 dark:text-slate-500 py-6 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                По фильтру ничего не найдено —{" "}
+                <button
+                  onClick={() => { setCompSearch(""); setCompFilter("all"); }}
+                  className="text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline"
+                >
+                  сбросить
+                </button>
+              </div>
+            )}
+
+            {compsVisible.map((comp) => {
               const ksa = comp.ksa;
               const hasGroups = !!ksa && (
                 (ksa.knowledge?.length || 0) + (ksa.abilities?.length || 0) + (ksa.skills?.length || 0)
@@ -1394,34 +1619,48 @@ export function TeacherDashboard() {
                 { title: "Умения", items: ksa!.abilities },
                 { title: "Навыки", items: ksa!.skills },
               ] : [];
+              // Аккордеон: развёрнута максимум одна компетенция, по умолчанию
+              // все свёрнуты — список из 10+ развёрнутых карточек и перегружал экран.
+              const compOpen = openComp === comp.id;
               return (
               <div
                 key={comp.code}
                 className="mb-2 border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden"
               >
-                <div className="px-4 py-2.5 bg-gray-50 dark:bg-slate-900 flex items-center gap-2">
-                  <span className="font-semibold text-sm text-violet-600">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={compOpen}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenComp(compOpen ? null : comp.id); } }}
+                  onClick={() => setOpenComp(compOpen ? null : comp.id)}
+                  className="px-4 py-2.5 bg-gray-50 dark:bg-slate-900 flex items-center gap-2 cursor-pointer"
+                >
+                  <span aria-hidden="true" className="text-gray-400 text-xs shrink-0">{compOpen ? "▾" : "▸"}</span>
+                  <span className="font-semibold text-sm text-violet-600 shrink-0">
                     {comp.code}
                   </span>
+                  {comp.name && (
+                    <span className="text-xs text-gray-500 dark:text-slate-400 truncate" title={comp.name}>
+                      {comp.name}
+                    </span>
+                  )}
                   <button
-                    onClick={() => { setZunForm({ compId: comp.id, ksaType: "skills", text: "" }); setZunMsg(""); }}
-                    className="ml-auto text-xs text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setZunForm({ compId: comp.id, ksaType: "skills", text: "" });
+                      setZunMsg("");
+                      setOpenComp(comp.id);
+                    }}
+                    className="ml-auto text-xs text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer shrink-0"
                     title="Добавить пункт (знание / умение / навык) в эту компетенцию"
                   >
                     + ЗУН
                   </button>
-                  <span className="text-xs text-gray-400 dark:text-slate-500">
-                    {total} {plural(total, "навык", "навыка", "навыков")}
+                  <span className="text-xs text-gray-400 dark:text-slate-500 shrink-0">
+                    {total} {plural(total, "пункт", "пункта", "пунктов")}
                   </span>
-                  <button
-                    onClick={() => setCollapsedComps((p) => ({ ...p, [comp.id]: !(p[comp.id] ?? total === 0) }))}
-                    className="text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 border-0 bg-transparent cursor-pointer text-xs px-1"
-                    title={(collapsedComps[comp.id] ?? total === 0) ? "Развернуть" : "Свернуть"}
-                  >
-                    {(collapsedComps[comp.id] ?? total === 0) ? "▸" : "▾"}
-                  </button>
                 </div>
-                {!(collapsedComps[comp.id] ?? total === 0) && (
+                {compOpen && (
                 <div className="px-4 py-2">
                 {zunForm && zunForm.compId === comp.id && (
                   <div className="mb-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30 p-2">
@@ -1508,8 +1747,11 @@ export function TeacherDashboard() {
               </div>
               );
             })}
+            </>)}
 
-            <div className="mt-6">
+            {/* Шаг 3: рекомендации по дисциплине */}
+            {analysisMode === "coverage" && disciplineView === "recs" && (
+            <div className="mt-1">
               <div className="flex items-center gap-3 mb-3">
                 <div className="flex items-center justify-center w-8 h-8 bg-violet-600 rounded-lg">
                   <span className="text-white text-sm font-bold">!</span>
@@ -1584,32 +1826,89 @@ export function TeacherDashboard() {
                   )}
                 </div>
               )}
-              {recs.filter((r) => r.discipline_id === selected?.name).length === 0 ? (
+              {discRecCount > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <select
+                    value={recComp}
+                    onChange={(e) => setRecComp(e.target.value)}
+                    aria-label="Фильтр по компетенции"
+                    title="Показать рекомендации только по одной компетенции"
+                    className="h-8 px-2 rounded-md text-xs bg-white dark:bg-slate-950 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-slate-100"
+                  >
+                    <option value="">Все компетенции</option>
+                    {selected.competencies.map((c) => (
+                      <option key={c.code} value={c.code}>{c.code}{c.name ? ` — ${c.name}` : ""}</option>
+                    ))}
+                  </select>
+                  {([
+                    ["", "Все"],
+                    ["modify", "Изменить"],
+                    ["add", "Добавить"],
+                    ["remove", "Удалить"],
+                  ] as const).map(([id, label]) => (
+                    <button
+                      key={id || "all"}
+                      onClick={() => setRecTypeF(id)}
+                      aria-pressed={recTypeF === id}
+                      title={id ? `Только рекомендации типа «${label.toLowerCase()}»` : "Все типы рекомендаций"}
+                      className={
+                        "text-xs px-2 py-0.5 rounded border cursor-pointer " +
+                        (recTypeF === id
+                          ? "border-violet-400 bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
+                          : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300")
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <span className="text-[11px] text-gray-400 dark:text-slate-500 ml-auto whitespace-nowrap">
+                    {recsVisible.length} из {discRecCount}
+                  </span>
+                  {recFiltersActive && (
+                    <button
+                      onClick={() => { setRecComp(""); setRecTypeF(""); }}
+                      className="text-[11px] text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline whitespace-nowrap"
+                    >
+                      Сбросить
+                    </button>
+                  )}
+                </div>
+              )}
+              {discRecCount === 0 ? (
                 <div className="text-xs text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-900 rounded-lg p-4 text-center">
                   Для этой дисциплины рекомендаций пока нет
                 </div>
+              ) : recsVisible.length === 0 ? (
+                <div className="text-xs text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-900 rounded-lg p-4 text-center">
+                  По фильтру ничего не найдено —{" "}
+                  <button
+                    onClick={() => { setRecComp(""); setRecTypeF(""); }}
+                    className="text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline"
+                  >
+                    сбросить
+                  </button>
+                </div>
               ) : (
-                recs
-                  .filter((r) => r.discipline_id === selected?.name)
-                  .map((r, i) => (
-                    <div
-                      key={r.id ?? i}
-                      className="mb-2 rounded-lg border border-violet-200 bg-violet-50/40 p-3 text-sm dark:border-violet-900 dark:bg-violet-950/20"
-                    >
-                      <div className="text-gray-400 dark:text-slate-500 mb-1 text-xs">
-                        [{r.suggestion_type}] {r.competency_id}
-                      </div>
-                      <div className="text-gray-900 dark:text-slate-100">{r.suggestion}</div>
-                      <button
-                        onClick={() => { if (window.confirm("Удалить рекомендацию безвозвратно?")) deleteRec(r.id); }}
-                        className="mt-2 text-xs text-red-500 border border-red-500 rounded px-2 py-0.5 hover:bg-red-50 transition-colors bg-transparent cursor-pointer"
-                      >
-                        Удалить
-                      </button>
+                recsVisible.map((r, i) => (
+                  <div
+                    key={r.id ?? i}
+                    className="mb-2 rounded-lg border border-violet-200 bg-violet-50/40 p-3 text-sm dark:border-violet-900 dark:bg-violet-950/20"
+                  >
+                    <div className="text-gray-400 dark:text-slate-500 mb-1 text-xs">
+                      [{r.suggestion_type}] {r.competency_id || "—"}
                     </div>
-                  ))
+                    <div className="text-gray-900 dark:text-slate-100">{r.suggestion}</div>
+                    <button
+                      onClick={() => { if (window.confirm("Удалить рекомендацию безвозвратно?")) deleteRec(r.id); }}
+                      className="mt-2 text-xs text-red-500 border border-red-500 rounded px-2 py-0.5 hover:bg-red-50 transition-colors bg-transparent cursor-pointer"
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                ))
               )}
             </div>
+            )}
           </>
         )}
       </div>
