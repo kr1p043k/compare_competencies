@@ -103,7 +103,13 @@ def _decrypt_totp_secret(stored: str) -> str | None:
 
 
 def _hash_recovery_code(code: str) -> str:
-    return hashlib.sha256(f"{code}:{SECRET_KEY}".encode()).hexdigest()
+    """Хеш резервного кода для сравнения с сохранённым.
+
+    Коды это hex-строки; на мобильной клавиатуре их часто вводят в верхнем
+    регистре, поэтому нормализуем регистр и обрезаем пробелы, иначе верный код
+    не совпадает с хешем и вход не проходит.
+    """
+    return hashlib.sha256(f"{code.strip().lower()}:{SECRET_KEY}".encode()).hexdigest()
 
 
 def _generate_totp_secret() -> str:

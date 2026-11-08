@@ -117,3 +117,8 @@ def test_disabled_error_shape() -> None:
     assert isinstance(exc, HTTPException)
     assert exc.status_code == 403
     assert "отключена" in exc.detail
+
+def test_recovery_code_hash_ignores_case_and_whitespace() -> None:
+    """Код из письма часто вводят заглавными: регистр не должен ломать вход."""
+    assert auth_mod._hash_recovery_code("A1B2C3D4") == auth_mod._hash_recovery_code("a1b2c3d4")
+    assert auth_mod._hash_recovery_code("  a1b2c3d4  ") == auth_mod._hash_recovery_code("a1b2c3d4")
