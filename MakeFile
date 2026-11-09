@@ -1,4 +1,5 @@
 .PHONY: help install install-dev lint format test train clusters rebuild run-api clean
+.PHONY: train-ranker retrain-ranker ml-gate ml-drift ml-calibration ml-manifests
 .PHONY: docker-build docker-up docker-down docker-logs docker-shell docker-clean
 
 # ============================================
@@ -15,6 +16,9 @@ help:
 	@echo "  make format       - автоформатирование"
 	@echo "  make test         - запустить тесты"
 	@echo "  make train        - обучить LTR-модель"
+	@echo "  make train-ranker - обучить ranker на human-gold"
+	@echo "  make retrain-ranker - переобучить + гейт frozen_eval (см. MODEL-CARD)"
+	@echo "  make ml-gate / ml-manifests / ml-drift / ml-calibration - ML-мониторинг"
 	@echo "  make clusters     - обучить кластеры"
 	@echo "  make rebuild      - полная пересборка"
 	@echo "  make run-api      - запустить API сервер"
@@ -47,6 +51,27 @@ test:
 
 train:
 	python main.py --train-model
+
+# Периодический переобучающий цикл ранкера: обучение -> (--ensemble) -> манифесты ->
+# гейт frozen_eval --check. Требует живую БД и SECRET_KEY. Полный план - MODEL-CARD.
+train-ranker:
+	python scripts/train_ltr_ranker.py --gold labeling/gold_v1.csv
+
+retrain-ranker:
+	python scripts/retrain_ranker.py --ensemble
+
+# ML-мониторинг (см. docs/MODEL-CARD.md).
+ml-gate:
+	python scripts/eval_frozen.py --check
+
+ml-manifests:
+	python scripts/check_model_manifests.py
+
+ml-drift:
+	python scripts/check_feature_drift.py
+
+ml-calibration:
+	python scripts/check_calibration.py
 
 clusters:
 	python -m src.cli teacher-analysis --discipline all

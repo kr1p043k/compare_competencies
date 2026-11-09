@@ -19,6 +19,8 @@
   frozen-сплите; калибратор НЕ отдаётся в прод);
 - `check_feature_drift.py` - дрейф признаков против baseline (KS/PSI/сдвиг среднего),
   `--write-baseline` сохраняет эталон;
+- `retrain_ranker.py` - цикл переобучения ранкера (обучение -> манифесты -> гейт),
+  `--dry-run` показывает план; см. `docs/MODEL-CARD.md`;
 - `ml_eval_common.py` - общий сборщик frozen-фреймов для eval_frozen/калибровки/дрейфа;
 - `train_ltr_ranker.py`, `_dsn.py` - общие модули для скриптов и экспериментов.
 
