@@ -87,8 +87,8 @@ async def glossary(request: Request) -> Any:
             dependencies=[Depends(require_any_role(*_ROLES))])
 @limiter.limit("60/minute")
 async def program_summary(pid: str, request: Request) -> Any:
-    pid = _pid_or_400(pid)
     """Краткая сводка по программе для виджета."""
+    pid = _pid_or_400(pid)
     return await _fetch(request, f"/programs/{pid}/summary")
 
 
@@ -96,8 +96,8 @@ async def program_summary(pid: str, request: Request) -> Any:
             dependencies=[Depends(require_any_role(*_ROLES))])
 @limiter.limit("60/minute")
 async def course_trends(pid: str, request: Request) -> Any:
-    pid = _pid_or_400(pid)
     """Тренды и статьи по курсам программы."""
+    pid = _pid_or_400(pid)
     return await _fetch(request, f"/programs/{pid}/course-trends")
 
 
@@ -105,8 +105,8 @@ async def course_trends(pid: str, request: Request) -> Any:
             dependencies=[Depends(require_any_role(*_ROLES))])
 @limiter.limit("60/minute")
 async def course_coverage(pid: str, request: Request) -> Any:
-    pid = _pid_or_400(pid)
     """Покрытие компетенций по курсам программы."""
+    pid = _pid_or_400(pid)
     return await _fetch(request, f"/programs/{pid}/course-coverage")
 
 
@@ -114,16 +114,16 @@ async def course_coverage(pid: str, request: Request) -> Any:
             dependencies=[Depends(require_any_role(*_ROLES))])
 @limiter.limit("60/minute")
 async def recommendations(pid: str, request: Request) -> Any:
-    pid = _pid_or_400(pid)
     """Предрассчитанные рекомендации по программе."""
+    pid = _pid_or_400(pid)
     return await _fetch(request, f"/programs/{pid}/recommendations")
 
 
 @router.get("/academic/programs/{pid}", dependencies=[Depends(require_any_role(*_ROLES))])
 @limiter.limit("60/minute")
 async def program_bundle(pid: str, request: Request) -> Any:
-    pid = _pid_or_400(pid)
     """Всё по программе одним ответом (summary + тренды + покрытие + рекомендации)."""
+    pid = _pid_or_400(pid)
     return await _fetch(request, f"/programs/{pid}")
 
 
@@ -137,7 +137,6 @@ async def program_articles(
     offset: int = 0,
     query: str | None = None,
 ) -> dict[str, Any]:
-    pid = _pid_or_400(pid)
     """Статьи программы в каноническом виде.
 
     Сервис ЮФУ не публикует схемы ответов, поэтому сырой JSON проходит через
@@ -147,6 +146,7 @@ async def program_articles(
 
     `query` фильтрует по заголовку, аннотации и авторам (регистр не важен).
     """
+    pid = _pid_or_400(pid)
     raw = await _fetch(request, f"/programs/{pid}/course-trends")
     # Нормализация может пройтись по большому JSON апстрима: уводим её
     # из event loop, чтобы тяжёлый ответ ЮФУ не морозил остальные ручки.
