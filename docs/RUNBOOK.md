@@ -230,7 +230,7 @@ python -m src.cli retention --apply
 `retention` удаляет устаревшие `vacancies` (2 года), `request_logs` (90 дней),
 `pipeline_runs` (1 год); значения дней ограничены диапазоном 1..36500.
 
-Не запускать `logs.sh`: он ссылается на отсутствующий `docker-compose.prod.yml`.
+Не запускать `deploy/logs.sh`: он ссылается на отсутствующий `docker-compose.prod.yml`.
 Смотреть логи так:
 
 ```bash
