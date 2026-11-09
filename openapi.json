@@ -12376,6 +12376,32 @@
         ]
       }
     },
+    "/api/version": {
+      "get": {
+        "description": "Версия публичного API (контракта). Политика - docs/API-CHANGELOG.md.",
+        "operationId": "api_version_api_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Api Version Api Version Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Version",
+        "tags": [
+          "monitoring"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "description": "Готовность сервиса и зависимостей.",

@@ -24,6 +24,12 @@ limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(tags=["monitoring"])
 
 
+@router.get("/api/version")
+async def api_version() -> dict[str, str]:
+    """Версия публичного API (контракта). Политика - docs/API-CHANGELOG.md."""
+    return {"api_version": config.API_VERSION}
+
+
 _registry: ModelRegistry | None = None
 
 
