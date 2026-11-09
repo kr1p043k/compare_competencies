@@ -3,10 +3,7 @@ import { AlertTriangle, KeyRound, ShieldCheck, ShieldOff } from "lucide-react";
 
 import { ApiError, request } from "../../lib/api";
 import { reportError } from "../../lib/errors";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Input } from "./ui/input";
+import { Badge, Button, Callout, Card, CardBody, CardHeader, inputClass } from "../../design";
 
 interface SwitchState {
   enabled: boolean;
@@ -39,8 +36,8 @@ function errorText(err: unknown): string {
  * не удаляются - при следующем включении код снова спрашивается.
  *
  * GET /api/admin/security/2fa/settings отдаёт read_ok: false, если хранилище
- * флага недоступно для чтения - тогда показанное состояние это значение по
- * умолчанию (выключено), а не прочитанное из БД.
+ * флага недоступно для чтения - тогда показанное состояние это значение
+ * по умолчанию (выключено), а не прочитанное из БД.
  */
 export function AdminSecurity() {
   const [state, setState] = useState<SwitchState | null>(null);
@@ -145,47 +142,43 @@ export function AdminSecurity() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">
-          <ShieldCheck className="size-4 inline mr-2" />
-          Двухфакторная аутентификация
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
+      <CardHeader
+        title={
+          <span className="flex items-center gap-2">
+            <ShieldCheck className="size-4" aria-hidden="true" />
+            Двухфакторная аутентификация
+          </span>
+        }
+      />
+      <CardBody className="space-y-5">
         <div className="flex flex-wrap items-center gap-3">
           {state?.enabled ? (
-            <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
-              Включена
-            </Badge>
+            <Badge tone="success">Включена</Badge>
           ) : (
-            <Badge variant="secondary">Выключена</Badge>
+            <Badge tone="neutral">Выключена</Badge>
           )}
           <Button
             onClick={toggle}
             disabled={busy || !state}
-            variant={state?.enabled ? "destructive" : "default"}
+            variant={state?.enabled ? "danger" : "primary"}
+            iconLeft={state?.enabled ? <ShieldOff className="size-4" /> : <ShieldCheck className="size-4" />}
           >
-            {state?.enabled ? (
-              <><ShieldOff className="size-4 mr-2" />Выключить</>
-            ) : (
-              <><ShieldCheck className="size-4 mr-2" />Включить</>
-            )}
+            {state?.enabled ? "Выключить" : "Включить"}
           </Button>
           <span className="text-xs text-muted-foreground">
             подключено админов: {state?.enrolled_admins ?? 0}
           </span>
         </div>
 
-{state?.read_ok === false && (
-          <div
+        {state?.read_ok === false && (
+          <Callout
             role="alert"
-            className="flex items-start gap-2 rounded-lg border border-amber-300/60 bg-amber-50/60 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+            tone="warning"
+            className="text-xs"
+            icon={<AlertTriangle className="size-4" aria-hidden="true" />}
           >
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            <span>
-              состояние не читается: действует значение по умолчанию (выключено)
-            </span>
-          </div>
+            состояние не читается: действует значение по умолчанию (выключено)
+          </Callout>
         )}
 
         <p className="text-xs text-muted-foreground">
@@ -196,17 +189,17 @@ export function AdminSecurity() {
 
         <div className="border-t border-border pt-4 space-y-3">
           <div className="flex items-center gap-2 text-sm">
-            <KeyRound className="size-4" />
+            <KeyRound className="size-4" aria-hidden="true" />
             Ваша учётная запись:{" "}
             {me?.enrolled ? (
-              <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">защищена</Badge>
+              <Badge tone="success">защищена</Badge>
             ) : (
-              <Badge variant="secondary">без кода</Badge>
+              <Badge tone="neutral">без кода</Badge>
             )}
           </div>
 
           {!me?.enrolled && !secret && (
-            <Button variant="outline" onClick={startSetup} disabled={busy || !state?.enabled}>
+            <Button variant="secondary" onClick={startSetup} disabled={busy || !state?.enabled}>
               Подключить приложение-аутентификатор
             </Button>
           )}
@@ -221,21 +214,24 @@ export function AdminSecurity() {
               <p className="text-xs text-muted-foreground">
                 Добавьте аккаунт в приложение вручную по ключу, затем введите код.
               </p>
-              <div className="break-all rounded bg-surface px-2 py-1 font-mono text-[11px]">
+              <div className="break-all rounded bg-surface px-2 py-1 font-mono text-[11px] text-foreground">
                 {secret.secret}
               </div>
               <a href={secret.otpauth_uri} className="text-[11px] text-primary underline-offset-2 hover:underline">
                 Открыть ссылку otpauth://
               </a>
               <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                  placeholder="123456"
-                  inputMode="numeric"
-                  maxLength={6}
-                  className="h-9 w-32"
-                />
+                <div className="w-32">
+                  <input
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder="123456"
+                    inputMode="numeric"
+                    maxLength={6}
+                    aria-label="Код из приложения-аутентификатора"
+                    className={inputClass + " text-center tabular-nums"}
+                  />
+                </div>
                 <Button size="sm" onClick={confirmSetup} disabled={busy || code.length < 6}>
                   Подтвердить
                 </Button>
@@ -247,28 +243,31 @@ export function AdminSecurity() {
           )}
 
           {recoveryCodes.length > 0 && (
-            <div className="rounded-lg border border-amber-300/60 bg-amber-50/60 p-3 text-xs dark:border-amber-900 dark:bg-amber-950/40">
-              <div className="font-medium">Резервные коды - сохраните, показываются один раз</div>
-              <div className="mt-2 grid grid-cols-2 gap-1 font-mono text-[11px]">
+            <div className="rounded-lg border border-warning/30 bg-warning-soft p-3 text-xs">
+              <div className="font-medium text-warning">Резервные коды - сохраните, показываются один раз</div>
+              <div className="mt-2 grid grid-cols-2 gap-1 font-mono text-[11px] text-foreground">
                 {recoveryCodes.map((c) => <span key={c}>{c}</span>)}
               </div>
             </div>
           )}
 
           {me?.enrolled && !disableMode && (
-            <Button variant="outline" size="sm" onClick={() => setDisableMode(true)} disabled={busy}>
+            <Button variant="secondary" size="sm" onClick={() => setDisableMode(true)} disabled={busy}>
               Отключить у себя
             </Button>
           )}
           {disableMode && (
             <div className="flex flex-wrap items-center gap-2">
-              <Input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="Код или резервный код"
-                className="h-9 w-48"
-              />
-              <Button size="sm" variant="destructive" onClick={disableMine} disabled={busy || !code}>
+              <div className="w-48">
+                <input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="Код или резервный код"
+                  aria-label="Код или резервный код"
+                  className={inputClass}
+                />
+              </div>
+              <Button size="sm" variant="danger" onClick={disableMine} disabled={busy || !code}>
                 Отключить
               </Button>
               <Button size="sm" variant="ghost" onClick={() => { setDisableMode(false); setCode(""); }} disabled={busy}>
@@ -279,7 +278,7 @@ export function AdminSecurity() {
         </div>
 
         {message && <span className="text-sm text-muted-foreground">{message}</span>}
-      </CardContent>
+      </CardBody>
     </Card>
   );
 }
