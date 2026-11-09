@@ -1,9 +1,8 @@
 import { useState, useMemo } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
-import { Badge } from "./ui/badge";
 import { HelpCircle, Search } from "lucide-react";
+import { Badge, Card, CardBody, EmptyState } from "../../design";
 
 interface FaqItem {
   q: string;
@@ -298,30 +297,35 @@ export function FaqPage() {
   }, [filtered]);
 
   return (
-    <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
-      <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-lg">
-            <HelpCircle className="size-5 text-white" />
-          </div>
-          <div>
-            <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">
-              Помощь и FAQ
-            </CardTitle>
-            <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
-              Ответы на частые вопросы о платформе
-            </CardDescription>
-          </div>
+    <Card className="overflow-hidden">
+      <div className="flex items-center gap-3 border-b border-border bg-muted px-6 py-5">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <HelpCircle className="size-5" aria-hidden="true" />
         </div>
-      </CardHeader>
-      <CardContent className="p-6 space-y-6">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
+            Помощь и FAQ
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Ответы на частые вопросы о платформе
+          </p>
+        </div>
+      </div>
+      <CardBody className="space-y-6 p-6">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400 dark:text-slate-500" />
+          <Search
+            aria-hidden="true"
+            className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <label htmlFor="faq-search" className="sr-only">
+            Поиск по вопросам
+          </label>
           <Input
+            id="faq-search"
             placeholder="Поиск по вопросам..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 h-11 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600"
+            className="h-11 pl-10"
           />
         </div>
 
@@ -329,18 +333,18 @@ export function FaqPage() {
           {Array.from(grouped.entries()).map(([category, items]) => (
             <div key={category}>
               <div className="flex items-center gap-2 mb-3">
-                <Badge variant="secondary" className="text-xs font-medium px-3 py-1">
+                <Badge tone="neutral" className="px-3 py-1 text-xs font-medium">
                   {category}
                 </Badge>
-                <span className="text-xs text-gray-400 dark:text-slate-500">{items.length}</span>
+                <span className="text-xs text-muted-foreground">{items.length}</span>
               </div>
-              <Accordion type="single" collapsible className="border border-gray-200 dark:border-slate-700 rounded-lg divide-y divide-gray-200 dark:divide-slate-700 overflow-hidden">
+              <Accordion type="single" collapsible className="divide-y divide-border overflow-hidden rounded-lg border border-border">
                 {items.map((item, idx) => (
                   <AccordionItem key={idx} value={`${category}-${idx}`} className="border-none">
-                    <AccordionTrigger className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100 hover:no-underline hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
+                    <AccordionTrigger className="px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted hover:no-underline">
                       {item.q}
                     </AccordionTrigger>
-                    <AccordionContent className="px-4 pb-4 text-sm text-gray-600 dark:text-slate-400 leading-relaxed">
+                    <AccordionContent className="px-4 text-sm leading-relaxed text-muted-foreground">
                       {item.a}
                     </AccordionContent>
                   </AccordionItem>
@@ -350,13 +354,13 @@ export function FaqPage() {
           ))}
 
           {filtered.length === 0 && (
-            <div className="text-center py-12 text-gray-400 dark:text-slate-500">
-              <HelpCircle className="size-12 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">Ничего не найдено по запросу «{search}»</p>
-            </div>
+            <EmptyState
+              icon={<HelpCircle className="size-12 opacity-40" aria-hidden="true" />}
+              title={<>Ничего не найдено по запросу «{search}»</>}
+            />
           )}
         </div>
-      </CardContent>
+      </CardBody>
     </Card>
   );
 }
