@@ -63,3 +63,53 @@ describe("useTabRoute", () => {
     expect(new Set(KNOWN_TABS).size).toBe(KNOWN_TABS.length);
   });
 });
+
+describe("useTabRoute while disabled (login screen)", () => {
+  it("does not default the hash on mount", () => {
+    const { result } = renderHook(() => useTabRoute("vacancies", false));
+    expect(window.location.hash).toBe("");
+    // Память может знать fallback, но адрес не подменяется.
+    expect(result.current[0]).toBe("vacancies");
+  });
+
+  it("does not normalize an unknown hash", () => {
+    window.location.hash = "#/nope";
+    renderHook(() => useTabRoute("vacancies", false));
+    expect(window.location.hash).toBe("#/nope");
+  });
+
+  it("navigate() keeps the address untouched", () => {
+    const { result } = renderHook(() => useTabRoute("vacancies", false));
+
+    act(() => result.current[1]("logs"));
+
+    expect(window.location.hash).toBe("");
+    expect(result.current[0]).toBe("logs");
+  });
+
+  it("re-enabling restores the defaulting behavior", async () => {
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) => useTabRoute("vacancies", enabled),
+      { initialProps: { enabled: false } },
+    );
+    expect(window.location.hash).toBe("");
+
+    rerender({ enabled: true });
+
+    await waitFor(() => expect(window.location.hash).toBe("#/vacancies"));
+    expect(result.current[0]).toBe("vacancies");
+  });
+
+  it("re-enabling keeps a valid deep link", async () => {
+    window.location.hash = "#/teacher";
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) => useTabRoute("vacancies", enabled),
+      { initialProps: { enabled: false } },
+    );
+
+    rerender({ enabled: true });
+
+    await waitFor(() => expect(result.current[0]).toBe("teacher"));
+    expect(window.location.hash).toBe("#/teacher");
+  });
+});
