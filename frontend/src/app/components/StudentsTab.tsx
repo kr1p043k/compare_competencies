@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { useTheme } from "../../lib/theme";
 import { GraduationCap } from "lucide-react";
 import { PageHeader } from "./PageHeader";
+import { Badge, Button, Card, tableHeadClass, tableRowClass } from "../../design";
+import { cn } from "./ui/utils";
 
 type StudentRow = {
   email: string;
@@ -41,8 +42,6 @@ function errText(e: any): string {
 }
 
 export function StudentsTab() {
-  const { theme } = useTheme();
-  const dk = theme === "dark";
   const [rows, setRows] = useState<StudentRow[]>([]);
   const [state, setState] = useState<"loading" | "error" | "empty" | "ready">("loading");
   const [err, setErr] = useState("");
@@ -85,12 +84,6 @@ export function StudentsTab() {
     }
   }
 
-  const card = `rounded-lg border p-4 ${
-    dk ? "border-slate-700 bg-slate-900" : "border-gray-200 bg-white"
-  }`;
-  const muted = dk ? "text-slate-400" : "text-gray-500";
-  const heading = dk ? "text-slate-100" : "text-gray-900";
-
   const owned = new Set((detail?.user_added || []).map((s) => s.toLowerCase()));
 
   return (
@@ -100,134 +93,156 @@ export function StudentsTab() {
         title="Студенты"
         description="Навыки студентов из загруженных профилей и сравнение с требованиями рынка."
         actions={
-          <button
-            onClick={loadList}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
+          <Button variant="secondary" size="sm" onClick={loadList}>
             Обновить
-          </button>
+          </Button>
         }
       />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div className={card}>
-        {state === "loading" && <p className={`text-sm ${muted}`}>Загрузка списка студентов…</p>}
-        {state === "error" && (
-          <div className="text-sm text-red-600 dark:text-red-300">
-            Ошибка: {err}
-            <button onClick={loadList} className="ml-2 underline cursor-pointer">
-              Повторить
-            </button>
-          </div>
-        )}
-        {state === "empty" && (
-          <p className={`text-sm ${muted}`}>
-            Студентов с ролью student пока нет. Учётная запись появится здесь после создания пользователя с
-            ролью student.
-          </p>
-        )}
-        {state === "ready" && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className={`border-b text-left ${dk ? "text-slate-400" : "text-gray-500"}`}>
-                  <th className="pb-2 font-medium">ФИО / email</th>
-                  <th className="pb-2 font-medium text-right">Навыков</th>
-                  <th className="pb-2 font-medium text-right">Компетенций</th>
-                  <th className="pb-2 font-medium">Уровень</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr
-                    key={r.email}
-                    onClick={() => selectStudent(r.email)}
-                    className={`border-b cursor-pointer ${
-                      dk
-                        ? "border-slate-800 hover:bg-slate-800"
-                        : "border-gray-100 hover:bg-gray-50"
-                    } ${selected === r.email ? (dk ? "bg-slate-800" : "bg-blue-50") : ""}`}
-                  >
-                    <td className="py-2">
-                      <div className={`font-medium ${heading}`}>{r.full_name || "-"}</div>
-                      <div className={`text-xs ${muted}`}>{r.email}</div>
-                    </td>
-                    <td className={`py-2 text-right ${heading}`}>{r.has_profile ? r.skills_count : "-"}</td>
-                    <td className={`py-2 text-right ${heading}`}>
-                      {r.has_profile ? r.competencies_count : "-"}
-                    </td>
-                    <td className={`py-2 text-xs ${muted}`}>{r.target_level || "-"}</td>
+        <Card className="p-4">
+          {state === "loading" && (
+            <p className="text-sm text-muted-foreground">Загрузка списка студентов…</p>
+          )}
+          {state === "error" && (
+            <div role="alert" className="text-sm text-destructive">
+              Ошибка: {err}
+              <button
+                onClick={loadList}
+                className="ml-2 cursor-pointer rounded-sm underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Повторить
+              </button>
+            </div>
+          )}
+          {state === "empty" && (
+            <p className="text-sm text-muted-foreground">
+              Студентов с ролью student пока нет. Учётная запись появится здесь после создания пользователя с
+              ролью student.
+            </p>
+          )}
+          {state === "ready" && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className={cn("border-b text-left", tableHeadClass)}>
+                    <th className="pb-2 pr-3">ФИО / email</th>
+                    <th className="pb-2 pr-3 text-right">Навыков</th>
+                    <th className="pb-2 pr-3 text-right">Компетенций</th>
+                    <th className="pb-2">Уровень</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      <div className={card}>
-        <h2 className={`text-lg font-semibold mb-3 ${heading}`}>Профиль студента</h2>
-        {detailState === "idle" && (
-          <p className={`text-sm ${muted}`}>Выберите студента из таблицы, чтобы увидеть его навыки и компетенции.</p>
-        )}
-        {detailState === "loading" && <p className={`text-sm ${muted}`}>Загрузка профиля…</p>}
-        {detailState === "error" && <p className="text-sm text-red-600 dark:text-red-300">Ошибка: {detailErr}</p>}
-        {detailState === "ready" && detail && (
-          <div className="space-y-4">
-            <div>
-              <div className={`font-medium ${heading}`}>{detail.full_name || detail.email}</div>
-              <div className={`text-xs ${muted}`}>
-                {detail.email} · уровень: {detail.target_level || "-"}
-                {detail.updated_at ? ` · обновлён: ${new Date(detail.updated_at).toLocaleString("ru-RU")}` : ""}
-              </div>
-            </div>
-            {detail.has_profile === false && (
-              <p className="text-sm rounded-md bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 px-3 py-2">
-                Студент ещё не заполнял профиль: навыков и компетенций нет.
-              </p>
-            )}
-            <div>
-              <div className={`text-sm font-semibold mb-2 ${heading}`}>
-                Навыки ({detail.skills.length})
-              </div>
-              {detail.skills.length === 0 ? (
-                <p className={`text-sm ${muted}`}>Навыков пока нет.</p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {detail.skills.map((s) => (
-                    <span
-                      key={s}
-                      title={owned.has(s.toLowerCase()) ? "добавлен студентом" : "из профиля"}
-                      className={`inline-block px-2 py-0.5 rounded text-xs ${
-                        owned.has(s.toLowerCase())
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800"
-                          : "bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-200"
-                      }`}
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr
+                      key={r.email}
+                      onClick={() => selectStudent(r.email)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          selectStudent(r.email);
+                        }
+                      }}
+                      tabIndex={0}
+                      aria-label={`Показать профиль: ${r.full_name || r.email}`}
+                      className={cn(
+                        tableRowClass,
+                        "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                        selected === r.email && "bg-primary-soft",
+                      )}
                     >
-                      {s}
-                      {owned.has(s.toLowerCase()) && " · своё"}
-                    </span>
+                      <td className="py-2 pr-3">
+                        <div className="font-medium text-foreground">{r.full_name || "-"}</div>
+                        <div className="text-xs text-muted-foreground">{r.email}</div>
+                      </td>
+                      <td className="py-2 pr-3 text-right text-foreground">
+                        {r.has_profile ? r.skills_count : "-"}
+                      </td>
+                      <td className="py-2 pr-3 text-right text-foreground">
+                        {r.has_profile ? r.competencies_count : "-"}
+                      </td>
+                      <td className="py-2 text-xs text-muted-foreground">{r.target_level || "-"}</td>
+                    </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-4">
+          <h2 className="text-lg font-semibold mb-3 text-foreground">Профиль студента</h2>
+          {detailState === "idle" && (
+            <p className="text-sm text-muted-foreground">
+              Выберите студента из таблицы, чтобы увидеть его навыки и компетенции.
+            </p>
+          )}
+          {detailState === "loading" && (
+            <p className="text-sm text-muted-foreground">Загрузка профиля…</p>
+          )}
+          {detailState === "error" && (
+            <p role="alert" className="text-sm text-destructive">
+              Ошибка: {detailErr}
+            </p>
+          )}
+          {detailState === "ready" && detail && (
+            <div className="space-y-4">
+              <div>
+                <div className="font-medium text-foreground">{detail.full_name || detail.email}</div>
+                <div className="text-xs text-muted-foreground">
+                  {detail.email} · уровень: {detail.target_level || "-"}
+                  {detail.updated_at
+                    ? ` · обновлён: ${new Date(detail.updated_at).toLocaleString("ru-RU")}`
+                    : ""}
                 </div>
-              )}
-            </div>
-            <div>
-              <div className={`text-sm font-semibold mb-2 ${heading}`}>
-                Компетенции ({detail.competencies.length})
               </div>
-              {detail.competencies.length === 0 ? (
-                <p className={`text-sm ${muted}`}>Компетенций пока нет.</p>
-              ) : (
-                <ul className={`text-sm list-disc pl-5 space-y-1 ${dk ? "text-slate-200" : "text-gray-700"}`}>
-                  {detail.competencies.map((c) => (
-                    <li key={c}>{c}</li>
-                  ))}
-                </ul>
+              {detail.has_profile === false && (
+                <p className="rounded-md bg-warning-soft px-3 py-2 text-sm text-warning">
+                  Студент ещё не заполнял профиль: навыков и компетенций нет.
+                </p>
               )}
+              <div>
+                <div className="mb-2 text-sm font-semibold text-foreground">
+                  Навыки ({detail.skills.length})
+                </div>
+                {detail.skills.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Навыков пока нет.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {detail.skills.map((s) => {
+                      const isOwn = owned.has(s.toLowerCase());
+                      return (
+                        <Badge
+                          key={s}
+                          tone={isOwn ? "success" : "neutral"}
+                          title={isOwn ? "добавлен студентом" : "из профиля"}
+                          className="rounded text-xs"
+                        >
+                          {s}
+                          {isOwn && " · своё"}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div>
+                <div className="mb-2 text-sm font-semibold text-foreground">
+                  Компетенции ({detail.competencies.length})
+                </div>
+                {detail.competencies.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Компетенций пока нет.</p>
+                ) : (
+                  <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">
+                    {detail.competencies.map((c) => (
+                      <li key={c}>{c}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </Card>
       </div>
-    </div>
     </div>
   );
 }
