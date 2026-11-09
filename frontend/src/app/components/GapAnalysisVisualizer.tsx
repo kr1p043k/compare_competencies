@@ -1,13 +1,15 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "./ui/card";
-import { Button } from "./ui/button";
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import {
   Select,
   SelectContent,
@@ -16,15 +18,31 @@ import {
   SelectValue,
 } from "./ui/select";
 import {
-  BarChart3,
   Activity,
-    Flame,
-  Network,
-  Download,
-  Maximize2,
-  Loader2,
   AlertCircle,
+  BarChart3,
+  Download,
+  Flame,
+  Loader2,
+  Maximize2,
+  Network,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { api } from "../api";
+import { reportError } from "../../lib/errors";
+import {
+  axisProps,
+  Button,
+  Card,
+  CardBody,
+  chartSeries,
+  EmptyState,
+  ErrorState,
+  gridProps,
+  Skeleton,
+  tooltipProps,
+} from "../../design";
+import { cn } from "./ui/utils";
 
 interface GapAnalysisVisualizerProps {
   profile: string;
@@ -37,41 +55,72 @@ const PROFILES = [
   { id: "top_dc", label: "Top (senior)" },
 ];
 
-type ImageType = "ml_importance" | "cluster_insights";
+/** Тип представления: ML-важность рисуется интерактивным графиком из
+ * -API `/results/recommendations/{profile}`; кластеры продолжают браться
+ *  картинкой, пока бэкенд не отдаёт их JSON-ом. */
+type ViewType = "ml_importance" | "cluster_insights";
 
-interface ImageData {
-  type: ImageType;
+interface ViewConfig {
+  type: ViewType;
   title: string;
   description: string;
-  icon: any;
-  solid: string;
+  icon: LucideIcon;
+  /** Фон квадратного значка: токен вместо жёсткого цвета. */
+  chipClass: string;
 }
 
-const IMAGE_CONFIGS: ImageData[] = [
+const VIEW_CONFIGS: ViewConfig[] = [
   {
     type: "ml_importance",
     title: "Важность признаков ML",
     description: "Приоритизация компетенций по модели",
     icon: Activity,
-    solid: "bg-violet-600",
+    chipClass: "bg-chart-5 text-primary-foreground",
   },
   {
     type: "cluster_insights",
     title: "Кластерные инсайты",
     description: "Группировка схожих навыков",
     icon: Network,
-    solid: "bg-emerald-600",
+    chipClass: "bg-chart-3 text-primary-foreground",
   },
 ];
 
+/** Одна запись рекомендаций из `/results/recommendations/{profile}`. */
+interface MlRecommendation {
+  skill?: string;
+  /** 0..1 от LTR-модели; в интерфейсе переводится в проценты. */
+  importance_score?: number;
+  priority?: string;
+  why_important?: string;
+}
+
+/** Данные столбца графика: навык и его важность в процентах. */
+interface MlBarItem {
+  skill: string;
+  importance: number;
+}
+
+function clipSkill(value: string): string {
+  return value.length > 24 ? `${value.slice(0, 23)}…` : value;
+}
+
 export function GapAnalysisVisualizer({ profile, onProfileChange }: GapAnalysisVisualizerProps) {
   const [viewProfile, setViewProfile] = useState(profile);
-  const [selectedImage, setSelectedImage] = useState<ImageType>("ml_importance");
+  const [selectedView, setSelectedView] = useState<ViewType>("ml_importance");
+
+  // Состояния картинки (кластерные инсайты) - как раньше.
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
 
-  const imageUrl = `/api/results/images/${viewProfile}/${selectedImage}`;
+  // Состояния ML-графика: данные берутся из API рекомендаций.
+  const [mlState, setMlState] = useState<"loading" | "ready" | "empty" | "error">("loading");
+  const [mlItems, setMlItems] = useState<MlBarItem[]>([]);
+  const [mlMessage, setMlMessage] = useState<string | null>(null);
+  const [mlReload, setMlReload] = useState(0);
+
+  const imageUrl = `/api/results/images/${viewProfile}/${selectedView}`;
   const coverageUrl = "/api/results/images/coverage-comparison";
   const heatmapUrl = "/api/results/images/skills-heatmap";
   const correlationUrl = "/api/results/images/skill-correlation";
@@ -100,175 +149,284 @@ export function GapAnalysisVisualizer({ profile, onProfileChange }: GapAnalysisV
     setViewProfile(profile);
   }, [profile]);
 
-  const handleImageChange = (type: ImageType) => {
-    setSelectedImage(type);
+  // Интерактивный график ML-важности: топ-10 рекомендаций профиля.
+  useEffect(() => {
+    let alive = true;
+    setMlState("loading");
+    api<{ recommendations?: MlRecommendation[]; message?: string }>(
+      `/results/recommendations/${viewProfile}`,
+    )
+      .then((payload) => {
+        if (!alive) return;
+        const recs = Array.isArray(payload?.recommendations) ? payload.recommendations : [];
+        const items = recs
+          .filter(
+            (r): r is { skill: string; importance_score: number } =>
+              typeof r?.skill === "string" && typeof r?.importance_score === "number",
+          )
+          .map((r) => ({
+            skill: r.skill,
+            importance: Math.min(100, Math.max(0, r.importance_score * 100)),
+          }))
+          .sort((a, b) => b.importance - a.importance)
+          .slice(0, 10)
+          // ось Y Recharts идёт снизу вверх: сортируем по возрастанию,
+          // чтобы самый важный навык оказался сверху столбцов
+          .sort((a, b) => a.importance - b.importance);
+        setMlItems(items);
+        setMlMessage(payload?.message || null);
+        setMlState(items.length > 0 ? "ready" : "empty");
+      })
+      .catch((e: unknown) => {
+        if (!alive) return;
+        setMlItems([]);
+        setMlState("error");
+        reportError("GapAnalysisVisualizer:ml", e);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [viewProfile, mlReload]);
+
+  const handleViewChange = (type: ViewType) => {
+    setSelectedView(type);
+    // Для картинки смена типа = смена URL: сбрасываем её состояние.
+    // ML-вкладка живёт отдельным состоянием из API-эффекта.
     setLoading(true);
     setImageLoaded(false);
     setError(null);
   };
 
-  const selectedConfig = IMAGE_CONFIGS.find((cfg) => cfg.type === selectedImage);
+  const selectedConfig = VIEW_CONFIGS.find((cfg) => cfg.type === selectedView);
 
+  const startAnalysis = () =>
+    window.dispatchEvent(
+      new CustomEvent("navigate-analysis", { detail: { profile: viewProfile } }),
+    );
 
   return (
     <div className="space-y-6">
       {/* Main visualization card */}
-      <Card className="border-0 shadow-sm bg-white/80 dark:bg-slate-900/80 overflow-hidden">
-        <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div
-                className={`p-2.5 ${selectedConfig?.solid} rounded-xl shadow-lg`}
-              >
-                {selectedConfig && <selectedConfig.icon className="size-5 text-white" />}
-              </div>
-              <div>
-                <CardTitle className="text-2xl">Визуализация GAP-анализа</CardTitle>
-                <CardDescription className="text-base mt-1">
-                  {selectedConfig?.description}
-                </CardDescription>
-              </div>
+      <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border bg-muted px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div
+              className={cn(
+                "grid size-10 shrink-0 place-items-center rounded-xl shadow-md",
+                selectedConfig?.chipClass,
+              )}
+            >
+              {selectedConfig && <selectedConfig.icon className="size-5" aria-hidden="true" />}
             </div>
-            <div className="flex items-center gap-2">
-              <Select
-                value={viewProfile}
-                onValueChange={(v) => {
-                  setViewProfile(v);
-                  onProfileChange?.(v);
-                }}
-              >
-                <SelectTrigger className="w-32 h-9 text-sm font-semibold">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PROFILES.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight text-foreground">
+                Визуализация GAP-анализа
+              </h2>
+              <p className="text-sm text-muted-foreground">{selectedConfig?.description}</p>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="p-8">
+          <div className="flex items-center gap-2">
+            <Select
+              value={viewProfile}
+              onValueChange={(v) => {
+                setViewProfile(v);
+                onProfileChange?.(v);
+              }}
+            >
+              <SelectTrigger className="w-32 h-9 text-sm font-semibold" aria-label="Профиль компетенций">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PROFILES.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <CardBody className="space-y-8 p-8">
           {/* Image type selector */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-            {IMAGE_CONFIGS.map((config) => (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {VIEW_CONFIGS.map((config) => (
               <motion.div
                 key={config.type}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
                 <Button
-                  onClick={() => handleImageChange(config.type)}
-                  variant={selectedImage === config.type ? "default" : "outline"}
-                  className={`w-full h-auto flex-col items-start p-4 ${
-                    selectedImage === config.type
-                      ? `${config.solid} text-white border-0 shadow-lg`
-                      : "border-2 hover:border-slate-400"
-                  }`}
+                  onClick={() => handleViewChange(config.type)}
+                  variant={selectedView === config.type ? "primary" : "secondary"}
+                  aria-pressed={selectedView === config.type}
+                  className="h-auto w-full flex-col items-start gap-2 p-4"
                 >
-                  <config.icon className="size-5 mb-2" />
-                  <div className="text-xs font-semibold text-left">
-                    {config.title}
-                  </div>
+                  <config.icon className="size-5" aria-hidden="true" />
+                  <span className="text-xs font-semibold text-left">{config.title}</span>
                 </Button>
               </motion.div>
             ))}
           </div>
 
-
-          {/* Image display */}
-          <motion.div
-            className="relative bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden shadow-inner min-h-[500px] flex items-center justify-center"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            {loading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm z-10">
-                <div className="text-center">
-                  <Loader2 className="size-12 animate-spin text-blue-600 mx-auto mb-3" />
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Загрузка визуализации...
-                  </p>
-                </div>
+          {/* Interactive ML feature-importance chart */}
+          {selectedView === "ml_importance" &&
+            (mlState === "loading" ? (
+              <div className="rounded-xl border border-border bg-muted p-4">
+                <Skeleton className="h-8 w-64" />
+                <Skeleton className="mt-4 h-[420px] w-full" />
               </div>
-            )}
-
-            {error && (
-              <div className="absolute inset-0 flex items-center justify-center p-8">
-                <div className="text-center max-w-md">
-                  <div className="inline-flex p-4 bg-orange-100 dark:bg-orange-900/30 rounded-2xl mb-4">
-                    <AlertCircle className="size-12 text-orange-600 dark:text-orange-400" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">
-                    Визуализация недоступна
-                  </h3>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    {error}
-                  </p>
-                  <button
-                    onClick={() => window.dispatchEvent(
-                      new CustomEvent("navigate-analysis", { detail: { profile: viewProfile } })
-                    )}
-                    className="inline-flex items-center gap-2 mt-4 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-                  >
-                    Запустить анализ для построения графиков
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {!error && (
-              <img
-                key={`manual-${selectedImage}`}
-                src={imageUrl}
-                alt={selectedConfig?.title}
-                onLoad={handleImageLoad}
-                onError={handleImageError}
-                className={`max-w-full h-auto transition-opacity duration-300 ${
-                  imageLoaded ? "opacity-100" : "opacity-0"
-                }`}
+            ) : mlState === "error" ? (
+              <ErrorState
+                description="Не удалось загрузить ML-рекомендации профиля."
+                onRetry={() => setMlReload((n) => n + 1)}
               />
-            )}
-          </motion.div>
+            ) : mlState === "empty" ? (
+              <EmptyState
+                icon={<Activity className="size-12 opacity-40" aria-hidden="true" />}
+                title={`Нет ML-рекомендаций для '${viewProfile}'`}
+                description={mlMessage || "Модель не обучена или нет данных"}
+                action={
+                  <Button variant="primary" size="sm" onClick={startAnalysis}>
+                    Запустить анализ для построения графиков
+                  </Button>
+                }
+              />
+            ) : (
+              <motion.div
+                key={`ml-${viewProfile}`}
+                className="rounded-xl border border-border bg-muted p-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <h3 className="mb-3 text-sm font-semibold text-foreground">
+                  ТОП важных навыков (LTR XGBoost) - {viewProfile}
+                </h3>
+                <div
+                  className="h-[440px] w-full"
+                  role="img"
+                  aria-label={`Важность недостающих навыков по ML-модели, топ-${mlItems.length}`}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={mlItems} layout="vertical" margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+                      <CartesianGrid {...gridProps} vertical horizontal={false} />
+                      <XAxis type="number" domain={[0, 100]} unit="%" {...axisProps} />
+                      <YAxis
+                        type="category"
+                        dataKey="skill"
+                        width={170}
+                        tickFormatter={(v) => clipSkill(String(v))}
+                        {...axisProps}
+                      />
+                      <RechartsTooltip
+                        {...tooltipProps}
+                        formatter={(value) => [`${Number(value).toFixed(1)}%`, "Важность навыка"]}
+                      />
+                      <Bar dataKey="importance" name="Важность" radius={[0, 6, 6, 0]}>
+                        {mlItems.map((item, i) => (
+                          <Cell
+                            key={item.skill}
+                            fill={chartSeries[(mlItems.length - 1 - i) % chartSeries.length]}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* Текстовая альтернатива графика для скринридеров. */}
+                <ul className="sr-only">
+                  {mlItems.map((item) => (
+                    <li key={item.skill}>
+                      {item.skill}: {item.importance.toFixed(1)}%
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            ))}
 
-          {/* Action buttons */}
-          {imageLoaded && (
+          {/* Image display (cluster insights) */}
+          {selectedView === "cluster_insights" && (
             <motion.div
-              className="flex gap-3 mt-6"
+              className="relative bg-muted rounded-2xl overflow-hidden shadow-inner min-h-[500px] flex items-center justify-center"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              {loading && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-muted/80 backdrop-blur-sm">
+                  <div className="text-center">
+                    <Loader2 className="size-12 animate-spin text-primary mx-auto mb-3" aria-hidden="true" />
+                    <p className="text-sm text-muted-foreground">
+                      Загрузка визуализации...
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="absolute inset-0 flex items-center justify-center p-8">
+                  <div className="max-w-md text-center">
+                    <div className="mb-4 inline-flex rounded-2xl bg-warning-soft p-4">
+                      <AlertCircle className="size-12 text-warning" aria-hidden="true" />
+                    </div>
+                    <h3 className="mb-2 text-lg font-semibold text-foreground">
+                      Визуализация недоступна
+                    </h3>
+                    <p className="text-sm text-muted-foreground">{error}</p>
+                    <Button className="mt-4" onClick={startAnalysis}>
+                      Запустить анализ для построения графиков
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {!error && (
+                <img
+                  key={`manual-${selectedView}`}
+                  src={imageUrl}
+                  alt={selectedConfig?.title}
+                  onLoad={handleImageLoad}
+                  onError={handleImageError}
+                  className={`max-w-full h-auto transition-opacity duration-300 ${
+                    imageLoaded ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+              )}
+            </motion.div>
+          )}
+
+          {/* Action buttons (image views only) */}
+          {selectedView === "cluster_insights" && imageLoaded && (
+            <motion.div
+              className="flex gap-3"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2 }}
             >
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
-                className="border-2"
                 onClick={() => window.open(imageUrl, "_blank")}
               >
-                <Maximize2 className="mr-2 size-4" />
+                <Maximize2 className="mr-2 size-4" aria-hidden="true" />
                 Открыть в полном размере
               </Button>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
-                className="border-2"
                 onClick={() => {
                   const link = document.createElement("a");
                   link.href = imageUrl;
-                  link.download = `${selectedImage}_${viewProfile}.png`;
+                  link.download = `${selectedView}_${viewProfile}.png`;
                   link.click();
                 }}
               >
-                <Download className="mr-2 size-4" />
+                <Download className="mr-2 size-4" aria-hidden="true" />
                 Скачать
               </Button>
             </motion.div>
           )}
-        </CardContent>
+        </CardBody>
       </Card>
 
       {/* Global comparisons */}
@@ -278,21 +436,21 @@ export function GapAnalysisVisualizer({ profile, onProfileChange }: GapAnalysisV
           description="Сопоставление всех профилей"
           imageUrl={coverageUrl}
           icon={BarChart3}
-          solid="bg-blue-600"
+          chipClass="bg-chart-1"
         />
         <GlobalVisualizationCard
           title="Тепловая карта навыков"
           description="Распределение компетенций"
           imageUrl={heatmapUrl}
           icon={Flame}
-          solid="bg-orange-600"
+          chipClass="bg-chart-4"
         />
         <GlobalVisualizationCard
           title="Корреляция навыков"
           description="Взаимосвязь компетенций"
           imageUrl={correlationUrl}
           icon={Network}
-          solid="bg-violet-600"
+          chipClass="bg-chart-5"
         />
       </div>
     </div>
@@ -303,8 +461,9 @@ interface GlobalVisualizationCardProps {
   title: string;
   description: string;
   imageUrl: string;
-  icon: any;
-  solid: string;
+  icon: LucideIcon;
+  /** Фон значка: токен вместо жёсткого цвета. */
+  chipClass: string;
 }
 
 function GlobalVisualizationCard({
@@ -312,7 +471,7 @@ function GlobalVisualizationCard({
   description,
   imageUrl,
   icon: Icon,
-  solid,
+  chipClass,
 }: GlobalVisualizationCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [error, setError] = useState(false);
@@ -322,29 +481,25 @@ function GlobalVisualizationCard({
       whileHover={{ y: -4 }}
       transition={{ type: "spring", stiffness: 300 }}
     >
-      <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden h-full">
-        <CardHeader className="pb-4 bg-slate-50 dark:bg-slate-900">
-          <div className="flex items-center gap-3">
-            <div className={`p-2 ${solid} rounded-lg shadow-md`}>
-              <Icon className="size-4 text-white" />
-            </div>
-            <div>
-              <CardTitle className="text-base">{title}</CardTitle>
-              <CardDescription className="text-xs mt-0.5">
-                {description}
-              </CardDescription>
-            </div>
+      <Card tone="flat" className="h-full overflow-hidden">
+        <div className="flex items-center gap-3 border-b border-border bg-muted px-5 py-4">
+          <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg shadow-xs", chipClass)}>
+            <Icon className="size-4 text-primary-foreground" aria-hidden="true" />
           </div>
-        </CardHeader>
-        <CardContent className="p-4">
-          <div className="relative bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden aspect-video flex items-center justify-center">
+          <div className="min-w-0">
+            <h3 className="truncate text-base font-semibold text-foreground">{title}</h3>
+            <p className="text-xs text-muted-foreground">{description}</p>
+          </div>
+        </div>
+        <CardBody className="space-y-3 p-4">
+          <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-muted">
             {!imageLoaded && !error && (
-              <Loader2 className="size-8 animate-spin text-blue-600" />
+              <Skeleton className="absolute inset-0 rounded-none" aria-hidden="true" />
             )}
             {error && (
               <div className="text-center p-4">
-                <AlertCircle className="size-8 text-orange-600 dark:text-orange-400 mx-auto mb-2" />
-                <p className="text-xs text-slate-600 dark:text-slate-400">
+                <AlertCircle className="size-8 text-warning mx-auto mb-2" aria-hidden="true" />
+                <p className="text-xs text-muted-foreground">
                   Недоступно
                 </p>
               </div>
@@ -363,14 +518,14 @@ function GlobalVisualizationCard({
             <Button
               variant="ghost"
               size="sm"
-              className="w-full mt-3 text-xs hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="w-full text-xs"
               onClick={() => window.open(imageUrl, "_blank")}
             >
-              <Maximize2 className="mr-2 size-3" />
+              <Maximize2 className="mr-2 size-3" aria-hidden="true" />
               Открыть
             </Button>
           )}
-        </CardContent>
+        </CardBody>
       </Card>
     </motion.div>
   );
