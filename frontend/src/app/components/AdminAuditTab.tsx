@@ -15,6 +15,7 @@ import { request, saveBlob } from "../../lib/api";
 import {
   Badge,
   Button,
+  Callout,
   Card,
   CardBody,
   CardHeader,
@@ -26,8 +27,9 @@ import {
   TableFrame,
   tableHeadClass,
   tableRowClass,
-} from "../../design/primitives";
+} from "../../design";
 import { fmtDateTime, roleLabel, roleTone } from "./adminRoles";
+import { cn } from "./ui/utils";
 import {
   Dialog,
   DialogContent,
@@ -38,8 +40,6 @@ import {
 import { ChevronLeft, ChevronRight, Download, RefreshCw } from "lucide-react";
 
 const SKELETON_ROWS = 8;
-const selectClass =
-  "h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm";
 
 interface AuditEntry {
   id: string;
@@ -392,7 +392,7 @@ export function AdminAuditTab() {
             <Field label="На странице" htmlFor="audit-limit">
               <select
                 id="audit-limit"
-                className={selectClass}
+                className={cn(inputClass, "h-9 w-auto")}
                 value={String(limit)}
                 onChange={(e) => {
                   setLimit(Number(e.target.value) || 50);
@@ -414,15 +414,17 @@ export function AdminAuditTab() {
             />
           )}
           {phase === "error" && entries.length > 0 && (
-            <div
+            <Callout
               role="alert"
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
+              tone="danger"
+              action={
+                <Button size="sm" variant="secondary" onClick={loadAudit}>
+                  Повторить
+                </Button>
+              }
             >
-              <span>{fetchError}</span>
-              <Button size="sm" variant="secondary" onClick={loadAudit}>
-                Повторить
-              </Button>
-            </div>
+              {fetchError}
+            </Callout>
           )}
 
           {phase === "ready" && entries.length === 0 && (
