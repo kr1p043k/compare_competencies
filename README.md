@@ -55,7 +55,9 @@
 │   │   ├── 📄 filler_words.json        # Слова-паразиты (19 шт.)
 │   │   ├── 📄 generic_words.json       # Общие слова
 │   │   ├── 📄 hard_skills.json         # 96 жёстких навыков (EN)
-│   │   ├── 📄 it_skills.json           # 933 IT-скилла (430 RU + 503 EN)
+│   │   ├── 📄 it_skills.json           # 1205 IT-скиллов (514 RU + 691 EN), канон в git
+
+> Политика `data/reference/`: файлы каноничны и версионируются в git (в т.ч. `it_skills.json`, `skill_taxonomy.json`). Меняются только через скрипты/ревью; тесты не должны писать в этот каталог (используйте tmp_path).
 │   │   ├── 📄 profession_taxonomy.json     # Профессии -> домены
 │   │   ├── 📄 skill_blacklist.json     # Чёрный список
 │   │   ├── 📄 skill_taxonomy.json      # 19 категорий навыков
