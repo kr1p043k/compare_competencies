@@ -1,0 +1,55 @@
+{
+  "gold": "tests/fixtures/gold_frozen.csv",
+  "seed": 42,
+  "test_size": 0.25,
+  "n_train": 372,
+  "n_test": 128,
+  "roles": 4,
+  "results": {
+    "ltr_ranker_canon.joblib": {
+      "ndcg@10": 0.657,
+      "p@10": 0.7,
+      "map@10": 0.386,
+      "roles_scored": 4,
+      "features": 10
+    },
+    "ltr_ranker_xgb_rank_human.joblib": {
+      "ndcg@10": 0.7195,
+      "p@10": 0.775,
+      "map@10": 0.4667,
+      "roles_scored": 4,
+      "features": 8
+    },
+    "ltr_ranker_ensemble_human.joblib": {
+      "ndcg@10": 0.7455,
+      "p@10": 0.75,
+      "map@10": 0.4516,
+      "roles_scored": 4,
+      "features": 8
+    },
+    "ltr_ranker_ensemble_final.joblib": {
+      "ndcg@10": 0.7087,
+      "p@10": 0.7,
+      "map@10": 0.3838,
+      "roles_scored": 4,
+      "features": 10
+    },
+    "baseline_frequency": {
+      "ndcg@10": 0.5227,
+      "p@10": 0.575,
+      "map@10": 0.3123,
+      "roles_scored": 4
+    },
+    "baseline_cosine": {
+      "ndcg@10": 0.4978,
+      "p@10": 0.55,
+      "map@10": 0.267,
+      "roles_scored": 4
+    },
+    "best_blend": {
+      "artifact": "ltr_ranker_ensemble_human.joblib",
+      "weight_ltr": 1.0,
+      "ndcg@10": 0.7455
+    }
+  }
+}
