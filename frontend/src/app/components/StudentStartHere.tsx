@@ -46,30 +46,30 @@ export function StudentStartHere({ onNavigate }: { onNavigate?: (tab: string) =>
   if (!loaded || !empty) return null;
 
   return (
-    <Card className="border-indigo-200 dark:border-indigo-900">
+    <Card className="border-primary/30">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-lg">
-          <Lightbulb className="size-5 text-indigo-600 dark:text-indigo-400" />
+          <Lightbulb className="size-5 text-primary" />
           Начните здесь
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <p className="text-slate-600 dark:text-slate-400">
+        <p className="text-muted-foreground">
           Ваш профиль пока пуст, поэтому сравнить вас с программой не с чем.
           Заполните навыки - и платформа покажет, что уже совпадает с учебным
           планом, чего не хватает и какие темы стоит подтянуть.
         </p>
-        <ol className="space-y-1.5 text-slate-700 dark:text-slate-300">
+        <ol className="space-y-1.5 text-foreground">
           <li className="flex gap-2">
-            <CircleCheck className="size-4 mt-0.5 shrink-0 text-indigo-500" />
+            <CircleCheck className="size-4 mt-0.5 shrink-0 text-primary" />
             <span>Добавьте навыки и технологии, которыми уже владеете.</span>
           </li>
           <li className="flex gap-2">
-            <CircleCheck className="size-4 mt-0.5 shrink-0 text-indigo-500" />
+            <CircleCheck className="size-4 mt-0.5 shrink-0 text-primary" />
             <span>Платформа сопоставит их с компетенциями программы ниже.</span>
           </li>
           <li className="flex gap-2">
-            <CircleCheck className="size-4 mt-0.5 shrink-0 text-indigo-500" />
+            <CircleCheck className="size-4 mt-0.5 shrink-0 text-primary" />
             <span>Вы увидите разрывы и рекомендации, что изучать дальше.</span>
           </li>
         </ol>
