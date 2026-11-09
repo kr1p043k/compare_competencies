@@ -76,8 +76,8 @@ curl -sf http://localhost:8000/health && echo " health OK"
 | Механизм | Команда / файл | Формат | Восстанавливается |
 |---|---|---|---|
 | CLI (основной) | `python -m src.cli backup` -> `data/backups/backup_<UTC>.sql` | pg_dump `--format=custom` | `pg_restore`, в т.ч. `python -m src.cli backup --restore latest\|PATH` |
-| update-deployment | `./update-deployment.sh backup` -> `backups/db_<date>.sql` | plain SQL | только `psql -f` (НЕ `pg_restore`) |
-| volume tars | `./backup-volumes.sh` -> `backups/<volume>_<date>.tar.gz` | tar каталогов томов | распаковкой, не дамп БД |
+| update-deployment | `./deploy/update-deployment.sh backup` -> `backups/db_<date>.sql` | plain SQL | только `psql -f` (НЕ `pg_restore`) |
+| volume tars | `./deploy/backup-volumes.sh` -> `backups/<volume>_<date>.tar.gz` | tar каталогов томов | распаковкой, не дамп БД |
 
 ### 2.1. Проверка целостности ПЕРЕД восстановлением
 
