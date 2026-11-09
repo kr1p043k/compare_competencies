@@ -1,7 +1,9 @@
 -r requirements.txt
 pytest>=8.0.0
+pytest-xdist>=3.6
 pytest-benchmark>=5.0.0
 pytest-cov>=6.0.0
+pytest-timeout>=2.3
 jupyter>=1.1.0
 ipykernel>=6.29.0
 ipywidgets>=8.1.0

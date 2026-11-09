@@ -147,15 +147,15 @@ export function AdminProfilePage({ displayName, email, onNavigate }: AccountProp
           <CardDescription className="text-muted-foreground">Быстрые ссылки на административные разделы</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => onNavigate("admin")} className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none">
+          <Button variant="outline" onClick={() => onNavigate("admin")} className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
             <Users className="mr-2 size-4" />
             Пользователи
           </Button>
-          <Button variant="outline" onClick={() => onNavigate("logs")} className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none">
+          <Button variant="outline" onClick={() => onNavigate("logs")} className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
             <FileText className="mr-2 size-4" />
             Логи
           </Button>
-          <Button variant="outline" onClick={() => onNavigate("monitoring")} className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none">
+          <Button variant="outline" onClick={() => onNavigate("monitoring")} className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
             <Activity className="mr-2 size-4" />
             Мониторинг
           </Button>
@@ -198,7 +198,7 @@ export function TeacherProfilePage({ displayName, email, onNavigate }: AccountPr
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2 text-foreground">
-            <BookOpen className="size-5 text-emerald-600 dark:text-emerald-400" />
+            <BookOpen className="size-5 text-success" />
             Зона преподавания
           </CardTitle>
           <CardDescription className="text-muted-foreground">Дисциплины направления 09.03.02 (только просмотр)</CardDescription>
@@ -238,7 +238,7 @@ export function TeacherProfilePage({ displayName, email, onNavigate }: AccountPr
                         size="sm"
                         onClick={() => onNavigate("teacher")}
                         title={`Анализ дисциплины «${d.name}»`}
-                        className="shrink-0 cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                        className="shrink-0 cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                       >
                         <Activity className="mr-1.5 size-3.5" />
                         Анализ
@@ -251,11 +251,11 @@ export function TeacherProfilePage({ displayName, email, onNavigate }: AccountPr
           )}
           {onNavigate && (
             <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
-              <Button variant="outline" size="sm" onClick={() => onNavigate("teacher")} className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none">
+              <Button variant="outline" size="sm" onClick={() => onNavigate("teacher")} className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                 <Activity className="mr-1.5 size-3.5" />
                 Преподавательский анализ
               </Button>
-              <Button variant="outline" size="sm" onClick={() => onNavigate("taxonomy")} className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none">
+              <Button variant="outline" size="sm" onClick={() => onNavigate("taxonomy")} className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                 <BookOpen className="mr-1.5 size-3.5" />
                 Таксономия
               </Button>
@@ -720,7 +720,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg text-foreground">
-            <User className="size-5 text-emerald-600 dark:text-emerald-400" />
+            <User className="size-5 text-success" />
             {name || "Мой профиль"}
           </CardTitle>
           {(login || self) && (
@@ -779,7 +779,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg text-foreground">
-            <GraduationCap className="size-5 text-emerald-600 dark:text-emerald-400" />
+            <GraduationCap className="size-5 text-success" />
             Мои навыки{self ? ` (${skillsCount})` : ""}
           </CardTitle>
           <CardDescription className="text-muted-foreground">
@@ -817,7 +817,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                           <button
                             onClick={() => void handleRemoveSkill(s)}
                             disabled={saving}
-                            className="ml-1 cursor-pointer rounded p-0.5 transition-colors duration-200 hover:text-red-300 focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:outline-none"
+                            className="ml-1 cursor-pointer rounded p-0.5 transition-colors duration-200 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                             aria-label={`Удалить ${s}`}
                           >
                             <X className="size-3" />
@@ -837,12 +837,12 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                   }}
                   placeholder="Новый навык, Enter - добавить"
                   aria-label="Новый навык"
-                  className="h-10 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                  className="h-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 />
                 <Button
                   onClick={() => void handleAddSkill()}
                   disabled={saving || !newSkill.trim()}
-                  className="h-10 shrink-0 cursor-pointer bg-emerald-700 text-white hover:bg-emerald-800 transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                  className="h-10 shrink-0 cursor-pointer bg-success text-white hover:bg-success/90 transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   aria-label="Добавить навык"
                 >
                   {saving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
@@ -859,7 +859,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       <Card id="my-technologies">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg text-foreground">
-            <Cpu className="size-5 text-emerald-600 dark:text-emerald-400" />
+            <Cpu className="size-5 text-success" />
             Мои технологии{self && !selfLoading ? " (" + techList.length + ")" : ""}
           </CardTitle>
           <CardDescription className="text-muted-foreground">
@@ -886,7 +886,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                       <button
                         onClick={() => void handleRemoveTech(t)}
                         disabled={techSaving}
-                        className="ml-1 cursor-pointer rounded p-0.5 transition-colors duration-200 hover:text-red-500 focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:outline-none"
+                        className="ml-1 cursor-pointer rounded p-0.5 transition-colors duration-200 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                         aria-label={"Убрать " + t}
                       >
                         <X className="size-3" />
@@ -905,7 +905,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                   placeholder="Например: Docker. Enter - добавить"
                   aria-label="Новая технология"
                   list="my-tech-suggest"
-                  className="h-10 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                  className="h-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 />
                 <datalist id="my-tech-suggest">
                   {(customOptions?.technologies_suggest ?? []).map((s) => (
@@ -915,7 +915,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                 <Button
                   onClick={() => void handleAddTech()}
                   disabled={techSaving || !techInput.trim()}
-                  className="h-10 shrink-0 cursor-pointer bg-emerald-700 text-white hover:bg-emerald-800 transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                  className="h-10 shrink-0 cursor-pointer bg-success text-white hover:bg-success/90 transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   aria-label="Добавить технологию"
                 >
                   {techSaving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
@@ -928,7 +928,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                       key={s}
                       onClick={() => void handleAddTech(s)}
                       disabled={techSaving}
-                      className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-border bg-card px-2 py-0.5 text-xs text-foreground transition-colors duration-200 hover:border-emerald-300 hover:text-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none dark:hover:border-emerald-700 dark:hover:text-emerald-300"
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-border bg-card px-2 py-0.5 text-xs text-foreground transition-colors duration-200 hover:border-success/60 hover:text-success focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                       aria-label={"Добавить " + s}
                     >
                       <Plus className="size-3" />
@@ -946,7 +946,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       <Card id="my-profiles">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg text-foreground">
-            <Layers className="size-5 text-indigo-600 dark:text-indigo-400" />
+            <Layers className="size-5 text-primary" />
             Мои профили{createdProfiles.length > 0 ? " (" + createdProfiles.length + ")" : ""}
           </CardTitle>
           <CardDescription className="text-muted-foreground">
@@ -969,9 +969,9 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
               {createdProfiles.map((cp) => (
                 <div
                   key={cp.name}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 transition-colors duration-200 dark:border-emerald-800 dark:bg-emerald-950/40"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-success/30 bg-success-soft px-3 py-2 transition-colors duration-200"
                 >
-                  <span className="flex items-center gap-2 text-sm font-medium text-emerald-900 dark:text-emerald-200">
+                  <span className="flex items-center gap-2 text-sm font-medium text-success">
                     <CheckCircle2 className="size-4 shrink-0" />
                     {cp.name}
                   </span>
@@ -1001,7 +1001,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                 onChange={(e) => setCpName(e.target.value)}
                 placeholder="my_backend"
                 aria-label="Название профиля"
-                className="h-10 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                className="h-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               />
               <p className="text-xs text-muted-foreground">Латиница, цифры и подчёркивание, 2-32 символа</p>
             </div>
@@ -1049,7 +1049,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                 onChange={(e) => setCompSearch(e.target.value)}
                 placeholder="Поиск по коду или названию"
                 aria-label="Поиск компетенций"
-                className="h-9 pl-8 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                className="h-9 pl-8 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               />
             </div>
             {filteredCustomComps.length === 0 ? (
@@ -1065,7 +1065,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleCompCode(c.code)}
-                          className="mt-1 size-4 shrink-0 cursor-pointer accent-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
+                          className="mt-1 size-4 shrink-0 cursor-pointer accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                           aria-label={c.code}
                         />
                         <span className="min-w-0 flex-1">
@@ -1095,14 +1095,14 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                 onChange={(e) => setDraftCode(e.target.value)}
                 placeholder="Код, например ПК-5"
                 aria-label="Код компетенции"
-                className="h-10 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                className="h-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               />
               <Input
                 value={draftTitle}
                 onChange={(e) => setDraftTitle(e.target.value)}
                 placeholder="Название (необязательно)"
                 aria-label="Название компетенции"
-                className="h-10 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                className="h-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               />
             </div>
             <div className="grid gap-2 md:grid-cols-3">
@@ -1112,7 +1112,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                 placeholder="Знания - по одному на строку"
                 aria-label="Знания"
                 rows={3}
-                className="focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                className="focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               />
               <Textarea
                 value={draftAbilities}
@@ -1120,7 +1120,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                 placeholder="Умения - по одному на строку"
                 aria-label="Умения"
                 rows={3}
-                className="focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                className="focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               />
               <Textarea
                 value={draftSkills}
@@ -1128,14 +1128,14 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                 placeholder="Навыки - по одному на строку"
                 aria-label="Навыки"
                 rows={3}
-                className="focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                className="focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               />
             </div>
             <Button
               variant="outline"
               size="sm"
               onClick={addDraft}
-              className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+              className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
               <Plus className="mr-1.5 size-3.5" />
               Добавить компетенцию
@@ -1147,7 +1147,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                     {d.code}
                     <button
                       onClick={() => removeDraft(d.code)}
-                      className="ml-1 cursor-pointer rounded p-0.5 transition-colors duration-200 hover:text-red-300 focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:outline-none"
+                      className="ml-1 cursor-pointer rounded p-0.5 transition-colors duration-200 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                       aria-label={"Убрать " + d.code}
                     >
                       <X className="size-3" />
@@ -1165,20 +1165,20 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
               onChange={(e) => setCpTech(e.target.value)}
               placeholder="Python, Docker, PostgreSQL"
               aria-label="Технологии профиля"
-              className="h-10 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+              className="h-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             />
           </div>
           {!cpNameValid && cpName.length > 0 && (
             <p className="text-sm text-destructive">Название: латиница, цифры и подчёркивание, 2-32 символа</p>
           )}
           {triedCreate && totalComps < 1 && (
-            <p className="text-sm text-amber-700 dark:text-amber-300">Выберите хотя бы одну компетенцию или добавьте новую</p>
+            <p className="text-sm text-warning">Выберите хотя бы одну компетенцию или добавьте новую</p>
           )}
           {createError && <p className="text-sm text-destructive">{createError}</p>}
           <Button
             onClick={() => void handleCreateProfile()}
             disabled={creating}
-            className="h-10 cursor-pointer bg-indigo-700 text-white hover:bg-indigo-800 transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+            className="h-10 cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             {creating ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Plus className="mr-2 size-4" />}
             Создать профиль
@@ -1188,7 +1188,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg text-foreground">
-            <BookOpen className="size-5 text-indigo-600 dark:text-indigo-400" />
+            <BookOpen className="size-5 text-primary" />
             Мои компетенции
           </CardTitle>
           <CardDescription className="text-muted-foreground">
@@ -1244,7 +1244,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                               <button
                                 onClick={() => void handleAddSkill(m.text)}
                                 disabled={saving}
-                                className="cursor-pointer rounded p-0.5 text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none dark:hover:text-emerald-300"
+                                className="cursor-pointer rounded p-0.5 text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-success focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                                 aria-label={`Добавить «${m.text}»`}
                               >
                                 <Plus className="size-3" />
@@ -1269,7 +1269,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                         <div key={d.discipline} className="rounded-lg border border-border bg-card transition-colors duration-200">
                           <button
                             onClick={() => setOpenDisc((p) => ({ ...p, [d.discipline]: !p[d.discipline] }))}
-                            className="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors duration-200 hover:bg-muted focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                            className="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors duration-200 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                             aria-expanded={open}
                           >
                             <span className="truncate text-sm font-medium text-foreground">
@@ -1299,7 +1299,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                                       <span
                                         key={i}
                                         title="Есть у вас"
-                                        className="inline-flex max-w-full items-center gap-1 rounded-md border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900 transition-colors duration-200 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+                                        className="inline-flex max-w-full items-center gap-1 rounded-md border border-success/30 bg-success-soft px-2 py-0.5 text-xs font-medium text-success transition-colors duration-200"
                                       >
                                         <CheckCircle2 className="size-3 shrink-0" />
                                         <span className="break-words">{s.text}</span>
@@ -1324,7 +1324,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                                         <button
                                           onClick={() => void handleAddSkill(s.text)}
                                           disabled={saving}
-                                          className="cursor-pointer rounded p-0.5 text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none dark:hover:text-emerald-300"
+                                          className="cursor-pointer rounded p-0.5 text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-success focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                                           aria-label={`Добавить «${s.text}»`}
                                         >
                                           <Plus className="size-3" />
@@ -1346,7 +1346,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                 <Button
                   variant="outline"
                   onClick={() => onNavigate("data")}
-                  className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                  className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 >
                   <Database className="mr-2 size-4" />
                   Открыть результаты

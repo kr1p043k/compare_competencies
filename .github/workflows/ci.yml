@@ -31,13 +31,18 @@ jobs:
           cache: pip
       - name: Install ruff
         run: pip install "ruff>=0.11.0"
-      # Hard gate: syntax errors, undefined names, broken f-strings. These are
-      # the rules whose violations mean the code cannot run at all.
-      - name: Ruff (correctness)
-        run: ruff check src tests scripts --select E9,F63,F7,F82
+      # Hard gate: syntax errors (E9) and the whole F-family (undefined names,
+      # broken f-strings, unused imports/variables, redefinitions). F811 in
+      # particular means a test silently shadows another one and its coverage is
+      # lost, so this must block. F-series is currently clean on dev.
+      - name: Ruff (correctness, fail-closed)
+        run: ruff check src tests scripts --select E9,F
       # Advisory: the full rule set still reports ~1.7k stylistic findings
       # inherited from the existing tree. Visible, but not blocking, until the
       # backlog is burned down.
+      # Advisory намеренно: в baseline есть существующие находки. Переключение
+      # в fail-closed - после расчистки бэклога (item 61). Обязателен шаг
+      # 'Ruff (correctness)' выше.
       - name: Ruff (full, advisory)
         continue-on-error: true
         run: ruff check src tests scripts --statistics
@@ -122,6 +127,10 @@ jobs:
         run: pip install --index-url https://download.pytorch.org/whl/cpu torch
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
+      # Fail-closed: зависимость, объявленная только в pyproject, не попадёт на
+      # прод (Docker/CI ставят requirements*.txt). Проверяем до тестов.
+      - name: Dependency consistency (fail-closed)
+        run: python scripts/check_deps_consistency.py
       # Дрейф openapi.json ловится здесь: экспортёр пишет схему во временный
       # файл, и diff падает, если закоммиченный артефакт разошёлся с backend.
       # SECRET_KEY нужен только чтобы импортировать фабрику приложения
@@ -167,6 +176,9 @@ jobs:
       # Диагностика, а не гейт: расхождение установленных версий с пинами
       # уже один раз маскировалось под баг в коде (aiohttp 3.14.4 против
       # 3.12.14 ломал aioresponses). Печатаем, чтобы причина была видна.
+      # Advisory: зависит от окружения и зеркал; шумит на временных расхождениях.
+      # Критичные гейты (ruff-correctness, typecheck, build, alembic head,
+      # openapi-drift, pytest+coverage) обязательны и валят CI.
       - name: Dependency drift (advisory)
         continue-on-error: true
         run: python scripts/check_dependency_drift.py
