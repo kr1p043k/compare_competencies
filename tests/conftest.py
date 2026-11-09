@@ -283,6 +283,31 @@ def clean_logging_handlers():
     yield
 
 
+@pytest.fixture(autouse=True)
+async def _reset_sqlalchemy_engine():
+    """Rebuild the cached SQLAlchemy engine around each test.
+
+    `src.database._engine` is lru_cache'd once per process, but pytest-asyncio
+    gives each test its own event loop. asyncpg connections created in loop A
+    are invalid in loop B, so a request that persists a log through
+    `src.database` fails with "another operation is in progress" (observed in
+    tests/api/test_2fa_reset_stepup.py when run together with other api tests).
+    Disposing and clearing the cache forces the next use to create a fresh
+    engine on the current loop.
+    """
+    from src import database as db
+
+    with contextlib.suppress(Exception):
+        await db.get_engine().dispose()
+    db._engine.cache_clear()
+    db._sessionmaker.cache_clear()
+    yield
+    with contextlib.suppress(Exception):
+        await db.get_engine().dispose()
+    db._engine.cache_clear()
+    db._sessionmaker.cache_clear()
+
+
 @pytest.fixture(scope="session")
 def data_dir() -> Path:
     return Path(__file__).parent.parent / "data"
