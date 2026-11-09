@@ -21,9 +21,11 @@ def tmp_data(tmp_path, monkeypatch):
     monkeypatch.setattr(sched.config.settings, "SCHEDULER_DAILY_GAP_ENABLED", False)
     sched._scheduler_cache = None
     sched._scheduler_busy = None
+    sched._scheduler_task = None
     yield tmp_path
     sched._scheduler_cache = None
     sched._scheduler_busy = None
+    sched._scheduler_task = None
 
 
 class _Breaker:
@@ -100,17 +102,64 @@ async def test_wait_until_ready_timeout(tmp_data, monkeypatch):
 # ---------- start_background_collector ----------
 
 
+class _FakeTask:
+    def __init__(self):
+        self.cancelled = False
+        self._done = False
+
+    def done(self):
+        return self._done
+
+    def cancel(self):
+        self.cancelled = True
+        self._done = True
+
+    def __await__(self):
+        async def _noop():
+            return None
+        return _noop().__await__()
+
+
 async def test_start_background_collector_creates_task(tmp_data, monkeypatch):
     created = {}
 
     def _create_task(coro):
         created["called"] = True
         coro.close()
-        return SimpleNamespace()
+        return _FakeTask()
 
     monkeypatch.setattr(sched.asyncio, "create_task", _create_task)
     await sched.start_background_collector()
     assert created["called"] is True
+    assert sched._scheduler_task is not None
+
+
+async def test_start_background_collector_is_idempotent(tmp_data, monkeypatch):
+    """Повторный старт не плодит вторую задачу планировщика."""
+    calls = {"n": 0}
+
+    def _create_task(coro):
+        calls["n"] += 1
+        coro.close()
+        return _FakeTask()
+
+    monkeypatch.setattr(sched.asyncio, "create_task", _create_task)
+    await sched.start_background_collector()
+    await sched.start_background_collector()
+    assert calls["n"] == 1
+
+
+async def test_stop_background_collector_cancels_task(tmp_data):
+    task = _FakeTask()
+    sched._scheduler_task = task
+    await sched.stop_background_collector()
+    assert task.cancelled is True
+    assert sched._scheduler_task is None
+
+
+async def test_stop_background_collector_noop_without_task(tmp_data):
+    sched._scheduler_task = None
+    await sched.stop_background_collector()  # не должно бросать
 
 
 # ---------- _maybe_chained_gap / _run_chained_gap ----------

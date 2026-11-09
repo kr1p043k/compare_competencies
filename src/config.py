@@ -87,6 +87,10 @@ class Settings(BaseSettings):
     # у Prometheus нет пользовательской сессии, и без этого таргет падал 401.
     METRICS_TOKEN: SecretStr | None = None
 
+    # Версия публичного API (заголовок/эндпоинт /api/version). Меняем при
+    # несовместимых изменениях контракта; см. docs/API-CHANGELOG.md.
+    API_VERSION: str = "1.0"
+
     # Grafana: адрес и логин дашбордов для панели мониторинга в админке.
     # Пока URL не задан, эндпоинт мониторинга отвечает enabled=false, а не 500.
     GRAFANA_URL: str | None = None
@@ -404,6 +408,7 @@ MAX_REQUEST_SIZE = settings.MAX_REQUEST_SIZE
 TOKEN_TTL_DAYS = settings.TOKEN_TTL_DAYS
 METRICS_TOKEN = settings.METRICS_TOKEN
 GRAFANA_URL = settings.GRAFANA_URL
+API_VERSION = settings.API_VERSION
 GRAFANA_USER = settings.GRAFANA_USER
 GRAFANA_PASSWORD = settings.GRAFANA_PASSWORD
 
