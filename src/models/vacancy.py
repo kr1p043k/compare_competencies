@@ -1,6 +1,7 @@
 """Типизированные модели для работы с вакансиями."""
 
 import contextlib
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -8,6 +9,12 @@ from typing import Any
 import structlog
 
 logger = structlog.get_logger(__name__)
+
+# Прогрев после каждого деплоя парсит десятки тысяч вакансий и на каждой пишет
+# две debug-строки (vacancy_parsed_from_api + vacancy_created) — это ~90k строк
+# и ~50МБ лога за один запуск. Debug этому модулю глушим, предупреждения об
+# ошибках парсинга (warning/error) и info остаются слышны.
+logging.getLogger(__name__).setLevel(logging.INFO)
 
 
 @dataclass(slots=True)
