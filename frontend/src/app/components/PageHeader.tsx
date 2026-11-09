@@ -17,16 +17,16 @@ export function PageHeader({ title, description, icon: Icon, actions }: PageHead
   return (
     <div className="flex items-start gap-4 mb-6">
       {Icon && (
-        <div className="shrink-0 grid place-items-center size-10 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+        <div className="shrink-0 grid place-items-center size-10 rounded-lg bg-muted text-muted-foreground">
           <Icon className="size-5" />
         </div>
       )}
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           {title}
         </h1>
         {description && (
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 max-w-2xl">
+          <p className="mt-1 text-sm text-muted-foreground max-w-2xl">
             {description}
           </p>
         )}

@@ -37,13 +37,13 @@ export function ProfileView({ data }: ProfileViewProps) {
           { icon: Award, label: "Навыков", value: String(data.skills_count ?? skills.length) },
           { icon: BarChart3, label: "Компетенций", value: String(data.competencies_count ?? (data.competencies || []).length) },
         ].map((s, i) => (
-          <Card key={i} className="border border-slate-200 dark:border-slate-700">
+          <Card key={i} className="border border-border">
             <CardContent className="pt-5">
-              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-2 text-muted-foreground">
                 <s.icon className="size-4" />
                 <span className="text-xs font-medium">{s.label}</span>
               </div>
-              <div className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100 truncate" title={s.value}>
+              <div className="mt-1 text-xl font-bold text-foreground truncate" title={s.value}>
                 {s.value}
               </div>
             </CardContent>
@@ -51,10 +51,10 @@ export function ProfileView({ data }: ProfileViewProps) {
         ))}
       </div>
 
-      <Card className="border-0 shadow-sm bg-white/80 dark:bg-slate-900/80">
+      <Card className="border-0 shadow-sm bg-card/80">
         <CardHeader>
           <CardTitle className="flex items-center gap-3 text-base">
-            <div className="p-2 bg-emerald-700 rounded-lg">
+            <div className="p-2 bg-success rounded-lg">
               <Award className="size-5 text-white" />
             </div>
             Навыки профиля
@@ -71,7 +71,7 @@ export function ProfileView({ data }: ProfileViewProps) {
               </Badge>
             ))}
             {show.length === 0 && (
-              <p className="text-sm text-slate-500 dark:text-slate-400">Нет навыков.</p>
+              <p className="text-sm text-muted-foreground">Нет навыков.</p>
             )}
           </div>
         </CardContent>

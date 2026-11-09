@@ -69,11 +69,11 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
-          <User className="size-5 text-emerald-600" />
+          <User className="size-5 text-success" />
           Мой профиль
         </CardTitle>
         {(displayName || email) && (
-          <p className="text-sm text-gray-600 dark:text-slate-400">
+          <p className="text-sm text-muted-foreground">
             {displayName || "-"}
             {email && displayName !== email ? ` · ${email}` : ""}
           </p>
@@ -81,13 +81,13 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
       </CardHeader>
       <CardContent className="space-y-4">
         {loading && (
-          <p className="text-sm text-gray-500 dark:text-slate-400">Загрузка…</p>
+          <p className="text-sm text-muted-foreground">Загрузка…</p>
         )}
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
         {data && (
           <>
             <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-              <span className="text-sm font-medium text-gray-700 dark:text-slate-300">Уровень</span>
+              <span className="text-sm font-medium text-foreground">Уровень</span>
               <Select
                 value={data.target_level}
                 onValueChange={(v) => patch({ target_level: v })}
@@ -108,7 +108,7 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
 
             {(data.competencies || []).length > 0 && (
               <div>
-                <div className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                <div className="text-sm font-medium text-foreground mb-2">
                   Текущие компетенции ({(data.competencies || []).length})
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -122,7 +122,7 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
             )}
 
             <div>
-              <div className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+              <div className="text-sm font-medium text-foreground mb-2">
                 Мои навыки ({data.skills.length})
               </div>              <div className="flex flex-wrap gap-1.5">
                 {data.skills.map((s) => {
@@ -139,7 +139,7 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
                         <button
                           onClick={() => patch({ remove_skills: [s] })}
                           disabled={saving}
-                          className="ml-1 hover:text-red-300 cursor-pointer"
+                          className="ml-1 hover:text-destructive cursor-pointer"
                           aria-label={`Удалить ${s}`}
                         >
                           <X className="size-3" />
@@ -149,7 +149,7 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
                   );
                 })}
                 {data.skills.length === 0 && (
-                  <span className="text-sm text-gray-400 dark:text-slate-500">
+                  <span className="text-sm text-subtle-foreground">
                     Пока пусто - добавьте свои навыки ниже.
                   </span>
                 )}
@@ -177,7 +177,7 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
                   }
                 }}
                 disabled={saving || !newSkill.trim()}
-                className="h-10 bg-emerald-700 hover:bg-emerald-800 text-white"
+                className="h-10 bg-success hover:bg-success/90 text-white"
               >
                 {saving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
               </Button>
