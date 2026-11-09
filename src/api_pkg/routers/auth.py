@@ -675,13 +675,19 @@ async def _check_totp_or_recovery(
         codes: list[str] = json.loads(raw) if isinstance(raw, str) else list(raw)
         target = _hash_recovery_code(code.strip())
         if target in codes:
-            ok = True
-            used_recovery = True
             remaining = [c for c in codes if c != target]
-            await pool.execute(
-                "UPDATE admin_totp SET recovery_codes = $2::jsonb WHERE user_id = $1",
-                user_id, json.dumps(remaining),
+            # Атомарно: гасим код только если он ещё в наборе. Без условия
+            # `@>` два параллельных запроса с одним кодом оба прошли бы
+            # read-check-write и погасили один recovery-код дважды.
+            status = await pool.execute(
+                """UPDATE admin_totp
+                      SET recovery_codes = $3::jsonb
+                    WHERE user_id = $1 AND recovery_codes @> $2::jsonb""",
+                user_id, json.dumps([target]), json.dumps(remaining),
             )
+            if status.split()[-1] == "1":
+                ok = True
+                used_recovery = True
 
     if not ok:
         failures = int(state.get("failed_attempts") or 0) + 1

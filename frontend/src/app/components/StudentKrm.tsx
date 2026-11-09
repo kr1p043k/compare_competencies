@@ -272,10 +272,10 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
-          <GraduationCap className="size-5 text-indigo-600 dark:text-indigo-400" />
+          <GraduationCap className="size-5 text-primary" />
           Мои компетенции: программа и я
         </CardTitle>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-muted-foreground">
           Сравнение программы с вашими навыками - компактный вид по дисциплинам
         </p>
       </CardHeader>
@@ -305,13 +305,13 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={load} disabled={loading || !dir} className="h-10 bg-blue-700 hover:bg-blue-800 text-white cursor-pointer">
+          <Button onClick={load} disabled={loading || !dir} className="h-10 bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer">
             {loading ? <Loader2 className="size-4 animate-spin" /> : <BookOpen className="size-4 mr-2" />}
             Показать
           </Button>
         </div>
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
 
         <AnimatePresence>
           {data && (
@@ -321,22 +321,22 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
                   <div
                     key={s.label}
                     title={s.value}
-                    className="rounded-lg border border-slate-200 bg-white p-2.5 text-center transition-colors duration-200 dark:border-slate-700 dark:bg-slate-900"
+                    className="rounded-lg border border-border bg-card p-2.5 text-center transition-colors duration-200  dark:bg-card"
                   >
-                    <div className="truncate text-lg font-bold text-slate-900 dark:text-slate-100">
+                    <div className="truncate text-lg font-bold text-foreground">
                       {s.value}
                     </div>
-                    <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
                       {s.label}
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="sticky top-0 z-10 bg-white/95 py-2 backdrop-blur transition-colors duration-200 dark:bg-slate-950/95">
+              <div className="sticky top-0 z-10 bg-card/95 py-2 backdrop-blur transition-colors duration-200">
                 <div className="flex flex-col sm:flex-row gap-2">
                   <div className="relative flex-1">
-                    <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                    <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-subtle-foreground" />
                     <Input
                       value={discQuery}
                       onChange={(e) => setDiscQuery(e.target.value)}
@@ -347,7 +347,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
                     {discQuery && (
                       <button
                         onClick={() => setDiscQuery("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded p-0.5 text-slate-400 transition-colors duration-200 hover:text-slate-700 dark:hover:text-slate-200"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded p-0.5 text-subtle-foreground transition-colors duration-200 hover:text-foreground dark:hover:text-foreground"
                         aria-label="Очистить фильтр"
                       >
                         <X className="size-4" />
@@ -373,19 +373,19 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
                     </Button>
                   </div>
                 </div>
-                <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                <p className="mt-1.5 text-xs text-muted-foreground">
                   Показано {filtered.length} из {data.disciplines.length} дисциплин
                 </p>
               </div>
 
               {data.disciplines.length === 0 && (
-                <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                <p className="rounded-lg border border-dashed border-border-strong px-3 py-4 text-center text-sm text-muted-foreground  dark:text-subtle-foreground">
                   нет данных - добавьте навыки ниже
                 </p>
               )}
 
               {data.disciplines.length > 0 && filtered.length === 0 && (
-                <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                <p className="rounded-lg border border-dashed border-border-strong px-3 py-4 text-center text-sm text-muted-foreground  dark:text-subtle-foreground">
                   По фильтру ничего не найдено - измените запрос или сбросьте фильтр
                 </p>
               )}
@@ -397,26 +397,26 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
                   const has = st?.has ?? 0;
                   const open = !!openDisc[d.discipline];
                   return (
-                    <div key={d.discipline} className="rounded-lg border border-slate-200 bg-white transition-colors duration-200 dark:border-slate-700 dark:bg-slate-900">
+                    <div key={d.discipline} className="rounded-lg border border-border bg-card transition-colors duration-200  dark:bg-card">
                       <button
                         onClick={() => setOpenDisc((p) => ({ ...p, [d.discipline]: !p[d.discipline] }))}
-                        className="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors duration-200 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                        className="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors duration-200 hover:bg-muted dark:hover:bg-muted/50"
                         aria-expanded={open}
                       >
-                        <span className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
+                        <span className="truncate text-sm font-medium text-foreground">
                           {d.discipline}
                         </span>
                         <span className="flex shrink-0 items-center gap-2">
                           <Badge variant={has > 0 ? "default" : "secondary"} className="text-xs">
                             {has}/{total}
                           </Badge>
-                          <ChevronDown className={`size-4 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+                          <ChevronDown className={`size-4 text-subtle-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
                         </span>
                       </button>
                       {open && (
                         <div className="space-y-2 px-3 pb-3">
                           {total === 0 && (
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                            <p className="text-xs text-muted-foreground">
                               нет данных - добавьте навыки ниже
                             </p>
                           )}
@@ -425,20 +425,20 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
                             const codeOpen = openCodes[key] ?? true;
                             const cHas = c.skills.filter((s) => s.student_has).length;
                             return (
-                              <div key={c.code} className="rounded-md bg-slate-50 transition-colors duration-200 dark:bg-slate-800/60">
+                              <div key={c.code} className="rounded-md bg-muted transition-colors duration-200">
                                 <button
                                   onClick={() => setOpenCodes((p) => ({ ...p, [key]: !codeOpen }))}
-                                  className="flex w-full cursor-pointer items-center justify-between gap-2 px-2.5 py-1.5 text-left transition-colors duration-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                  className="flex w-full cursor-pointer items-center justify-between gap-2 px-2.5 py-1.5 text-left transition-colors duration-200 hover:bg-muted dark:hover:bg-muted"
                                   aria-expanded={codeOpen}
                                 >
-                                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                  <span className="text-xs font-semibold text-muted-foreground">
                                     {c.code}
                                   </span>
                                   <span className="flex shrink-0 items-center gap-1.5">
-                                    <span className="text-xs text-slate-400 dark:text-slate-500">
+                                    <span className="text-xs text-subtle-foreground">
                                       {cHas}/{c.skills.length}
                                     </span>
-                                    <ChevronDown className={`size-3.5 text-slate-400 transition-transform duration-200 ${codeOpen ? "rotate-180" : ""}`} />
+                                    <ChevronDown className={`size-3.5 text-subtle-foreground transition-transform duration-200 ${codeOpen ? "rotate-180" : ""}`} />
                                   </span>
                                 </button>
                                 {codeOpen && (
@@ -448,7 +448,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
                                         <span
                                           key={i}
                                           title="Есть у вас"
-                                          className="inline-flex max-w-full items-center gap-1 rounded-md border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900 transition-colors duration-200 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+                                          className="inline-flex max-w-full items-center gap-1 rounded-md border border-success/30 bg-success-soft px-2 py-0.5 text-xs font-medium text-success transition-colors duration-200 dark:border-success/40 dark:bg-success/10 dark:text-success"
                                         >
                                           <CheckCircle2 className="size-3 shrink-0" />
                                           <span className="break-words">{s.text}</span>
@@ -457,13 +457,13 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
                                         <span
                                           key={i}
                                           title="Нет у вас - нажмите +, чтобы добавить"
-                                          className="inline-flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 transition-colors duration-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                                          className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-card px-2 py-0.5 text-xs text-foreground transition-colors duration-200  dark:bg-card"
                                         >
                                           <span className="break-words">{s.text}</span>
                                           <button
                                             onClick={() => void handleAddCompetency(s.text)}
                                             disabled={savingComp}
-                                            className="cursor-pointer rounded p-0.5 text-slate-400 transition-colors duration-200 hover:bg-slate-100 hover:text-emerald-700 focus-visible:outline-2 dark:hover:bg-slate-800 dark:hover:text-emerald-300"
+                                            className="cursor-pointer rounded p-0.5 text-subtle-foreground transition-colors duration-200 hover:bg-muted hover:text-success focus-visible:outline-2 dark:hover:bg-muted dark:hover:text-success"
                                             aria-label={`Добавить «${s.text}»`}
                                           >
                                             <Plus className="size-3" />
@@ -487,27 +487,27 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
         </AnimatePresence>
 
         {onNavigate && (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4 dark:border-slate-700">
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4 ">
+            <p className="text-xs text-muted-foreground">
               Технологии и свои профили живут в профиле
             </p>
             <Button
               variant="outline"
               size="sm"
               onClick={() => onNavigate("profile")}
-              className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+              className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
               Открыть мой профиль
               <ArrowRight className="ml-1.5 size-3.5" />
             </Button>
           </div>
         )}
-        <div className="grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2 dark:border-slate-700">
-          <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
-            <div className="text-sm font-medium text-slate-800 dark:text-slate-200">
+        <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2 ">
+          <div className="rounded-lg border border-border p-3 ">
+            <div className="text-sm font-medium text-foreground">
               Добавить свой навык
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-muted-foreground">
               Сохраняется в ваши навыки
             </p>
             <div className="mt-2 flex gap-2">
@@ -524,18 +524,18 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
               <Button
                 onClick={() => void handleAddSkill()}
                 disabled={savingSkill || !newSkill.trim()}
-                className="h-9 shrink-0 bg-emerald-700 text-white hover:bg-emerald-800 cursor-pointer"
+                className="h-9 shrink-0 bg-success text-white hover:bg-success/90 cursor-pointer"
                 aria-label="Добавить навык"
               >
                 {savingSkill ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
               </Button>
             </div>
           </div>
-          <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
-            <div className="text-sm font-medium text-slate-800 dark:text-slate-200">
+          <div className="rounded-lg border border-border p-3 ">
+            <div className="text-sm font-medium text-foreground">
               Добавить из программы
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-muted-foreground">
               {data
                 ? missingSkills.length > 0
                   ? `Не хватает в ваших навыках: ${missingSkills.length}`
@@ -558,7 +558,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
               <Button
                 onClick={() => void handleAddCompetency()}
                 disabled={savingComp || !compPick.trim()}
-                className="h-9 shrink-0 bg-emerald-700 text-white hover:bg-emerald-800 cursor-pointer"
+                className="h-9 shrink-0 bg-success text-white hover:bg-success/90 cursor-pointer"
                 aria-label="Добавить компетенцию"
               >
                 {savingComp ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
@@ -567,18 +567,18 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
           </div>
         </div>
 
-        {addErr && <p className="text-sm text-red-600 dark:text-red-400">{addErr}</p>}
-        {addMsg && <p className="text-sm text-emerald-700 dark:text-emerald-300">{addMsg}</p>}
+        {addErr && <p className="text-sm text-destructive">{addErr}</p>}
+        {addMsg && <p className="text-sm text-success">{addMsg}</p>}
         {mineAdded.length > 0 && (
           <div>
-            <div className="mb-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+            <div className="mb-1.5 text-xs font-medium text-muted-foreground">
               Добавлено вами в этой сессии ({mineAdded.length})
             </div>
             <div className="flex flex-wrap gap-1.5">
               {mineAdded.map((s) => (
                 <span
                   key={s}
-                  className="inline-flex max-w-full items-center gap-1 rounded-md border border-dashed border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-800 transition-colors duration-200 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200"
+                  className="inline-flex max-w-full items-center gap-1 rounded-md border border-dashed border-success/40 bg-success-soft px-2 py-0.5 text-xs text-success transition-colors duration-200 dark:border-success/40 dark:bg-success/10/50 dark:text-success"
                 >
                   <CheckCircle2 className="size-3 shrink-0" />
                   <span className="break-words">{s}</span>

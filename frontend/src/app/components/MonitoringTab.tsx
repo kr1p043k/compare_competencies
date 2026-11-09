@@ -584,10 +584,10 @@ function MonitoringTabBase() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium text-foreground truncate">{n.title}</span>
                       {n.severity === "error" && (
-                        <Badge className="bg-destructive shrink-0"><AlertCircle className="size-3 mr-1" />ошибка</Badge>
+                        <Badge variant="destructive" className="shrink-0"><AlertCircle className="size-3 mr-1" />ошибка</Badge>
                       )}
                       {n.severity === "warning" && (
-                        <Badge className="bg-warning-soft shrink-0">предупреждение</Badge>
+                        <Badge variant="outline" className="bg-warning-soft text-warning border-warning/30 shrink-0">предупреждение</Badge>
                       )}
                       {n.article_source && <Badge variant="outline" className="text-xs shrink-0">{n.article_source}</Badge>}
                     </div>
