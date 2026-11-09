@@ -272,3 +272,12 @@ docker compose up -d backend prometheus --force-recreate
 должен вернуть `200`. Имя заголовка `X-Metrics-Token` - часть контракта
 `/metrics`: Prometheus шлёт его через `http_headers` в `prometheus/prometheus.yml`,
 а не через `Authorization: Bearer` (см. `monitoring/README.md`).
+
+
+## Backup / restore drill
+
+- Бэкап: `python -m src.cli.backup_db` -> `data/backups/backup_<ts>.sql` (pg_dump custom).
+- Восстановление: `python -m src.cli.backup_db --restore latest` (или путь к дампу) -> `pg_restore --clean`.
+- По расписанию дамп делает таймер `deploy/cc-backup.timer`.
+- Дрилл (проверяем, что бэкап реально разворачивается): снять дамп, развернуть в
+  scratch-БД и сравнить число строк ключевых таблиц. На PROD-БД дрилл не запускать.
