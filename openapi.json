@@ -8616,6 +8616,63 @@
         ]
       }
     },
+    "/api/results/ml-explanations/{profile}": {
+      "get": {
+        "description": "ML #78: per-skill объяснение рекомендаций (SHAP-вклады признаков).\n\nRead-only view: живой инференс LTR-модели по навыкам профиля, без\nзаписи на диск. SHAP считаем для топ-навыков (дорого), поэтому\nrate-limit жёстче, чем у файловых эндпоинтов.",
+        "operationId": "get_ml_explanations_api_results_ml_explanations__profile__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profile",
+            "required": true,
+            "schema": {
+              "title": "Profile",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "top",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 8,
+              "minimum": 1,
+              "title": "Top",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Ml Explanations Api Results Ml Explanations  Profile  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ml Explanations",
+        "tags": [
+          "results"
+        ]
+      }
+    },
     "/api/results/recommendations/{profile}": {
       "get": {
         "description": "Сохранённые рекомендации профиля.",
