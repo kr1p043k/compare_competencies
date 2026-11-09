@@ -224,7 +224,10 @@ export function AdminUsersTab() {
     dialog !== null &&
     STEP_UP_KINDS[dialog.kind] &&
     dialog.user.role === "admin" &&
-    (auth.username === null ||
+    // Сброс 2FA требует пароль и для своего аккаунта: без step-up угнанная
+    // сессия снимает второй фактор одной кнопкой.
+    (dialog.kind === "twofa" ||
+      auth.username === null ||
       dialog.user.username.trim().toLowerCase() !== auth.username.trim().toLowerCase());
 
   useEffect(() => {

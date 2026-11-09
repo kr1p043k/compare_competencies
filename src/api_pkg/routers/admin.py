@@ -942,7 +942,10 @@ async def admin_user_2fa_reset(request: Request, user_id: str, body: AdminStepUp
         user = await session.get(User, user_id)
         if user is None:
             raise HTTPException(status_code=404, detail="User not found")
-        if user.role == "admin" and caller is not None and str(user.id) != caller.get("uid"):
+        # Пароль спрашиваем и для СВОЕГО сброса: иначе угнанная админ-сессия
+        # одним запросом снимает собственный второй фактор. Раньше step-up
+        # требовался только для чужого аккаунта.
+        if user.role == "admin":
             await _assert_caller_password(session, caller, body.caller_password if body else None)
         if not await _admin_totp_present(session):
             raise HTTPException(status_code=400, detail="2FA не настроена")
