@@ -1,9 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { FileUp } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
-import { Input } from "./ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import {
   AlertCircle, RefreshCw, Users, FileText, Database,
@@ -12,10 +8,25 @@ import {
 import { logAction } from "../../lib/auth";
 import { reportError } from "./../../lib/errors";
 import { ApiError, request } from "../../lib/api";
-import { PageHeader } from "./PageHeader";
 import { AdminSecurity } from "./AdminSecurity";
 import { AdminAuditTab } from "./AdminAuditTab";
 import { AdminUsersTab } from "./AdminUsersTab";
+import { cn } from "./ui/utils";
+import {
+  Badge,
+  Button,
+  Callout,
+  Card,
+  CardBody,
+  CardHeader,
+  inputClass,
+  PageHeader,
+  Progress,
+  StatCard,
+  TableFrame,
+  tableHeadClass,
+  tableRowClass,
+} from "../../design";
 
 export function AdminDashboard() {
   const RPD_STAGE_LABELS: Record<string, string> = {
@@ -450,20 +461,17 @@ export function AdminDashboard() {
         description="Пользователи, планировщик, импорт данных и категории навыков."
       />
       <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-500 dark:text-slate-400">Управление системой</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
-          <RefreshCw className={`size-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+        <p className="text-sm text-muted-foreground">Управление системой</p>
+        <Button variant="secondary" size="sm" onClick={loadData} disabled={loading}
+          iconLeft={<RefreshCw className={cn("size-4", loading && "animate-spin")} />}>
           Обновить
         </Button>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-red-600 bg-red-50 dark:bg-red-950/30 p-3 rounded-lg">
-          <AlertCircle className="size-5" />
-          <span>{error}</span>
-        </div>
+        <Callout role="alert" tone="danger" icon={<AlertCircle className="size-4" aria-hidden="true" />}>
+          {error}
+        </Callout>
       )}
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -486,106 +494,122 @@ export function AdminDashboard() {
 
         <TabsContent value="logs" className="space-y-4">
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">История запросов</CardTitle>
+            <CardHeader
+              title="История запросов"
+              actions={
                 <select value={logFilter} onChange={(e) => setLogFilter(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm">
+                  className={cn(inputClass, "h-9 w-48")}>
                   <option value="all">Все пользователи</option>
                   {users.map((u) => <option key={u.username} value={u.username}>{u.name}</option>)}
                 </select>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto max-h-96 overflow-y-auto">
+              }
+            />
+            <CardBody>
+              <TableFrame className="max-h-96 overflow-y-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-left text-gray-500 dark:text-slate-400 sticky top-0 bg-white dark:bg-slate-950">
-                      <th className="pb-2 font-medium">Время</th>
-                      <th className="pb-2 font-medium">Пользователь</th>
-                      <th className="pb-2 font-medium">Метод</th>
-                      <th className="pb-2 font-medium">Путь</th>
-                      <th className="pb-2 font-medium">Действие/Детали</th>
-                      <th className="pb-2 font-medium text-right">Статус</th>
-                      <th className="pb-2 font-medium text-right">мс</th>
+                    <tr className={cn(tableHeadClass, "sticky top-0 bg-card")}>
+                      <th className="pb-2 text-left font-semibold">Время</th>
+                      <th className="pb-2 text-left font-semibold">Пользователь</th>
+                      <th className="pb-2 text-left font-semibold">Метод</th>
+                      <th className="pb-2 text-left font-semibold">Путь</th>
+                      <th className="pb-2 text-left font-semibold">Действие/Детали</th>
+                      <th className="pb-2 text-right font-semibold">Статус</th>
+                      <th className="pb-2 text-right font-semibold">мс</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredLogs.toReversed().slice(0, 200).map((l, i) => (
-                      <tr key={i} className="border-b border-gray-100 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800">
-                        <td className="py-1.5 text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">{new Date(l.timestamp).toLocaleTimeString()}</td>
-                        <td className="py-1.5 text-gray-700 dark:text-slate-300">{l.user}</td>
+                      <tr key={i} className={tableRowClass}>
+                        <td className="py-1.5 text-xs text-muted-foreground whitespace-nowrap">{new Date(l.timestamp).toLocaleTimeString()}</td>
+                        <td className="py-1.5 text-foreground">{l.user}</td>
                         <td className="py-1.5">
-                          <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
-                            l.method === "GET" ? "bg-green-100 text-green-700" :
-                            l.method === "POST" ? "bg-blue-100 text-blue-700" :
-                             l.method === "AUDIT" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" :
-                            "bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300"
-                          }`}>{l.method}</span>
+                          <Badge
+                            tone={
+                              l.method === "GET" ? "success" :
+                              l.method === "POST" ? "primary" :
+                              l.method === "AUDIT" ? "info" : "neutral"
+                            }
+                            className="font-mono"
+                          >{l.method}</Badge>
                         </td>
-                        <td className="py-1.5 text-xs text-gray-600 dark:text-slate-400 max-w-xs truncate">{l.path}</td>
-                        <td className="py-1.5 text-xs text-gray-600 dark:text-slate-400 max-w-md truncate" title={l.detail || `${l.method} ${l.path}`}>{l.detail || `${l.method} ${l.path}`}</td>
+                        <td className="py-1.5 text-xs text-muted-foreground max-w-xs truncate">{l.path}</td>
+                        <td className="py-1.5 text-xs text-muted-foreground max-w-md truncate" title={l.detail || `${l.method} ${l.path}`}>{l.detail || `${l.method} ${l.path}`}</td>
                         <td className="py-1.5 text-right">
-                          <span className={`text-xs font-mono ${
-                            l.status < 300 ? "text-green-600" : l.status < 400 ? "text-yellow-600" : "text-red-600"
-                          }`}>{l.status}</span>
+                          <span className={cn("text-xs font-mono",
+                            l.status < 300 ? "text-success" : l.status < 400 ? "text-warning" : "text-destructive"
+                          )}>{l.status}</span>
                         </td>
-                        <td className="py-1.5 text-right text-xs text-gray-500 dark:text-slate-400">{l.duration_ms.toFixed(0)}</td>
+                        <td className="py-1.5 text-right text-xs text-muted-foreground">{l.duration_ms.toFixed(0)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            </CardContent>
+              </TableFrame>
+            </CardBody>
           </Card>
         </TabsContent>
 
         {/* ── DB tab ── */}
         <TabsContent value="db" className="space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-lg"><Database className="size-4 inline mr-2" />Управление БД</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
+            <CardHeader
+              title={
+                <span className="flex items-center gap-2">
+                  <Database className="size-4" aria-hidden="true" />
+                  Управление БД
+                </span>
+              }
+            />
+            <CardBody className="space-y-4">
               <div className="flex items-center gap-4">
                 <Button onClick={() => callAction("/api/admin/db/seed", { drop: false }, setSeedMsg, setSeedLoading)} disabled={seedLoading}>
                   {seedLoading ? "..." : "Заполнить БД"}
                 </Button>
-                <Button variant="outline" onClick={() => callAction("/api/admin/db/seed", { drop: true }, setSeedMsg, setSeedLoading)} disabled={seedLoading}>
+                <Button variant="secondary" onClick={() => callAction("/api/admin/db/seed", { drop: true }, setSeedMsg, setSeedLoading)} disabled={seedLoading}>
                   Drop + Seed
                 </Button>
-                {seedMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{seedMsg}</span>}
+                {seedMsg && <span className="text-sm text-muted-foreground">{seedMsg}</span>}
               </div>
               <div className="flex items-center gap-4">
-                <Button onClick={() => callAction("/api/admin/embeddings/generate", { force: false }, setEmbMsg, setEmbLoading)} disabled={embLoading}>
-                  <Brain className="size-4 mr-2" />{embLoading ? "..." : "Сгенерировать эмбеддинги"}
+                <Button onClick={() => callAction("/api/admin/embeddings/generate", { force: false }, setEmbMsg, setEmbLoading)} disabled={embLoading} iconLeft={<Brain className="size-4" />}>
+                  {embLoading ? "..." : "Сгенерировать эмбеддинги"}
                 </Button>
-                <Button variant="outline" onClick={() => callAction("/api/admin/embeddings/generate", { force: true }, setEmbMsg, setEmbLoading)} disabled={embLoading}>
+                <Button variant="secondary" onClick={() => callAction("/api/admin/embeddings/generate", { force: true }, setEmbMsg, setEmbLoading)} disabled={embLoading}>
                   Перегенерировать принудительно
                 </Button>
-                {embMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{embMsg}</span>}
+                {embMsg && <span className="text-sm text-muted-foreground">{embMsg}</span>}
               </div>
               <div className="flex items-center gap-4">
-                <Button onClick={callExport} disabled={exportLoading}>
-                  <FileText className="size-4 mr-2" />{exportLoading ? "..." : "Экспорт БД в JSON"}
+                <Button onClick={callExport} disabled={exportLoading} iconLeft={<FileText className="size-4" />}>
+                  {exportLoading ? "..." : "Экспорт БД в JSON"}
                 </Button>
-                {exportMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{exportMsg}</span>}
+                {exportMsg && <span className="text-sm text-muted-foreground">{exportMsg}</span>}
               </div>
               <div className="flex items-center gap-4">
                 <Button onClick={() => callAction("/api/admin/db/backup", {}, setBackupMsg, setBackupLoading)} disabled={backupLoading}>
                   {backupLoading ? "..." : "Бэкап БД (pg_dump)"}
                 </Button>
-                {backupMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{backupMsg}</span>}
+                {backupMsg && <span className="text-sm text-muted-foreground">{backupMsg}</span>}
               </div>
-            </CardContent>
+            </CardBody>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-lg"><FileUp className="size-4 inline mr-2" />Подгрузка РПД</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
+            <CardHeader
+              title={
+                <span className="flex items-center gap-2">
+                  <FileUp className="size-4" aria-hidden="true" />
+                  Подгрузка РПД
+                </span>
+              }
+            />
+            <CardBody className="space-y-3">
               <div className="flex items-center gap-3">
                 <select
                   value={rpdDir}
                   onChange={(e) => setRpdDir(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm font-mono"
+                  className={cn(inputClass, "h-9 w-auto font-mono")}
                 >
                   {directions.map((d: any) => (
                     <option key={d.dir_code} value={d.dir_code}>{d.dir_code}</option>
@@ -605,12 +629,11 @@ export function AdminDashboard() {
                 />
               </div>
               <div className="flex items-center gap-3">
-                <Button onClick={() => rpdInputRef.current?.click()} disabled={rpdUploading} className="bg-blue-700 hover:bg-blue-800 transition-colors">
-                  <Upload className="size-4 mr-2" />{rpdUploading ? "Обработка..." : "Загрузить PDF и обработать"}
+                <Button onClick={() => rpdInputRef.current?.click()} disabled={rpdUploading} iconLeft={<Upload className="size-4" />}>
+                  {rpdUploading ? "Обработка..." : "Загрузить PDF и обработать"}
                 </Button>
                 {rpdSources.yandex_covered?.includes(rpdDir) && (
-                  <Button onClick={collectRpd} disabled={collectCooldown > 0} variant="outline"
-                    className={rpdCollecting ? "bg-red-600 hover:bg-red-700 text-white border-red-600" : ""}>
+                  <Button onClick={collectRpd} disabled={collectCooldown > 0} variant={rpdCollecting ? "danger" : "secondary"}>
                     {rpdCollecting ? "Отмена" : collectCooldown > 0 ? `Подождите ${collectCooldown} сек` : "Собрать с Yandex Disk"}
                   </Button>
                 )}
@@ -621,73 +644,74 @@ export function AdminDashboard() {
                   value={rpdYandexUrl}
                   onChange={(e) => setRpdYandexUrl(e.target.value)}
                   placeholder="Ссылка на папку Yandex Disk (https://disk.360.yandex.ru/d/...)"
-                  className="h-9 flex-1 px-3 rounded-lg border border-gray-300 dark:border-slate-600 text-sm"
+                  className={cn(inputClass, "h-9 flex-1")}
                 />
-                <Button onClick={collectRpd} disabled={rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim()} className="bg-teal-600 hover:bg-teal-700">
-                  <Download className="size-4 mr-2" />{rpdCollecting ? "Сбор..." : "Загрузить по ссылке"}
+                <Button onClick={collectRpd} disabled={rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim()} iconLeft={<Download className="size-4" />}>
+                  {rpdCollecting ? "Сбор..." : "Загрузить по ссылке"}
                 </Button>
               </div>
               {rpdStatus && (rpdStatus.status === "running" || rpdStatus.status === "started") && (
                 <div>
-                  <div className="h-2 w-full rounded bg-amber-100 dark:bg-amber-950/30 overflow-hidden">
-                    <div
-                      className="h-full rounded bg-teal-600 transition-all"
-                      style={{ width: `${rpdStatus.stats?.progress ?? 10}%` }}
-                    />
-                  </div>
-                  <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
+                  <Progress value={rpdStatus.stats?.progress ?? 10} label="Обработка РПД" />
+                  <p className="mt-1 text-sm text-warning">
                     Этап: {rpdStageLabel(rpdStatus.stats?.stage)} · {rpdStatus.stats?.progress ?? 10}%
                   </p>
                 </div>
               )}
-              {rpdMsg && <p className="text-sm text-gray-600 dark:text-slate-400">{rpdMsg}</p>}
-            </CardContent>
+              {rpdMsg && <p className="text-sm text-muted-foreground">{rpdMsg}</p>}
+            </CardBody>
           </Card>
         </TabsContent>
 
         {/* ── Import tab ── */}
         <TabsContent value="import" className="space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-lg"><Upload className="size-4 inline mr-2" />Импорт студентов</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-gray-500 dark:text-slate-400">JSON-массив студентов:</p>
+            <CardHeader
+              title={
+                <span className="flex items-center gap-2">
+                  <Upload className="size-4" aria-hidden="true" />
+                  Импорт студентов
+                </span>
+              }
+            />
+            <CardBody className="space-y-3">
+              <p className="text-sm text-muted-foreground">JSON-массив студентов:</p>
               <textarea
                 value={importJson}
                 onChange={(e) => setImportJson(e.target.value)}
                 rows={8}
-                className="w-full p-3 rounded-lg border border-gray-300 dark:border-slate-600 text-sm font-mono"
+                className={cn(inputClass, "h-auto p-3 font-mono")}
                 placeholder={`[
   {"full_name":"Иванов Иван","group_name":"ИСИТ-31","skills":"python,sql"}
 ]`}
               />
               <Button onClick={importStudents} disabled={!importJson}>Импортировать</Button>
-              {impMsg && <p className="text-sm text-green-600">{impMsg}</p>}
-            </CardContent>
+              {impMsg && <p className="text-sm text-success">{impMsg}</p>}
+            </CardBody>
           </Card>
         </TabsContent>
 
         {/* ── Skills tab ── */}
         <TabsContent value="skills" className="space-y-4">
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Предложения от преподавателей</CardTitle>
-                <Button variant="outline" size="sm" onClick={loadSug} disabled={sugLoading}>
-                  <RefreshCw className={`size-4 mr-2 ${sugLoading ? "animate-spin" : ""}`} />
+            <CardHeader
+              title="Предложения от преподавателей"
+              actions={
+                <Button variant="secondary" size="sm" onClick={loadSug} disabled={sugLoading} iconLeft={<RefreshCw className={cn("size-4", sugLoading && "animate-spin")} />}>
                   Обновить
                 </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {sugMsg && <p className="text-sm text-gray-600 dark:text-slate-400">{sugMsg}</p>}
+              }
+            />
+            <CardBody className="space-y-3">
+              {sugMsg && <p className="text-sm text-muted-foreground">{sugMsg}</p>}
               {!sugLoading && sugList.length === 0 && (
-                <p className="text-sm text-green-600">Очередь пуста.</p>
+                <p className="text-sm text-success">Очередь пуста.</p>
               )}
               {sugList.map((s) => (
-                <div key={s.id} className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border border-gray-200 dark:border-slate-700 p-3">
+                <div key={s.id} className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border border-border p-3">
                   <div className="flex-1 min-w-0">
-                    <span className="font-medium text-sm text-gray-900 dark:text-slate-100">{s.skill}</span>
-                    <span className="ml-2 text-xs text-gray-400 dark:text-slate-500">
+                    <span className="font-medium text-sm text-foreground">{s.skill}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">
                       от {s.created_by || "?"} · {s.created_at || ""}
                       {s.category_hint ? ` · подсказка: ${s.category_hint}` : ""}
                     </span>
@@ -696,89 +720,100 @@ export function AdminDashboard() {
                     <select
                       value={sugCats[s.id] || ""}
                       onChange={(e) => setSugCats((p) => ({ ...p, [s.id]: e.target.value }))}
-                      className="h-9 px-2 text-sm bg-white dark:bg-slate-950 border border-gray-300 dark:border-slate-600 rounded-lg outline-none"
+                      className={cn(inputClass, "h-9 w-auto px-2")}
                     >
                       <option value="">Категория...</option>
                       {taxCats.map((c) => (
                         <option key={c.id} value={c.id}>{c.label}</option>
                       ))}
                     </select>
-                    <Button size="sm" onClick={() => decideSug(s.id, true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                    <Button size="sm" variant="success" onClick={() => decideSug(s.id, true)}>
                       Принять
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => decideSug(s.id, false)}>
+                    <Button size="sm" variant="secondary" onClick={() => decideSug(s.id, false)}>
                       Отклонить
                     </Button>
                   </div>
                 </div>
               ))}
-            </CardContent>
+            </CardBody>
           </Card>
           <Card>
-            <CardHeader><CardTitle className="text-lg"><Brain className="size-4 inline mr-2" />Расширение таксономии</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-gray-500 dark:text-slate-400">Анализ вакансий и добавление новых навыков в it_skills.json</p>
+            <CardHeader
+              title={
+                <span className="flex items-center gap-2">
+                  <Brain className="size-4" aria-hidden="true" />
+                  Расширение таксономии
+                </span>
+              }
+            />
+            <CardBody className="space-y-3">
+              <p className="text-sm text-muted-foreground">Анализ вакансий и добавление новых навыков в it_skills.json</p>
               <Button onClick={() => callAction("/api/admin/skills/extend", { yes: true }, setExtMsg, setExtLoading)} disabled={extLoading}>
                 {extLoading ? "..." : "Анализировать и добавить"}
               </Button>
-              {extMsg && <p className="text-sm text-green-600">{extMsg}</p>}
-            </CardContent>
+              {extMsg && <p className="text-sm text-success">{extMsg}</p>}
+            </CardBody>
           </Card>
 
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg"><BookOpen className="size-4 inline mr-2" />Некатегоризованные навыки</CardTitle>
-                <Button variant="outline" size="sm" onClick={loadUncategorized} disabled={uncatLoading}>
-                  <RefreshCw className={`size-4 mr-2 ${uncatLoading ? "animate-spin" : ""}`} />
+            <CardHeader
+              title={
+                <span className="flex items-center gap-2">
+                  <BookOpen className="size-4" aria-hidden="true" />
+                  Некатегоризованные навыки
+                </span>
+              }
+              actions={
+                <Button variant="secondary" size="sm" onClick={loadUncategorized} disabled={uncatLoading} iconLeft={<RefreshCw className={cn("size-4", uncatLoading && "animate-spin")} />}>
                   Проверить
                 </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-gray-500 dark:text-slate-400">
+              }
+            />
+            <CardBody className="space-y-3">
+              <p className="text-sm text-muted-foreground">
                 Навыки из it_skills, не имеющие категории в таксономии. Предложена категория по эмбеддинг-сходству.
               </p>
-              {uncatLoading && <p className="text-sm text-gray-500 dark:text-slate-400">Загрузка...</p>}
+              {uncatLoading && <p className="text-sm text-muted-foreground">Загрузка...</p>}
               {!uncatLoading && uncategorized.length === 0 && (
-                <p className="text-sm text-green-600">Все навыки категоризованы.</p>
+                <p className="text-sm text-success">Все навыки категоризованы.</p>
               )}
               {!uncatLoading && uncategorized.length > 0 && (
                 <>
-                  <div className="overflow-x-auto max-h-80 overflow-y-auto border rounded-lg">
+                  <TableFrame className="max-h-80 overflow-y-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b text-left text-gray-500 dark:text-slate-400 sticky top-0 bg-white dark:bg-slate-950">
-                          <th className="px-3 py-2 font-medium">Навык</th>
-                          <th className="px-3 py-2 font-medium">Категория</th>
-                          <th className="px-3 py-2 font-medium text-right">Score</th>
-                          <th className="px-3 py-2 font-medium text-right">В БД</th>
+                        <tr className={cn(tableHeadClass, "sticky top-0 bg-card")}>
+                          <th className="px-3 py-2 text-left">Навык</th>
+                          <th className="px-3 py-2 text-left">Категория</th>
+                          <th className="px-3 py-2 text-right">Score</th>
+                          <th className="px-3 py-2 text-right">В БД</th>
                         </tr>
                       </thead>
                       <tbody>
                         {uncategorized.map((it) => (
-                          <tr key={it.skill} className="border-b border-gray-100 dark:border-slate-800">
-                            <td className="px-3 py-1.5 font-mono text-xs text-gray-700 dark:text-slate-300">
+                          <tr key={it.skill} className={tableRowClass}>
+                            <td className="px-3 py-1.5 font-mono text-xs text-foreground">
                               {it.skill}
-                              {it.manual && <Badge variant="outline" className="ml-2 text-xs">manual</Badge>}
+                              {it.manual && <Badge tone="neutral" className="ml-2">manual</Badge>}
                             </td>
                             <td className="px-3 py-1.5">
                               <select
                                 value={uncatSelections[it.skill] || it.category}
                                 onChange={(e) => setUncatSelections((prev) => ({ ...prev, [it.skill]: e.target.value }))}
-                                className="h-8 px-2 rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-xs"
+                                className={cn(inputClass, "h-8 w-auto px-2 text-xs")}
                               >
                                 {["programming_languages","frameworks","databases","devops","cloud","data_science","ml_advanced","frontend","mobile","testing_qa","security","llm_ai","enterprise","gis","embedded","game_dev","management","soft_skills","mathematics","methodologies_concepts","business_tools","methodologies","abstract_concepts"].map((c) => (
                                   <option key={c} value={c}>{c}</option>
                                 ))}
                               </select>
                             </td>
-                            <td className="px-3 py-1.5 text-right text-xs text-gray-500 dark:text-slate-400">{it.score.toFixed(3)}</td>
+                            <td className="px-3 py-1.5 text-right text-xs text-muted-foreground">{it.score.toFixed(3)}</td>
                             <td className="px-3 py-1.5 text-right">
                               <Button
-                                variant="outline"
+                                variant="secondary"
                                 size="sm"
-                                className="h-7 text-xs cursor-pointer transition-colors"
+                                className="h-7 text-xs"
                                 onClick={() => { setLinkSkill(it.skill); setLinkMsg(""); setCompQuery(""); setCompResults([]); setLinkCompId(""); }}
                               >
                                 В комп.
@@ -788,134 +823,181 @@ export function AdminDashboard() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </TableFrame>
                   {linkSkill && (
-                    <div className="border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-3 space-y-2">
-                      <div className="text-sm font-medium text-gray-900 dark:text-slate-100">
-                        Привязать <span className="font-mono text-emerald-700 dark:text-emerald-300">{linkSkill}</span> к компетенции (запись в БД, match=exact)
+                    <div className="rounded-lg border border-success/30 bg-success-soft p-3 space-y-2">
+                      <div className="text-sm font-medium text-foreground">
+                        Привязать <span className="font-mono text-success">{linkSkill}</span> к компетенции (запись в БД, match=exact)
                       </div>
                       <div className="flex flex-col md:flex-row gap-2">
-                        <Input
+                        <input
                           value={compQuery}
                           onChange={(e) => searchCompetencies(e.target.value)}
                           placeholder="Поиск компетенции: код или дисциплина..."
-                          className="h-9 bg-white dark:bg-slate-950 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                          className={cn(inputClass, "h-9")}
                         />
                         <select
                           value={linkKsa}
                           onChange={(e) => setLinkKsa(e.target.value)}
-                          className="h-9 px-2 rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-xs"
+                          className={cn(inputClass, "h-9 w-auto px-2 text-xs")}
                         >
                           {["knowledge", "abilities", "skills", "flat"].map((k) => (
                             <option key={k} value={k}>{k}</option>
                           ))}
                         </select>
                       </div>
-                      {compLoading && <p className="text-xs text-gray-500 dark:text-slate-400">Поиск...</p>}
+                      {compLoading && <p className="text-xs text-muted-foreground">Поиск...</p>}
                       {compResults.length > 0 && (
-                        <div className="max-h-40 overflow-y-auto border rounded bg-white dark:bg-slate-950 text-sm">
+                        <div className="max-h-40 overflow-y-auto rounded-lg border border-border bg-card text-sm">
                           {compResults.map((c: any) => (
                             <button
                               key={c.id}
                               type="button"
                               onClick={() => setLinkCompId(c.id)}
-                              className={`w-full text-left px-3 py-1.5 hover:bg-emerald-50 cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none ${linkCompId === c.id ? "bg-emerald-100 dark:bg-emerald-950/30 font-medium" : ""}`}
+                              className={cn(
+                                "w-full text-left px-3 py-1.5 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                linkCompId === c.id
+                                  ? "bg-success-soft font-medium"
+                                  : "hover:bg-success-soft",
+                              )}
                             >
-                              <span className="font-mono text-xs text-emerald-700 dark:text-emerald-300">{c.code}</span>
-                              <span className="ml-2 text-gray-600 dark:text-slate-400">{c.discipline_name}</span>
+                              <span className="font-mono text-xs text-success">{c.code}</span>
+                              <span className="ml-2 text-muted-foreground">{c.discipline_name}</span>
                             </button>
                           ))}
                         </div>
                       )}
                       <div className="flex items-center gap-2">
-                        <Button onClick={saveSkillLink} disabled={linkSaving || !linkCompId} size="sm" className="bg-emerald-600 hover:bg-emerald-700">
+                        <Button onClick={saveSkillLink} disabled={linkSaving || !linkCompId} size="sm" variant="success">
                           {linkSaving ? "..." : "Сохранить в БД"}
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => setLinkSkill(null)}>Отмена</Button>
-                        {linkMsg && <span className="text-xs text-gray-600 dark:text-slate-400">{linkMsg}</span>}
+                        <Button variant="secondary" size="sm" onClick={() => setLinkSkill(null)}>Отмена</Button>
+                        {linkMsg && <span className="text-xs text-muted-foreground">{linkMsg}</span>}
                       </div>
                     </div>
                   )}
                   <div className="flex items-center gap-3">
-                    <Button onClick={applyCategorization} className="bg-blue-700 hover:bg-blue-800 transition-colors">Применить категории</Button>
-                    {uncatMsg && <span className="text-sm text-green-600">{uncatMsg}</span>}
+                    <Button onClick={applyCategorization}>Применить категории</Button>
+                    {uncatMsg && <span className="text-sm text-success">{uncatMsg}</span>}
                   </div>
                 </>
               )}
-            </CardContent>
+            </CardBody>
           </Card>
         </TabsContent>
         <TabsContent value="sched" className="space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-lg"><Clock className="size-4 inline mr-2" />Планировщик</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
+            <CardHeader
+              title={
+                <span className="flex items-center gap-2">
+                  <Clock className="size-4" aria-hidden="true" />
+                  Планировщик
+                </span>
+              }
+            />
+            <CardBody className="space-y-4">
               <div className="flex items-center gap-3 flex-wrap">
                 <Button
                   onClick={() => saveSched({ collector_enabled: !(sched && sched.collector_enabled) })}
                   disabled={schedBusy}
-                  variant={sched && sched.collector_enabled ? "default" : "outline"}
+                  variant={sched && sched.collector_enabled ? "primary" : "secondary"}
                 >
                   {sched && sched.collector_enabled ? "Сбор: включён" : "Сбор: выключен"}
                 </Button>
                 <Button
                   onClick={() => saveSched({ daily_gap_enabled: !(sched && sched.daily_gap_enabled) })}
                   disabled={schedBusy}
-                  variant={sched && sched.daily_gap_enabled ? "default" : "outline"}
+                  variant={sched && sched.daily_gap_enabled ? "primary" : "secondary"}
                 >
                   {sched && sched.daily_gap_enabled ? "Ночной gap: включён" : "Ночной gap: выключен"}
                 </Button>
-                <span className="text-xs text-gray-500 dark:text-slate-400">gap бежит цепочкой после ночного сбора</span>
+                <span className="text-xs text-muted-foreground">gap бежит цепочкой после ночного сбора</span>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm text-gray-600 dark:text-slate-400">Интервал сбора, ч:</span>
-                <Input
+                <span className="text-sm text-muted-foreground">Интервал сбора, ч:</span>
+                <input
                   type="number"
                   min={1}
                   max={72}
                   value={schedInterval}
                   onChange={(e) => setSchedInterval(e.target.value)}
-                  className="h-9 w-24"
+                  className={cn(inputClass, "h-9 w-24")}
                 />
-                <Button variant="outline" size="sm" onClick={() => saveSched({ collect_interval_hours: Number(schedInterval) })} disabled={schedBusy}>Сохранить</Button>
-                <Button variant="outline" size="sm" onClick={loadSched} disabled={schedLoading}>Обновить статус</Button>
+                <Button variant="secondary" size="sm" onClick={() => saveSched({ collect_interval_hours: Number(schedInterval) })} disabled={schedBusy}>Сохранить</Button>
+                <Button variant="secondary" size="sm" onClick={loadSched} disabled={schedLoading}>Обновить статус</Button>
               </div>
               {sched && (
-                <div className="text-sm text-gray-600 dark:text-slate-400 space-y-1">
+                <div className="text-sm text-muted-foreground space-y-1">
                   <div>Последний сбор: {fmtTs(sched.last_collect_ts)} · Последний gap: {sched.last_gap_date || "-"}</div>
                   <div>Следующий сбор: {fmtTs(sched.next_collect_ts)} · Занят: {sched.busy || "нет"} · Конвейер активен: {sched.pipeline_running ? "да" : "нет"}</div>
                 </div>
               )}
-              {schedMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{schedMsg}</span>}
-            </CardContent>
+              {schedMsg && <span className="text-sm text-muted-foreground">{schedMsg}</span>}
+            </CardBody>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-lg">Запуск вне расписания</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
+            <CardHeader title="Запуск вне расписания" />
+            <CardBody className="space-y-3">
               <div className="flex items-center gap-3 flex-wrap">
                 <Button onClick={() => runSchedJob("collect", "сбор вакансий")} disabled={schedBusy}>Собрать сейчас</Button>
-                <Button variant="outline" onClick={() => runSchedJob("gap", "gap-анализ")} disabled={schedBusy}>Gap сейчас</Button>
+                <Button variant="secondary" onClick={() => runSchedJob("gap", "gap-анализ")} disabled={schedBusy}>Gap сейчас</Button>
               </div>
-              <p className="text-xs text-gray-500 dark:text-slate-400">Ручные запуски конвейера блокируются кодом 409, пока планировщик занят.</p>
-            </CardContent>
+              <p className="text-xs text-muted-foreground">Ручные запуски конвейера блокируются кодом 409, пока планировщик занят.</p>
+            </CardBody>
           </Card>
         </TabsContent>
 
         {/* ── Проверка состояния (только админ; с вкладки «Данные» убрана) ── */}
         <TabsContent value="health" className="space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-lg"><Activity className="size-4 inline mr-2" />Состояние сервиса</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <Button variant="outline" onClick={loadHealth} disabled={healthLoading}>
+            <CardHeader
+              title={
+                <span className="flex items-center gap-2">
+                  <Activity className="size-4" aria-hidden="true" />
+                  Состояние сервиса
+                </span>
+              }
+            />
+            <CardBody className="space-y-3">
+              <Button variant="secondary" onClick={loadHealth} disabled={healthLoading}>
                 {healthLoading ? "Проверяю..." : "Проверить состояние"}
               </Button>
-              {healthMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{healthMsg}</span>}
+              {healthMsg && <span className="text-sm text-muted-foreground">{healthMsg}</span>}
               {health && (
-                <pre className="p-4 bg-gray-50 dark:bg-slate-900 rounded-lg overflow-x-auto text-xs border border-gray-200 dark:border-slate-700">
-                  {JSON.stringify(health, null, 2)}
-                </pre>
+                <div className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <StatCard label="Статус" value={<Badge tone={health.status === "ok" ? "success" : "danger"}>{String(health.status ?? "-")}</Badge>} />
+                    <StatCard label="Версия" value={String(health.version ?? "-")} />
+                    <StatCard label="API (api_ready)" value={<Badge tone={health.api_ready ? "success" : "warning"}>{health.api_ready ? "готов" : "не готов"}</Badge>} />
+                    <StatCard label="Оценщик (evaluator)" value={<Badge tone={health.evaluator ? "success" : "warning"}>{health.evaluator ? "готов" : "не готов"}</Badge>} />
+                    <StatCard label="Рекомендации (recommendation_engine)" value={<Badge tone={health.recommendation_engine ? "success" : "warning"}>{health.recommendation_engine ? "готов" : "не готов"}</Badge>} />
+                    <StatCard label="Модель LTR (ltr_model_version)" value={String(health.ltr_model_version ?? "-")} />
+                  </div>
+                  <div>
+                    <div className="mb-2 text-sm font-medium text-foreground">Версии кластеров (clusters_versions)</div>
+                    <TableFrame>
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className={tableHeadClass}>
+                            <th className="px-3 py-2.5 text-left">Уровень</th>
+                            <th className="px-3 py-2.5 text-left">Версия</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(Object.entries(health.clusters_versions ?? {}) as [string, string | null][]).map(([lvl, ver]) => (
+                            <tr key={lvl} className={tableRowClass}>
+                              <td className="px-3 py-2 font-mono text-xs text-foreground">{lvl}</td>
+                              <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{ver || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </TableFrame>
+                  </div>
+                </div>
               )}
-            </CardContent>
+            </CardBody>
           </Card>
         </TabsContent>
         <TabsContent value="audit" className="space-y-4">
