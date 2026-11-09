@@ -3,6 +3,7 @@
 Критично для качества skill_weights!
 """
 
+import logging
 import re
 
 import structlog
@@ -13,6 +14,14 @@ from src.errors import DomainError
 from src.parsing.utils import load_it_skills
 
 logger = structlog.get_logger(__name__)
+
+# Прогрев после каждого деплоя парсит ~12k вакансий: normalize() сыплет тысячи
+# debug-строк fuzzy_match/no_fuzzy_match. Поднимаем планку только этому модулю,
+# не трогая глобальный уровень. Уровень ставится stdlib-логгеру по имени:
+# setup_structlog() с stdlib.LoggerFactory конфигурируется при старте приложения,
+# а этот модуль импортируется раньше — у structlog-прокси в этот момент ещё нет
+# setLevel (проверено в одноразовом контейнере: AttributeError на импорте).
+logging.getLogger(__name__).setLevel(logging.INFO)
 
 
 class SkillNormalizer:
