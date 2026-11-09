@@ -9,14 +9,14 @@
 
 ### 1.1 Продвинутая прод-модель LTR: surrogate → human/ensemble
 
-Сейчас прод-модель — `XGBRegressor` на суррогатном таргете `0.6×relevance + 0.4×base_target` (`docs/methodology.md:56-72`). Флагманский артефакт `ltr_ranker_ensemble_human.joblib` обучен на human-оценках из `labeling/gold.csv` (4 роли × 125 пар) через `scripts/make_ensemble.py`. Задача — задеплоить ensemble как основную модель вместо surrogate, провалидировать на frozen split через `scripts/eval_frozen.py`.
+Сейчас прод-модель — `XGBRegressor` на суррогатном таргете `0.6×relevance + 0.4×base_target` (`docs/methodology.md:56-72`). Флагманский артефакт `ltr_ranker_ensemble_human.joblib` обучен на human-оценках из `labeling/gold.csv` (4 роли × 125 пар) через `scripts/experiments/make_ensemble.py`. Задача — задеплоить ensemble как основную модель вместо surrogate, провалидировать на frozen split через `scripts/eval_frozen.py`.
 
-- **Файлы:** `scripts/make_ensemble.py`, `scripts/eval_frozen.py`, `labeling/gold.csv`, `labeling/battery3.py`, `src/predictors/ltr_recommendation_engine.py:142`
+- **Файлы:** `scripts/experiments/make_ensemble.py`, `scripts/eval_frozen.py`, `labeling/gold.csv`, `labeling/battery3.py`, `src/predictors/ltr_recommendation_engine.py:142`
 - **Приоритет:** P1
 
 ### 1.2 Калибровка: Platt сломан, isotonic — спасение
 
-Модуль калибровки `scripts/calibrate_ranker.py` тестирует Platt, isotonic, raw_minmax и OOF-варианты (`labeling/calibration_report.json`):
+Модуль калибровки `scripts/experiments/calibrate_ranker.py` тестирует Platt, isotonic, raw_minmax и OOF-варианты (`labeling/calibration_report.json`):
 
 | Вариант | log_loss | Brier |
 |---------|----------|-------|
@@ -28,7 +28,7 @@
 
 Platt (log_loss 13.23) и oof_platt (12.39) катастрофически плохо калибруют — модель выдаёт либо 0, либо 1 без градиента. Победитель — `oof_isotonic` (log_loss 0.642). Нужно: (1) убрать platt из serving, (2) добавить oof_isotonic в serving pipeline, (3) документировать.
 
-- **Файлы:** `scripts/calibrate_ranker.py`, `labeling/calibration_report.json`
+- **Файлы:** `scripts/experiments/calibrate_ranker.py`, `labeling/calibration_report.json`
 - **Приоритет:** P0
 
 ### 1.3 Тренды: нормировка на объём выборки
