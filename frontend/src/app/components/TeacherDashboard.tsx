@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ListFilter } from "lucide-react";
 import { api } from "../api";
-import { Badge, MetricPair, Skeleton } from "../../design";
+import { Badge, MetricPair, Skeleton, StatCard } from "../../design";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { MetricsGlossary } from "./MetricsGlossary";
 import { TaxonomyBrowser } from "./TaxonomyBrowser";
@@ -896,13 +896,13 @@ export function TeacherDashboard() {
             <div
               onClick={() => setShowAnalysis(!showAnalysis)}
               title={srcTitle}
-          className={`mt-2.5 px-3 py-2 rounded-md cursor-pointer text-xs bg-gray-50 dark:bg-slate-800 border ${covBorderClass(analysis.average_coverage)}`}
+          className={`mt-2.5 px-3 py-2 rounded-md cursor-pointer text-xs bg-muted border ${covBorderClass(analysis.average_coverage)}`}
             >
               <div className="flex justify-between items-center gap-2">
                 {/* Показываем охват спроса, а не coverage_ratio: второй почти
                     всегда ~100%, потому что навыки РПД уже нормализованы к
                     словарю рынка, и читается как «всё покрыто». */}
-                <span className="text-violet-600 font-semibold">Охват рынка</span>
+                <span className="text-primary font-semibold">Охват рынка</span>
                 <span className={`font-bold ${covTextClass(cov)}`}>
                   {(cov * 100).toFixed(1)}%
                 </span>
@@ -911,13 +911,13 @@ export function TeacherDashboard() {
                   итоговой оценкой, хотя это лишь строгая доля. */}
               {analysis.average_market_weight_coverage != null && (
                 <div
-                  className="text-[11px] text-gray-500 dark:text-slate-400 mt-1"
+                  className="text-[11px] text-subtle-foreground mt-1"
                   title="Взвешенный охват: те же топ-навыки рынка, но с весом спроса по каждому навыку (см. глоссарий)"
                 >
                   по спросу: {(analysis.average_market_weight_coverage * 100).toFixed(1)}%
                 </div>
               )}
-              <div className="text-gray-500 dark:text-slate-400 mt-0.5">
+              <div className="text-subtle-foreground mt-0.5">
                 {analysis.total_disciplines} {plural(analysis.total_disciplines, "дисциплина", "дисциплины", "дисциплин")} · {analysis.total_gaps_across_all} {plural(analysis.total_gaps_across_all, "пробел", "пробела", "пробелов")}
               </div>
               <div className="mt-1.5">
@@ -932,7 +932,7 @@ export function TeacherDashboard() {
             aria-label="Поиск дисциплины"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-        className="w-full mt-2.5 px-3 py-2 rounded-md text-[13px] box-border bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-slate-100 outline-none"
+        className="w-full mt-2.5 px-3 py-2 rounded-md text-[13px] box-border bg-card border border-border text-foreground outline-none"
           />
           {/* Набор: переключает набор, по которому ЗАГРУЖАЮТСЯ данные
               (см. useEffect на [selectedDir, intakeYear]). Это НЕ фильтр
@@ -1296,52 +1296,41 @@ export function TeacherDashboard() {
             const wCov = discData ? discData.market_weight_coverage : analysis.average_market_weight_coverage;
           return (<>
           <div className="flex gap-3 mb-4 flex-wrap">
-            <div className={card}>
-              <div className="text-xs text-gray-500 dark:text-slate-400">
-                {discData ? `Охват рынка: ${selected?.name ?? ""}` : "Средний охват рынка"}
-                {covTotal ? ` (из ${covTotal})` : ""}
-              </div>
-                  <div className={`text-2xl font-bold ${covReliable ? covTextClass(cov) : "text-gray-400"}`}>
-                    {covReliable ? `${(cov * 100).toFixed(1)}%` : "н/д"}
-                  </div>
-                  <div className="text-xs font-semibold text-gray-500 dark:text-slate-400">
-                    {covReliable ? (level || "").toUpperCase() : "мало релевантных навыков"}
-                  </div>
-                  {/* Пара к строгому охвату сверху: без неё один процент
-                  читается как полная оценка. Только при достоверном знаменателе. */}
-                  {covReliable && wCov != null && (
-                    <div
-                      className="text-xs text-gray-500 dark:text-slate-400 mt-0.5"
-                      title="Взвешенный охват (по спросу): насколько востребовано то из топа рынка, что реально покрыто. Может быть выше или ниже строгого"
-                    >
-                      взвешенный охват: {(wCov * 100).toFixed(1)}%
-                    </div>
-                  )}
-                  {/* Откуда знаменатель: ручная привязка, автоподбор по навыкам
-                      дисциплины или слабая оценка по названию. */}
-                  {discData?.market_top_source && (
-                    <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                      {discData.market_top_source === "explicit"
-                        ? "знаменатель: ручная привязка"
-                        : discData.market_top_source === "derived"
-                          ? "знаменатель: авто по навыкам"
-                          : "знаменатель: по профилю дисциплины"}
-                    </div>
-                  )}
-                </div>
-                <div className={card}>
-                  <div className="text-xs text-gray-500 dark:text-slate-400">Gaps</div>
-                  <div className="text-2xl font-bold text-red-300">
-                    {gaps}
-                  </div>
-                </div>
-                <div className={card}>
-                  <div className="text-xs text-gray-500 dark:text-slate-400">Disciplines</div>
-                  <div className="text-2xl font-bold text-blue-300">
-                    {analysis.total_disciplines}
-                  </div>
-                </div>
-              </div>
+            <StatCard
+              className="min-w-[200px]"
+              tone={!covReliable ? "default" : cov > 0.5 ? "success" : cov > 0.2 ? "warning" : "danger"}
+              label={<>{discData ? `Охват рынка: ${selected?.name ?? ""}` : "Средний охват рынка"}{covTotal ? ` (из ${covTotal})` : ""}</>}
+              value={covReliable ? `${(cov * 100).toFixed(1)}%` : "н/д"}
+              hint={<>
+                <span className="font-semibold">
+                  {covReliable ? (level || "").toUpperCase() : "мало релевантных навыков"}
+                </span>
+                {/* Пара к строгому охвату сверху: без неё один процент
+                читается как полная оценка. Только при достоверном знаменателе. */}
+                {covReliable && wCov != null && (
+                  <span
+                    className="block text-subtle-foreground mt-0.5"
+                    title="Взвешенный охват (по спросу): насколько востребовано то из топа рынка, что реально покрыто. Может быть выше или ниже строгого"
+                  >
+                    взвешенный охват: {(wCov * 100).toFixed(1)}%
+                  </span>
+                )}
+                {/* Откуда знаменатель: ручная привязка, автоподбор по навыкам
+                    дисциплины или слабая оценка по названию. */}
+                {discData?.market_top_source && (
+                  <span className="block text-subtle-foreground mt-0.5">
+                    {discData.market_top_source === "explicit"
+                      ? "знаменатель: ручная привязка"
+                      : discData.market_top_source === "derived"
+                        ? "знаменатель: авто по навыкам"
+                        : "знаменатель: по профилю дисциплины"}
+                  </span>
+                )}
+              </>}
+            />
+            <StatCard label="Gaps" value={gaps} tone="danger" className="min-w-[140px]" />
+            <StatCard label="Disciplines" value={analysis.total_disciplines} tone="primary" className="min-w-[140px]" />
+          </div>
           </>)})()}
 
               {/* Общие блоки направления - только пока дисциплина не выбрана.
