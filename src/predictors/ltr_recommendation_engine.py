@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import logging
 from pathlib import Path
 from typing import Any
 
@@ -1163,10 +1162,9 @@ if __name__ == "__main__":
     import argparse
     import sys
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    from src.logging_config import setup_structlog
+
+    setup_structlog()
 
     parser = argparse.ArgumentParser(description="Отладка LTRRecommendationEngine")
     parser.add_argument(
