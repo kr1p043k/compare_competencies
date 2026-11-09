@@ -40,6 +40,7 @@ import structlog
 
 from src import config
 from src.services.llm_client import LLMClient
+from src.services.llm_guardrails import redact_pii
 
 logger = structlog.get_logger(__name__)
 
@@ -390,8 +391,8 @@ def _text_prompt(context_text: str, message: str = "", history_text: str = "") -
         "Ne vydumyvay dannyh, kotoryh net v kontekste. Otvechaesh tekstom.",
     ]
     if history_text:
-        lines.append(f"Poslednie hody dialoga (kratko):\n{history_text}")
-    lines.append(f"Vopros polzovatelya:\n{_str(message)}")
+        lines.append(f"Poslednie hody dialoga (kratko):\n{redact_pii(history_text)}")
+    lines.append(f"Vopros polzovatelya:\n{redact_pii(_str(message))}")
     lines.append(f"Kontekst:\n{context_text}")
     return "\n".join(lines)
 
@@ -407,9 +408,9 @@ def _blocks_prompt(
         '{"type":"text","content":"..."}. Ne vydumyvay dannyh.',
     ]
     if history_text:
-        lines.append(f"Poslednie hody dialoga (kratko):\n{history_text}")
+        lines.append(f"Poslednie hody dialoga (kratko):\n{redact_pii(history_text)}")
     if _str(message):
-        lines.append(f"Vopros polzovatelya:\n{_str(message)}")
+        lines.append(f"Vopros polzovatelya:\n{redact_pii(_str(message))}")
     lines.append(f"Kontekst:\n{context_text}")
     lines.append(f"Svodka:\n{text}")
     lines.append("JSON:")
