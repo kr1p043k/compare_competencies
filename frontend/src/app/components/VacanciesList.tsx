@@ -172,7 +172,9 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
     dateFrom !== "" || dateTo !== "",
   ].filter(Boolean).length;
   const handledCompleteRef = useRef(false);
-  const itemsPerPage = 12;
+  // 48 на страницу: столько забираем с сервера. Больше окна рендера (PAGE_SIZE
+  // = 24), поэтому инкрементальный показ реально включается, а не простаивает.
+  const itemsPerPage = 48;
   const fmtDateRU = (iso: string) => {
     const p = (iso || "").slice(0, 10).split("-");
     return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : iso;
@@ -380,7 +382,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             <CardHeader className="border-b border-border/50 dark:border-border/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-700 rounded-lg">
+                  <div className="p-2 bg-primary rounded-lg">
                     <Rocket className="size-5 text-white" />
                   </div>
                   <div>
@@ -676,7 +678,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           <CardHeader className="border-b border-border/50 dark:border-border/50 bg-muted dark:bg-card">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-700 rounded-lg">
+                <div className="p-2 bg-primary rounded-lg">
                   <Filter className="size-5 text-white" />
                 </div>
                 <div>
@@ -745,7 +747,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             >
               <div className="flex items-center justify-between gap-3 p-5 border-b border-border dark:border-border">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-700 rounded-lg">
+                  <div className="p-2 bg-primary rounded-lg">
                     <Filter className="size-5 text-white" />
                   </div>
                   <div>
@@ -774,14 +776,14 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyPress={handleSearchKeyPress}
                       placeholder="Должность или компания"
-                      className="pl-10 h-10 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-500"
+                      className="pl-10 h-10 rounded-lg focus-visible:ring-2 focus-visible:ring-ring"
                     />
                   </div>
                   <Button
                     onClick={handleSearch}
                     disabled={loading}
                     aria-label="Найти"
-                    className="h-10 w-10 bg-blue-700 hover:bg-blue-800 text-white rounded-lg"
+                    className="h-10 w-10 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg"
                   >
                     {loading ? (
                       <Loader2 className="size-4 animate-spin" />
@@ -850,10 +852,10 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                         key={p.label}
                         type="button"
                         onClick={() => { setMonthsFilter(p.value); if (p.value !== null) { setDateFrom(""); setDateTo(""); } }}
-                        className={`h-9 px-4 rounded-full border text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none ${
+                        className={`h-9 px-4 rounded-full border text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
                           isActive
-                            ? "bg-blue-700 border-blue-700 text-white"
-                            : "border-border-strong dark:border-border-strong text-foreground dark:text-muted-foreground hover:border-primary hover:text-blue-700 dark:hover:text-primary"
+                            ? "bg-primary border-primary text-primary-foreground"
+                            : "border-border-strong text-foreground dark:text-muted-foreground hover:border-primary hover:text-primary"
                         } ${dimmed ? "opacity-40" : ""}`}
                       >
                         {p.label}
@@ -897,7 +899,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 {applied.experience !== "all" && (
                   <Badge
                     variant="secondary"
-                    className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
+                    className="cursor-pointer hover:bg-muted"
                     onClick={() => { setExperienceFilter("all"); applyFilters({ experience: "all" }); }}
                   >
                     {applied.experience} ✕
@@ -906,7 +908,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 {applied.city !== "all" && (
                   <Badge
                     variant="secondary"
-                    className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
+                    className="cursor-pointer hover:bg-muted"
                     onClick={() => { setCityFilter("all"); applyFilters({ city: "all" }); }}
                   >
                     {applied.city} ✕
@@ -915,7 +917,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 {applied.search && (
                   <Badge
                     variant="secondary"
-                    className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
+                    className="cursor-pointer hover:bg-muted"
                     onClick={() => {
                       setSearchQuery("");
                       applyFilters({ search: "" });
@@ -927,7 +929,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 {applied.months !== null && (
                   <Badge
                     variant="secondary"
-                    className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
+                    className="cursor-pointer hover:bg-muted"
                     onClick={() => { setMonthsFilter(null); applyFilters({ months: null }); }}
                   >
                     {applied.months} мес ✕
@@ -936,7 +938,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 {(applied.date_from || applied.date_to) && (
                   <Badge
                     variant="secondary"
-                    className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
+                    className="cursor-pointer hover:bg-muted"
                     onClick={() => { setDateFrom(""); setDateTo(""); applyFilters({ date_from: "", date_to: "" }); }}
                   >
                     {applied.date_from ? fmtDateRU(applied.date_from) : "…"} - {applied.date_to ? fmtDateRU(applied.date_to) : "…"} ✕
@@ -948,7 +950,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Button
                   onClick={() => { applyFilters(); setFilterOpen(false); }}
                   disabled={loading}
-                  className="h-10 flex-1 bg-blue-700 hover:bg-blue-800 text-white rounded-lg gap-2 whitespace-nowrap"
+                  className="h-10 flex-1 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg gap-2 whitespace-nowrap"
                 >
                   {loading ? (
                     <Loader2 className="size-4 animate-spin" />
@@ -1008,44 +1010,44 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
         >
-          <Card className="border-2 border-destructive/30 dark:border-red-800 bg-destructive/10 bg-destructive/10/20">
+          <Card className="border-2 border-destructive/30 bg-destructive/10">
             <CardContent className="pt-6 text-center">
               <AlertCircle className="size-12 text-destructive dark:text-destructive mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-red-900 dark:text-red-100 mb-2">
+              <h3 className="text-lg font-semibold text-destructive mb-2">
                 Ошибка загрузки
               </h3>
-              <p className="text-red-700 dark:text-red-300">{error}</p>
+              <p className="text-destructive">{error}</p>
 
               {vacancyInfo?.load_error?.startsWith("corrupted:") ? (
-                <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg text-left max-w-lg mx-auto">
-                  <p className="text-sm text-orange-800 dark:text-orange-200">
+                <div className="mt-4 p-4 bg-warning-soft border border-warning/30 rounded-lg text-left max-w-lg mx-auto">
+                  <p className="text-sm text-warning">
                     <AlertCircle className="size-4 inline mr-1" />
-                    <strong>Файл вакансий повреждён.</strong> Файл существует (<code className="text-xs bg-orange-100 dark:bg-orange-950/30 px-1 rounded">{vacancyInfo.file_modified ?? "неизвестно"}</code>), но не может быть прочитан.
+                    <strong>Файл вакансий повреждён.</strong> Файл существует (<code className="text-xs bg-warning-soft px-1 rounded">{vacancyInfo.file_modified ?? "неизвестно"}</code>), но не может быть прочитан.
                   </p>
-                  <p className="text-xs text-orange-700 dark:text-orange-300 mt-2">
+                  <p className="text-xs text-warning mt-2">
                     Попробуйте запустить повторный сбор вакансий - файлы будут перезаписаны.
                   </p>
                 </div>
               ) : !vacancyInfo?.file_modified ? (
-                <div className="mt-4 p-4 bg-warning-soft bg-warning-soft/30 border border-amber-200 dark:border-amber-800 rounded-lg text-left max-w-lg mx-auto">
-                  <p className="text-sm text-amber-800 dark:text-amber-200">
+                <div className="mt-4 p-4 bg-warning-soft/30 border border-warning/30 rounded-lg text-left max-w-lg mx-auto">
+                  <p className="text-sm text-warning">
                     <Database className="size-4 inline mr-1" />
                     <strong>Вакансии не собраны.</strong> Нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
                   </p>
-                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
+                  <p className="text-xs text-warning mt-2">
                     После сбора вакансий данные кэшируются. Если вы уже запускали сбор - проверьте, что бэкенд запущен.
                   </p>
                 </div>
               ) : (
-                <div className="mt-4 p-4 bg-destructive/10 bg-destructive/10/30 border border-destructive/30 dark:border-red-800 rounded-lg text-left max-w-lg mx-auto">
-                  <p className="text-sm text-red-800 dark:text-red-200">
+                <div className="mt-4 p-4 bg-destructive/10 border border-destructive/30 rounded-lg text-left max-w-lg mx-auto">
+                  <p className="text-sm text-destructive">
                     <AlertCircle className="size-4 inline mr-1" />
                     <strong>Не удалось загрузить данные из файла.</strong> Файл существует, но возникла ошибка при обработке.
                   </p>
                   {vacancyInfo?.load_error && (
                     <p className="text-xs text-destructive mt-1 font-mono">{vacancyInfo.load_error}</p>
                   )}
-                  <p className="text-xs text-red-700 dark:text-red-300 mt-2">
+                  <p className="text-xs text-destructive mt-2">
                     Попробуйте перезапустить сервер или запустить повторный сбор.
                   </p>
                 </div>
@@ -1054,7 +1056,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               <Button
                 onClick={loadVacancies}
                 variant="outline"
-                className="mt-4 border-red-300 dark:border-red-700"
+                className="mt-4 border-destructive/40"
               >
                 Попробовать снова
               </Button>
@@ -1073,12 +1075,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 title="Вакансии не найдены"
                 description="По вашему запросу ничего не найдено. Измените фильтры или запустите сбор заново."
               />
-              <div className="p-4 bg-primary-soft dark:bg-blue-950/30 border border-primary/30 dark:border-blue-800 rounded-lg text-left max-w-lg mx-auto">
-                <p className="text-sm text-blue-800 dark:text-blue-200">
+              <div className="p-4 bg-primary-soft border border-primary/30 rounded-lg text-left max-w-lg mx-auto">
+                <p className="text-sm text-primary-soft-foreground">
                   <Database className="size-4 inline mr-1" />
                   <strong>Если вакансии ещё не собраны</strong> - нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
                 </p>
-                <ul className="mt-2 text-xs text-blue-700 dark:text-blue-300 space-y-1 list-disc list-inside">
+                <ul className="mt-2 text-xs text-primary-soft-foreground space-y-1 list-disc list-inside">
                   <li>После нажатия запустится полный цикл сбора (10-15 минут)</li>
                   <li>Прогресс будет отображаться на этой же странице</li>
                   <li>После завершения данные обновятся автоматически</li>
