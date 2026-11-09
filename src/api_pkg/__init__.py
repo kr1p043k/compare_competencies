@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 
 from src import config
 from src.api_pkg.client_ip import client_ip
@@ -143,6 +144,13 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Сжатие ответов (gzip): тяжёлые JSON (метрики, аудит, списки вакансий и
+    # навыков) уменьшаются в разы; ответ помечается Vary: Accept-Encoding.
+    # ВНИМАНИЕ: внешние BaseHTTPMiddleware (лимит тела, лог запроса) превращают
+    # ответ в стрим, из-за чего minimum_size на практике не отсекает мелкие
+    # тела. Держим порог как намерение; при желании жёстко отсекать мелкие -
+    # вынести GZip наружу стека в отдельный слой.
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
 
     @app.middleware("http")
     async def limit_body_size_middleware(request: Request, call_next):
