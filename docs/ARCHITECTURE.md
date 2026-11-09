@@ -277,7 +277,7 @@ rapidfuzz (JaccardEngine), joblib (сериализация вместо pickle)
 ### Скрипты деплоя
 - **`update-deployment.sh`** - полный цикл: бэкап volumes + БД → git pull → compose down → build → up → health check → rollback при ошибке
 - **`backup-volumes.sh`** - бэкап всех Docker volumes и дампа PostgreSQL
-- **`seed_users.py`** + **`users.json`** - наполнение пользователей (admin/teacher/student) через `asyncpg`
+- **`python -m src.cli.seed_db`** + **`users.json`** - наполнение пользователей (admin/teacher/student)
 
 ### CI/CD (GitHub Actions)
 - Пуш в `main` → Tailscale authkey → appleboy/ssh-action → `update-deployment.sh` на compareserver

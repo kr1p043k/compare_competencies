@@ -331,7 +331,6 @@
 ├── 📄 .env.example                     # Переменные окружения
 ├── 📄 .pre-commit-config.yaml          # pre-commit хуки
 ├── 📄 .dockerignore                    # Игнор для Docker
-├── 📄 seed_users.py                    # Наполнение пользователей из users.json
 ├── 📄 users.json                       # Пользователи по умолчанию (admin/teacher/student)
 ├── 📄 backup-volumes.sh                # Бэкап Docker volumes
 ├── 📄 update-deployment.sh             # Полный деплой + бэкап + rollback
@@ -529,7 +528,7 @@ python main.py --interactive
 
 | Файл | Назначение |
 |------|------------|
-| `seed_users.py` | Наполнение пользователей из `users.json` в PostgreSQL через `asyncpg`. Запуск: `python seed_users.py` |
+| `python -m src.cli.seed_db` | Наполнение пользователей из `users.json` в PostgreSQL. Запуск: `python -m src.cli.seed_db` |
 | `users.json` | Пользователи по умолчанию: admin, teacher, student |
 | `backup-volumes.sh` | Бэкап Docker volumes + дамп PostgreSQL в `./backups/` |
 | `update-deployment.sh` | Полный деплой: бэкап → git pull → compose down → build → up → health check → rollback при ошибке |
