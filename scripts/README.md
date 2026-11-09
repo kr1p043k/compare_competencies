@@ -17,6 +17,8 @@
   `.manifest.json`/`.metrics.json` с `feature_names` и NDCG@10 (`--write` их создаёт);
 - `check_calibration.py` - отчёт калибровки отгружаемого ранкера (log_loss/Brier на
   frozen-сплите; калибратор НЕ отдаётся в прод);
+- `check_feature_drift.py` - дрейф признаков против baseline (KS/PSI/сдвиг среднего),
+  `--write-baseline` сохраняет эталон;
 - `ml_eval_common.py` - общий сборщик frozen-фреймов для eval_frozen/калибровки/дрейфа;
 - `train_ltr_ranker.py`, `_dsn.py` - общие модули для скриптов и экспериментов.
 
