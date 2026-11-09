@@ -46,17 +46,17 @@ function buildTree(flat: CompetencyNode[]): CompetencyNode[] {
 }
 
 function coverageColor(val: number | undefined): string {
-  if (val === undefined) return "text-gray-300";
-  if (val >= 0.6) return "text-green-600";
-  if (val >= 0.2) return "text-yellow-600";
-  return "text-red-600";
+  if (val === undefined) return "text-subtle-foreground";
+  if (val >= 0.6) return "text-success";
+  if (val >= 0.2) return "text-warning";
+  return "text-destructive";
 }
 
 function bgColor(val: number | undefined): string {
-  if (val === undefined) return "bg-gray-50 dark:bg-slate-900";
-  if (val >= 0.6) return "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800";
-  if (val >= 0.2) return "bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800";
-  return "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800";
+  if (val === undefined) return "bg-muted";
+  if (val >= 0.6) return "bg-success-soft border-success/30";
+  if (val >= 0.2) return "bg-warning-soft border-warning/30";
+  return "bg-destructive/10 border-destructive/30";
 }
 
 function TreeNode({ node, depth }: { node: CompetencyNode; depth: number }) {
@@ -75,23 +75,23 @@ function TreeNode({ node, depth }: { node: CompetencyNode; depth: number }) {
   return (
     <div>
       <div
-        className={`flex items-center justify-between px-3 py-2 text-sm border rounded mb-0.5 cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-slate-800 ${bgColor(displayCov)}`}
+        className={`flex items-center justify-between px-3 py-2 text-sm border rounded mb-0.5 cursor-pointer transition-colors hover:bg-muted ${bgColor(displayCov)}`}
         style={{ marginLeft: depth * 16 }}
         onClick={() => (hasChildren || hasSkills) && setOpen(!open)}
       >
         <div className="flex items-center gap-2 min-w-0">
           {hasChildren ? (
-            open ? <ChevronDown className="size-4 shrink-0 text-gray-400 dark:text-slate-500" /> : <ChevronRight className="size-4 shrink-0 text-gray-400 dark:text-slate-500" />
+            open ? <ChevronDown className="size-4 shrink-0 text-subtle-foreground" /> : <ChevronRight className="size-4 shrink-0 text-subtle-foreground" />
           ) : (
             <span className="size-4 inline-block" />
           )}
-          <span className="font-medium text-gray-800 dark:text-slate-200 truncate">{node.code}</span>
+          <span className="font-medium text-foreground truncate">{node.code}</span>
           {hasChildren && (
-            <span className="text-xs text-gray-400 dark:text-slate-500 shrink-0">({node.children!.length})</span>
+            <span className="text-xs text-subtle-foreground shrink-0">({node.children!.length})</span>
           )}
         </div>
         <div className="flex items-center gap-3 shrink-0 ml-3">
-          <span className={`text-xs ${total > 0 ? "text-gray-500 dark:text-slate-400" : "text-gray-300"}`}>
+          <span className={`text-xs ${total > 0 ? "text-muted-foreground" : "text-subtle-foreground"}`}>
             {matched}/{total}
           </span>
           <span className={`font-semibold text-sm tabular-nums ${coverageColor(displayCov)}`}>
@@ -109,17 +109,17 @@ function TreeNode({ node, depth }: { node: CompetencyNode; depth: number }) {
       {open && hasSkills && (
         <div className="flex flex-wrap gap-1 px-3 py-2" style={{ marginLeft: depth * 16 + 20 }}>
           {matchedList.slice(0, 8).map((s, i) => (
-            <span key={"m" + i} title={s} className="text-xs px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800">
+            <span key={"m" + i} title={s} className="text-xs px-2 py-0.5 rounded-full bg-success-soft text-success border border-success/30">
               {shortSkill(s)}
             </span>
           ))}
           {gapList.slice(0, 8).map((s, i) => (
-            <span key={"g" + i} title={s} className="text-xs px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
+            <span key={"g" + i} title={s} className="text-xs px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/30">
               {shortSkill(s)}
             </span>
           ))}
           {(matchedList.length > 8 || gapList.length > 8) && (
-            <span className="text-xs px-2 py-0.5 text-gray-400 dark:text-slate-500">
+            <span className="text-xs px-2 py-0.5 text-subtle-foreground">
               +{Math.max(0, matchedList.length - 8) + Math.max(0, gapList.length - 8)} more
             </span>
           )}
@@ -141,7 +141,7 @@ export function CompetencyTree({
   if (tree.length === 0) return null;
 
   return (
-    <div className={`divide-y divide-gray-100 border rounded-lg ${className}`}>
+    <div className={`divide-y divide-border border rounded-lg ${className}`}>
       {tree.map((root) => (
         <TreeNode key={root.code} node={root} depth={0} />
       ))}
