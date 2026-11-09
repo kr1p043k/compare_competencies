@@ -8,12 +8,12 @@ const fs = require("fs");
 const path = require("path");
 const { createRequire } = require("module");
 
-const frontendRequire = createRequire(path.resolve(__dirname, "..", "frontend", "package.json"));
+const frontendRequire = createRequire(path.resolve(__dirname, "..", "..", "frontend", "package.json"));
 const WebSocket = frontendRequire("ws");
 
 const CDP = "http://127.0.0.1:9222";
 const APP = "http://localhost:3000";
-const OUT = path.resolve(__dirname, "..");
+const OUT = path.resolve(__dirname, "..", "..");
 const SHOTS = path.join(OUT, ".tmp_shots");
 
 const TAB_VALUES = [

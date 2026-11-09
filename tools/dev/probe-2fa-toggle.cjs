@@ -12,7 +12,7 @@ const fs = require("fs");
 const path = require("path");
 const { createRequire } = require("module");
 
-const frontendRequire = createRequire(path.resolve(__dirname, "..", "frontend", "package.json"));
+const frontendRequire = createRequire(path.resolve(__dirname, "..", "..", "frontend", "package.json"));
 const WebSocket = frontendRequire("ws");
 
 const CDP = "http://127.0.0.1:9222";
@@ -194,7 +194,7 @@ async function apiState(token) {
   const finalState = await apiState(token);
   console.log("API итог:", JSON.stringify(finalState.body));
 
-  const shots = path.resolve(__dirname, "..", ".tmp_shots");
+  const shots = path.resolve(__dirname, "..", "..", ".tmp_shots");
   fs.mkdirSync(shots, { recursive: true });
   const shot = await c.send("Page.captureScreenshot", { format: "png" });
   fs.writeFileSync(path.join(shots, "2fa-toggle.png"), Buffer.from(shot.data, "base64"));
