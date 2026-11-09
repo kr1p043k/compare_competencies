@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ListFilter } from "lucide-react";
 import { api } from "../api";
-import { Badge, MetricPair, Skeleton, StatCard } from "../../design";
+import { Badge, Meter, MetricPair, Skeleton, StatCard } from "../../design";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { MetricsGlossary } from "./MetricsGlossary";
 import { TaxonomyBrowser } from "./TaxonomyBrowser";
@@ -624,11 +624,10 @@ export function TeacherDashboard() {
       <div
         role="status"
         aria-live="polite"
-        className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900 md:flex-row"
-        style={{ height: "calc(100vh - 100px)", fontFamily: "system-ui, -apple-system, sans-serif" }}
+        className="flex h-[calc(100vh-100px)] flex-col overflow-hidden rounded-2xl border border-border bg-card font-sans md:flex-row"
       >
         <span className="sr-only">Загрузка...</span>
-        <div className="w-full shrink-0 space-y-2.5 overflow-hidden border-b border-gray-200 p-4 dark:border-slate-700 md:w-[380px] md:min-w-[380px] md:border-b-0 md:border-r">
+        <div className="w-full shrink-0 space-y-2.5 overflow-hidden border-b border-border p-4 md:w-[380px] md:min-w-[380px] md:border-b-0 md:border-r">
           <div className="flex items-center justify-between">
             <Skeleton className="h-6 w-28" />
             <Skeleton className="h-8 w-24" />
@@ -675,26 +674,26 @@ export function TeacherDashboard() {
 
   // Класс-эквивалент прежнего inline-стиля `card` (фактические значения совпадают:
   // radius 8px = rounded-lg, padding 14px = p-3.5, margin 10px = mb-2.5).
-  const card = "rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3.5 mb-2.5 shadow-xs";
+  const card = "rounded-lg border border-border bg-card p-3.5 mb-2.5 shadow-xs";
 
   function covBorderClass(cov: number) {
-    return cov > 0.5 ? "border-emerald-600" : cov > 0.2 ? "border-amber-600" : "border-red-600";
+    return cov > 0.5 ? "border-success" : cov > 0.2 ? "border-warning" : "border-destructive";
   }
 
   function covTextClass(cov: number) {
-    return cov > 0.5 ? "text-emerald-600" : cov > 0.2 ? "text-amber-600" : "text-red-600";
+    return cov > 0.5 ? "text-success" : cov > 0.2 ? "text-warning" : "text-destructive";
   }
 
   return (
-    <div className="flex h-[calc(100vh-100px)] font-sans text-gray-900 dark:text-slate-100 bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-700 overflow-hidden">
-      <div className="w-[380px] min-w-[380px] border-r border-gray-200 dark:border-slate-700 flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-gray-200 dark:border-slate-700">
+    <div className="flex h-[calc(100vh-100px)] font-sans text-foreground bg-card rounded-2xl border border-border overflow-hidden">
+      <div className="w-[380px] min-w-[380px] border-r border-border flex flex-col overflow-hidden">
+          <div className="p-4 border-b border-border">
             <div className="flex justify-between items-center">
-              <h1 className="text-lg m-0 text-gray-900 dark:text-slate-100">
+              <h1 className="text-lg m-0 text-foreground">
                 KRM Teacher
               </h1>
               {stats && (
-                  <div className="text-xs text-gray-500 dark:text-slate-400 text-right">
+                  <div className="text-xs text-muted-foreground text-right">
                     <div>{(() => { const n = stats.total_disciplines ?? stats.total_reports ?? 0; return `${n} ${plural(n, "дисциплина", "дисциплины", "дисциплин")}`; })()}</div>
                     <div>{(() => { const n = stats.total_competencies ?? Object.keys(stats.by_profession ?? {}).length; return `${n} ${plural(n, "компетенция", "компетенции", "компетенций")}`; })()}</div>
                     <div>{(() => { const n = stats.total_skills ?? 0; return `${n.toLocaleString()} ${plural(n, "навык", "навыка", "навыков")}`; })()}</div>
@@ -706,7 +705,7 @@ export function TeacherDashboard() {
           <select
             value={selectedDir}
             onChange={(e) => setSelectedDir(e.target.value)}
-        className="w-full mt-2.5 px-2 py-1.5 rounded-md text-xs bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-slate-100 outline-none"
+        className="w-full mt-2.5 px-2 py-1.5 rounded-md text-xs bg-card border border-border text-foreground outline-none"
           >
             {directions.map((d, idx) => (
               <option key={`${d.dir_code}-${idx}`} value={d.dir_code}>{d.dir_code} - {d.name}</option>
@@ -724,11 +723,11 @@ export function TeacherDashboard() {
               rpdStatus?.status === "started";
             const opsOpen = dataOpsOpen || processing;
             return (
-              <div className="mt-2.5 rounded-md border border-gray-200 dark:border-slate-700">
+              <div className="mt-2.5 rounded-md border border-border">
                 <button
                   onClick={() => setDataOpsOpen(!dataOpsOpen)}
                   aria-expanded={opsOpen}
-                  className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-700 dark:text-slate-300 bg-gray-50 dark:bg-slate-800 border-0 rounded-md cursor-pointer"
+                  className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-foreground bg-muted border-0 rounded-md cursor-pointer"
                 >
                   <span>Данные и РПД</span>
                   <span aria-hidden="true">{opsOpen ? "▾" : "▸"}</span>
@@ -782,19 +781,19 @@ export function TeacherDashboard() {
               }
             }}
             disabled={runLoading}
-        className={`w-full mt-2.5 px-3 py-2 border-0 rounded-md text-xs font-semibold text-white ${runLoading ? "bg-gray-400 cursor-default" : "bg-violet-600 cursor-pointer"}`}
+        className="w-full mt-2.5 px-3 py-2 border-0 rounded-md text-xs font-semibold text-primary-foreground bg-primary hover:brightness-110 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
           >
             {runLoading ? "Анализ запущен..." : "Запустить анализ"}
           </button>
             {runMsg && (
-              <div className="text-xs text-amber-700 mt-1.5">{runMsg}</div>
+              <div className="text-xs text-warning mt-1.5">{runMsg}</div>
             )}
 
           {/* RPD upload block */}
           <div
-        className="mt-3 px-3 py-2.5 rounded-md bg-amber-50 dark:bg-[#2a230f] border border-amber-200 dark:border-[#57481c]"
+        className="mt-3 px-3 py-2.5 rounded-md bg-warning-soft border border-warning/30"
           >
-            <div className="text-xs font-bold text-amber-800 mb-2">
+            <div className="text-xs font-bold text-warning mb-2">
               Подгрузка РПД
             </div>
             <input
@@ -812,7 +811,7 @@ export function TeacherDashboard() {
             <button
               onClick={() => rpdInputRef.current?.click()}
               disabled={rpdUploading}
-          className={`w-full px-3 py-2 border-0 rounded-md text-xs font-semibold text-white ${rpdUploading ? "bg-gray-400 cursor-default" : "bg-violet-600 cursor-pointer"}`}
+          className="w-full px-3 py-2 border-0 rounded-md text-xs font-semibold text-primary-foreground bg-primary hover:brightness-110 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
             >
               {rpdUploading ? "Обработка..." : "Загрузить PDF и обработать"}
             </button>
@@ -820,30 +819,34 @@ export function TeacherDashboard() {
               <button
                 onClick={collectRpd}
                 disabled={collectCooldown > 0}
-            className={`w-full mt-2 px-3 py-2 border-0 rounded-md text-xs font-semibold text-white ${rpdCollecting ? "bg-red-600 cursor-pointer" : collectCooldown > 0 ? "bg-gray-400 cursor-default" : "bg-violet-600 cursor-pointer"}`}
+            className={`w-full mt-2 px-3 py-2 border-0 rounded-md text-xs font-semibold cursor-pointer ${
+              rpdCollecting
+                ? "bg-destructive text-destructive-foreground"
+                : "bg-primary text-primary-foreground disabled:opacity-50 disabled:pointer-events-none"
+            }`}
               >
                 {rpdCollecting ? "Отмена" : collectCooldown > 0 ? `Подождите ${collectCooldown} сек` : "Собрать с Yandex Disk"}
               </button>
             )}
-            <div className="flex flex-col gap-1.5 border-t border-dashed border-amber-200 dark:border-amber-900 pt-2 mt-2">
+            <div className="flex flex-col gap-1.5 border-t border-dashed border-warning/30 pt-2 mt-2">
               <input
                 type="text"
                 value={rpdYandexUrl}
                 onChange={(e) => setRpdYandexUrl(e.target.value)}
                 placeholder="Ссылка на папку Yandex Disk (https://disk.360.yandex.ru/d/...)"
-            className="w-full px-2.5 py-2 rounded-md text-xs box-border border border-amber-200 dark:border-[#57481c] bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100"
+            className="w-full px-2.5 py-2 rounded-md text-xs box-border border border-warning/40 bg-card text-foreground"
               />
               <button
                 onClick={collectRpd}
                 disabled={rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim()}
-            className={`w-full px-3 py-2 border-0 rounded-md text-xs font-semibold text-white ${rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim() ? "bg-gray-400 cursor-default" : "bg-teal-600 cursor-pointer"}`}
+            className="w-full px-3 py-2 border-0 rounded-md text-xs font-semibold text-success-foreground bg-success hover:brightness-110 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
               >
                 {rpdCollecting ? "Сбор..." : "Загрузить по ссылке"}
               </button>
             </div>
             {rpdStatus && (rpdStatus.status === "completed" || rpdStatus.status === "failed") && (
               <div
-            className={`mt-2 text-xs ${rpdStatus.status === "completed" ? "text-green-700" : "text-red-700"}`}
+            className={`mt-2 text-xs ${rpdStatus.status === "completed" ? "text-success" : "text-destructive"}`}
               >
                 {rpdMsg}
                 {rpdStatus.stats?.disciplines != null && rpdStatus.status === "completed" && (
@@ -853,15 +856,12 @@ export function TeacherDashboard() {
             )}
             {(rpdUploading || rpdCollecting) && rpdStatus && (rpdStatus.status === "running" || rpdStatus.status === "started") && (
               <div className="mt-2.5">
-                <div
-              className="h-2 rounded overflow-hidden bg-amber-200 dark:bg-[#57481c]"
-                >
-                  <div
-                className="h-full bg-teal-600 transition-[width] duration-500"
-                ref={(el) => { if (el) el.style.width = `${rpdStatus.stats?.progress ?? 10}%`; }}
-                  />
-                </div>
-                <div className="mt-1.5 text-xs text-amber-800">
+                <Meter
+                  value={rpdStatus.stats?.progress ?? 10}
+                  trackClassName="bg-warning/30"
+                  fillClassName="bg-info"
+                />
+                <div className="mt-1.5 text-xs text-warning">
                   Этап: {rpdStageLabel(rpdStatus.stats?.stage)} · {rpdStatus.stats?.progress ?? 10}%
                 </div>
               </div>
@@ -939,7 +939,7 @@ export function TeacherDashboard() {
               видимости: строки ниже фильтрует «Показать в списке». */}
           <div className="flex gap-1.5 mt-2 items-center flex-wrap" role="group" aria-label="Набор: загрузка данных">
             <span
-              className="text-xs text-gray-500 dark:text-slate-400"
+              className="text-xs text-muted-foreground"
               title="Учебный план какого набора грузить: от него зависят список дисциплин, охваты и весь анализ. Переключение заново запрашивает данные с сервера."
             >
               Набор:
@@ -953,8 +953,8 @@ export function TeacherDashboard() {
                 className={
                   "text-xs px-2 py-0.5 rounded border cursor-pointer " +
                   (intakeYear === y
-                    ? "border-violet-400 bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
-                    : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300")
+                    ? "border-primary/60 bg-primary-soft text-primary-soft-foreground"
+                    : "border-border-strong bg-card text-muted-foreground")
                 }
               >
                 {y}
@@ -963,14 +963,14 @@ export function TeacherDashboard() {
           </div>
           {/* Видимая подсказка: то, что раньше было только в тултипах,
               пользователь не читал и путал набор с фильтром. */}
-          <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
+          <div className="text-[11px] text-subtle-foreground mt-1">
             по плану выбранного набора грузятся список, охваты и анализ
           </div>
         </div>
         <div className="flex-1 overflow-auto">
           {/* Чипы вместо текстовой цепочки с точками: каждый шаг
               снабжён тултипом, откуда взялось число. */}
-          <div className="px-4 py-1.5 border-b border-gray-200 dark:border-slate-700">
+          <div className="px-4 py-1.5 border-b border-border">
             {scopeChain ? (
               <div className="flex gap-1.5 flex-wrap items-center">
                 <Badge tone="neutral" title="Все дисциплины учебного плана выбранного набора">
@@ -990,21 +990,21 @@ export function TeacherDashboard() {
                 </Badge>
               </div>
             ) : (
-              <div className="text-xs text-gray-500 dark:text-slate-400">
+              <div className="text-xs text-muted-foreground">
                 В учёте {disciplines.filter((x) => x.in_scope ?? true).length} из {disciplines.length}
               </div>
             )}
-            {scopeMsg && (<div className="text-amber-800 mt-0.5">{scopeMsg}</div>)}
+            {scopeMsg && (<div className="text-warning mt-0.5">{scopeMsg}</div>)}
             <div className="flex gap-1.5 mt-1 items-center flex-wrap">
               <button onClick={() => saveScopeBulk(true)} disabled={scopeSaving !== null}
-                className="text-xs px-2.5 py-0.5 rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 cursor-pointer">
+                className="text-xs px-2.5 py-0.5 rounded border border-border-strong bg-card cursor-pointer">
                 Выбрать все
               </button>
               <button onClick={() => saveScopeBulk(false)} disabled={scopeSaving !== null}
-                className="text-xs px-2.5 py-0.5 rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 cursor-pointer">
+                className="text-xs px-2.5 py-0.5 rounded border border-border-strong bg-card cursor-pointer">
                 Снять все
               </button>
-              {metaStale && (<span className="text-xs text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950 rounded px-1.5 py-0.5">данные устарели - обновите анализ</span>)}
+              {metaStale && (<span className="text-xs text-warning bg-warning-soft rounded px-1.5 py-0.5">данные устарели - обновите анализ</span>)}
             </div>
           </div>
           {/* «Показать в списке» - фильтр видимости: только скрывает строки
@@ -1012,10 +1012,10 @@ export function TeacherDashboard() {
               выбора набора выше). */}
           <div className="flex gap-1.5 px-2 pb-2 items-center flex-wrap" role="group" aria-label="Показать в списке: фильтр видимости">
             <span
-              className="text-xs text-gray-500 dark:text-slate-400"
+              className="text-xs text-muted-foreground"
               title="Видимость строк уже загруженного списка. Данные не перезагружает: набор выбирается в блоке «Набор»."
             >
-              <ListFilter className="inline-block size-3.5 -mt-0.5 mr-0.5 text-gray-400 dark:text-slate-500" aria-hidden="true" />
+              <ListFilter className="inline-block size-3.5 -mt-0.5 mr-0.5 text-subtle-foreground" aria-hidden="true" />
               Показать в списке:
             </span>
             {([0, 2024, 2025] as const).map((y) => (
@@ -1027,8 +1027,8 @@ export function TeacherDashboard() {
                 className={
                   "text-xs px-2 py-0.5 rounded border cursor-pointer " +
                   (yearFilter === y
-                    ? "border-slate-400 bg-slate-100 text-slate-700 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-200"
-                    : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300")
+                    ? "border-primary/60 bg-primary-soft text-primary-soft-foreground"
+                    : "border-border-strong bg-card text-muted-foreground")
                 }
               >
                 {y === 0 ? "все" : `в плане ${y}`}
@@ -1052,8 +1052,8 @@ export function TeacherDashboard() {
                 className={
                   "text-xs px-2 py-0.5 rounded border cursor-pointer " +
                   (discFilter === id
-                    ? "border-violet-400 bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
-                    : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300")
+                    ? "border-primary/60 bg-primary-soft text-primary-soft-foreground"
+                    : "border-border-strong bg-card text-muted-foreground")
                 }
               >
                 {label} ({discCounts[id]})
@@ -1066,34 +1066,34 @@ export function TeacherDashboard() {
               onChange={(e) => setDiscSort(e.target.value as DiscSort)}
               aria-label="Сортировка дисциплин"
               title="Порядок дисциплин в списке"
-              className="text-xs px-1.5 py-1 rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-700 dark:text-slate-300 outline-none"
+              className="text-xs px-1.5 py-1 rounded border border-border-strong bg-card text-foreground outline-none"
             >
               <option value="plan">По учебному плану</option>
               <option value="name">По алфавиту</option>
               <option value="coverage">Худший охват сверху</option>
               <option value="gaps">Больше пробелов сверху</option>
             </select>
-            <span className="text-[11px] text-gray-400 dark:text-slate-500 ml-auto whitespace-nowrap">
+            <span className="text-[11px] text-subtle-foreground ml-auto whitespace-nowrap">
               {filtered.length} из {disciplines.length}
             </span>
             {discFiltersActive && (
               <button
                 onClick={() => { setSearch(""); setYearFilter(0); setDiscFilter("all"); setDiscSort("plan"); }}
-                className="text-[11px] text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline whitespace-nowrap"
+                className="text-[11px] text-primary hover:text-primary/80 border-0 bg-transparent cursor-pointer underline whitespace-nowrap"
               >
                 Сбросить
               </button>
             )}
           </div>
           {filtered.length === 0 && (
-            <div className="text-center text-xs text-gray-400 dark:text-slate-500 py-8 px-4">
+            <div className="text-center text-xs text-subtle-foreground py-8 px-4">
               Ничего не найдено
               {discFiltersActive && (
                 <>
                   {" — "}
                   <button
                     onClick={() => { setSearch(""); setYearFilter(0); setDiscFilter("all"); setDiscSort("plan"); }}
-                    className="text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline"
+                    className="text-primary hover:text-primary/80 border-0 bg-transparent cursor-pointer underline"
                   >
                     сбросить фильтры
                   </button>
@@ -1110,7 +1110,7 @@ export function TeacherDashboard() {
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => { if (e.key === "Enter") loadDiscipline(d.name); }}
-            className={`flex gap-2 items-start py-2.5 pl-2 pr-3 cursor-pointer border-b border-gray-200 dark:border-slate-700 ${selected?.name === d.name ? "bg-indigo-50 dark:bg-[#1d2440]" : "bg-transparent"} ${d.in_scope ?? true ? "opacity-100" : "opacity-55"}`}
+            className={`flex gap-2 items-start py-2.5 pl-2 pr-3 cursor-pointer border-b border-border ${selected?.name === d.name ? "bg-primary-soft" : "bg-transparent"} ${d.in_scope ?? true ? "opacity-100" : "opacity-55"}`}
               >
                 <input
                   type="checkbox"
@@ -1120,11 +1120,11 @@ export function TeacherDashboard() {
                   title={(d.scope_source === "methodology" ? "Исключена методологией (можно вернуть). " : "") + "Учитывать в анализе"}
                   onChange={(e) => saveScope(d.name, e.target.checked)}
                   onClick={(e) => e.stopPropagation()}
-                  className="size-[15px] accent-violet-600 cursor-pointer shrink-0 mt-0.5"
+                  className="size-[15px] accent-primary cursor-pointer shrink-0 mt-0.5"
                 />
                 <div className="flex-1 min-w-0">
                 <div className="flex justify-between flex-1 min-w-0">
-                  <div className="text-[13px] font-semibold text-violet-600 truncate flex-1 min-w-0">
+                  <div className="text-[13px] font-semibold text-primary truncate flex-1 min-w-0">
                     {d.name}
                     {(() => {
                       const years = analysisByName.get(d.name)?.years;
@@ -1136,10 +1136,10 @@ export function TeacherDashboard() {
                           className={
                             "ml-1.5 align-middle text-xs font-medium rounded px-1.5 py-0.5 whitespace-nowrap " +
                             (only === 2024
-                              ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                              ? "bg-muted text-muted-foreground"
                               : only === 2025
-                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                                : "bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400")
+                                ? "bg-success-soft text-success"
+                                : "bg-muted text-muted-foreground")
                           }
                         >
                           {only ?? years.join("/")}
@@ -1163,12 +1163,12 @@ export function TeacherDashboard() {
                     />
                   )}
                 </div>
-                <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                <div className="text-xs text-muted-foreground mt-0.5">
                     {d.scope_source === "methodology" && (
-                      <span className="mr-1.5 text-xs text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950 rounded px-1 py-0.5">методология</span>
+                      <span className="mr-1.5 text-xs text-primary-soft-foreground bg-primary-soft rounded px-1 py-0.5">методология</span>
                     )}
                     {d.scope_source === "custom" && (
-                      <span className="mr-1.5 text-xs text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950 rounded px-1 py-0.5">вручную</span>
+                      <span className="mr-1.5 text-xs text-warning bg-warning-soft rounded px-1 py-0.5">вручную</span>
                     )}
                   {d.course != null && `${d.course} курс · `}
                   {d.competencies_count} {plural(d.competencies_count, "комп.", "комп.", "комп.")} · {d.skills_count} {plural(d.skills_count, "навык", "навыка", "навыков")}
@@ -1185,7 +1185,7 @@ export function TeacherDashboard() {
 
       <div className="flex-1 overflow-auto p-6" id="teacher-main">
         {!selected && !showAnalysis && (
-          <div className="text-center mt-20 text-gray-400 text-sm">
+          <div className="text-center mt-20 text-subtle-foreground text-sm">
             Выберите дисциплину или откройте анализ
           </div>
         )}
@@ -1206,7 +1206,7 @@ export function TeacherDashboard() {
                 role="tab"
                 aria-selected={disciplineView === id}
                 onClick={() => setDisciplineView(id)}
-        className={`px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs ${disciplineView === id ? "bg-violet-600 text-white font-bold" : "bg-gray-50 dark:bg-slate-800 text-violet-600 font-normal"}`}
+        className={`px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs ${disciplineView === id ? "bg-primary text-primary-foreground font-bold" : "bg-muted text-primary font-normal"}`}
               >
                 {label}
               </button>
@@ -1218,19 +1218,19 @@ export function TeacherDashboard() {
             onClick={() => setAnalysisMode("coverage")}
             disabled={!analysis}
             title={analysis ? undefined : "Появится после запуска анализа направления"}
-        className={`px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs disabled:cursor-not-allowed disabled:opacity-50 ${analysisMode === "coverage" ? "bg-violet-600 text-white font-bold" : "bg-gray-50 dark:bg-slate-800 text-violet-600 font-normal"}`}
+        className={`px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs disabled:cursor-not-allowed disabled:opacity-50 ${analysisMode === "coverage" ? "bg-primary text-primary-foreground font-bold" : "bg-muted text-primary font-normal"}`}
           >
             Покрытие
           </button>
             <button
               onClick={() => setAnalysisMode("trends")}
-          className={`px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs ${analysisMode === "trends" ? "bg-violet-600 text-white font-bold" : "bg-gray-50 dark:bg-slate-800 text-violet-600 font-normal"}`}
+          className={`px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs ${analysisMode === "trends" ? "bg-primary text-primary-foreground font-bold" : "bg-muted text-primary font-normal"}`}
             >
               Тренды компетенций
             </button>
             <button
               onClick={() => setAnalysisMode("taxonomy")}
-          className={`px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs ${analysisMode === "taxonomy" ? "bg-violet-600 text-white font-bold" : "bg-gray-50 dark:bg-slate-800 text-violet-600 font-normal"}`}
+          className={`px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs ${analysisMode === "taxonomy" ? "bg-primary text-primary-foreground font-bold" : "bg-muted text-primary font-normal"}`}
             >
               Таксономия
             </button>
@@ -1239,7 +1239,7 @@ export function TeacherDashboard() {
 
         {analysisMode === "coverage" && analysis && (!selected || disciplineView === "coverage") && (<>
           {/* Суб-навигация: при выбранной дисциплине - по её разделам, иначе по сводке */}
-          <div className="inline-flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-slate-900 p-1 mb-4 sticky top-0 z-10 flex-wrap">
+          <div className="inline-flex items-center gap-1 rounded-lg bg-muted dark:bg-card p-1 mb-4 sticky top-0 z-10 flex-wrap">
             {(selected
               ? [
                   ["d-cover", "Покрытие"],
@@ -1263,15 +1263,15 @@ export function TeacherDashboard() {
                 onClick={() => scrollTeacherTo(id)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
                   teacherSection === id
-                    ? "bg-white text-gray-900 shadow-sm dark:bg-slate-800 dark:text-slate-100"
-                    : "text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {label}
               </button>
             ))}
           </div>
-          <div id="t-overview" className="text-xs text-gray-500 dark:text-slate-400 mb-2 scroll-mt-2">
+          <div id="t-overview" className="text-xs text-muted-foreground mb-2 scroll-mt-2">
             {selected
               ? `Дисциплина: ${selected.name} (направление ${selectedDir})`
               : `Направление ${selectedDir} - сводка по всем ${analysis.total_disciplines} дисциплинам, ни одна дисциплина не выбрана`}
@@ -1339,7 +1339,7 @@ export function TeacherDashboard() {
               {/* Direction-level recommendations */}
               {(analysis.recommendations || []).length > 0 && (
                 <div id="t-recs" className={`${card} scroll-mt-2`}>
-                  <div className="text-xs font-semibold text-violet-600 mb-2">
+                  <div className="text-xs font-semibold text-primary mb-2">
                     Рекомендации
                   </div>
                   {(analysis.recommendations || []).map((r, i) => (
@@ -1347,37 +1347,37 @@ export function TeacherDashboard() {
                       key={i}
                       className={`mb-1.5 rounded-md border px-2.5 py-2 text-xs ${
                         r.priority === "high"
-                          ? "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/40"
+                          ? "border-destructive/30 bg-destructive/5"
                           : r.priority === "medium"
-                            ? "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40"
-                            : "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/40"
+                            ? "border-warning/40 bg-warning-soft"
+                            : "border-info/30 bg-info-soft"
                       }`}
                     >
                       <div className="flex gap-1.5 items-center mb-1">
                         <span
                           className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
                             r.priority === "high"
-                              ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                              ? "bg-destructive/10 text-destructive"
                               : r.priority === "medium"
-                                ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-                                : "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                                ? "bg-warning-soft text-warning"
+                                : "bg-info-soft text-info"
                           }`}
                         >
                           {r.priority}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-slate-400">{r.type}</span>
+                        <span className="text-xs text-muted-foreground">{r.type}</span>
                       </div>
-                      <div className="text-gray-700 dark:text-slate-300 leading-snug">{r.message}</div>
+                      <div className="text-foreground leading-snug">{r.message}</div>
                     </div>
                   ))}
                 </div>
               )}
 
                <details className={`${card} scroll-mt-2`}>
-                 <summary className="text-xs font-semibold text-violet-600 cursor-pointer select-none">
+                 <summary className="text-xs font-semibold text-primary cursor-pointer select-none">
                    Востребованные навыки рынка
                  </summary>
-                 <div className="text-xs text-gray-500 dark:text-slate-400 mb-1.5">
+                 <div className="text-xs text-muted-foreground mb-1.5">
                    Навыки из свежих вакансий, которых нет в плане. Происхождение: частота в вакансиях
                    {(analysis.top_emerging_across_all || []).some((s) => s.change_pct != null)
                      ? " и динамика спроса по срезам рынка"
@@ -1388,14 +1388,14 @@ export function TeacherDashboard() {
                     {((analysis.top_emerging_across_all) || []).map((s, i: number) => (
                      <span
                        key={i}
-                       className="inline-block px-2 py-0.5 rounded text-xs bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 m-0.5"
+                       className="inline-block px-2 py-0.5 rounded text-xs bg-primary-soft text-primary-soft-foreground m-0.5"
                        title={`Вакансий с этим навыком: ${s.frequency}${s.basis ? ` · основа отбора: ${s.basis}` : ""}`}
                      >
                        {s.skill}
                        <span className="ml-1 opacity-70">{s.frequency} вк.</span>
                        {s.change_pct != null && (
                          <span
-                           className="ml-1 text-emerald-600 dark:text-emerald-400"
+                           className="ml-1 text-success"
                            title={s.basis ? `Основа отбора: ${s.basis} (динамика по срезам рынка)` : "Динамика спроса"}
                          >
                            {s.change_pct > 0 ? "+" : ""}{s.change_pct.toFixed(0)}%
@@ -1407,10 +1407,10 @@ export function TeacherDashboard() {
                </details>
 
                <details id="t-gaps" className={`${card} scroll-mt-2`}>
-                 <summary className="text-xs font-semibold text-violet-600 cursor-pointer select-none">
+                 <summary className="text-xs font-semibold text-primary cursor-pointer select-none">
                    Разрывы между планом и рынком
                  </summary>
-                 <div className="text-xs text-gray-500 dark:text-slate-400 mb-1.5">
+                 <div className="text-xs text-muted-foreground mb-1.5">
                    Навыки из планов дисциплин (РПД), на которые нет спроса в вакансиях. Число - в скольких
                    дисциплинах навык встречается. Происхождение: сравнение РПД с топом рынка при
                    teacher-анализе.
@@ -1419,7 +1419,7 @@ export function TeacherDashboard() {
                    {(analysis.top_cross_discipline_gaps || []).map((g, i) => (
                      <span
                        key={i}
-                       className="inline-block px-2 py-0.5 rounded text-xs bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 m-0.5"
+                       className="inline-block px-2 py-0.5 rounded text-xs bg-destructive/10 text-destructive m-0.5"
                        title={`Навык есть в планах ${g.disciplines === 1 ? "одной дисциплине" : `${g.disciplines} дисциплинах`}, но в свежих вакансиях спроса нет`}
                      >
                        {g.skill}
@@ -1433,26 +1433,26 @@ export function TeacherDashboard() {
 
               {analysis.trends && (
                 <details id="t-trends" className={`${card} scroll-mt-2`}>
-                  <summary className="text-xs font-semibold text-violet-600 cursor-pointer select-none mb-2">
+                  <summary className="text-xs font-semibold text-primary cursor-pointer select-none mb-2">
                     Растущие и падающие навыки
                   </summary>
                 <div className="flex gap-3 flex-wrap">
                   {analysis.trends.rising?.length > 0 && (
                     <div className={`${card} flex-1 min-w-[200px]`}>
-                      <div className="text-xs font-semibold text-emerald-600 mb-2">Растущие навыки</div>
+                      <div className="text-xs font-semibold text-success mb-2">Растущие навыки</div>
                       {analysis.trends.rising.map((t, i) => (
-                        <div key={i} className="text-xs py-0.5 text-gray-600 dark:text-slate-400">
-                          {t.skill} <span className="text-emerald-600">{t.change_pct > 0 ? "+" : ""}{t.change_pct}%</span>
+                        <div key={i} className="text-xs py-0.5 text-muted-foreground">
+                          {t.skill} <span className="text-success">{t.change_pct > 0 ? "+" : ""}{t.change_pct}%</span>
                         </div>
                       ))}
                     </div>
                   )}
                   {analysis.trends.declining?.length > 0 && (
                     <div className={`${card} flex-1 min-w-[200px]`}>
-                      <div className="text-xs font-semibold text-red-600 mb-2">Падающие навыки</div>
+                      <div className="text-xs font-semibold text-destructive mb-2">Падающие навыки</div>
                       {analysis.trends.declining.map((t, i) => (
-                        <div key={i} className="text-xs py-0.5 text-gray-600 dark:text-slate-400">
-                          {t.skill} <span className="text-red-600">{t.change_pct}%</span>
+                        <div key={i} className="text-xs py-0.5 text-muted-foreground">
+                          {t.skill} <span className="text-destructive">{t.change_pct}%</span>
                         </div>
                       ))}
                     </div>
@@ -1484,13 +1484,13 @@ export function TeacherDashboard() {
             <div className="flex items-center gap-2 mb-4 flex-wrap">
               <button
                 onClick={() => { setSelected(null); setShowAnalysis(true); setAnalysisMode("coverage"); }}
-                className="text-xs text-violet-600 hover:text-violet-800 border border-gray-200 dark:border-slate-700 rounded-md px-2.5 py-1 bg-gray-50 dark:bg-slate-800 cursor-pointer"
+                className="text-xs text-primary hover:text-primary/80 border border-border rounded-md px-2.5 py-1 bg-muted cursor-pointer"
                 title="Вернуться к сводке направления"
               >
                 ← Направление {selectedDir}
               </button>
-              <span aria-hidden="true" className="text-gray-300 dark:text-slate-600">/</span>
-              <h2 className="text-xl m-0 text-gray-900 dark:text-slate-100">
+              <span aria-hidden="true" className="text-subtle-foreground">/</span>
+              <h2 className="text-xl m-0 text-foreground">
                 {selected.name}
               </h2>
             </div>
@@ -1506,37 +1506,37 @@ export function TeacherDashboard() {
             <div className="mb-3">
               {!compForm ? (
                 <button onClick={() => { setCompForm(true); setCompErr({}); }}
-                  className="text-xs text-white bg-emerald-600 hover:bg-emerald-700 transition-colors px-3 py-1.5 rounded-lg cursor-pointer border-0">
+                  className="text-xs text-success-foreground bg-success hover:brightness-110 transition-colors px-3 py-1.5 rounded-lg cursor-pointer border-0">
                   + Компетенция
                 </button>
               ) : (
-                <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-3 space-y-2">
+                <div className="rounded-lg border border-success/30 bg-success-soft p-3 space-y-2">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div>
                       <input value={compCode} onChange={(e) => setCompCode(e.target.value)}
                         placeholder="Код: ПК-2.1"
                         aria-label="Код компетенции"
-                        className={`h-9 w-full px-2 rounded border bg-white dark:bg-slate-950 text-xs ${compErr.code ? "border-red-400" : "border-gray-300 dark:border-slate-600"}`} />
-                      {compErr.code && <div className="text-xs text-red-600 mt-1">{compErr.code}</div>}
+                        className={`h-9 w-full px-2 rounded border bg-input-background text-xs ${compErr.code ? "border-destructive" : "border-border-strong"}`} />
+                      {compErr.code && <div className="text-xs text-destructive mt-1">{compErr.code}</div>}
                     </div>
                     <div>
                       <input value={compName} onChange={(e) => setCompName(e.target.value)}
                         placeholder="Название (необязательно)"
                         aria-label="Название компетенции"
-                        className={`h-9 w-full px-2 rounded border bg-white dark:bg-slate-950 text-xs ${compErr.name ? "border-red-400" : "border-gray-300 dark:border-slate-600"}`} />
-                      {compErr.name && <div className="text-xs text-red-600 mt-1">{compErr.name}</div>}
+                        className={`h-9 w-full px-2 rounded border bg-input-background text-xs ${compErr.name ? "border-destructive" : "border-border-strong"}`} />
+                      {compErr.name && <div className="text-xs text-destructive mt-1">{compErr.name}</div>}
                     </div>
                   </div>
-                  {compErr.msg && <div className="text-xs text-red-600">{compErr.msg}</div>}
+                  {compErr.msg && <div className="text-xs text-destructive">{compErr.msg}</div>}
                   <div className="flex items-center gap-2">
                     <button onClick={saveCompetency} disabled={compSaving}
-                      className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer border-0 disabled:opacity-50">
+                      className="bg-success text-success-foreground px-3 py-1.5 rounded-lg hover:brightness-110 transition-colors cursor-pointer border-0 disabled:opacity-50">
                       {compSaving ? "..." : "Создать"}
                     </button>
                     <button onClick={() => setCompForm(false)}
-                      className="text-xs text-gray-500 dark:text-slate-400 hover:text-gray-700 border-0 bg-transparent cursor-pointer">Отмена</button>
+                      className="text-xs text-muted-foreground hover:text-foreground border-0 bg-transparent cursor-pointer">Отмена</button>
                   </div>
-                  <div className="text-xs text-gray-400 dark:text-slate-500">ЗУН и инструменты дописываются после создания: +ЗУН у компетенции, инструменты - через Администрирование → Навыки.</div>
+                  <div className="text-xs text-subtle-foreground">ЗУН и инструменты дописываются после создания: +ЗУН у компетенции, инструменты - через Администрирование → Навыки.</div>
                 </div>
               )}
             </div>
@@ -1549,7 +1549,7 @@ export function TeacherDashboard() {
                 aria-label="Поиск компетенции"
                 value={compSearch}
                 onChange={(e) => setCompSearch(e.target.value)}
-                className="h-8 w-56 px-2.5 rounded-md text-xs box-border bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-slate-100 outline-none"
+                className="h-8 w-56 px-2.5 rounded-md text-xs box-border bg-card border border-border text-foreground outline-none"
               />
               {([
                 ["all", "Все", "Без дополнительного фильтра"],
@@ -1564,31 +1564,31 @@ export function TeacherDashboard() {
                   className={
                     "text-xs px-2 py-0.5 rounded border cursor-pointer " +
                     (compFilter === id
-                      ? "border-violet-400 bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
-                      : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300")
+                      ? "border-primary/60 bg-primary-soft text-primary-soft-foreground"
+                      : "border-border-strong bg-card text-muted-foreground")
                   }
                 >
                   {label}{compCounts ? ` (${compCounts[id]})` : ""}
                 </button>
               ))}
-              <span className="text-[11px] text-gray-400 dark:text-slate-500 ml-auto whitespace-nowrap">
+              <span className="text-[11px] text-subtle-foreground ml-auto whitespace-nowrap">
                 {compsVisible.length} из {selected.competencies.length}
               </span>
               {compFiltersActive && (
                 <button
                   onClick={() => { setCompSearch(""); setCompFilter("all"); }}
-                  className="text-[11px] text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline whitespace-nowrap"
+                  className="text-[11px] text-primary hover:text-primary/80 border-0 bg-transparent cursor-pointer underline whitespace-nowrap"
                 >
                   Сбросить
                 </button>
               )}
             </div>
             {compsVisible.length === 0 && (
-              <div className="text-center text-xs text-gray-400 dark:text-slate-500 py-6 bg-gray-50 dark:bg-slate-900 rounded-lg">
+              <div className="text-center text-xs text-subtle-foreground py-6 bg-muted rounded-lg">
                 По фильтру ничего не найдено —{" "}
                 <button
                   onClick={() => { setCompSearch(""); setCompFilter("all"); }}
-                  className="text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline"
+                  className="text-primary hover:text-primary/80 border-0 bg-transparent cursor-pointer underline"
                 >
                   сбросить
                 </button>
@@ -1614,7 +1614,7 @@ export function TeacherDashboard() {
               return (
               <div
                 key={comp.code}
-                className="mb-2 border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden"
+                className="mb-2 border border-border rounded-lg overflow-hidden"
               >
                 <div
                   role="button"
@@ -1622,14 +1622,14 @@ export function TeacherDashboard() {
                   aria-expanded={compOpen}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenComp(compOpen ? null : comp.id); } }}
                   onClick={() => setOpenComp(compOpen ? null : comp.id)}
-                  className="px-4 py-2.5 bg-gray-50 dark:bg-slate-900 flex items-center gap-2 cursor-pointer"
+                  className="px-4 py-2.5 bg-muted flex items-center gap-2 cursor-pointer"
                 >
-                  <span aria-hidden="true" className="text-gray-400 text-xs shrink-0">{compOpen ? "▾" : "▸"}</span>
-                  <span className="font-semibold text-sm text-violet-600 shrink-0">
+                  <span aria-hidden="true" className="text-subtle-foreground text-xs shrink-0">{compOpen ? "▾" : "▸"}</span>
+                  <span className="font-semibold text-sm text-primary shrink-0">
                     {comp.code}
                   </span>
                   {comp.name && (
-                    <span className="text-xs text-gray-500 dark:text-slate-400 truncate" title={comp.name}>
+                    <span className="text-xs text-muted-foreground truncate" title={comp.name}>
                       {comp.name}
                     </span>
                   )}
@@ -1640,24 +1640,24 @@ export function TeacherDashboard() {
                       setZunMsg("");
                       setOpenComp(comp.id);
                     }}
-                    className="ml-auto text-xs text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer shrink-0"
+                    className="ml-auto text-xs text-primary hover:text-primary/80 border-0 bg-transparent cursor-pointer shrink-0"
                     title="Добавить пункт (знание / умение / навык) в эту компетенцию"
                   >
                     + ЗУН
                   </button>
-                  <span className="text-xs text-gray-400 dark:text-slate-500 shrink-0">
+                  <span className="text-xs text-subtle-foreground shrink-0">
                     {total} {plural(total, "пункт", "пункта", "пунктов")}
                   </span>
                 </div>
                 {compOpen && (
                 <div className="px-4 py-2">
                 {zunForm && zunForm.compId === comp.id && (
-                  <div className="mb-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30 p-2">
+                  <div className="mb-2 rounded-lg border border-primary/30 bg-primary-soft p-2">
                     <div className="flex gap-2 mb-2">
                       <select
                         value={zunForm.ksaType}
                         onChange={(e) => setZunForm({ ...zunForm, ksaType: e.target.value })}
-                        className="text-xs border border-gray-300 dark:border-slate-600 rounded-md px-2 py-1 bg-white dark:bg-slate-950"
+                        className="text-xs border border-border-strong rounded-md px-2 py-1 bg-input-background"
                       >
                         <option value="knowledge">Знания</option>
                         <option value="abilities">Умения</option>
@@ -1665,7 +1665,7 @@ export function TeacherDashboard() {
                       </select>
                       <button
                         onClick={() => setZunForm(null)}
-                        className="text-xs text-gray-500 dark:text-slate-400 hover:text-gray-700 border-0 bg-transparent cursor-pointer"
+                        className="text-xs text-muted-foreground hover:text-foreground border-0 bg-transparent cursor-pointer"
                       >
                         Отмена
                       </button>
@@ -1676,31 +1676,31 @@ export function TeacherDashboard() {
                       rows={3}
                       maxLength={2000}
                       placeholder="Текст пункта: знание, умение или навык…"
-                      className="w-full text-xs border border-gray-300 dark:border-slate-600 rounded-md px-2 py-1 mb-2"
+                      className="w-full text-xs border border-border-strong rounded-md px-2 py-1 mb-2"
                     />
                     <div className="flex items-center gap-2">
                       <button
                         onClick={addZunEntry}
                         disabled={zunSaving || !zunForm.text.trim()}
-                        className="text-xs bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700 transition-colors cursor-pointer border-0 disabled:opacity-50"
+                        className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary transition-colors cursor-pointer border-0 disabled:opacity-50"
                       >
                         {zunSaving ? "Сохранение…" : "Добавить"}
                       </button>
-                      {zunMsg && <span className="text-xs text-gray-600 dark:text-slate-400">{zunMsg}</span>}
+                      {zunMsg && <span className="text-xs text-muted-foreground">{zunMsg}</span>}
                     </div>
-                    <div className="text-xs text-gray-400 dark:text-slate-500 mt-1">Пункт попадёт в анализ при следующем пересчёте.</div>
+                    <div className="text-xs text-subtle-foreground mt-1">Пункт попадёт в анализ при следующем пересчёте.</div>
                   </div>
                 )}
                   {total === 0 ? (
-                    <div className="text-xs text-gray-400 dark:text-slate-500">Навыки не извлечены</div>
+                    <div className="text-xs text-subtle-foreground">Навыки не извлечены</div>
                   ) : hasGroups ? (
                     groups.map((g) => g.items.length > 0 && (
                       <div key={g.title} className="mb-2 last:mb-0">
-                        <div className="text-xs font-semibold text-violet-500 uppercase tracking-wide mt-1.5 mb-1">
+                        <div className="text-xs font-semibold text-primary uppercase tracking-wide mt-1.5 mb-1">
                           {g.title} ({g.items.length})
                         </div>
                         {g.items.map((sk) => (
-                          <div key={sk.id} className="py-0.5 text-xs leading-relaxed border-b border-gray-100 dark:border-slate-800 last:border-0">
+                          <div key={sk.id} className="py-0.5 text-xs leading-relaxed border-b border-border last:border-0">
                             {ksaEditing && ksaEditing.id === sk.id ? (
                               <div className="flex gap-2 items-start">
                                 <textarea
@@ -1708,16 +1708,16 @@ export function TeacherDashboard() {
                                   onChange={(e) => setKsaEditing({ ...ksaEditing, text: e.target.value })}
                                   rows={2}
                                   maxLength={2000}
-                                  className="flex-1 text-xs border border-gray-300 dark:border-slate-600 rounded-md px-2 py-1"
+                                  className="flex-1 text-xs border border-border-strong rounded-md px-2 py-1"
                                 />
-                                <button onClick={saveKsaEdit} disabled={zunSaving} className="text-xs bg-violet-600 text-white px-2 py-1 rounded-md hover:bg-violet-700 cursor-pointer border-0 disabled:opacity-50">OK</button>
-                                <button onClick={() => setKsaEditing(null)} className="text-xs text-gray-500 dark:text-slate-400 hover:text-gray-700 border-0 bg-transparent cursor-pointer">Отмена</button>
+                                <button onClick={saveKsaEdit} disabled={zunSaving} className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded-md hover:bg-primary cursor-pointer border-0 disabled:opacity-50">OK</button>
+                                <button onClick={() => setKsaEditing(null)} className="text-xs text-muted-foreground hover:text-foreground border-0 bg-transparent cursor-pointer">Отмена</button>
                               </div>
                             ) : (
                               <div className="flex gap-1 items-start group">
                                 <span className="flex-1">{sk.text}</span>
-                                <button onClick={() => { setKsaEditing({ id: sk.id, text: sk.text }); setZunMsg(""); }} title="Редактировать" className="text-gray-300 hover:text-violet-600 border-0 bg-transparent cursor-pointer text-xs">Изменить</button>
-                                <button onClick={() => delKsa(sk.id)} title="Удалить" className="text-gray-300 hover:text-red-600 border-0 bg-transparent cursor-pointer text-xs">Удалить</button>
+                                <button onClick={() => { setKsaEditing({ id: sk.id, text: sk.text }); setZunMsg(""); }} title="Редактировать" className="text-subtle-foreground hover:text-primary border-0 bg-transparent cursor-pointer text-xs">Изменить</button>
+                                <button onClick={() => delKsa(sk.id)} title="Удалить" className="text-subtle-foreground hover:text-destructive border-0 bg-transparent cursor-pointer text-xs">Удалить</button>
                               </div>
                             )}
                           </div>
@@ -1726,7 +1726,7 @@ export function TeacherDashboard() {
                     ))
                   ) : (
                     comp.skills.map((sk, i) => (
-                      <div key={i} className="py-0.5 text-xs leading-relaxed border-b border-gray-100 dark:border-slate-800 last:border-0">
+                      <div key={i} className="py-0.5 text-xs leading-relaxed border-b border-border last:border-0">
                         {sk}
                       </div>
                     ))
@@ -1742,15 +1742,15 @@ export function TeacherDashboard() {
             {analysisMode === "coverage" && disciplineView === "recs" && (
             <div className="mt-1">
               <div className="flex items-center gap-3 mb-3">
-                <div className="flex items-center justify-center w-8 h-8 bg-violet-600 rounded-lg">
-                  <span className="text-white text-sm font-bold">!</span>
+                <div className="flex items-center justify-center w-8 h-8 bg-primary rounded-lg">
+                  <span className="text-primary-foreground text-sm font-bold">!</span>
                 </div>
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Рекомендации</h3>
-                <span className="text-xs text-gray-400 dark:text-slate-500">({recs.filter((r) => r.discipline_id === selected?.name).length})</span>
-                {seedMsg && <span className="text-xs text-gray-500 dark:text-slate-400">{seedMsg}</span>}
+                <h3 className="text-sm font-semibold text-foreground">Рекомендации</h3>
+                <span className="text-xs text-subtle-foreground">({recs.filter((r) => r.discipline_id === selected?.name).length})</span>
+                {seedMsg && <span className="text-xs text-muted-foreground">{seedMsg}</span>}
                 <button
                   onClick={() => setShowAddForm(!showAddForm)}
-                  className="ml-auto text-xs bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700 transition-colors cursor-pointer border-0"
+                  className="ml-auto text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary transition-colors cursor-pointer border-0"
                 >
                   {showAddForm ? "Отмена" : "Добавить рекомендацию"}
                 </button>
@@ -1758,18 +1758,18 @@ export function TeacherDashboard() {
                   onClick={seedAutoRecs}
                   disabled={seedLoading}
                   title="Заполнить панель топ-рекомендациями из автоанализа (ручные сохранятся)"
-                  className="text-xs bg-white dark:bg-slate-950 text-violet-700 dark:text-violet-300 border border-purple-300 dark:border-purple-700 px-3 py-1.5 rounded-lg hover:bg-violet-50 transition-colors cursor-pointer disabled:opacity-50"
+                  className="text-xs bg-card text-primary-soft-foreground border border-primary/40 px-3 py-1.5 rounded-lg hover:bg-primary-soft transition-colors cursor-pointer disabled:opacity-50"
                 >
                   {seedLoading ? "Заполнение…" : "Заполнить из анализа"}
                 </button>
               </div>
               {showAddForm && (
-                <div className="mb-4 p-4 bg-gray-50 dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700">
+                <div className="mb-4 p-4 bg-muted rounded-lg border border-border">
                   {(recType === "modify" || recType === "remove") && (
                     <select
                       value={selectedCompetency}
                       onChange={(e) => setSelectedCompetency(e.target.value)}
-                      className="w-full h-9 px-2 mb-2 text-sm bg-white dark:bg-slate-950 border border-gray-300 dark:border-slate-600 rounded-lg outline-none text-gray-900 dark:text-slate-100"
+                      className="w-full h-9 px-2 mb-2 text-sm bg-input-background border border-border-strong rounded-lg outline-none text-foreground"
                     >
                       <option value="">-- Select competency --</option>
                       {selected?.competencies.map((c) => (
@@ -1782,13 +1782,13 @@ export function TeacherDashboard() {
                     value={suggestion}
                     onChange={(e) => setSuggestion(e.target.value)}
                     rows={2}
-                    className="w-full p-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg resize-vertical outline-none box-border bg-white dark:bg-slate-900 text-gray-800 dark:text-slate-200"
+                    className="w-full p-2 text-sm border border-border-strong rounded-lg resize-vertical outline-none box-border bg-card text-foreground"
                   />
                   <div className="flex gap-2 mt-2 items-center">
                     <select
                       value={recType}
                       onChange={(e) => { setRecType(e.target.value); setSelectedCompetency(""); }}
-                      className="h-9 px-2 text-sm bg-white dark:bg-slate-950 border border-gray-300 dark:border-slate-600 rounded-lg outline-none text-gray-900 dark:text-slate-100"
+                      className="h-9 px-2 text-sm bg-input-background border border-border-strong rounded-lg outline-none text-foreground"
                     >
                       <option value="modify">Изменить</option>
                       <option value="add">Добавить</option>
@@ -1803,13 +1803,13 @@ export function TeacherDashboard() {
                           setSelectedCompetency("");
                         }
                       }}
-                      className="h-9 px-4 text-sm bg-violet-600 text-white border-0 rounded-lg cursor-pointer hover:bg-violet-700 transition-colors"
+                      className="h-9 px-4 text-sm bg-primary text-primary-foreground border-0 rounded-lg cursor-pointer hover:bg-primary transition-colors"
                     >
                       Отправить
                     </button>
                   </div>
                   {recError && (
-                    <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                    <div className="mt-2 text-xs text-destructive">
                       Не удалось сохранить: {recError}
                     </div>
                   )}
@@ -1822,7 +1822,7 @@ export function TeacherDashboard() {
                     onChange={(e) => setRecComp(e.target.value)}
                     aria-label="Фильтр по компетенции"
                     title="Показать рекомендации только по одной компетенции"
-                    className="h-8 px-2 rounded-md text-xs bg-white dark:bg-slate-950 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-slate-100"
+                    className="h-8 px-2 rounded-md text-xs bg-input-background border border-border-strong text-foreground"
                   >
                     <option value="">Все компетенции</option>
                     {selected.competencies.map((c) => (
@@ -1843,20 +1843,20 @@ export function TeacherDashboard() {
                       className={
                         "text-xs px-2 py-0.5 rounded border cursor-pointer " +
                         (recTypeF === id
-                          ? "border-violet-400 bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
-                          : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300")
+                          ? "border-primary/60 bg-primary-soft text-primary-soft-foreground"
+                          : "border-border-strong bg-card text-muted-foreground")
                       }
                     >
                       {label}
                     </button>
                   ))}
-                  <span className="text-[11px] text-gray-400 dark:text-slate-500 ml-auto whitespace-nowrap">
+                  <span className="text-[11px] text-subtle-foreground ml-auto whitespace-nowrap">
                     {recsVisible.length} из {discRecCount}
                   </span>
                   {recFiltersActive && (
                     <button
                       onClick={() => { setRecComp(""); setRecTypeF(""); }}
-                      className="text-[11px] text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline whitespace-nowrap"
+                      className="text-[11px] text-primary hover:text-primary/80 border-0 bg-transparent cursor-pointer underline whitespace-nowrap"
                     >
                       Сбросить
                     </button>
@@ -1864,15 +1864,15 @@ export function TeacherDashboard() {
                 </div>
               )}
               {discRecCount === 0 ? (
-                <div className="text-xs text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-900 rounded-lg p-4 text-center">
+                <div className="text-xs text-subtle-foreground bg-muted rounded-lg p-4 text-center">
                   Для этой дисциплины рекомендаций пока нет
                 </div>
               ) : recsVisible.length === 0 ? (
-                <div className="text-xs text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-900 rounded-lg p-4 text-center">
+                <div className="text-xs text-subtle-foreground bg-muted rounded-lg p-4 text-center">
                   По фильтру ничего не найдено —{" "}
                   <button
                     onClick={() => { setRecComp(""); setRecTypeF(""); }}
-                    className="text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer underline"
+                    className="text-primary hover:text-primary/80 border-0 bg-transparent cursor-pointer underline"
                   >
                     сбросить
                   </button>
@@ -1881,15 +1881,15 @@ export function TeacherDashboard() {
                 recsVisible.map((r, i) => (
                   <div
                     key={r.id ?? i}
-                    className="mb-2 rounded-lg border border-violet-200 bg-violet-50/40 p-3 text-sm dark:border-violet-900 dark:bg-violet-950/20"
+                    className="mb-2 rounded-lg border border-primary/30 bg-primary-soft/60 p-3 text-sm "
                   >
-                    <div className="text-gray-400 dark:text-slate-500 mb-1 text-xs">
+                    <div className="text-subtle-foreground mb-1 text-xs">
                       [{r.suggestion_type}] {r.competency_id || "—"}
                     </div>
-                    <div className="text-gray-900 dark:text-slate-100">{r.suggestion}</div>
+                    <div className="text-foreground">{r.suggestion}</div>
                     <button
                       onClick={() => { if (window.confirm("Удалить рекомендацию безвозвратно?")) deleteRec(r.id); }}
-                      className="mt-2 text-xs text-red-500 border border-red-500 rounded px-2 py-0.5 hover:bg-red-50 transition-colors bg-transparent cursor-pointer"
+                      className="mt-2 text-xs text-destructive border border-destructive/60 rounded px-2 py-0.5 hover:bg-destructive/10 transition-colors bg-transparent cursor-pointer"
                     >
                       Удалить
                     </button>
