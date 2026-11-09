@@ -102,6 +102,10 @@ LOCATION_PATTERNS = [
 # 2-5 letter abbreviations are likely noise, not skills
 ABBREV_RE = re.compile(r"^[А-ЯЁ]{2,5}$")
 
+# Односимвольные языки, которые реально существуют в it_skills.json
+# («c», «r») и должны извлекаться, в отличие от прочего односимвольного шума.
+_SINGLE_CHAR_ALLOW = {"c", "r"}
+
 # Homoglyph map for parse_vacancy dedup (F6 fix: module-level, was recreated per-call)
 _HOMOGLYPH_MAP = str.maketrans("саорехуеСАОРЕХУЕ", "caopexyeCAOPEXYE")
 
@@ -612,7 +616,8 @@ class SkillParser:
 
         P0: один проход alternation longest-first С границами слов
         (было `tech in line` - 'go' срабатывал внутри 'django').
-        Односимвольные навыки пропускаем: в маркерных строках это шум.
+        Односимвольные навыки пропускаем как шум, кроме белого списка
+        `_SINGLE_CHAR_ALLOW` (языки «c», «r»).
         P5: negation-контекст ±50 как в _direct_search.
         """
         try:
@@ -624,7 +629,7 @@ class SkillParser:
             # LOCATION_PATTERNS and ABBREV_RE now module-level (C1 fix)
 
             techs = sorted(
-                (t for t in self.TECH_SKILLS if len(t) >= 2),
+                (t for t in self.TECH_SKILLS if len(t) >= 2 or t in _SINGLE_CHAR_ALLOW),
                 key=len, reverse=True,
             )
             if not techs:
@@ -658,9 +663,9 @@ class SkillParser:
                 for raw_token, tok_off in _iter_tokens(region, separators):
                     lead = len(raw_token) - len(raw_token.lstrip())
                     token = raw_token.strip()
-                    # min 2 символа: выровнено с фильтром `len(t) >= 2` в techs
-                    # (было <= 3 - терялись `sql`, `git`, `go`).
-                    if len(token) < 2 or len(token) >= 100:
+                    # min 2 символа: выровнено с фильтром в techs; односимвольные
+                    # допускаем только из белого списка `_SINGLE_CHAR_ALLOW`.
+                    if (len(token) < 2 and token not in _SINGLE_CHAR_ALLOW) or len(token) >= 100:
                         continue
                     # Фильтрация локаций
                     if any(p.search(token) for p in LOCATION_PATTERNS):
