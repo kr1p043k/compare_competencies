@@ -7,12 +7,26 @@ on: candidate resolution order, ensemble scoring, and the evaluator/LTR blend.
 
 from __future__ import annotations
 
+import json
+
+import joblib
 import numpy as np
 import pandas as pd
 import pytest
 
 from src import config  # noqa: E402
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
+
+_RUNTIME_FEATURES = [
+    "level_encoded",
+    "category_encoded",
+    "cosine_sim",
+    "in_student_profile",
+    "skill_freq_normalized",
+    "co_occurrence",
+    "category_avg_weight",
+    "student_skills_count",
+]
 
 
 class _FixedModel:
@@ -25,47 +39,93 @@ class _FixedModel:
         return np.full(len(X), self.value, dtype=float)
 
 
-def test_model_candidates_prefer_the_evaluated_best():
-    candidates = LTRRecommendationEngine.MODEL_CANDIDATES
-    assert candidates[0] == "ltr_ranker_ensemble_human.joblib"
-    # Second candidate is the best AVAILABLE human-gold model (ensemble_human
-    # is not shipped): xgb_rank_human, 8-feature and compatible with the
-    # current runtime.
-    assert candidates[1] == "ltr_ranker_xgb_rank_human.joblib"
-    # The old 272-skill corpus (xgb_rank) and the legacy 10-feature artifacts
-    # (canon/ensemble_final) are incompatible with the current 8-feature
-    # runtime; keeping them in the list would break loading/inference.
-    assert "ltr_ranker_xgb_rank.joblib" not in candidates
-    assert "ltr_ranker_canon.joblib" not in candidates
-    assert "ltr_ranker_ensemble_final.joblib" not in candidates
-
-
-def test_resolve_model_path_prefers_best_available_human_over_surrogate(
-    tmp_path, monkeypatch
+def _write_artifact(
+    models_dir,
+    name: str,
+    metric: float | None,
+    *,
+    features: list[str] | None = None,
+    metric_key: str = "human_ndcg_at_10",
+    metrics_json: bool = False,
 ):
-    """При наличии human-модели она приоритетнее суррогата (осознанный выбор)."""
+    """Materialise a fake but loadable LTR artifact (+ its recorded metric).
+
+    ``metrics_json=True`` writes the sidecar ``<name>.joblib.metrics.json`` with
+    ``ndcg@10`` instead of a manifest, so the metrics.json reader is exercised.
+    """
+    joblib.dump({"feature_names": features if features is not None else _RUNTIME_FEATURES}, models_dir / name)
+    if metric is None:
+        return
+    if metrics_json:
+        (models_dir / f"{name}.metrics.json").write_text(
+            json.dumps({"gold": "labeling/gold.csv", "ndcg@10": metric}),
+            encoding="utf-8",
+        )
+    else:
+        (models_dir / name.replace(".joblib", ".manifest.json")).write_text(
+            json.dumps({"artifact": name, "metrics": {metric_key: metric}}),
+            encoding="utf-8",
+        )
+
+
+def test_resolve_model_path_picks_highest_recorded_ndcg(tmp_path, monkeypatch):
+    """Selection is metric-driven: the artifact with the highest NDCG@10 wins."""
     monkeypatch.setattr(config, "MODELS_DIR", tmp_path)
-    (tmp_path / LTRRecommendationEngine.MODEL_FILENAME).write_bytes(b"surrogate")
-    (tmp_path / LTRRecommendationEngine.MODEL_CANDIDATES[1]).write_bytes(b"human")
+    _write_artifact(tmp_path, "ltr_ranker_low.joblib", 0.61)
+    _write_artifact(tmp_path, "ltr_ranker_high.joblib", 0.74)
+
+    resolved = LTRRecommendationEngine._resolve_model_path()
+    assert resolved.name == "ltr_ranker_high.joblib"
+
+
+def test_resolve_model_path_tie_breaks_by_filename(tmp_path, monkeypatch):
+    """Equal metrics resolve deterministically by ascending filename."""
+    monkeypatch.setattr(config, "MODELS_DIR", tmp_path)
+    _write_artifact(tmp_path, "ltr_ranker_b.joblib", 0.70)
+    _write_artifact(tmp_path, "ltr_ranker_a.joblib", 0.70)
+
+    resolved = LTRRecommendationEngine._resolve_model_path()
+    assert resolved.name == "ltr_ranker_a.joblib"
+
+
+def test_resolve_model_path_reads_metrics_json_without_manifest(tmp_path, monkeypatch):
+    """A sidecar metrics.json (ndcg@10) is a valid metric source."""
+    monkeypatch.setattr(config, "MODELS_DIR", tmp_path)
+    _write_artifact(tmp_path, "ltr_ranker_plain.joblib", 0.72, metrics_json=True)
+    _write_artifact(tmp_path, "ltr_ranker_worse.joblib", 0.50)
+
+    resolved = LTRRecommendationEngine._resolve_model_path()
+    assert resolved.name == "ltr_ranker_plain.joblib"
+
+
+def test_resolve_model_path_rejects_incompatible_feature_space(tmp_path, monkeypatch):
+    """A legacy 10-feature artifact is never selected, even with a high metric."""
+    monkeypatch.setattr(config, "MODELS_DIR", tmp_path)
+    _write_artifact(
+        tmp_path,
+        "ltr_ranker_legacy.joblib",
+        0.99,
+        features=_RUNTIME_FEATURES + ["role_freq_normalized", "role_lift"],
+    )
+    _write_artifact(tmp_path, "ltr_ranker_ok.joblib", 0.55)
+
+    resolved = LTRRecommendationEngine._resolve_model_path()
+    assert resolved.name == "ltr_ranker_ok.joblib"
+
+
+def test_resolve_model_path_skips_known_incompatible_models(tmp_path, monkeypatch):
+    """xgb_rank is feature-compatible by count but unusable (stale corpus)."""
+    monkeypatch.setattr(config, "MODELS_DIR", tmp_path)
+    assert "ltr_ranker_xgb_rank.joblib" in LTRRecommendationEngine.INCOMPATIBLE_MODELS
+    _write_artifact(tmp_path, "ltr_ranker_xgb_rank.joblib", 0.99)
+    _write_artifact(tmp_path, "ltr_ranker_xgb_rank_human.joblib", 0.72)
 
     resolved = LTRRecommendationEngine._resolve_model_path()
     assert resolved.name == "ltr_ranker_xgb_rank_human.joblib"
 
 
-def test_resolve_model_path_prefers_ensemble_human_when_present(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "MODELS_DIR", tmp_path)
-    (tmp_path / LTRRecommendationEngine.MODEL_FILENAME).write_bytes(b"surrogate")
-    (tmp_path / LTRRecommendationEngine.MODEL_CANDIDATES[0]).write_bytes(b"best")
-    (tmp_path / LTRRecommendationEngine.MODEL_CANDIDATES[1]).write_bytes(b"second")
-
-    resolved = LTRRecommendationEngine._resolve_model_path()
-    assert resolved.name == "ltr_ranker_ensemble_human.joblib"
-
-
-def test_resolve_model_path_falls_back_to_surrogate_without_human(
-    tmp_path, monkeypatch
-):
-    """Нет human-модели - валидный fallback на суррогат, без исключения."""
+def test_resolve_model_path_falls_back_to_surrogate_without_human(tmp_path, monkeypatch):
+    """No compatible human artifact - valid fallback to the surrogate, no raise."""
     monkeypatch.setattr(config, "MODELS_DIR", tmp_path)
     (tmp_path / LTRRecommendationEngine.MODEL_FILENAME).write_bytes(b"stub")
 
@@ -73,7 +133,7 @@ def test_resolve_model_path_falls_back_to_surrogate_without_human(
     assert resolved.name == LTRRecommendationEngine.MODEL_FILENAME
 
 
-def test_resolve_model_path_returns_canonical_when_nothing_exists(tmp_path, monkeypatch):
+def test_resolve_model_path_returns_surrogate_when_nothing_exists(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "MODELS_DIR", tmp_path)
     resolved = LTRRecommendationEngine._resolve_model_path()
     assert resolved.name == LTRRecommendationEngine.MODEL_FILENAME

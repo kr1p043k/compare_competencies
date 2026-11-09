@@ -111,70 +111,91 @@ def main() -> None:
             train_core[rows[i]["role"]].append(rows[i]["skill"])
     market_emb = np.mean(list(eng.skill_embeddings.values()), axis=0)
     qid_of = {r: i for i, r in enumerate(roles)}
-    Xtr, ytr, _, _, _ = eng._build_ranking_frame(train_idx, rows, train_core, market_emb, qid_of)
+    Xtr, ytr, _, _, train_order = eng._build_ranking_frame(train_idx, rows, train_core, market_emb, qid_of)
     Xte, yte, _, _, test_order = eng._build_ranking_frame(test_idx, rows, train_core, market_emb, qid_of)
-    str_, ste = np.asarray(eng.model.predict(Xtr)).reshape(-1, 1), np.asarray(eng.model.predict(Xte))
+    str_, ste = np.asarray(eng.model.predict(Xtr)), np.asarray(eng.model.predict(Xte))
     yb_tr, yb_te = (ytr >= 1).astype(int), (yte >= 1).astype(int)
 
+    def znorm(scores: np.ndarray, order) -> np.ndarray:
+        """Per-query (role) z-score; query-relative scores must be
+        standardized before an absolute score->probability map is fit."""
+        z = np.empty_like(scores)
+        for rl in roles:
+            m = np.array([rows[i]["role"] == rl for i in order])
+            if not m.any():
+                continue
+            s_rl = scores[m]
+            mu, sd = float(np.mean(s_rl)), float(np.std(s_rl)) or 1.0
+            z[m] = (s_rl - mu) / sd
+        return z
+
+    ztr, zte = znorm(str_, train_order), znorm(ste, test_order)
+
     cands = {
-        "platt": LogisticRegression().fit(str_, yb_tr),
-        "isotonic": IsotonicRegression(out_of_bounds="clip").fit(str_.ravel(), yb_tr),
+        "platt": LogisticRegression().fit(ztr.reshape(-1, 1), yb_tr),
+        "isotonic": IsotonicRegression(out_of_bounds="clip").fit(ztr, yb_tr),
     }
     rep = {}
     for name, cal in cands.items():
-        p = np.asarray(cal.predict(ste.reshape(-1, 1)) if name == "platt" else cal.predict(ste))
+        p = np.asarray(cal.predict(zte.reshape(-1, 1)) if name == "platt" else cal.predict(zte))
         rep[name] = {"log_loss": round(float(log_loss(yb_te, p)), 4),
                      "brier": round(float(brier_score_loss(yb_te, p)), 4),
                      "reliability": reliability(yb_te, p)}
         print(name, rep[name]["log_loss"], rep[name]["brier"])
-    # dummy: affine map from TRAIN min/max (no test leakage), clipped
-    lo, hi = float(str_.min()), float(str_.max())
-    p_d = np.clip((ste - lo) / (hi - lo + 1e-9), 1e-6, 1 - 1e-6)
+    # dummy: affine map from TRAIN z min/max (no test leakage), clipped
+    lo, hi = float(ztr.min()), float(ztr.max())
+    p_d = np.clip((zte - lo) / (hi - lo + 1e-9), 1e-6, 1 - 1e-6)
     rep["raw_minmax"] = {"log_loss": round(float(log_loss(yb_te, p_d)), 4),
                          "brier": round(float(brier_score_loss(yb_te, p_d)), 4)}
     print("raw_minmax", rep["raw_minmax"])
-    winner = min(("platt", "isotonic", "raw_minmax"), key=lambda k: rep[k]["log_loss"])
-    # --- honest protocol: fit on role-OOF z-scores, eval on test z-scores ---
-    import asyncio
+    # --- honest protocol (OPTIONAL: needs a live DB for role-OOF scores) ---
+    # fit on role-OOF z-scores, eval on untouched test z-scores. Skipped
+    # gracefully when Postgres is unavailable; the in-sample z-scored
+    # candidates above are the primary result.
+    try:
+        import asyncio
 
-    from scripts.train_ltr_ranker import load_vacancies
-    vacancies = asyncio.run(load_vacancies(3000))
-    oof = oof_scores(rows, roles, vacancies)
-    oof_roles = sorted(oof)
-    yb_oof = np.concatenate([(np.array([r["grade"] for r in rows if r["role"] == rl]) >= 1).astype(int)
-                              for rl in oof_roles])
-    z_oof, _ = zpool({rl: oof[rl] for rl in oof_roles})
-    # test z per role-query (frame order is known: test_order holds gold idxs)
-    zt_list, yb_zt_list = [], []
-    for rl in roles:
-        m = np.array([rows[i]["role"] == rl for i in test_order])
-        s_rl = ste[m]
-        mu, sd = float(np.mean(s_rl)), float(np.std(s_rl)) or 1.0
-        zt_list.append((s_rl - mu) / sd)
-        yb_zt_list.append(yb_te[m])
-    zt = np.concatenate(zt_list)
-    yb_zt = np.concatenate(yb_zt_list)
-    oof_platt = LogisticRegression().fit(z_oof.reshape(-1, 1), yb_oof)
-    oof_iso = IsotonicRegression(out_of_bounds="clip").fit(z_oof, yb_oof)
-    for name, cal in (("oof_platt", oof_platt), ("oof_isotonic", oof_iso)):
-        p = np.asarray(cal.predict(zt.reshape(-1, 1)) if name == "oof_platt" else cal.predict(zt))
-        rep[name] = {"log_loss": round(float(log_loss(yb_zt, p)), 4),
-                     "brier": round(float(brier_score_loss(yb_zt, p)), 4),
-                     "reliability": reliability(yb_zt, p)}
-        print(name, rep[name]["log_loss"], rep[name]["brier"])
-    winner = min(rep, key=lambda k: rep[k]["log_loss"])
-    kinds = {"platt": "logistic", "isotonic": "isotonic", "raw_minmax": "affine_train_minmax",
+        from scripts.train_ltr_ranker import load_vacancies
+        vacancies = asyncio.run(load_vacancies(3000))
+        oof = oof_scores(rows, roles, vacancies)
+        oof_roles = sorted(oof)
+        yb_oof = np.concatenate([(np.array([r["grade"] for r in rows if r["role"] == rl]) >= 1).astype(int)
+                                  for rl in oof_roles])
+        z_oof, _ = zpool({rl: oof[rl] for rl in oof_roles})
+        # test z per role-query (frame order is known: test_order holds gold idxs)
+        zt_list, yb_zt_list = [], []
+        for rl in roles:
+            m = np.array([rows[i]["role"] == rl for i in test_order])
+            s_rl = ste[m]
+            mu, sd = float(np.mean(s_rl)), float(np.std(s_rl)) or 1.0
+            zt_list.append((s_rl - mu) / sd)
+            yb_zt_list.append(yb_te[m])
+        zt = np.concatenate(zt_list)
+        yb_zt = np.concatenate(yb_zt_list)
+        cands["oof_platt"] = LogisticRegression().fit(z_oof.reshape(-1, 1), yb_oof)
+        cands["oof_isotonic"] = IsotonicRegression(out_of_bounds="clip").fit(z_oof, yb_oof)
+        for name in ("oof_platt", "oof_isotonic"):
+            cal = cands[name]
+            p = np.asarray(cal.predict(zt.reshape(-1, 1)) if name == "oof_platt" else cal.predict(zt))
+            rep[name] = {"log_loss": round(float(log_loss(yb_zt, p)), 4),
+                         "brier": round(float(brier_score_loss(yb_zt, p)), 4),
+                         "reliability": reliability(yb_zt, p)}
+            print(name, rep[name]["log_loss"], rep[name]["brier"])
+    except Exception as exc:  # noqa: BLE001 - DB optional, report and continue
+        rep["oof_skipped"] = f"{type(exc).__name__}: {exc}"
+        print("oof_skipped", rep["oof_skipped"])
+    winner = min(rep, key=lambda k: rep[k]["log_loss"] if isinstance(rep[k], dict) else float("inf"))
+    kinds = {"platt": "logistic_on_z", "isotonic": "isotonic_on_z", "raw_minmax": "affine_train_z_minmax",
              "oof_platt": "logistic_on_oof_z", "oof_isotonic": "isotonic_on_oof_z"}
     kind = kinds[winner]
     payload: dict = {"kind": kind, "note": "P(grade>=1) from ranker score; monotonic, order-preserving. "
-                                          "oof_* variants expect per-query z-scored input."}
-    if winner in ("platt", "oof_platt"):
-        payload["model"] = cands["platt"] if winner == "platt" else oof_platt
-    elif winner in ("isotonic", "oof_isotonic"):
-        payload["model"] = cands["isotonic"] if winner == "isotonic" else oof_iso
-    else:
+                                           "ALL variants expect per-query z-scored input (standardize "
+                                           "the query's raw scores before applying the map)."}
+    if winner == "raw_minmax":
         payload["lo"] = lo
         payload["hi"] = hi
+    else:
+        payload["model"] = cands[winner]
     joblib.dump(payload,
                 ROOT / "data" / "models" / "ranker_calibrator.joblib")
     rep["winner"] = winner

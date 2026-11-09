@@ -109,11 +109,65 @@ def zscore(x: np.ndarray) -> np.ndarray:
     return (x - float(np.mean(x))) / (std if std > 1e-9 else 1.0)
 
 
+def _check_against(report_path: Path, results: dict[str, dict], tolerance: float) -> int:
+    """Fail if any scored candidate's NDCG@10 dropped below its baseline.
+
+    The baseline is the report written by a previous (non --check) run. Only
+    keys present in BOTH the fresh results and the baseline are compared;
+    candidates that could not be scored this run are reported but do not fail.
+    """
+    if not report_path.exists():
+        print(
+            f"eval_frozen --check: no baseline report at {report_path}; "
+            "run without --check first."
+        )
+        return 2
+    baseline = json.loads(report_path.read_text(encoding="utf-8-sig")).get("results", {})
+
+    regressions: list[str] = []
+    missing: list[str] = []
+    for name, metrics in sorted(results.items()):
+        cur = metrics.get("ndcg@10")
+        base = baseline.get(name, {}).get("ndcg@10")
+        if base is None:
+            print(f"check {name:40} new (no baseline) ndcg@10={cur}")
+            continue
+        delta = round(cur - base, 4)
+        if cur < base - tolerance:
+            regressions.append(f"{name}: {cur} < baseline {base} (delta {delta})")
+        else:
+            print(f"check {name:40} ok  ndcg@10={cur} (baseline {base}, delta {delta:+})")
+
+    for name in sorted(set(baseline) & set(ARTIFACTS)):
+        if name not in results:
+            missing.append(name)
+
+    if missing:
+        print(f"\nnot scored this run (baseline had them): {', '.join(missing)}")
+    if regressions:
+        print("\nFAIL: NDCG@10 regressions vs baseline:\n  - " + "\n  - ".join(regressions))
+        return 1
+    print("\nOK: no NDCG@10 regression vs baseline")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gold", default="tests/fixtures/gold_frozen.csv")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--test-size", type=float, default=0.25)
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="compare against the baseline report and fail on any regression "
+        "(does NOT overwrite the report)",
+    )
+    parser.add_argument(
+        "--tolerance",
+        type=float,
+        default=0.005,
+        help="allowed NDCG@10 drop vs the baseline before --check fails",
+    )
     args = parser.parse_args()
 
     try:
@@ -202,6 +256,9 @@ def main() -> int:
             "ndcg@10": metrics["ndcg@10"],
         }
         print(f"\nbest blend: {best_name} with weight_ltr={best_w} (ndcg@10={metrics['ndcg@10']})")
+
+    if args.check:
+        return _check_against(report_path=REPORT, results=results, tolerance=args.tolerance)
 
     REPORT.parent.mkdir(parents=True, exist_ok=True)
     REPORT.write_text(

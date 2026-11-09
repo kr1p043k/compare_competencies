@@ -1,84 +1,84 @@
 {
   "platt": {
-    "log_loss": 13.2348,
-    "brier": 0.3672,
+    "log_loss": 9.8557,
+    "brier": 0.2734,
     "reliability": [
       {
         "mean_pred": 0.0,
-        "frac_pos": 0.372,
-        "n": 86
+        "frac_pos": 1.0,
+        "n": 2
       },
       {
         "mean_pred": 1.0,
-        "frac_pos": 0.643,
-        "n": 42
+        "frac_pos": 0.738,
+        "n": 126
       }
     ]
   },
   "isotonic": {
-    "log_loss": 0.7674,
-    "brier": 0.238,
+    "log_loss": 0.7895,
+    "brier": 0.199,
     "reliability": [
       {
-        "mean_pred": 0.157,
-        "frac_pos": 0.267,
-        "n": 15
+        "mean_pred": 0.441,
+        "frac_pos": 0.6,
+        "n": 10
       },
       {
-        "mean_pred": 0.291,
-        "frac_pos": 0.357,
-        "n": 56
+        "mean_pred": 0.688,
+        "frac_pos": 0.684,
+        "n": 38
       },
       {
-        "mean_pred": 0.386,
-        "frac_pos": 0.476,
-        "n": 21
+        "mean_pred": 0.702,
+        "frac_pos": 0.655,
+        "n": 29
       },
       {
-        "mean_pred": 0.681,
-        "frac_pos": 0.694,
-        "n": 36
+        "mean_pred": 0.798,
+        "frac_pos": 0.864,
+        "n": 22
+      },
+      {
+        "mean_pred": 0.924,
+        "frac_pos": 0.862,
+        "n": 29
       }
     ]
   },
   "raw_minmax": {
-    "log_loss": 0.7138,
-    "brier": 0.2539
+    "log_loss": 0.796,
+    "brier": 0.2869
   },
   "oof_platt": {
-    "log_loss": 12.39,
-    "brier": 0.3438,
+    "log_loss": 9.2925,
+    "brier": 0.2578,
     "reliability": [
       {
-        "mean_pred": 0.0,
-        "frac_pos": 0.363,
-        "n": 91
-      },
-      {
         "mean_pred": 1.0,
-        "frac_pos": 0.703,
-        "n": 37
+        "frac_pos": 0.742,
+        "n": 128
       }
     ]
   },
   "oof_isotonic": {
-    "log_loss": 0.642,
-    "brier": 0.226,
+    "log_loss": 0.5451,
+    "brier": 0.1837,
     "reliability": [
       {
-        "mean_pred": 0.335,
-        "frac_pos": 0.269,
-        "n": 26
+        "mean_pred": 0.576,
+        "frac_pos": 0.6,
+        "n": 20
       },
       {
-        "mean_pred": 0.468,
-        "frac_pos": 0.257,
-        "n": 35
+        "mean_pred": 0.741,
+        "frac_pos": 0.667,
+        "n": 54
       },
       {
-        "mean_pred": 0.53,
-        "frac_pos": 0.642,
-        "n": 67
+        "mean_pred": 0.808,
+        "frac_pos": 0.87,
+        "n": 54
       }
     ]
   },
