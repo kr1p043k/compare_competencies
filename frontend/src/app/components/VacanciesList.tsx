@@ -730,7 +730,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40 bg-background/50"
+              className="fixed inset-0 z-40 bg-overlay"
               onClick={() => setFilterOpen(false)}
             />
             <motion.aside
