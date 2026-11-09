@@ -674,7 +674,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
       >
-        <Card className="border border-border dark:border-border bg-white dark:bg-card">
+        <Card className="border border-border dark:border-border bg-card">
           <CardHeader className="border-b border-border/50 dark:border-border/50 bg-muted dark:bg-card">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -743,7 +743,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "tween", duration: 0.22, ease: "easeOut" }}
-              className="fixed top-0 right-0 bottom-0 z-50 w-full sm:max-w-lg bg-white dark:bg-background border-l border-border dark:border-border shadow-sm flex flex-col"
+              className="fixed top-0 right-0 bottom-0 z-50 w-full sm:max-w-lg bg-card border-l border-border dark:border-border shadow-sm flex flex-col"
             >
               <div className="flex items-center justify-between gap-3 p-5 border-b border-border dark:border-border">
                 <div className="flex items-center gap-3">
@@ -946,7 +946,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 )}
               </div>
             )}
-              <div className="flex items-center gap-3 p-5 border-t border-border dark:border-border bg-white dark:bg-background">
+              <div className="flex items-center gap-3 p-5 border-t border-border dark:border-border bg-card">
                 <Button
                   onClick={() => { applyFilters(); setFilterOpen(false); }}
                   disabled={loading}

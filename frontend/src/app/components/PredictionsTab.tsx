@@ -424,7 +424,7 @@ function MiniChart({ data }: { data: number[] }) {
     // Single point: dot instead of NaN polyline (verified: i/0 = NaN)
     return (
       <svg viewBox="0 0 400 60" className="w-full h-12" preserveAspectRatio="none">
-        <circle cx="200" cy="30" r="4" fill="#3b82f6" />
+        <circle cx="200" cy="30" r="4" fill="var(--primary)" />
       </svg>
     );
   }
@@ -436,7 +436,7 @@ function MiniChart({ data }: { data: number[] }) {
   const points = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`).join(" ");
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-12" preserveAspectRatio="none">
-      <polyline points={points} fill="none" stroke="#3b82f6" strokeWidth="2" />
+      <polyline points={points} fill="none" stroke="var(--primary)" strokeWidth="2" />
     </svg>
   );
 }

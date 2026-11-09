@@ -578,7 +578,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
               {mineAdded.map((s) => (
                 <span
                   key={s}
-                  className="inline-flex max-w-full items-center gap-1 rounded-md border border-dashed border-success/40 bg-success-soft px-2 py-0.5 text-xs text-success transition-colors duration-200 dark:border-success/40 dark:bg-success/10/50 dark:text-success"
+                  className="inline-flex max-w-full items-center gap-1 rounded-md border border-dashed border-success/40 bg-success-soft px-2 py-0.5 text-xs text-success transition-colors duration-200 dark:border-success/40 dark:bg-success/10 dark:text-success"
                 >
                   <CheckCircle2 className="size-3 shrink-0" />
                   <span className="break-words">{s}</span>

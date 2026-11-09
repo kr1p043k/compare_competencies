@@ -166,14 +166,14 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
     }));
   }, [topSkills, profiles]);
 
-  const tick = dk ? "#94a3b8" : "#475569";
-  const grid = dk ? "#1e293b" : "#e2e8f0";
+  const tick = "var(--muted-foreground)";
+  const grid = "var(--chart-grid)";
   const tipStyle = {
-    background: dk ? "#0f172a" : "#ffffff",
+    background: "var(--popover)",
     border: `1px solid ${grid}`,
     borderRadius: 8,
     fontSize: 12,
-    color: dk ? "#e2e8f0" : "#0f172a",
+    color: "var(--popover-foreground)",
   };
   const LEVEL_COLORS: Record<LevelKey, string> = {
     base: "var(--chart-1)",
@@ -251,11 +251,11 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
               <CardTitle className="text-base">Радар: профиль vs рынок (топ-{axesCount} навыков)</CardTitle>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-2.5 rounded-full bg-primary"  />
+                  <span className="size-2.5 rounded-full bg-[var(--chart-5)]"  />
                   Рынок
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-2.5 rounded-full bg-primary"  />
+                  <span className="size-2.5 rounded-full bg-[var(--chart-1)]"  />
                   Профиль
                 </span>
               </div>
@@ -282,22 +282,22 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                     }}
                     labelFormatter={(label) => String(label)}
                   />
-                  <Radar name="market" dataKey="market" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.15} strokeWidth={2} />
+                  <Radar name="market" dataKey="market" stroke="var(--chart-5)" fill="var(--chart-5)" fillOpacity={0.15} strokeWidth={2} />
                   <Radar
                     name="profile"
                     dataKey="profile"
-                    stroke="#2563eb"
-                    fill="#2563eb"
+                    stroke="var(--chart-1)"
+                    fill="var(--chart-1)"
                     fillOpacity={0.35}
                     strokeWidth={2}
                     dot={(p: any) => (
-                      <circle key={`dot-${p?.payload?.skill ?? p?.index ?? "x"}`} cx={p?.cx} cy={p?.cy} r={3} fill="#2563eb" strokeWidth={0} cursor="pointer"
+                      <circle key={`dot-${p?.payload?.skill ?? p?.index ?? "x"}`} cx={p?.cx} cy={p?.cy} r={3} fill="var(--chart-1)" strokeWidth={0} cursor="pointer"
                         onClick={() => p?.payload?.skill && openDrill(p.payload.skill)} />
                     )}
                     activeDot={{
                       r: 5,
-                      fill: "#2563eb",
-                      stroke: dk ? "#38bdf8" : "#1e3a8a",
+                      fill: "var(--chart-1)",
+                      stroke: "var(--chart-1)",
                       strokeWidth: 2,
                       cursor: "pointer",
                       onClick: (_e: any, payload: any) => payload?.payload?.skill && openDrill(payload.payload.skill),
