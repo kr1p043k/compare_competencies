@@ -2,10 +2,17 @@ import { useState, useEffect, useRef, memo, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { VacancyCard } from "./VacancyCard";
 import { VacancyDetailPanel } from "./VacancyDetailPanel";
-import { Input } from "./ui/input";
-import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
-import { Badge as ToneBadge, Button as DesignButton, inputClass, Skeleton } from "../../design";
+import {
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  Skeleton,
+  inputClass,
+} from "../../design";
 import { cn } from "./ui/utils";
 import {
   Select,
@@ -14,18 +21,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "./ui/card";
 import { Search, X, Filter, Loader2, AlertCircle, ChevronLeft, ChevronRight, ChevronUp, LayoutGrid, List, Database, Rocket, Globe, MapPin, ChevronDown, Download } from "lucide-react";
 import { reportError } from "./../../lib/errors";
 import { download, request, saveBlob } from "../../lib/api";
 import { useIncrementalList } from "../../lib/useIncrementalList";
-import { EmptyState } from "./EmptyState";
 
 const HH_REGIONS = [
   "Москва", "Санкт-Петербург", "Екатеринбург", "Новосибирск",
@@ -358,18 +357,20 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="mb-6">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-primary">Рынок труда</div>
-        <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground">Вакансии с hh.ru</h1>
-        {vacancyInfo && (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {vacancyInfo.date_range && (
-              <ToneBadge tone="info">Записи с {fmtDateRU(vacancyInfo.date_range.from)}</ToneBadge>
-            )}
-            <ToneBadge tone="primary">всего вакансий собрано: {vacancyInfo.count.toLocaleString("ru-RU")}</ToneBadge>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        eyebrow="Рынок труда"
+        title="Вакансии с hh.ru"
+        description={
+          vacancyInfo ? (
+            <span className="flex flex-wrap items-center gap-2">
+              {vacancyInfo.date_range && (
+                <Badge tone="info">Записи с {fmtDateRU(vacancyInfo.date_range.from)}</Badge>
+              )}
+              <Badge tone="primary">всего вакансий собрано: {vacancyInfo.count.toLocaleString("ru-RU")}</Badge>
+            </span>
+          ) : undefined
+        }
+      />
 
       {/* Pipeline trigger / settings panel */}
       {canRunPipeline && (showPipelineSetup && (!pipelineStep || pipelineStep.status !== "running") ? (
@@ -378,35 +379,33 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           animate={{ opacity: 1, y: 0 }}
           className="space-y-4"
         >
-          <Card className="border-0 shadow-sm bg-muted dark:bg-card">
-            <CardHeader className="border-b border-border/50 dark:border-border/50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-primary rounded-lg">
-                    <Rocket className="size-5 text-white" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg">Настройки сбора вакансий</CardTitle>
-                    <CardDescription>Выберите профессию и города для поиска</CardDescription>
-                  </div>
+          <Card className="border-0 bg-muted shadow-sm dark:bg-card">
+            <div className="flex items-center justify-between gap-4 border-b border-border px-5 pt-5 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-primary p-2">
+                  <Rocket className="size-5 text-primary-foreground" />
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setShowPipelineSetup(false)} title="Свернуть настройки" aria-label="Свернуть настройки">
-                  <ChevronUp className="size-4" />
-                </Button>
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">Настройки сбора вакансий</h3>
+                  <p className="text-sm text-muted-foreground">Выберите профессию и города для поиска</p>
+                </div>
               </div>
-            </CardHeader>
-            <CardContent className="p-6 space-y-5">
+              <Button variant="ghost" size="sm" onClick={() => setShowPipelineSetup(false)} title="Свернуть настройки" aria-label="Свернуть настройки" className="size-9 shrink-0 p-0">
+                <ChevronUp className="size-4" />
+              </Button>
+            </div>
+            <CardBody className="space-y-5 p-6">
               {/* Profession */}
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
                   Профессия
                 </label>
-                <Input
+                <input
                   value={pipelineProfession}
                   onChange={(e) => setPipelineProfession(e.target.value)}
                   placeholder="IT-специалист / Data Scientist / Все"
                   disabled={!cityMode}
-                  className="h-10"
+                  className={inputClass}
                 />
                 <p className="text-xs text-muted-foreground">{!cityMode ? "Весь рынок - поиск по всем IT-профессиям" : "Оставьте пустым для поиска по всем профессиям"}</p>
               </div>
@@ -417,13 +416,13 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
                     Страниц
                   </label>
-                  <Input
+                  <input
                     type="number"
                     min={1}
                     max={20}
                     value={pipelineMaxPagesLocal}
                     onChange={(e) => setPipelineMaxPagesLocal(Math.max(1, Math.min(20, Number(e.target.value) || 20)))}
-                    className="h-10"
+                    className={inputClass}
                   />
                   <p className="text-xs text-muted-foreground">1-20 (по 100 вакансий на страницу)</p>
                 </div>
@@ -431,13 +430,13 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
                     Период (дней)
                   </label>
-                  <Input
+                  <input
                     type="number"
                     min={1}
                     max={365}
                     value={pipelinePeriodLocal}
                     onChange={(e) => setPipelinePeriodLocal(Math.max(1, Math.min(365, Number(e.target.value) || 30)))}
-                    className="h-10"
+                    className={inputClass}
                   />
                   <p className="text-xs text-muted-foreground">1-365, по умолч. 30</p>
                 </div>
@@ -446,19 +445,19 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               {/* Region mode toggle */}
               <div className="flex gap-2">
                 <Button
-                  variant={!cityMode ? "default" : "outline"}
+                  variant={!cityMode ? "primary" : "secondary"}
                   onClick={() => { setCityMode(false); setSelectedCities([]); setPipelineRegion("0"); setPipelineProfession(""); }}
                   aria-pressed={!cityMode}
-                  className="flex-1 h-10 gap-2"
+                  className="h-10 flex-1 gap-2"
                 >
                   <Globe className="size-4" />
                   Весь рынок
                 </Button>
                 <Button
-                  variant={cityMode ? "default" : "outline"}
+                  variant={cityMode ? "primary" : "secondary"}
                   onClick={() => { setCityMode(true); if (selectedCities.length === 0) setSelectedCities([...HH_REGIONS]); }}
                   aria-pressed={cityMode}
-                  className="flex-1 h-10 gap-2"
+                  className="h-10 flex-1 gap-2"
                 >
                   <MapPin className="size-4" />
                   Выбрать города
@@ -520,9 +519,9 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               {!cityMode && (
                 <>
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     onClick={() => setShowAllMarketInfo(!showAllMarketInfo)}
-                    className="w-full h-9 gap-2 text-sm"
+                    className="h-9 w-full gap-2 text-sm"
                   >
                     <ChevronDown className={`size-4 transition-transform ${showAllMarketInfo ? "rotate-180" : ""}`} />
                     Показать список городов и вакансий для сбора
@@ -543,9 +542,9 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="text-xs font-medium text-foreground">Города</span>
-                          <ToneBadge>{HH_REGIONS.length}</ToneBadge>
+                          <Badge>{HH_REGIONS.length}</Badge>
                           {selectedCities.length > 0 && (
-                            <ToneBadge tone="primary">выбрано: {selectedCities.length}</ToneBadge>
+                            <Badge tone="primary">выбрано: {selectedCities.length}</Badge>
                           )}
                         </div>
                         <input
@@ -560,7 +559,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                           const q = cityQuery.trim().toLowerCase();
                           const filtered = HH_REGIONS.filter((c) => !q || c.toLowerCase().includes(q));
                           if (filtered.length === 0) {
-                            return <EmptyState size="compact" icon={Search} title="Ничего не найдено" />;
+                            return <EmptyState icon={<Search className="size-4" />} title="Ничего не найдено" className="py-6" />;
                           }
                           return (
                             <div
@@ -572,7 +571,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                                 {filtered.map((c) => {
                                   const on = selectedCities.includes(c);
                                   return (
-                                    <DesignButton
+                                    <Button
                                       key={c}
                                       type="button"
                                       size="sm"
@@ -584,7 +583,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                                       }
                                     >
                                       {c}
-                                    </DesignButton>
+                                    </Button>
                                   );
                                 })}
                               </div>
@@ -607,7 +606,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     runPipeline(regionIds);
                   }}
                   disabled={pipelineLoading}
-                  className="flex-1 h-11 bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+                  className="flex-1 h-11 gap-2 hover:bg-primary/90 hover:brightness-100"
                 >
                   {pipelineLoading ? (
                     <Loader2 className="size-4 animate-spin" />
@@ -617,14 +616,14 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   Запустить сбор
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   onClick={() => { setShowPipelineSetup(false); setSelectedCities([]); setCityMode(false); setPipelineProfession(""); }}
                   className="h-11"
                 >
                   Отмена
                 </Button>
               </div>
-            </CardContent>
+            </CardBody>
           </Card>
         </motion.div>
       ) : (
@@ -633,12 +632,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.07 }}
         >
-          <Card className="border-0 shadow-sm bg-muted dark:bg-card">
-            <CardContent className="p-4">
+          <Card className="border-0 bg-muted shadow-sm dark:bg-card">
+            <CardBody className="p-4">
               <div className="flex flex-col md:flex-row md:flex-wrap items-start md:items-center gap-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="p-2 bg-primary rounded-lg shrink-0">
-                    <Rocket className="size-5 text-white" />
+                    <Rocket className="size-5 text-primary-foreground" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground dark:text-muted-foreground">
@@ -652,7 +651,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Button
                   onClick={() => setShowPipelineSetup(true)}
                   disabled={pipelineLoading}
-                  className="h-9 px-6 has-[>svg]:px-6 gap-2 w-full md:w-auto shadow-xs"
+                  className="h-9 gap-2 px-6 shadow-xs has-[>svg]:px-6 w-full md:w-auto hover:bg-primary/90 hover:brightness-100"
                   size="sm"
                 >
                   {pipelineLoading ? (
@@ -663,7 +662,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   Собрать вакансии
                 </Button>
               </div>
-            </CardContent>
+            </CardBody>
           </Card>
         </motion.div>
       ))}
@@ -674,56 +673,54 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
       >
-        <Card className="border border-border dark:border-border bg-white dark:bg-card">
-          <CardHeader className="border-b border-border/50 dark:border-border/50 bg-muted dark:bg-card">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary rounded-lg">
-                  <Filter className="size-5 text-white" />
-                </div>
-                <div>
-                  <CardTitle>Фильтры и поиск</CardTitle>
-                  <CardDescription>Настройте параметры для поиска вакансий</CardDescription>
-                </div>
+        <Card>
+          <div className="flex items-center justify-between gap-4 border-b border-border/50 bg-muted px-5 pt-5 pb-3 dark:bg-card">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-primary p-2">
+                <Filter className="size-5 text-primary-foreground" />
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setFilterOpen(true)}
-                  className="gap-2"
-                >
-                  <Filter className="size-4" />
-                  Фильтры
-                  {activeFilterCount > 0 && (
-                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary text-white text-xs font-semibold">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </Button>
-                <Button
-                  variant={viewMode === "grid" ? "default" : "outline"}
-                  size="icon"
-                  onClick={() => setViewMode("grid")}
-                  aria-label="Отображение: сетка"
-                  aria-pressed={viewMode === "grid"}
-                  className="size-9"
-                >
-                  <LayoutGrid className="size-4" />
-                </Button>
-                <Button
-                  variant={viewMode === "list" ? "default" : "outline"}
-                  size="icon"
-                  onClick={() => setViewMode("list")}
-                  aria-label="Отображение: список"
-                  aria-pressed={viewMode === "list"}
-                  className="size-9"
-                >
-                  <List className="size-4" />
-                </Button>
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Фильтры и поиск</h3>
+                <p className="text-xs text-muted-foreground">Настройте параметры для поиска вакансий</p>
               </div>
             </div>
-          </CardHeader>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setFilterOpen(true)}
+                className="gap-2"
+              >
+                <Filter className="size-4" />
+                Фильтры
+                {activeFilterCount > 0 && (
+                  <span className="ml-1 rounded-full bg-primary px-1.5 py-0.5 text-xs font-semibold text-primary-foreground">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </Button>
+              <Button
+                variant={viewMode === "grid" ? "primary" : "secondary"}
+                size="sm"
+                onClick={() => setViewMode("grid")}
+                aria-label="Отображение: сетка"
+                aria-pressed={viewMode === "grid"}
+                className="size-9 p-0"
+              >
+                <LayoutGrid className="size-4" />
+              </Button>
+              <Button
+                variant={viewMode === "list" ? "primary" : "secondary"}
+                size="sm"
+                onClick={() => setViewMode("list")}
+                aria-label="Отображение: список"
+                aria-pressed={viewMode === "list"}
+                className="size-9 p-0"
+              >
+                <List className="size-4" />
+              </Button>
+            </div>
+          </div>
         </Card>
       </motion.div>
 
@@ -735,7 +732,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40 bg-background/50"
+              className="fixed inset-0 z-40 bg-overlay"
               onClick={() => setFilterOpen(false)}
             />
             <motion.aside
@@ -743,12 +740,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "tween", duration: 0.22, ease: "easeOut" }}
-              className="fixed top-0 right-0 bottom-0 z-50 w-full sm:max-w-lg bg-white dark:bg-background border-l border-border dark:border-border shadow-sm flex flex-col"
+              className="fixed top-0 right-0 bottom-0 z-50 w-full sm:max-w-lg bg-background border-l border-border dark:border-border shadow-sm flex flex-col"
             >
               <div className="flex items-center justify-between gap-3 p-5 border-b border-border dark:border-border">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-primary rounded-lg">
-                    <Filter className="size-5 text-white" />
+                  <div className="rounded-lg bg-primary p-2">
+                    <Filter className="size-5 text-primary-foreground" />
                   </div>
                   <div>
                     <div className="text-lg font-semibold text-foreground">Фильтры и поиск</div>
@@ -757,7 +754,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     </div>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setFilterOpen(false)} title="Закрыть" aria-label="Закрыть фильтры">
+                <Button variant="ghost" size="sm" onClick={() => setFilterOpen(false)} title="Закрыть" aria-label="Закрыть фильтры" className="size-9 shrink-0 p-0">
                   <X className="size-4" />
                 </Button>
               </div>
@@ -771,19 +768,19 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                    <Input
+                    <input
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyPress={handleSearchKeyPress}
                       placeholder="Должность или компания"
-                      className="pl-10 h-10 rounded-lg focus-visible:ring-2 focus-visible:ring-ring"
+                      className={cn(inputClass, "pl-10")}
                     />
                   </div>
                   <Button
                     onClick={handleSearch}
                     disabled={loading}
                     aria-label="Найти"
-                    className="h-10 w-10 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg"
+                    className="h-10 w-10 p-0"
                   >
                     {loading ? (
                       <Loader2 className="size-4 animate-spin" />
@@ -848,39 +845,37 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     const isActive = monthsFilter === p.value && !dateFrom && !dateTo;
                     const dimmed = (dateFrom !== "" || dateTo !== "") && p.value !== null;
                     return (
-                      <button
+                      <Button
                         key={p.label}
                         type="button"
+                        variant={isActive ? "primary" : "secondary"}
+                        size="sm"
                         onClick={() => { setMonthsFilter(p.value); if (p.value !== null) { setDateFrom(""); setDateTo(""); } }}
-                        className={`h-9 px-4 rounded-full border text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
-                          isActive
-                            ? "bg-primary border-primary text-primary-foreground"
-                            : "border-border-strong text-foreground dark:text-muted-foreground hover:border-primary hover:text-primary"
-                        } ${dimmed ? "opacity-40" : ""}`}
+                        className={cn("h-9 rounded-full px-4 text-sm font-medium", dimmed && "opacity-40")}
                       >
                         {p.label}
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Input
+                  <input
                     type="date"
                     value={dateFrom}
                     min={vacancyInfo?.date_range?.from?.slice(0, 10)}
                     max={dateTo || vacancyInfo?.date_range?.to?.slice(0, 10)}
                     onChange={(e) => { setDateFrom(e.target.value); if (e.target.value) setMonthsFilter(null); }}
-                    className="h-10 rounded-lg dark:[color-scheme:dark]"
+                    className={cn(inputClass, "dark:[color-scheme:dark]")}
                     aria-label="Дата от"
                   />
                   <span className="text-sm text-muted-foreground">-</span>
-                  <Input
+                  <input
                     type="date"
                     value={dateTo}
                     min={dateFrom || vacancyInfo?.date_range?.from?.slice(0, 10)}
                     max={vacancyInfo?.date_range?.to?.slice(0, 10)}
                     onChange={(e) => { setDateTo(e.target.value); if (e.target.value) setMonthsFilter(null); }}
-                    className="h-10 rounded-lg dark:[color-scheme:dark]"
+                    className={cn(inputClass, "dark:[color-scheme:dark]")}
                     aria-label="Дата до"
                   />
                 </div>
@@ -898,8 +893,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               <div className="flex flex-wrap items-center gap-2 px-6 pt-4 border-t border-border dark:border-border">
                 {applied.experience !== "all" && (
                   <Badge
-                    variant="secondary"
-                    className="cursor-pointer hover:bg-muted"
+                    tone="neutral"
+                    className="cursor-pointer hover:bg-foreground/10"
                     onClick={() => { setExperienceFilter("all"); applyFilters({ experience: "all" }); }}
                   >
                     {applied.experience} ✕
@@ -907,8 +902,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 )}
                 {applied.city !== "all" && (
                   <Badge
-                    variant="secondary"
-                    className="cursor-pointer hover:bg-muted"
+                    tone="neutral"
+                    className="cursor-pointer hover:bg-foreground/10"
                     onClick={() => { setCityFilter("all"); applyFilters({ city: "all" }); }}
                   >
                     {applied.city} ✕
@@ -916,8 +911,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 )}
                 {applied.search && (
                   <Badge
-                    variant="secondary"
-                    className="cursor-pointer hover:bg-muted"
+                    tone="neutral"
+                    className="cursor-pointer hover:bg-foreground/10"
                     onClick={() => {
                       setSearchQuery("");
                       applyFilters({ search: "" });
@@ -928,8 +923,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 )}
                 {applied.months !== null && (
                   <Badge
-                    variant="secondary"
-                    className="cursor-pointer hover:bg-muted"
+                    tone="neutral"
+                    className="cursor-pointer hover:bg-foreground/10"
                     onClick={() => { setMonthsFilter(null); applyFilters({ months: null }); }}
                   >
                     {applied.months} мес ✕
@@ -937,8 +932,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 )}
                 {(applied.date_from || applied.date_to) && (
                   <Badge
-                    variant="secondary"
-                    className="cursor-pointer hover:bg-muted"
+                    tone="neutral"
+                    className="cursor-pointer hover:bg-foreground/10"
                     onClick={() => { setDateFrom(""); setDateTo(""); applyFilters({ date_from: "", date_to: "" }); }}
                   >
                     {applied.date_from ? fmtDateRU(applied.date_from) : "…"} - {applied.date_to ? fmtDateRU(applied.date_to) : "…"} ✕
@@ -946,11 +941,11 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 )}
               </div>
             )}
-              <div className="flex items-center gap-3 p-5 border-t border-border dark:border-border bg-white dark:bg-background">
+              <div className="flex items-center gap-3 p-5 border-t border-border dark:border-border bg-background">
                 <Button
                   onClick={() => { applyFilters(); setFilterOpen(false); }}
                   disabled={loading}
-                  className="h-10 flex-1 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg gap-2 whitespace-nowrap"
+                  className="gap-2 h-10 flex-1 rounded-lg whitespace-nowrap hover:bg-primary/90 hover:brightness-100"
                 >
                   {loading ? (
                     <Loader2 className="size-4 animate-spin" />
@@ -962,8 +957,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Button
                   onClick={clearFilters}
                   disabled={loading || activeFilterCount === 0}
-                  variant="outline"
-                  className="h-10 rounded-lg text-muted-foreground gap-2 whitespace-nowrap"
+                  variant="secondary"
+                  className="gap-2 h-10 rounded-lg whitespace-nowrap text-muted-foreground"
                 >
                   <X className="size-4" />
                   Сбросить
@@ -984,7 +979,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           <span className="sr-only">Загрузка вакансий...</span>
           {Array.from({ length: 6 }, (_, i) => (
             <Card key={`vacancy-skeleton-${i}`} aria-hidden="true">
-              <CardContent className="space-y-3 pt-6">
+              <CardBody className="space-y-3 p-6">
                 <div className="flex items-start gap-3">
                   <Skeleton className="size-11 shrink-0 rounded-lg" />
                   <div className="flex-1 space-y-2">
@@ -1001,7 +996,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   <Skeleton className="h-8 flex-1" />
                   <Skeleton className="h-8 w-8" />
                 </div>
-              </CardContent>
+              </CardBody>
             </Card>
           ))}
         </div>
@@ -1010,84 +1005,71 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
         >
-          <Card className="border-2 border-destructive/30 bg-destructive/10">
-            <CardContent className="pt-6 text-center">
-              <AlertCircle className="size-12 text-destructive dark:text-destructive mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-destructive mb-2">
-                Ошибка загрузки
-              </h3>
-              <p className="text-destructive">{error}</p>
-
-              {vacancyInfo?.load_error?.startsWith("corrupted:") ? (
-                <div className="mt-4 p-4 bg-warning-soft border border-warning/30 rounded-lg text-left max-w-lg mx-auto">
-                  <p className="text-sm text-warning">
-                    <AlertCircle className="size-4 inline mr-1" />
-                    <strong>Файл вакансий повреждён.</strong> Файл существует (<code className="text-xs bg-warning-soft px-1 rounded">{vacancyInfo.file_modified ?? "неизвестно"}</code>), но не может быть прочитан.
-                  </p>
-                  <p className="text-xs text-warning mt-2">
-                    Попробуйте запустить повторный сбор вакансий - файлы будут перезаписаны.
-                  </p>
-                </div>
-              ) : !vacancyInfo?.file_modified ? (
-                <div className="mt-4 p-4 bg-warning-soft/30 border border-warning/30 rounded-lg text-left max-w-lg mx-auto">
-                  <p className="text-sm text-warning">
-                    <Database className="size-4 inline mr-1" />
-                    <strong>Вакансии не собраны.</strong> Нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
-                  </p>
-                  <p className="text-xs text-warning mt-2">
-                    После сбора вакансий данные кэшируются. Если вы уже запускали сбор - проверьте, что бэкенд запущен.
-                  </p>
-                </div>
-              ) : (
-                <div className="mt-4 p-4 bg-destructive/10 border border-destructive/30 rounded-lg text-left max-w-lg mx-auto">
-                  <p className="text-sm text-destructive">
-                    <AlertCircle className="size-4 inline mr-1" />
-                    <strong>Не удалось загрузить данные из файла.</strong> Файл существует, но возникла ошибка при обработке.
-                  </p>
-                  {vacancyInfo?.load_error && (
-                    <p className="text-xs text-destructive mt-1 font-mono">{vacancyInfo.load_error}</p>
-                  )}
-                  <p className="text-xs text-destructive mt-2">
-                    Попробуйте перезапустить сервер или запустить повторный сбор.
-                  </p>
-                </div>
-              )}
-
-              <Button
-                onClick={loadVacancies}
-                variant="outline"
-                className="mt-4 border-destructive/40"
-              >
-                Попробовать снова
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            <ErrorState
+              title="Ошибка загрузки"
+              description={error}
+              onRetry={loadVacancies}
+            />
+            {vacancyInfo?.load_error?.startsWith("corrupted:") ? (
+              <div className="p-4 rounded-lg border border-warning/30 bg-warning-soft text-left max-w-lg mx-auto">
+                <p className="text-sm text-warning">
+                  <AlertCircle className="size-4 inline mr-1" />
+                  <strong>Файл вакансий повреждён.</strong> Файл существует (<code className="text-xs bg-warning-soft/50 px-1 rounded">{vacancyInfo.file_modified ?? "неизвестно"}</code>), но не может быть прочитан.
+                </p>
+                <p className="text-xs text-warning/80 mt-2">
+                  Попробуйте запустить повторный сбор вакансий - файлы будут перезаписаны.
+                </p>
+              </div>
+            ) : !vacancyInfo?.file_modified ? (
+              <div className="p-4 rounded-lg border border-warning/30 bg-warning-soft text-left max-w-lg mx-auto">
+                <p className="text-sm text-warning">
+                  <Database className="size-4 inline mr-1" />
+                  <strong>Вакансии не собраны.</strong> Нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
+                </p>
+                <p className="text-xs text-warning/80 mt-2">
+                  После сбора вакансий данные кэшируются. Если вы уже запускали сбор - проверьте, что бэкенд запущен.
+                </p>
+              </div>
+            ) : (
+              <div className="p-4 rounded-lg border border-destructive/30 bg-destructive/10 text-left max-w-lg mx-auto">
+                <p className="text-sm text-destructive">
+                  <AlertCircle className="size-4 inline mr-1" />
+                  <strong>Не удалось загрузить данные из файла.</strong> Файл существует, но возникла ошибка при обработке.
+                </p>
+                {vacancyInfo?.load_error && (
+                  <p className="text-xs text-destructive mt-1 font-mono">{vacancyInfo.load_error}</p>
+                )}
+                <p className="text-xs text-destructive/80 mt-2">
+                  Попробуйте перезапустить сервер или запустить повторный сбор.
+                </p>
+              </div>
+            )}
+          </div>
         </motion.div>
       ) : vacancies.length === 0 ? (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
         >
-          <Card className="border-2 border-border dark:border-border">
-            <CardContent className="pt-6 text-center py-20">
-              <EmptyState
-                icon={Database}
-                title="Вакансии не найдены"
-                description="По вашему запросу ничего не найдено. Измените фильтры или запустите сбор заново."
-              />
-              <div className="p-4 bg-primary-soft border border-primary/30 rounded-lg text-left max-w-lg mx-auto">
-                <p className="text-sm text-primary-soft-foreground">
-                  <Database className="size-4 inline mr-1" />
-                  <strong>Если вакансии ещё не собраны</strong> - нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
-                </p>
-                <ul className="mt-2 text-xs text-primary-soft-foreground space-y-1 list-disc list-inside">
-                  <li>После нажатия запустится полный цикл сбора (10-15 минут)</li>
-                  <li>Прогресс будет отображаться на этой же странице</li>
-                  <li>После завершения данные обновятся автоматически</li>
-                </ul>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            <EmptyState
+              icon={<Database className="size-6" />}
+              title="Вакансии не найдены"
+              description="По вашему запросу ничего не найдено. Измените фильтры или запустите сбор заново."
+            />
+            <div className="p-4 rounded-lg border border-primary/30 bg-primary-soft text-left max-w-lg mx-auto">
+              <p className="text-sm text-primary-soft-foreground">
+                <Database className="size-4 inline mr-1" />
+                <strong>Если вакансии ещё не собраны</strong> - нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
+              </p>
+              <ul className="mt-2 text-xs text-primary-soft-foreground/80 space-y-1 list-disc list-inside">
+                <li>После нажатия запустится полный цикл сбора (10-15 минут)</li>
+                <li>Прогресс будет отображаться на этой же странице</li>
+                <li>После завершения данные обновятся автоматически</li>
+              </ul>
+            </div>
+          </div>
         </motion.div>
       ) : (
         <>
@@ -1100,7 +1082,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               )}
             </p>
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               title={canRunPipeline === false ? "Экспорт доступен преподавателям" : undefined}
               onClick={async () => {
@@ -1124,7 +1106,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   console.error("Export failed:", e);
                 }
               }}
-              className={`gap-2 ${canRunPipeline === false ? "hidden" : ""}`}
+              className={cn("gap-2", canRunPipeline === false && "hidden")}
             >
               <Download className="size-4" />
               Excel
@@ -1148,7 +1130,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               <div ref={sentinelRef} aria-hidden="true" className="h-px w-full" />
               <div className="flex justify-center">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   onClick={loadMore}
                   aria-label="Показать ещё вакансии"
                   className="gap-2"
@@ -1174,12 +1156,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               className="flex items-center justify-center gap-2"
             >
               <Button
-                variant="outline"
-                size="icon"
+                variant="secondary"
+                size="sm"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1 || loading}
                 aria-label="Предыдущая страница"
-                className="size-10"
+                className="size-10 p-0"
               >
                 <ChevronLeft className="size-4" />
               </Button>
@@ -1199,12 +1181,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 return (
                   <Button
                     key={pageNum}
-                    variant={currentPage === pageNum ? "default" : "outline"}
-                    size="icon"
+                    variant={currentPage === pageNum ? "primary" : "secondary"}
+                    size="sm"
                     onClick={() => setCurrentPage(pageNum)}
                     disabled={loading}
                     aria-current={currentPage === pageNum ? "page" : undefined}
-                    className="size-10"
+                    className="size-10 p-0"
                   >
                     {pageNum}
                   </Button>
@@ -1212,12 +1194,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               })}
 
               <Button
-                variant="outline"
-                size="icon"
+                variant="secondary"
+                size="sm"
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages || loading}
                 aria-label="Следующая страница"
-                className="size-10"
+                className="size-10 p-0"
               >
                 <ChevronRight className="size-4" />
               </Button>

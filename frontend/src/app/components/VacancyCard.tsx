@@ -1,13 +1,13 @@
-import { Button } from "./ui/button";
-import { Card } from "./ui/card";
 import {
-  Building2,
-  MapPin,
-  Calendar,
-  ExternalLink,
   AlertTriangle,
+  Building2,
+  Calendar,
   ChevronRight,
+  ExternalLink,
+  MapPin,
 } from "lucide-react";
+
+import { Badge, Button, Card } from "../../design";
 
 interface Vacancy {
   id: string;
@@ -37,34 +37,15 @@ interface VacancyCardProps {
   variant?: "grid" | "list";
 }
 
-// Уровень - это смысловой бейдж, а не украшение: цвет точки и подложки
-// кодирует грейд, поэтому Junior/Middle/Senior нельзя рисовать одним серым.
+// Уровень - это смысловой бейдж, а не украшение: тон Badge из дизайн-системы
+// кодирует грейд (info/primary/warning), поэтому Junior/Middle/Senior нельзя
+// рисовать одним нейтральным. Тона заданы токенами и работают в обеих темах.
 const experienceLevels = {
-  junior: {
-    label: "Junior",
-    dot: "bg-info",
-    badge:
-      "bg-info-soft text-info ring-info/30",
-  },
-  middle: {
-    label: "Middle",
-    dot: "bg-primary",
-    badge:
-      "bg-primary-soft text-primary ring-primary/30",
-  },
-  senior: {
-    label: "Senior",
-    dot: "bg-warning",
-    badge:
-      "bg-warning-soft text-warning ring-warning/30",
-  },
-  unknown: {
-    label: "Уровень не указан",
-    dot: "bg-muted-foreground",
-    badge:
-      "bg-muted text-muted-foreground ring-border",
-  },
-} as const;
+  junior: { label: "Junior", tone: "info" as const },
+  middle: { label: "Middle", tone: "primary" as const },
+  senior: { label: "Senior", tone: "warning" as const },
+  unknown: { label: "Уровень не указан", tone: "neutral" as const },
+};
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   "RUR": "₽", "RUB": "₽", "USD": "$", "EUR": "€", "GBP": "£",
@@ -203,7 +184,7 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
   const snippet = vacancy.snippet?.requirement || vacancy.snippet?.responsibility;
 
   const Logo = (
-    <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg border border-border bg-card">
+    <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg border border-border bg-surface">
       {vacancy.employer_logo ? (
         <img
           src={vacancy.employer_logo}
@@ -212,43 +193,37 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
           loading="lazy"
         />
       ) : (
-        <Building2 className="size-5 text-subtle-foreground" />
+        <Building2 className="size-5 text-muted-foreground" />
       )}
     </div>
   );
 
   const LevelChip = (
-    <span
-      title={`Уровень: ${expLevel.label}`}
-      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${expLevel.badge}`}
-    >
-      <span className={`size-1.5 rounded-full ${expLevel.dot}`} aria-hidden />
+    <Badge tone={expLevel.tone} title={`Уровень: ${expLevel.label}`}>
+      <span
+        className="size-1.5 shrink-0 rounded-full bg-current opacity-70"
+        aria-hidden="true"
+      />
       {expLevel.label}
-    </span>
+    </Badge>
   );
 
   const SpamChip = vacancy.is_spam ? (
-    <span
-      title={vacancy.spam_reason || ""}
-      className="inline-flex items-center gap-1 rounded bg-destructive/10 px-1.5 py-0.5 text-xs font-medium text-destructive"
-    >
+    <Badge tone="danger" title={vacancy.spam_reason || ""}>
       <AlertTriangle className="size-3" />
       Спам
-    </span>
+    </Badge>
   ) : null;
 
   const SkillChips = skills.length > 0 && (
     <div className="flex flex-wrap gap-1">
       {skills.slice(0, 7).map((skill) => (
-        <span
-          key={skill}
-          className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
-        >
+        <Badge key={skill} tone="neutral">
           {skill}
-        </span>
+        </Badge>
       ))}
       {skills.length > 7 && (
-        <span className="rounded px-1.5 py-0.5 text-xs text-subtle-foreground">
+        <span className="px-1.5 py-0.5 text-xs text-subtle-foreground">
           +{skills.length - 7}
         </span>
       )}
@@ -258,7 +233,7 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
   const Actions = (
     <div className="flex items-center gap-2">
       <Button
-        variant="outline"
+        variant="secondary"
         size="sm"
         className="flex-1 justify-center"
         onClick={() => onOpen?.(vacancy)}
@@ -266,7 +241,7 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
         Подробнее
         <ChevronRight className="ml-1 size-3.5" />
       </Button>
-      <Button variant="ghost" size="icon" className="size-8 shrink-0" asChild>
+      <Button variant="ghost" size="sm" className="size-8 shrink-0 p-0" asChild>
         <a
           href={vacancy.alternate_url}
           target="_blank"
@@ -282,7 +257,10 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
   // ---------------------------------------------------------------- list
   if (variant === "list") {
     return (
-      <Card className="flex flex-row items-start gap-4 gap-y-0 rounded-lg border border-border bg-card p-4 shadow-none transition-colors hover:border-border-strong">
+      <Card
+        tone="flat"
+        className="flex flex-row items-start gap-4 gap-y-0 p-4 transition-colors hover:border-border-strong"
+      >
         {Logo}
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
@@ -319,7 +297,10 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
 
   // ---------------------------------------------------------------- grid
   return (
-    <Card className="flex h-full flex-col gap-0 rounded-lg border border-border bg-card p-4 shadow-none transition-colors hover:border-border-strong">
+    <Card
+      tone="flat"
+      className="flex h-full flex-col gap-0 p-4 transition-colors hover:border-border-strong"
+    >
       <div className="flex items-start gap-3">
         {Logo}
         <div className="min-w-0 flex-1">

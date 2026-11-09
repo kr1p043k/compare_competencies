@@ -6,6 +6,7 @@
  * и тёмная темы переключаются без правок в компонентах.
  */
 
+import { Slot } from "@radix-ui/react-slot";
 import {
   type ButtonHTMLAttributes,
   type HTMLAttributes,
@@ -25,6 +26,9 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
   iconLeft?: ReactNode;
   iconRight?: ReactNode;
+  /** Рендер как вложенный элемент (например `<a>`): стили кнопки
+   * переносятся на него, сохраняются нативные semantics ссылки. */
+  asChild?: boolean;
 }
 
 const BUTTON_VARIANT: Record<ButtonVariant, string> = {
@@ -46,6 +50,7 @@ export function Button({
   variant = "primary",
   size = "md",
   loading = false,
+  asChild = false,
   iconLeft,
   iconRight,
   className,
@@ -53,8 +58,10 @@ export function Button({
   disabled,
   ...rest
 }: ButtonProps) {
+  const Comp = asChild ? Slot : "button";
+
   return (
-    <button
+    <Comp
       {...rest}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
@@ -67,10 +74,16 @@ export function Button({
         className,
       )}
     >
-      {loading ? <Spinner /> : iconLeft}
-      {children}
-      {iconRight}
-    </button>
+      {asChild ? (
+        children
+      ) : (
+        <>
+          {loading ? <Spinner /> : iconLeft}
+          {children}
+          {iconRight}
+        </>
+      )}
+    </Comp>
   );
 }
 
