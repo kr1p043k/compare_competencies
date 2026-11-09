@@ -97,17 +97,17 @@ export function DataTab({
   }
 
   return (
-    <Card className="gap-5 border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
-      <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
+    <Card className="gap-5 border border-border shadow-sm overflow-hidden">
+      <CardHeader className="border-b border-border bg-muted">
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-10 h-10 bg-emerald-600 rounded-lg">
+          <div className="flex items-center justify-center w-10 h-10 bg-success rounded-lg">
             <Database className="size-5 text-white" />
           </div>
           <div>
-            <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">
+            <CardTitle className="text-xl font-semibold text-foreground">
               Результаты
             </CardTitle>
-            <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
+            <CardDescription className="text-sm text-muted-foreground">
               Просмотр профилей, рекомендаций и статистики
             </CardDescription>
           </div>
@@ -115,18 +115,18 @@ export function DataTab({
       </CardHeader>
       <CardContent className="p-5 space-y-5">
         <div className="space-y-2">
-          <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">
+          <Label className="text-sm font-medium text-foreground">
             Профиль компетенций
           </Label>
           <Select value={profile} onValueChange={onProfileChange}>
-            <SelectTrigger className="h-11 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600">
+            <SelectTrigger className="h-11 bg-input-background border-input">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {profilesList.map((p) => (
                 <SelectItem key={p} value={p}>
                   <div className="flex items-center gap-2">
-                    <Award className={`size-4 ${p === profile ? "text-emerald-600" : "text-gray-400 dark:text-slate-500"}`} />
+                    <Award className={`size-4 ${p === profile ? "text-success" : "text-subtle-foreground"}`} />
                     <span>{profileLabel(p)}</span>
                   </div>
                 </SelectItem>
@@ -144,7 +144,7 @@ export function DataTab({
           <Button
             onClick={onLoadRecommendations}
             disabled={loading}
-            className="h-11 bg-sky-700 text-white hover:bg-sky-800"
+            className="h-11 bg-info text-white hover:bg-info/90"
           >
             <Search className="mr-2 size-4" />
             Показать сохранённые
@@ -153,7 +153,7 @@ export function DataTab({
             onClick={onLoadRecommendations}
             disabled={loading || isStudent}
             title={isStudent ? "Только для преподавателя" : undefined}
-            className="h-11 bg-emerald-700 text-white hover:bg-emerald-800"
+            className="h-11 bg-success text-white hover:bg-success/90"
           >
             <Sparkles className="mr-2 size-4" />
             Рекомендации
@@ -172,23 +172,23 @@ export function DataTab({
             onClick={onRunGapAnalysis}
             disabled={loading || gapRunning || isStudent}
             title={isStudent ? "Только для преподавателя" : undefined}
-            className="h-11 bg-amber-700 text-white hover:bg-amber-800"
+            className="h-11 bg-warning text-white hover:bg-warning/90"
           >
             <Zap className="mr-2 size-4" />
             Запустить gap-анализ
           </Button>
         </div>
         {gapRunning && (
-          <p className="text-sm text-amber-700 dark:text-amber-300">{gapMsg || "Выполняется..."}</p>
+          <p className="text-sm text-warning">{gapMsg || "Выполняется..."}</p>
         )}
         {!isStudent && (
-        <div className="space-y-2 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-          <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">
+        <div className="space-y-2 rounded-lg border border-border p-4">
+          <Label className="text-sm font-medium text-foreground">
             Целевая профессия для сравнения
           </Label>
           <div className="flex flex-col sm:flex-row gap-3">
             <Select value={targetProfession} onValueChange={onTargetProfessionChange}>
-              <SelectTrigger className="h-11 flex-1 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600">
+              <SelectTrigger className="h-11 flex-1 bg-input-background border-input">
                 <SelectValue placeholder="Выберите профессию..." />
               </SelectTrigger>
               <SelectContent>
@@ -254,41 +254,41 @@ export function DataTab({
             return (
               <>
                 {(d as any).focus_mode && (d as any).target_profession && (
-                  <Card className="border-2 border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/20 mb-4">
+                  <Card className="border-2 border-primary/30 bg-primary-soft/50 mb-4">
                     <CardContent className="pt-5">
                       <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 bg-violet-600 rounded-lg">
+                        <div className="p-2 bg-primary rounded-lg">
                           <Briefcase className="size-5 text-white" />
                         </div>
                         <div>
-                          <div className="font-bold text-gray-900 dark:text-slate-100">
+                          <div className="font-bold text-foreground">
                             Фокус: {(d as any).target_profession} · профиль {String((d as any).profile || "")}
                           </div>
-                          <div className="text-xs text-gray-500 dark:text-slate-400">
+                          <div className="text-xs text-muted-foreground">
                             {((d as any).target_domains || []).join(", ")}
                           </div>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                        <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
-                          <div className="text-2xl font-bold text-violet-700 dark:text-violet-300">{Number((d as any).profession_coverage || 0).toFixed(1)}%</div>
-                          <div className="text-xs text-gray-500 dark:text-slate-400">покрытие профессии</div>
+                        <div className="rounded-lg bg-card/70 p-3">
+                          <div className="text-2xl font-bold text-primary">{Number((d as any).profession_coverage || 0).toFixed(1)}%</div>
+                          <div className="text-xs text-muted-foreground">покрытие профессии</div>
                         </div>
-                        <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
-                          <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{Number((d as any).coverage_strict ?? (d as any).skill_coverage ?? 0).toFixed(1)}%</div>
-                          <div className="text-xs text-gray-500 dark:text-slate-400">навыки: {(d as any).skill_strict_has ?? "-"} из {(d as any).skill_strict_total ?? "-"}</div>
+                        <div className="rounded-lg bg-card/70 p-3">
+                          <div className="text-2xl font-bold text-success">{Number((d as any).coverage_strict ?? (d as any).skill_coverage ?? 0).toFixed(1)}%</div>
+                          <div className="text-xs text-muted-foreground">навыки: {(d as any).skill_strict_has ?? "-"} из {(d as any).skill_strict_total ?? "-"}</div>
                         </div>
-                        <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
-                          <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{Number((d as any).readiness_score || 0).toFixed(1)}%</div>
-                          <div className="text-xs text-gray-500 dark:text-slate-400">готовность</div>
+                        <div className="rounded-lg bg-card/70 p-3">
+                          <div className="text-2xl font-bold text-info">{Number((d as any).readiness_score || 0).toFixed(1)}%</div>
+                          <div className="text-xs text-muted-foreground">готовность</div>
                         </div>
-                        <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
-                          <div className="text-2xl font-bold text-slate-700 dark:text-slate-200">{Number((d as any).domain_coverage_score || 0).toFixed(1)}%</div>
-                          <div className="text-xs text-gray-500 dark:text-slate-400">покрытие доменов</div>
+                        <div className="rounded-lg bg-card/70 p-3">
+                          <div className="text-2xl font-bold text-foreground">{Number((d as any).domain_coverage_score || 0).toFixed(1)}%</div>
+                          <div className="text-xs text-muted-foreground">покрытие доменов</div>
                         </div>
                       </div>
                       {(d as any).krm_note && (
-                        <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">{String((d as any).krm_note)}</p>
+                        <p className="mt-3 text-xs text-warning">{String((d as any).krm_note)}</p>
                       )}
                     </CardContent>
                   </Card>
@@ -309,11 +309,11 @@ export function DataTab({
           const msg = d.message as string | undefined;
           if (msg && (msg.includes("не найдены") || msg.includes("not found"))) {
             return (
-              <Card className="border-2 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
+              <Card className="border-2 border-warning/30 bg-warning-soft">
                 <CardContent className="text-center py-12">
-                  <AlertCircle className="size-12 text-amber-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-200 mb-2">{msg}</h3>
-                  <p className="text-sm text-amber-600 mb-4">Запустите gap-анализ для расчёта покрытия</p>
+                  <AlertCircle className="size-12 text-warning mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-warning mb-2">{msg}</h3>
+                  <p className="text-sm text-warning mb-4">Запустите gap-анализ для расчёта покрытия</p>
                   <Button
                     onClick={onRunGapAnalysis}
                     disabled={gapRunning || isStudent}
@@ -323,7 +323,7 @@ export function DataTab({
                     Запустить gap-анализ
                   </Button>
                   {gapRunning && (
-                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-3">{gapMsg || "Выполняется..."}</p>
+                    <p className="text-sm text-warning mt-3">{gapMsg || "Выполняется..."}</p>
                   )}
                 </CardContent>
               </Card>
