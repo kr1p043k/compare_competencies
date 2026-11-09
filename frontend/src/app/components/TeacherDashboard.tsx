@@ -896,13 +896,13 @@ export function TeacherDashboard() {
             <div
               onClick={() => setShowAnalysis(!showAnalysis)}
               title={srcTitle}
-          className={`mt-2.5 px-3 py-2 rounded-md cursor-pointer text-xs bg-gray-50 dark:bg-slate-800 border ${covBorderClass(analysis.average_coverage)}`}
+          className={`mt-2.5 px-3 py-2 rounded-md cursor-pointer text-xs bg-muted border ${covBorderClass(analysis.average_coverage)}`}
             >
               <div className="flex justify-between items-center gap-2">
                 {/* Показываем охват спроса, а не coverage_ratio: второй почти
                     всегда ~100%, потому что навыки РПД уже нормализованы к
                     словарю рынка, и читается как «всё покрыто». */}
-                <span className="text-violet-600 font-semibold">Охват рынка</span>
+                <span className="text-primary font-semibold">Охват рынка</span>
                 <span className={`font-bold ${covTextClass(cov)}`}>
                   {(cov * 100).toFixed(1)}%
                 </span>
@@ -911,13 +911,13 @@ export function TeacherDashboard() {
                   итоговой оценкой, хотя это лишь строгая доля. */}
               {analysis.average_market_weight_coverage != null && (
                 <div
-                  className="text-[11px] text-gray-500 dark:text-slate-400 mt-1"
+                  className="text-[11px] text-subtle-foreground mt-1"
                   title="Взвешенный охват: те же топ-навыки рынка, но с весом спроса по каждому навыку (см. глоссарий)"
                 >
                   по спросу: {(analysis.average_market_weight_coverage * 100).toFixed(1)}%
                 </div>
               )}
-              <div className="text-gray-500 dark:text-slate-400 mt-0.5">
+              <div className="text-subtle-foreground mt-0.5">
                 {analysis.total_disciplines} {plural(analysis.total_disciplines, "дисциплина", "дисциплины", "дисциплин")} · {analysis.total_gaps_across_all} {plural(analysis.total_gaps_across_all, "пробел", "пробела", "пробелов")}
               </div>
               <div className="mt-1.5">
@@ -932,7 +932,7 @@ export function TeacherDashboard() {
             aria-label="Поиск дисциплины"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-        className="w-full mt-2.5 px-3 py-2 rounded-md text-[13px] box-border bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-slate-100 outline-none"
+        className="w-full mt-2.5 px-3 py-2 rounded-md text-[13px] box-border bg-card border border-border text-foreground outline-none"
           />
           {/* Набор: переключает набор, по которому ЗАГРУЖАЮТСЯ данные
               (см. useEffect на [selectedDir, intakeYear]). Это НЕ фильтр
