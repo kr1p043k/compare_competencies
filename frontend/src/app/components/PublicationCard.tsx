@@ -1,8 +1,6 @@
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Card, CardContent } from "./ui/card";
+import { Badge, Button, Card } from "../../design";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { resolveHubLink, shortenAbstract, type Publication } from "./publicationsFilter";
 
@@ -10,9 +8,7 @@ import { resolveHubLink, shortenAbstract, type Publication } from "./publication
  * Общие константы и помощники вкладки «Публикации»: их используют карточка,
  * диалог деталей и контейнер списка, поэтому держим их в одном модуле.
  */
-export const TYPE_BADGE = "border-transparent bg-transparent text-gray-600 dark:text-slate-300";
-export const OUTLINE_BADGE = "text-gray-600 dark:text-slate-300 border-gray-300 dark:border-slate-600";
-export const EXTERNAL_LINK = "text-blue-600 dark:text-blue-400 hover:underline";
+export const EXTERNAL_LINK = "text-primary underline-offset-2 hover:underline";
 
 export const isAbort = (e: unknown): boolean =>
   e instanceof DOMException && e.name === "AbortError";
@@ -47,20 +43,20 @@ export function PaginationBar({ page, totalPages, pageSize, onPage, onPageSize }
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={() => onPage(page - 1)} disabled={page <= 1}
-          aria-label="Предыдущая страница" className="border-gray-300 dark:border-slate-600">
+        <Button variant="secondary" size="sm" onClick={() => onPage(page - 1)} disabled={page <= 1}
+          aria-label="Предыдущая страница">
           <ChevronLeft className="size-4" />Назад
         </Button>
-        <span className="text-sm text-gray-600 dark:text-slate-400" aria-live="polite">Стр. {page} из {totalPages}</span>
-        <Button variant="outline" size="sm" onClick={() => onPage(page + 1)} disabled={page >= totalPages}
-          aria-label="Следующая страница" className="border-gray-300 dark:border-slate-600">
+        <span className="text-sm text-muted-foreground" aria-live="polite">Стр. {page} из {totalPages}</span>
+        <Button variant="secondary" size="sm" onClick={() => onPage(page + 1)} disabled={page >= totalPages}
+          aria-label="Следующая страница">
           Вперёд<ChevronRight className="size-4" />
         </Button>
       </div>
-      <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400">
+      <label className="flex items-center gap-2 text-sm text-muted-foreground">
         На странице
         <Select value={String(pageSize)} onValueChange={(v) => onPageSize(Number(v))}>
-          <SelectTrigger className="w-20 h-8 bg-white dark:bg-slate-950" aria-label="Размер страницы"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-20 h-8" aria-label="Размер страницы"><SelectValue /></SelectTrigger>
           <SelectContent>
             {[10, 20, 50].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
           </SelectContent>
@@ -77,43 +73,41 @@ export function PublicationCard({ pub, onOpen }: { pub: Publication; onOpen: (id
   const hubLink = resolveHubLink(pub);
   const abstract = shortenAbstract(pub.abstract);
   return (
-    <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
-      <CardContent className="p-4 sm:p-5 space-y-2.5">
-        <div className="flex flex-wrap items-center gap-2">
-          {pub.type_name ? <Badge className={TYPE_BADGE}>{pub.type_name}</Badge> : null}
-          {year ? <span className="text-sm text-gray-500 dark:text-slate-400">{year}</span> : null}
-          {pub.journal ? <span className="text-xs text-gray-500 dark:text-slate-400 truncate max-w-[18rem]" title={pub.journal}>{pub.journal}</span> : null}
-          <span className="ml-auto flex items-center gap-3 text-xs">
-            {pub.doi ? <a href={doiHref(pub.doi)} target="_blank" rel="noreferrer" className={EXTERNAL_LINK}>DOI</a> : null}
-            {hubLink ? (
-              <a href={hubLink} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 ${EXTERNAL_LINK}`}>
-                Открыть в хабе<ExternalLink className="size-3.5" />
-              </a>
-            ) : null}
-          </span>
+    <Card className="p-4 sm:p-5 space-y-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        {pub.type_name ? <Badge tone="primary">{pub.type_name}</Badge> : null}
+        {year ? <span className="text-sm text-muted-foreground">{year}</span> : null}
+        {pub.journal ? <span className="text-xs text-muted-foreground truncate max-w-[18rem]" title={pub.journal}>{pub.journal}</span> : null}
+        <span className="ml-auto flex items-center gap-3 text-xs">
+          {pub.doi ? <a href={doiHref(pub.doi)} target="_blank" rel="noreferrer" className={EXTERNAL_LINK}>DOI</a> : null}
+          {hubLink ? (
+            <a href={hubLink} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 ${EXTERNAL_LINK}`}>
+              Открыть в хабе<ExternalLink className="size-3.5" />
+            </a>
+          ) : null}
+        </span>
+      </div>
+      <button type="button" onClick={() => onOpen(pub.id)}
+        className="block text-left text-sm sm:text-base font-semibold text-foreground hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded">
+        {pub.title ?? "Публикация без названия"}
+      </button>
+      {pub.authors.length > 0 ? <p className="text-sm text-muted-foreground">{pub.authors.join(", ")}</p> : null}
+      {abstract ? <p className="text-sm text-muted-foreground">{abstract}</p> : null}
+      {pub.keywords.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {pub.keywords.slice(0, 5).map((k) => (
+            <Badge key={k} tone="info">{k}</Badge>
+          ))}
         </div>
-        <button type="button" onClick={() => onOpen(pub.id)}
-          className="block text-left text-sm sm:text-base font-semibold text-gray-900 dark:text-slate-100 hover:text-blue-700 dark:hover:text-blue-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded">
-          {pub.title ?? "Публикация без названия"}
-        </button>
-        {pub.authors.length > 0 ? <p className="text-sm text-gray-600 dark:text-slate-400">{pub.authors.join(", ")}</p> : null}
-        {abstract ? <p className="text-sm text-gray-500 dark:text-slate-400">{abstract}</p> : null}
-        {pub.keywords.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {pub.keywords.slice(0, 5).map((k) => (
-              <Badge key={k} variant="outline" className="text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">{k}</Badge>
-            ))}
-          </div>
-        ) : null}
-        {subjects.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {subjects.map((s) => <Badge key={s} variant="outline" className={OUTLINE_BADGE}>{s}</Badge>)}
-            {more > 0 ? (
-              <Badge variant="outline" className="text-gray-500 dark:text-slate-400 border-gray-300 dark:border-slate-600">+{more}</Badge>
-            ) : null}
-          </div>
-        ) : null}
-      </CardContent>
+      ) : null}
+      {subjects.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {subjects.map((s) => <Badge key={s} tone="neutral">{s}</Badge>)}
+          {more > 0 ? (
+            <span className="px-1.5 py-0.5 text-xs text-subtle-foreground">+{more}</span>
+          ) : null}
+        </div>
+      ) : null}
     </Card>
   );
 }

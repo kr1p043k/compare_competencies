@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
 import { ExternalLink, FileText } from "lucide-react";
 
-import { ErrorState, Skeleton } from "../../design";
+import { ErrorState, Skeleton, Badge, Button } from "../../design";
 import { api } from "../api";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
-import { EXTERNAL_LINK, OUTLINE_BADGE, TYPE_BADGE, doiHref, errorText, isAbort } from "./PublicationCard";
+import { EXTERNAL_LINK, doiHref, errorText, isAbort } from "./PublicationCard";
 import { resolveHubLink, type Publication } from "./publicationsFilter";
 
 function formatSize(n: number | null): string {
@@ -43,50 +41,50 @@ function DetailBody({ detail }: { detail: Publication }) {
   const hubLink = resolveHubLink(detail);
   return (
     <div className="space-y-4">
-      {detail.type_name ? <Badge className={TYPE_BADGE}>{detail.type_name}</Badge> : null}
+      {detail.type_name ? <Badge tone="primary">{detail.type_name}</Badge> : null}
       <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
         {rows.map(([label, value]) => value ? (
           <div key={label}>
-            <dt className="text-xs text-gray-500 dark:text-slate-400">{label}</dt>
+            <dt className="text-xs text-muted-foreground">{label}</dt>
             <dd className="mt-0.5 text-sm break-words">{value}</dd>
           </div>
         ) : null)}
         {detail.doi ? (
           <div className="sm:col-span-2">
-            <dt className="text-xs text-gray-500 dark:text-slate-400">DOI</dt>
+            <dt className="text-xs text-muted-foreground">DOI</dt>
             <dd className="mt-0.5 text-sm"><a href={doiHref(detail.doi)} target="_blank" rel="noreferrer" className={`break-all ${EXTERNAL_LINK}`}>{detail.doi}</a></dd>
           </div>
         ) : null}
       </dl>
       {detail.abstract ? (
         <div>
-          <h3 className="text-sm font-medium text-gray-900 dark:text-slate-100">Аннотация</h3>
-          <p className="mt-1.5 text-sm text-gray-700 dark:text-slate-300 whitespace-pre-line">{detail.abstract}</p>
+          <h3 className="text-sm font-medium text-foreground">Аннотация</h3>
+          <p className="mt-1.5 text-sm text-muted-foreground whitespace-pre-line">{detail.abstract}</p>
         </div>
       ) : null}
       {tagSections.map(([label, list]) => list.length > 0 ? (
         <div key={label}>
-          <h3 className="text-sm font-medium text-gray-900 dark:text-slate-100">{label}</h3>
+          <h3 className="text-sm font-medium text-foreground">{label}</h3>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {list.map((s) => <Badge key={s} variant="outline" className={OUTLINE_BADGE}>{s}</Badge>)}
+            {list.map((s) => <Badge key={s} tone="neutral">{s}</Badge>)}
           </div>
         </div>
       ) : null)}
-      <div className="h-px bg-gray-200 dark:bg-slate-700" role="separator" />
+      <div className="h-px bg-border" role="separator" />
       <div>
-        <h3 className="text-sm font-medium text-gray-900 dark:text-slate-100">Файлы{detail.files.length > 0 ? ` (${detail.files.length})` : ""}</h3>
+        <h3 className="text-sm font-medium text-foreground">Файлы{detail.files.length > 0 ? ` (${detail.files.length})` : ""}</h3>
         {detail.files.length === 0 ? (
-          <p className="mt-1.5 text-sm text-gray-500 dark:text-slate-400">Файлов нет</p>
+          <p className="mt-1.5 text-sm text-muted-foreground">Файлов нет</p>
         ) : (
           <ul role="list" className="mt-1.5 space-y-2">
             {detail.files.map((f) => (
-              <li key={f.url} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2">
+              <li key={f.url} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <FileText className="size-4 shrink-0 text-gray-400" />
+                  <FileText className="size-4 shrink-0 text-subtle-foreground" />
                   <span className="truncate text-sm" title={f.filename ?? undefined}>{f.filename ?? "Файл"}</span>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-xs text-gray-500 dark:text-slate-400">{formatSize(f.size)}</span>
+                  <span className="text-xs text-muted-foreground">{formatSize(f.size)}</span>
                   <a href={f.url} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 text-xs ${EXTERNAL_LINK}`}><ExternalLink className="size-3.5" />Скачать</a>
                 </div>
               </li>
@@ -95,7 +93,7 @@ function DetailBody({ detail }: { detail: Publication }) {
         )}
       </div>
       {hubLink ? (
-        <Button asChild variant="outline" size="sm" className="border-gray-300 dark:border-slate-600">
+        <Button asChild variant="secondary" size="sm">
           <a href={hubLink} target="_blank" rel="noreferrer"><ExternalLink className="size-3.5" />Открыть в хабе</a>
         </Button>
       ) : null}
