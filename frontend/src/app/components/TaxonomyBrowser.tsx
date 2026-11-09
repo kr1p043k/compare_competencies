@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { BookOpen, ChevronDown, Search, Loader2 } from "lucide-react";
 import { api } from "../api";
 import { reportError } from "./../../lib/errors";
-import { PageHeader } from "./PageHeader";
-import { EmptyState } from "./EmptyState";
+import { Badge, Button, Card, EmptyState, PageHeader, inputClass } from "../../design";
+import { cn } from "./ui/utils";
 
 interface TaxCategory {
   id: string;
@@ -12,6 +11,13 @@ interface TaxCategory {
   icon: string;
   total: number;
   skills: string[];
+}
+
+/** Тон бейджа статуса предложения навыка. */
+function suggestStatusTone(status: string): "success" | "danger" | "warning" {
+  if (status === "approved") return "success";
+  if (status === "rejected") return "danger";
+  return "warning";
 }
 
 /** Просмотр таксономии навыков: категории, поиск, состав. Только чтение. */
@@ -98,26 +104,24 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
         title="Таксономия навыков"
         description="Категории навыков и предложения по их добавлению."
       />
-      <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+      <Card className="overflow-hidden">
 
-      <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-9 h-9 bg-violet-600 rounded-lg shrink-0">
-            <BookOpen className="size-5 text-white" />
+      <div className="flex items-center gap-3 px-6 py-3 border-b border-border bg-muted">
+          <div className="flex items-center justify-center w-9 h-9 bg-primary text-primary-foreground rounded-lg shrink-0">
+            <BookOpen className="size-5" />
           </div>
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-lg font-semibold text-gray-900 dark:text-slate-100">
+            <h4 className="m-0 leading-none text-lg font-semibold text-foreground">
               Таксономия навыков
-            </CardTitle>
-            <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
+            </h4>
+            <p className="text-sm text-muted-foreground">
               {cats.length} категорий · {totalSkills} навыков · только просмотр
-            </CardDescription>
+            </p>
           </div>
         </div>
-      </CardHeader>
       {showSuggest && (
-        <div className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/60 px-6 py-4 space-y-3">
-          <p className="text-sm font-medium text-gray-800 dark:text-slate-200">
+        <div className="border-b border-border bg-muted/60 px-6 py-4 space-y-3">
+          <p className="text-sm font-medium text-foreground">
             Предложить навык в таксономию
           </p>
           <div className="flex flex-col sm:flex-row gap-2">
@@ -129,12 +133,12 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
               }}
               placeholder="Название навыка..."
               maxLength={80}
-              className="flex-1 h-9 px-3 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100 outline-none"
+              className={cn(inputClass, "flex-1 h-9")}
             />
             <select
               value={catHint}
               onChange={(e) => setCatHint(e.target.value)}
-              className="h-9 px-2 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100 outline-none sm:max-w-48"
+              className={cn(inputClass, "h-9 w-auto px-2 sm:max-w-48")}
             >
               <option value="">Категория (необязательно)</option>
               {cats.map((c) => (
@@ -143,82 +147,74 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
                 </option>
               ))}
             </select>
-            <button
+            <Button
               onClick={submitSuggest}
               disabled={suggestBusy || !skillInput.trim()}
-              className="h-9 px-4 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
+              className="h-9"
             >
               {suggestBusy ? "..." : "Отправить"}
-            </button>
+            </Button>
           </div>
           {suggestMsg && (
-            <p className="text-xs text-gray-500 dark:text-slate-400">{suggestMsg}</p>
+            <p className="text-xs text-muted-foreground">{suggestMsg}</p>
           )}
           {myList.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {myList.map((s: any) => (
-                <span
+                <Badge
                   key={s.id}
+                  tone={suggestStatusTone(s.status)}
+                  className="text-xs"
                   title={`${s.created_at || ""}${s.category_hint ? ` · ${s.category_hint}` : ""}`}
-                  className={`px-2 py-0.5 text-xs rounded-full border ${
-                    s.status === "approved"
-                      ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700"
-                      : s.status === "rejected"
-                        ? "bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700"
-                        : "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700"
-                  }`}
                 >
                   {s.skill} · {s.status === "approved" ? "принят" : s.status === "rejected" ? "отклонён" : "на модерации"}
-                </span>
+                </Badge>
               ))}
             </div>
           )}
         </div>
       )}
-      <CardContent className="p-6 space-y-4">
+      <div className="p-6 space-y-4">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Найти навык или категорию..."
-            className="w-full h-10 pl-10 pr-3 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100 outline-none"
+            className={cn(inputClass, "pl-10")}
           />
         </div>
         {loading ? (
-          <div className="flex items-center justify-center py-10 text-gray-400">
+          <div className="flex items-center justify-center py-10 text-muted-foreground">
             <Loader2 className="size-6 animate-spin" />
           </div>
         ) : error ? (
-          <p className="text-sm text-red-600 text-center py-6">{error}</p>
+          <p className="text-sm text-destructive text-center py-6">{error}</p>
         ) : filtered.length === 0 ? (
-          <EmptyState icon={Search} title="Ничего не найдено" description="Попробуйте другой запрос." />
+          <EmptyState icon={<Search className="size-8" />} title="Ничего не найдено" description="Попробуйте другой запрос." />
         ) : (
-          <div className="divide-y divide-gray-100 dark:divide-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
+          <div className="divide-y divide-border border border-border rounded-lg overflow-hidden">
             {filtered.map((c) => {
               const isOpen = open[c.id] ?? query.trim().length > 0;
               return (
                 <div key={c.id}>
                   <button
                     onClick={() => setOpen((p) => ({ ...p, [c.id]: !(p[c.id] ?? query.trim().length > 0) }))}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-slate-800/60 cursor-pointer"
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-muted/40 cursor-pointer"
                   >
-                    <ChevronDown className={`size-4 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
                     <span className="mr-1">{c.icon}</span>
-                    <span className="text-sm font-medium text-gray-800 dark:text-slate-200">{c.label}</span>
-                    <span className="ml-auto text-xs text-gray-400 dark:text-slate-500 tabular-nums">
+                    <span className="text-sm font-medium text-foreground">{c.label}</span>
+                    <span className="ml-auto text-xs text-subtle-foreground tabular-nums">
                       {c.skills.length}{c.skills.length !== c.total ? ` из ${c.total}` : ""}
                     </span>
                   </button>
                   {isOpen && (
                     <div className="px-4 pb-3 pt-1 flex flex-wrap gap-1.5">
                       {c.skills.map((s) => (
-                        <span
-                          key={s}
-                          className="px-2 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300"
-                        >
+                        <Badge key={s} tone="neutral" className="text-xs">
                           {s}
-                        </span>
+                        </Badge>
                       ))}
                     </div>
                   )}
@@ -227,7 +223,7 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
             })}
           </div>
         )}
-      </CardContent>
+      </div>
     </Card>
     </div>
   );
