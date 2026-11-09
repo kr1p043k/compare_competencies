@@ -1740,10 +1740,6 @@ async def scheduler_gap_now(request: Request):
     await audit_action(request, "admin.scheduler.gap")
     return {"status": "started", "job": "gap"}
 
-# ---------- Feature flags (admin-only): включение функций без рестарта ----------
-
-
-
 
 # ---------- Безопасность: мастер-переключатель 2FA ----------
 # Флаг хранится в БД (app_settings), а не в .env: включение/выключение

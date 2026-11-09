@@ -171,7 +171,9 @@ export default function App() {
 
   // Вкладка синхронизирована с адресом: #/teacher и т.п. (deep links + история),
   // при смене роли (или предпросмотра) - уход с недоступной вкладки на «vacancies».
-  const [activeTab, setActiveTab] = useTabNavigation("vacancies", effectiveRole);
+  // isAuth: роутер включается только после входа, экран логина не подменяет
+  // адрес на #/vacancies (хук монтируется раньше return <LoginPage/>).
+  const [activeTab, setActiveTab] = useTabNavigation("vacancies", effectiveRole, isAuth);
 
   const setPreview = (v: string | null) => {
     setRolePreview(v);

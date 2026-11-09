@@ -21,13 +21,20 @@ function readHash(fallback: string): string {
  * Так появились deep links и история (кнопки «назад/вперёд»), которых не было,
  * пока вкладка хранилась только в useState. Отдельная роутер-зависимость не
  * нужна: маршрутов 15, все плоские.
+ *
+ * `enabled` (из App это isAuth): хук монтируется раньше, чем становится
+ * известна авторизация, и раньше `return <LoginPage/>`. Пока enabled=false,
+ * адрес не дефолтим и не нормализуем - иначе экран входа подменяет `/` на
+ * `#/vacancies` и подсвечивает чужую вкладку. Включили - прежнее поведение.
  */
 export function useTabRoute(
   fallback = "vacancies",
+  enabled = true,
 ): [string, (next: string | ((current: string) => string)) => void] {
   const [tab, setTab] = useState(() => readHash(fallback));
 
   useEffect(() => {
+    if (!enabled) return;
     const onHashChange = () => {
       const value = readHash(fallback);
       setTab(value);
@@ -43,19 +50,20 @@ export function useTabRoute(
       onHashChange();
     }
     return () => window.removeEventListener("hashchange", onHashChange);
-  }, [fallback]);
+  }, [fallback, enabled]);
 
   const navigate = useCallback(
     (next: string | ((current: string) => string)) => {
       const value = typeof next === "function" ? next(readHash(fallback)) : next;
       const target = (KNOWN_TABS as readonly string[]).includes(value) ? value : fallback;
-      if (readHash(fallback) === target) {
+      // Выключенный роутер (экран входа) адрес не пишет: только память.
+      if (!enabled || readHash(fallback) === target) {
         setTab(target);
         return;
       }
       window.location.hash = `/${target}`;
     },
-    [fallback],
+    [fallback, enabled],
   );
 
   return [tab, navigate];

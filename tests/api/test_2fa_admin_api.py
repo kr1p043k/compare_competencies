@@ -133,6 +133,29 @@ async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
 
 
 @pytest.mark.asyncio
+async def test_dead_feature_flag_endpoints_are_removed(env):
+    """Второй переключатель 2FA удалён: /admin/features больше не существует.
+
+    Раньше здесь был флаг 2FA в отдельном файле features.json, который login
+    не читал: тумблер переключался, а второй фактор не включался. Теперь
+    единственный источник правды - app_settings, а мёртвые эндпоинты убраны.
+    """
+    client = env["client"]
+    token, _secret = await _enrolled_token(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    about = await client.get("/api/admin/features", headers=headers)
+    assert about.status_code == 404, about.text
+
+    put = await client.put(
+        "/api/admin/features/totp_2fa_enabled",
+        json={"enabled": True},
+        headers=headers,
+    )
+    assert put.status_code == 404, put.text
+
+
+@pytest.mark.asyncio
 async def test_enabling_2fa_revokes_other_admin_sessions(env):
     """Сессия, добытая до включения второго фактора, перестаёт работать."""
     client = env["client"]

@@ -696,7 +696,12 @@ async def _check_totp_or_recovery(
         )
         if locked:
             logger.warning("totp_locked", uid=str(user_id), failures=failures)
-            raise HTTPException(status_code=429, detail="Слишком много неверных кодов")
+            retry_after = _lockout_minutes_totp(failures) * 60
+            raise HTTPException(
+                status_code=429,
+                detail="Слишком много неверных кодов",
+                headers={"Retry-After": str(retry_after)},
+            )
         raise HTTPException(status_code=invalid_status, detail="Неверный код")
 
     if not used_recovery:
@@ -1021,16 +1026,10 @@ async def totp_disable(body: TotpCodeRequest, request: Request):
     if not state or not state.get("confirmed"):
         raise HTTPException(status_code=400, detail="2FA не настроена")
 
-    secret = _decrypt_totp_secret(state["secret"])
-    ok = bool(secret) and _verify_totp(secret, body.code)
-    if not ok:
-        codes = state.get("recovery_codes") or []
-        if isinstance(codes, str):
-            codes = json.loads(codes)
-        target = _hash_recovery_code(body.code.strip())
-        ok = any(hmac.compare_digest(c, target) for c in codes)
-    if not ok:
-        raise HTTPException(status_code=400, detail="Неверный код")
+    # Тот же разбор кода, что и при входе: неверные попытки копятся, после
+    # пяти срабатывает блокировка. Раньше диалог отключения можно было
+    # перебирать без ограничений (лимит 10/мин не считал неверные коды).
+    await _check_totp_or_recovery(pool, user["uid"], state, body.code, invalid_status=400)
 
     await pool.execute("DELETE FROM admin_totp WHERE user_id = $1", user["uid"])
     await audit_action(request, "auth.2fa.disabled", f"uid={user['uid']}")
