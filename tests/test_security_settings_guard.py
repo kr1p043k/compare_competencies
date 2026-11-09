@@ -74,5 +74,6 @@ async def test_set_two_factor_drops_non_uuid_actor():
     assert pool.insert_args[-1][2] == "00000000-0000-0000-0000-000000000042"
 
 
-async def test_get_two_factor_enabled_is_fail_open_without_pool():
+async def test_get_two_factor_enabled_false_without_pool():
+    """Нет пула - это не ошибка чтения: 2FA по умолчанию выключена."""
     assert await ss.get_two_factor_enabled(None) is False

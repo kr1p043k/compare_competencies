@@ -1740,49 +1740,6 @@ async def scheduler_gap_now(request: Request):
     await audit_action(request, "admin.scheduler.gap")
     return {"status": "started", "job": "gap"}
 
-# ---------- Feature flags (admin-only): включение функций без рестарта ----------
-
-
-class FeatureFlagPatch(BaseModel):
-    enabled: bool
-
-
-@router.get("/admin/features", dependencies=[Depends(require_any_role("admin"))])
-@limiter.limit("60/minute")
-async def admin_features(request: Request):
-    """Состояние переключателей функций.
-
-    Флаг 2FA здесь не отдаём: в этом модуле он был вторым источником правды
-    (файл features.json), а реальный переключатель живёт в app_settings. Пока
-    показывать его тут, оператор включит его и решит, что 2FA работает.
-    """
-    from src.api_pkg.feature_flags import FLAG_TOTP_2FA, all_flags
-
-    return {"features": {k: v for k, v in all_flags().items() if k != FLAG_TOTP_2FA}}
-
-
-@router.put("/admin/features/{flag}", dependencies=[Depends(require_any_role("admin"))])
-@limiter.limit("20/minute")
-async def admin_set_feature(flag: str, body: FeatureFlagPatch, request: Request):
-    """Включить или выключить функцию на лету, без перезапуска сервиса."""
-    from src.api_pkg.feature_flags import FLAG_TOTP_2FA, all_flags, set_flag
-
-    if flag == FLAG_TOTP_2FA:
-        # Раньше здесь был отдельный флаг 2FA, который login не читал: тумблер
-        # переключался, а второй фактор не включался. Оставлен 409 с адресом
-        # настоящего переключателя, чтобы никто не наступил на это снова.
-        raise HTTPException(
-            status_code=409,
-            detail="2FA переключается через PUT /admin/security/2fa/settings",
-        )
-    try:
-        set_flag(flag, body.enabled)
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Unknown feature '{flag}'") from None
-    logger.info("admin_feature_toggled", flag=flag, enabled=body.enabled, uid=getattr(request.state, "user_uid", None))
-    return {"features": {k: v for k, v in all_flags().items() if k != FLAG_TOTP_2FA}}
-
-
 
 # ---------- Безопасность: мастер-переключатель 2FA ----------
 # Флаг хранится в БД (app_settings), а не в .env: включение/выключение

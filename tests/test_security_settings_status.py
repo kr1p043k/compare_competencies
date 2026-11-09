@@ -1,7 +1,8 @@
 """Tri-state чтения мастер-флага 2FA: enabled + read_ok.
 
-Логин остаётся fail-open (ошибка чтения = выключено), но панель обязана
-показывать, что значение не прочитано, иначе тихое отключение 2FA не заметят.
+Инвариант: ошибка чтения НЕ отключает 2FA. read_two_factor отдаёт
+три-состояние (ok/empty/error), булев helper fail-closed: на error -> True,
+чтобы сбой БД не снимал второй фактор.
 """
 
 from __future__ import annotations
@@ -73,9 +74,22 @@ async def test_status_read_not_ok_on_malformed_value():
     assert st.state is ss.TwoFactorReadState.ERROR
 
 
-async def test_enabled_helper_stays_fail_open_boolean():
+async def test_enabled_helper_is_fail_closed_on_read_error():
+    """Ошибка чтения настройки НЕ отключает 2FA: helper отвечает True.
+
+    Раньше было fail-open (ошибка -> False -> второй фактор не спрашивался):
+    сбой БД тихо снимал защиту. Теперь булев helper fail-closed.
+    """
     _reset()
     assert await ss.get_two_factor_enabled(_Pool(raw='{"enabled": true}')) is True  # type: ignore[arg-type]
     assert await ss.get_two_factor_enabled(None) is False
     _reset()
-    assert await ss.get_two_factor_enabled(_Pool(fetch_fails=True)) is False  # type: ignore[arg-type]
+    assert await ss.get_two_factor_enabled(_Pool(fetch_fails=True)) is True  # type: ignore[arg-type]
+    _reset()
+    assert await ss.get_two_factor_enabled(_Pool(raw="[1, 2, 3]")) is True  # type: ignore[arg-type]
+
+
+async def test_enabled_helper_false_when_row_absent():
+    """Нет строки настройки - это не ошибка чтения, 2FA выключена."""
+    _reset()
+    assert await ss.get_two_factor_enabled(_Pool(raw=None)) is False  # type: ignore[arg-type]

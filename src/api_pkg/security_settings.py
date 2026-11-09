@@ -132,11 +132,16 @@ async def read_two_factor(pool: asyncpg.Pool | None) -> TwoFactorRead:
 async def get_two_factor_enabled(pool: asyncpg.Pool | None) -> bool:
     """Мастер-выключатель 2FA (булево представление read_two_factor).
 
-    Возвращает False, если пула нет, таблицы/строки нет или БД ответила ошибкой:
-    фича выключена по умолчанию, поэтому сбой чтения не должен ломать вход.
-    Когда чтение прошло успешно (ok), возвращает сохранённое значение.
+    Fail-closed: если настройку прочитать НЕ удалось (БД/таблица ответили
+    ошибкой либо значение битое), считаем второй фактор ВКЛЮЧЁННЫМ. Иначе сбой
+    чтения тихо снимал бы защиту - это и был дефект безопасности. Штатное
+    «строки нет» (EMPTY) и отсутствие пула - не ошибка чтения, 2FA выключена
+    по умолчанию.
     """
-    return (await read_two_factor(pool)).enabled
+    read = await read_two_factor(pool)
+    if read.state is TwoFactorReadState.ERROR:
+        return True
+    return read.enabled
 
 
 async def set_two_factor_enabled(

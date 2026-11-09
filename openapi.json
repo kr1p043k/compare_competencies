@@ -74,7 +74,7 @@
             "type": "string"
           },
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           },
@@ -643,19 +643,6 @@
         ],
         "title": "ExperienceLevel",
         "type": "string"
-      },
-      "FeatureFlagPatch": {
-        "properties": {
-          "enabled": {
-            "title": "Enabled",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "enabled"
-        ],
-        "title": "FeatureFlagPatch",
-        "type": "object"
       },
       "FrontendLogRequest": {
         "properties": {
@@ -2917,13 +2904,6 @@
       },
       "ValidationError": {
         "properties": {
-          "ctx": {
-            "title": "Context",
-            "type": "object"
-          },
-          "input": {
-            "title": "Input"
-          },
           "loc": {
             "items": {
               "anyOf": [
@@ -3999,77 +3979,6 @@
           }
         },
         "summary": "Export Full Report",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/api/admin/features": {
-      "get": {
-        "description": "Состояние переключателей функций.\n\nФлаг 2FA здесь не отдаём: в этом модуле он был вторым источником правды\n(файл features.json), а реальный переключатель живёт в app_settings. Пока\nпоказывать его тут, оператор включит его и решит, что 2FA работает.",
-        "operationId": "admin_features_api_admin_features_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Admin Features",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/api/admin/features/{flag}": {
-      "put": {
-        "description": "Включить или выключить функцию на лету, без перезапуска сервиса.",
-        "operationId": "admin_set_feature_api_admin_features__flag__put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "flag",
-            "required": true,
-            "schema": {
-              "title": "Flag",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FeatureFlagPatch"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Admin Set Feature",
         "tags": [
           "admin"
         ]

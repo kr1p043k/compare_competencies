@@ -42,7 +42,6 @@
 | PUT | /admin/scheduler/settings | admin | сохранить настройки планировщика | admin.scheduler.settings |
 | POST | /admin/scheduler/collect/now | admin | ручной сбор, 409 если занят | admin.scheduler.collect |
 | POST | /admin/scheduler/gap/now | admin | ручной gap-анализ, 409 если занят | admin.scheduler.gap |
-| GET | /admin/features | admin | legacy: JSON-переключатели функций, не используются для 2FA | нет |
 | GET | /admin/logs | admin | последние записи request_logs (буфер + БД, limit) | нет |
 | GET | /admin/logs/file | admin | хвост файлового лога | нет |
 | GET | /admin/scheduler/status | admin | состояние планировщика (следующий запуск, занятость) | нет |
