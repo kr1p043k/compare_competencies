@@ -71,35 +71,42 @@ target = 0.6 × relevance + 0.4 × base_target
 человеком пар «профиль-навык» нет, модель distilled эвристики
 в быстрый инференс (SHAP-объяснимость прилагается).
 
-### Выбор прод-модели (v2)
+### Выбор прод-модели (v2): метрика-driven, а не жёсткий список
 
 Ранжирование на human gold (`scripts/eval_frozen.py`,
 `data/reports/frozen_eval.json`, seed 42) даёт порядок кандидатов:
 `ensemble_human` 0.7455 > `xgb_rank_human` 0.7195 > `ensemble_final`
-0.7087 > `canon` 0.6570. В прод загружается лучшая **доступная и
-совместимая** модель, а не первая по метрике:
+0.7087 > `canon` 0.6570. Модель **не хардкодится списком** - выбирается
+детерминированно по записанной метрике NDCG@10:
 
-- артефакта `ltr_ranker_ensemble_human.joblib` (0.7455) НЕТ в
-  `data/models` - он не поставляется, поэтому в `MODEL_CANDIDATES` он
-  оставлен первым на случай переобучения (`scripts/make_ensemble.py`), но
-  при инференсе резолв падает на следующий;
-- продовая модель по умолчанию - `ltr_ranker_xgb_rank_human.joblib`
-  (0.7195): лучшая доступная human-gold модель, совместимая с текущим
-  8-признаковым feature-space;
-- fallback - `ltr_ranker_xgb_regressor.joblib` (суррогат §2): используется,
-  когда human-моделей в `data/models` нет; этот же артефакт переобучает
-  `fit()`;
-- `ltr_ranker_canon.joblib` (0.6570) и `ltr_ranker_ensemble_final.joblib`
-  (0.7087) **не загружаем**: их feature-space устарел (10 признаков,
-  `role_freq_normalized` + `role_lift`), а текущий `_extract_features`
-  отдаёт 8, инференс упал бы с `KeyError`;
-- `ltr_ranker_xgb_rank.joblib` исключён: обучен на старом корпусе 272
-  навыка и падает с `KeyError('openapi')`.
+- пул кандидатов - все `data/models/ltr_ranker_*.joblib` (плюс манифест
+  `*.manifest.json` или `*.joblib.metrics.json`, если есть), исключая
+  суррогат и явно несовместимые артефакты;
+- метрика берётся в порядке приоритета: общий frozen-отчёт
+  `data/reports/frozen_eval.json` (единый сплит) → `metrics` из манифеста
+  → `<name>.joblib.metrics.json`; используются ключи
+  `human_ndcg_at_10` / `ndcg@10` / `ndcg_at_10`;
+- кандидат принимается, только если его feature-space совпадает с
+  рантаймом (8 признаков `_RUNTIME_FEATURES`); сортировка `(-metric,
+  filename)`, поэтому при равной метрике выбор стабилен;
+- `INCOMPATIBLE_MODELS` выкидываются явно: `canon` и `ensemble_final`
+  (устаревшие 10 признаков, `role_freq_normalized` + `role_lift`),
+  `xgb_rank` (старый корпус 272 навыка);
+- **fallback** - суррогат `ltr_ranker_xgb_regressor.joblib` (§2), если ни
+  один кандидат не проходит; этот же артефакт переобучает `fit()`.
 
 Резолв реализован в `LTRRecommendationEngine._resolve_model_path()`
-(`src/predictors/ltr_recommendation_engine.py`): перебирает
-`MODEL_CANDIDATES` в порядке убывания NDCG@10, затем суррогат; исключений
-не бросает, чтобы `load_model()` по-прежнему возвращал `Ok`/`Err`.
+(`src/predictors/ltr_recommendation_engine.py`): собирает кандидатов,
+фильтрует по совместимости признаков, сортирует по метрике; исключений не
+бросает, чтобы `load_model()` по-прежнему возвращал `Ok`/`Err`. На текущем
+`data/models` выбор падает на `ltr_ranker_ensemble_human.joblib` (0.7455).
+
+#### Проверка не хуже baseline: `eval_frozen.py --check`
+
+`python scripts/eval_frozen.py --check [--tolerance 0.005]` сравнивает свежий
+прогон с сохранённым `data/reports/frozen_eval.json` и возвращает exit 1, если
+хоть одна метрика упала больше допуска (0 - всё в норме, 2 - нет baseline и
+отчёт не перезаписывается). Это дешёвый регресс-гейт перед коммитом модели.
 
 ## 3. Что валидировано по-настоящему
 ## 3.1 Согласие экспертов и F1-cascade

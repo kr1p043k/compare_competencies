@@ -124,59 +124,153 @@ def _get_domain_profiles() -> list[list[str]]:
     return _SYNTHETIC_DOMAIN_PROFILES
 
 
+# Feature space produced by the current runtime (_extract_features). Any artifact
+# whose recorded feature_names differ cannot be scored without a KeyError.
+_RUNTIME_FEATURES: tuple[str, ...] = (
+    "level_encoded",
+    "category_encoded",
+    "cosine_sim",
+    "in_student_profile",
+    "skill_freq_normalized",
+    "co_occurrence",
+    "category_avg_weight",
+    "student_skills_count",
+)
+
+# feature_names per artifact, cached by (path, mtime_ns, size) so selection does
+# not re-unpickle multi-MB models on every call.
+_FEATURE_NAMES_CACHE: dict[str, tuple[str, ...] | None] = {}
+
+
+def _read_json(path: Path) -> Any | None:
+    """Read a JSON file, returning None on any error (missing/invalid/perms)."""
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
 class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[SkillImpact]]):
     """
     LTR-движок на XGBoost для персонализированного ранжирования навыков.
     """
 
-    # ────────── Выбор прод-модели (осознанный, сверено с data/model 2026-11-07) ──────────
-    # Критерий выбора: NDCG@10 на human gold
-    # (scripts/eval_frozen.py, data/reports/frozen_eval.json, seed 42):
-    #   ensemble_human 0.7455 | xgb_rank_human 0.7195 | ensemble_final 0.7087 |
-    #   canon 0.6570 | суррогат xgb_regressor на gold не ранжируется (r2 0.7081).
+    # ────────── Выбор прод-модели (детерминированный, по метрике) ──────────
+    # Прод-модель - human-gold артефакт с НАИВЫСШИМ записанным NDCG@10 среди
+    # feature-совместимых (8 признаков, ``_RUNTIME_FEATURES``). Метрика читается
+    # детерминированно, в порядке приоритета: (1) общий frozen-split
+    # (data/reports/frozen_eval.json, одинаковый сплит для всех), (2) манифест
+    # артефакта (human_ndcg_at_10), (3) metrics.json (ndcg@10). Ничьи решаются
+    # по имени файла (возрастание) - выбор воспроизводим.
     #
-    # Приоритет в проде:
-    #   1. ltr_ranker_ensemble_human.joblib (0.7455) - лучшая модель, но её
-    #      артефакта НЕТ в data/models (не поставляется), поэтому она оставлена
-    #      первой на случай переобучения (scripts/make_ensemble.py).
-    #   2. ltr_ranker_xgb_rank_human.joblib (0.7195) - лучшая ДОСТУПНАЯ и
-    #      совместимая по feature-space (8 признаков) human-gold модель; это
-    #      и есть продовая модель по умолчанию.
-    #   3. ltr_ranker_xgb_regressor.joblib - суррогат, обучаемый fit() на
-    #      синтетическом relevance: fallback, когда human-модели нет; он же
-    #      переобучается пайплайном.
+    # Суррогат ltr_ranker_xgb_regressor.joblib (MODEL_FILENAME) не участвует в
+    # сравнении: он обучается fit() на синтетическом relevance и переобучается
+    # пайплайном; это fallback, когда подходящего human-артефакта нет.
     #
-    # НЕ загружаем (иначе KeyError на инференсе - текущий _extract_features
-    # отдаёт 8 признаков, а эти артефакты требуют 10):
-    #   ltr_ranker_canon.joblib (0.6570) и ltr_ranker_ensemble_final.joblib
-    #   (0.7087) - legacy feature-space (role_freq_normalized + role_lift);
-    #   ltr_ranker_xgb_rank.joblib - старый корпус 272 навыка (KeyError('openapi')).
+    # НЕ выбираются автоматически (несовместимы, см. INCOMPATIBLE_MODELS):
+    #   ltr_ranker_canon/ensemble_final - legacy 10-признаковый feature-space
+    #     (role_freq_normalized + role_lift), текущий _extract_features даёт 8;
+    #   ltr_ranker_xgb_rank - старый корпус 272 навыка (KeyError на инференсе).
     MODEL_FILENAME = "ltr_ranker_xgb_regressor.joblib"
 
-    MODEL_CANDIDATES = (
-        "ltr_ranker_ensemble_human.joblib",
-        "ltr_ranker_xgb_rank_human.joblib",
-    )
+    # NDCG keys understood across frozen report / manifest / metrics.json,
+    # most specific first.
+    _NDCG_KEYS: tuple[str, ...] = ("human_ndcg_at_10", "ndcg@10", "ndcg_at_10")
+
+    # Artifacts that expose 8 columns but are still not usable at inference.
+    INCOMPATIBLE_MODELS: dict[str, str] = {
+        "ltr_ranker_canon.joblib": "legacy 10-feature space",
+        "ltr_ranker_ensemble_final.joblib": "legacy 10-feature space",
+        "ltr_ranker_xgb_rank.joblib": "stale 272-skill corpus (KeyError at inference)",
+    }
+
+    @classmethod
+    def _candidate_artifacts(cls) -> list[Path]:
+        """Feature-compatible human artifacts eligible for auto-selection."""
+        if not config.MODELS_DIR.exists():
+            return []
+        out: list[Path] = []
+        for path in sorted(config.MODELS_DIR.glob("ltr_ranker_*.joblib")):
+            if path.name == cls.MODEL_FILENAME or path.name in cls.INCOMPATIBLE_MODELS:
+                continue
+            out.append(path)
+        return out
+
+    @classmethod
+    def _artifact_feature_names(cls, path: Path) -> tuple[str, ...] | None:
+        """feature_names stored in the artifact, cached; None if unreadable."""
+        try:
+            stat = path.stat()
+        except OSError:
+            return None
+        key = f"{path}|{stat.st_mtime_ns}|{stat.st_size}"
+        if key in _FEATURE_NAMES_CACHE:
+            return _FEATURE_NAMES_CACHE[key]
+        names: tuple[str, ...] | None
+        try:
+            data = joblib.load(path)
+            raw = data.get("feature_names") if isinstance(data, dict) else None
+            names = tuple(raw) if raw else None
+        except Exception:
+            names = None
+        _FEATURE_NAMES_CACHE[key] = names
+        return names
+
+    @classmethod
+    def _pick_metric(cls, mapping: Any) -> float | None:
+        if not isinstance(mapping, dict):
+            return None
+        for name in cls._NDCG_KEYS:
+            value = mapping.get(name)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return float(value)
+        return None
+
+    @classmethod
+    def _recorded_ndcg(cls, path: Path) -> float | None:
+        """Recorded NDCG@10 for an artifact, from the most comparable source."""
+        # 1) frozen report: one common split for every artifact (golden source).
+        report = _read_json(config.MODELS_DIR.parent / "reports" / "frozen_eval.json")
+        if isinstance(report, dict):
+            entry = (report.get("results") or {}).get(path.name)
+            if isinstance(entry, dict):
+                value = entry.get("ndcg@10")
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    return float(value)
+        # 2) artifact manifest metrics.
+        manifest = _read_json(path.with_suffix(".manifest.json"))
+        if isinstance(manifest, dict):
+            value = cls._pick_metric(manifest.get("metrics"))
+            if value is not None:
+                return value
+        # 3) sidecar metrics.json.
+        return cls._pick_metric(_read_json(Path(f"{path}.metrics.json")))
 
     @classmethod
     def _resolve_model_path(cls) -> Path:
-        """Разрешить путь прод-модели.
+        """Разрешить путь прод-модели детерминированно по записанному NDCG@10.
 
-        Предпочитает лучшую доступную human-gold модель (MODEL_CANDIDATES,
-        порядок = убывание NDCG@10), затем суррогат (MODEL_FILENAME).
+        Среди feature-совместимых human-артефактов выбирает модель с наибольшим
+        NDCG@10 (ничьи - по имени файла), иначе - суррогат (MODEL_FILENAME).
         Никогда не бросает исключение: если артефактов нет, возвращает путь
         суррогата, а load_model() вернёт Ok/Err как и раньше.
         """
-        for name in cls.MODEL_CANDIDATES:
-            candidate = config.MODELS_DIR / name
-            if candidate.exists():
-                return candidate
+        scored: list[tuple[float, str, Path]] = []
+        for path in cls._candidate_artifacts():
+            if cls._artifact_feature_names(path) != _RUNTIME_FEATURES:
+                continue
+            metric = cls._recorded_ndcg(path)
+            if metric is not None:
+                scored.append((metric, path.name, path))
+        if scored:
+            scored.sort(key=lambda item: (-item[0], item[1]))
+            return scored[0][2]
         surrogate = config.MODELS_DIR / cls.MODEL_FILENAME
         if surrogate.exists():
             logger.warning(
                 "ltr_model_fallback",
-                preferred=cls.MODEL_CANDIDATES[0],
                 using=cls.MODEL_FILENAME,
+                candidates=[p.name for p in cls._candidate_artifacts()],
             )
         return surrogate
 
@@ -589,39 +683,13 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             if rows[i]["grade"] == 2 and rows[i]["skill"] in self.skill_embeddings:
                 train_core[rows[i]["role"]].append(rows[i]["skill"])
         market_emb = np.mean(list(self.skill_embeddings.values()), axis=0)
-        prof_sum: dict[str, np.ndarray] = {}
-        prof_cnt: dict[str, int] = {}
-        for role, skills in train_core.items():
-            vecs = [self.skill_embeddings[s] for s in skills]
-            prof_sum[role] = np.sum(vecs, axis=0) if vecs else market_emb.copy()
-            prof_cnt[role] = len(vecs)
 
-        def profile_for(role: str, skill: str):
-            """Средний эмбеддинг train-двоек роли без самой строки (LOO)."""
-            vecs = [s for s in train_core.get(role, []) if s != skill]
-            if vecs:
-                return np.mean([self.skill_embeddings[s] for s in vecs], axis=0), vecs
-            if prof_cnt.get(role, 0) > 0:
-                return prof_sum[role] / prof_cnt[role], []
-            return market_emb, []
-
-        def build_frame(idxs: list[int]):
-            X_rows, y_rows, groups = [], [], []
-            for i in idxs:
-                r = rows[i]
-                emb, prof_skills = profile_for(r["role"], r["skill"])
-                X_rows.append(self._extract_features(r["skill"], emb, prof_skills))
-                y_rows.append(r["grade"])
-                groups.append(qid_of[r["role"]])
-            order = np.argsort(groups, kind="stable")
-            X = pd.DataFrame([X_rows[i] for i in order])
-            y = np.array([y_rows[i] for i in order])
-            g = np.array([groups[i] for i in order])
-            _, counts = np.unique(g, return_counts=True)
-            return X, y, counts.tolist(), [idxs[i] for i in order]
-
-        X_train, y_train, g_train, _ = build_frame(train_idx)
-        X_test, y_test, g_test, test_order = build_frame(test_idx)
+        # Единый путь построения матрицы: та же функция, что используют
+        # офлайн-инструменты (scripts/eval_frozen.py, scripts/make_ensemble.py).
+        X_train, y_train, g_train, _, _ = self._build_ranking_frame(
+            train_idx, rows, train_core, market_emb, qid_of)
+        X_test, y_test, g_test, _, test_order = self._build_ranking_frame(
+            test_idx, rows, train_core, market_emb, qid_of)
         self.feature_names = X_train.columns.tolist()
 
         # val для early stopping - стратифицированный кусок train с группами
@@ -716,6 +784,55 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             logger.warning("manifest_save_failed")
         self.last_metrics = dict(metrics)
         return Ok(metrics)
+
+    def _build_ranking_frame(
+        self,
+        idxs: list[int],
+        rows: list[dict],
+        train_core: dict[str, list[str]],
+        market_emb: np.ndarray,
+        qid_of: dict[str, int],
+    ) -> tuple[pd.DataFrame, np.ndarray, list[int], list[int], list[int]]:
+        """Build the (X, y, group_counts, group_ids, row_order) ranking frame.
+
+        Public extraction of the inner ``build_frame`` used by ``fit_ranker`` so
+        offline tools (scripts/eval_frozen.py, scripts/make_ensemble.py) can
+        score the exact same feature space without re-training.
+
+        ``train_core`` maps role -> grade-2 skills used to build the role
+        profile; each row's own skill is excluded from its profile
+        (leave-one-out, no label leakage). Returns ``X`` sorted by group, ``y``,
+        the per-group counts, the per-group qid of every row, and the original
+        ``rows`` indices in the same sorted order.
+        """
+        prof_sum: dict[str, np.ndarray] = {}
+        prof_cnt: dict[str, int] = {}
+        for role, skills in train_core.items():
+            vecs = [self.skill_embeddings[s] for s in skills if s in self.skill_embeddings]
+            prof_sum[role] = np.sum(vecs, axis=0) if vecs else np.asarray(market_emb).copy()
+            prof_cnt[role] = len(vecs)
+
+        def profile_for(role: str, skill: str):
+            vecs = [s for s in train_core.get(role, []) if s != skill and s in self.skill_embeddings]
+            if vecs:
+                return np.mean([self.skill_embeddings[s] for s in vecs], axis=0), vecs
+            if prof_cnt.get(role, 0) > 0:
+                return prof_sum[role] / prof_cnt[role], []
+            return np.asarray(market_emb), []
+
+        X_rows, y_rows, groups = [], [], []
+        for i in idxs:
+            r = rows[i]
+            emb, prof_skills = profile_for(r["role"], r["skill"])
+            X_rows.append(self._extract_features(r["skill"], emb, prof_skills))
+            y_rows.append(r["grade"])
+            groups.append(qid_of[r["role"]])
+        order = np.argsort(groups, kind="stable")
+        X = pd.DataFrame([X_rows[i] for i in order])
+        y = np.array([y_rows[i] for i in order])
+        g = np.array([groups[i] for i in order])
+        _, counts = np.unique(g, return_counts=True)
+        return X, y, counts.tolist(), g.tolist(), [idxs[i] for i in order]
 
     @staticmethod
     def _ndcg_by_query(y_true: np.ndarray, y_pred: np.ndarray, qids: list[int], k: int = 10) -> float:

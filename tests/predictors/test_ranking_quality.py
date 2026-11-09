@@ -110,18 +110,26 @@ def score_artifact(engine: LTRRecommendationEngine, rows, train_idx, test_idx, r
 
 
 def _artifact_path() -> Path | None:
-    """Resolve the default artifact against the repo root, not the cwd.
+    """Resolve the shipped artifact with the engine's own selection logic.
 
     The test suite chdirs into a temp directory (tests/conftest.py), while
-    config.MODELS_DIR is a relative path, so the engine's own default would
-    point at the temp dir.
+    config.MODELS_DIR is a relative path, so the engine's default would point
+    at the temp dir. Point the resolver at the repo's data/models, ask it for
+    the default (highest recorded NDCG@10, feature-compatible) artifact, then
+    restore the previous value.
     """
     models = ROOT / "data" / "models"
-    for name in LTRRecommendationEngine.MODEL_CANDIDATES:
-        candidate = models / name
-        if candidate.exists():
-            return candidate
-    return None
+    if not models.exists():
+        return None
+    from src import config
+
+    prev = config.MODELS_DIR
+    config.MODELS_DIR = models
+    try:
+        resolved = LTRRecommendationEngine._resolve_model_path()
+    finally:
+        config.MODELS_DIR = prev
+    return resolved if resolved is not None and resolved.exists() else None
 
 
 def test_default_artifact_ranking_quality():
