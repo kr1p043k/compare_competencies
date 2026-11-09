@@ -17,7 +17,7 @@ import { cn } from "../app/components/ui/utils";
 
 /* ------------------------------------------------------------------ Button */
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "success";
 type ButtonSize = "sm" | "md";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -39,6 +39,8 @@ const BUTTON_VARIANT: Record<ButtonVariant, string> = {
   ghost: "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
   danger:
     "bg-destructive text-destructive-foreground hover:brightness-110 shadow-xs",
+  success:
+    "bg-success text-success-foreground hover:brightness-110 active:brightness-95 shadow-xs",
 };
 
 const BUTTON_SIZE: Record<ButtonSize, string> = {
@@ -461,6 +463,86 @@ export function SectionTitle({
         {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
       </div>
       {actions}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------- Meter */
+
+/**
+ * Индикатор прогресса (заливка 0..100). Ширина заливки приходит из данных
+ * в рантайме и не выражается классом, поэтому единственный inline-стил
+ * примитива - width (тот же приём, что и цвета Recharts в tokens.ts и
+ * `app/components/ui/progress`).
+ */
+export function Meter({
+  value,
+  className,
+  trackClassName,
+  fillClassName,
+}: {
+  /** Процент заполнения; сверх 0..100 обрезается, NaN/undefined -> 0. */
+  value: number;
+  className?: string;
+  trackClassName?: string;
+  fillClassName?: string;
+}) {
+  const v = Math.min(100, Math.max(0, value || 0));
+  return (
+    <div
+      className={cn("h-2 overflow-hidden rounded", trackClassName ?? "bg-muted", className)}
+    >
+      <div
+        className={cn("h-full transition-[width] duration-500", fillClassName ?? "bg-primary")}
+        style={{ width: `${v}%` }}
+      />
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- Sparkbars */
+
+export interface SparkbarItem {
+  key: React.Key;
+  /** Частота/значение: высота столбика = value / max(items). */
+  value: number;
+  /** Подпись под столбиком (например, дата). */
+  label: ReactNode;
+  /** Тултип столбика. */
+  title?: string;
+}
+
+/**
+ * Мини-барчарт истории значений: колонка «число / столбик / подпись».
+ * Высоты столбиков считаются в рантайме из данных (см. рациональность в
+ * Meter), поэтому единственный inline-стил примитива - height столбика.
+ */
+export function Sparkbars({
+  items,
+  className,
+}: {
+  items: SparkbarItem[];
+  className?: string;
+}) {
+  const max = Math.max(0, ...items.map((i) => i.value));
+  return (
+    <div className={cn("flex h-[60px] items-end gap-1.5 py-1", className)}>
+      {items.map((it) => {
+        const pct = max > 0 ? (it.value / max) * 100 : 0;
+        return (
+          <div key={it.key} className="flex h-full flex-1 flex-col items-center justify-end">
+            <span className="mb-0.5 text-xs font-semibold text-muted-foreground">
+              {it.value}
+            </span>
+            <div
+              title={it.title}
+              className="w-full min-w-4 rounded-t-sm bg-chart-1 opacity-90"
+              style={{ height: `${Math.max(pct, 2)}%` }}
+            />
+            <span className="mt-0.5 text-xs text-muted-foreground">{it.label}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

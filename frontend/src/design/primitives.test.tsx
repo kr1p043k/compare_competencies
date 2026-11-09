@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { MetricPair } from "./primitives";
+import { Button, Meter, MetricPair, Sparkbars } from "./primitives";
 
 describe("MetricPair", () => {
   it("рисует основное значение и парную метрику с подписью", () => {
@@ -38,5 +38,78 @@ describe("MetricPair", () => {
     expect(screen.getByText("55%")).toBeInTheDocument();
     expect(screen.getByText("40%")).toBeInTheDocument();
     expect(screen.queryByText(/: 40%/)).not.toBeInTheDocument();
+  });
+});
+
+describe("Meter", () => {
+  it("обрезает значение в 0..100 и красит трек/заливку переданными классами", () => {
+    const { container } = render(
+      <Meter value={150} trackClassName="bg-warning/40" fillClassName="bg-info" />,
+    );
+    const track = container.firstElementChild as HTMLElement;
+    const fill = track.firstElementChild as HTMLElement;
+    expect(fill.style.width).toBe("100%");
+    expect(track.className).toContain("bg-warning/40");
+    expect(fill.className).toContain("bg-info");
+  });
+
+  it("держит дефолтные цвета и 0% при undefined/NaN", () => {
+    const { container } = render(<Meter value={undefined as unknown as number} />);
+    const track = container.firstElementChild as HTMLElement;
+    const fill = track.firstElementChild as HTMLElement;
+    expect(track.className).toContain("bg-muted");
+    expect(fill.className).toContain("bg-primary");
+    expect(fill.style.width).toBe("0%");
+  });
+
+  it("не уходит в минус при отрицательном значении", () => {
+    const { container } = render(<Meter value={-20} />);
+    const fill = (container.firstElementChild as HTMLElement).firstElementChild as HTMLElement;
+    expect(fill.style.width).toBe("0%");
+  });
+});
+
+describe("Sparkbars", () => {
+  const items = [
+    { key: "a", value: 4, label: "03.02", title: "2026-02-03: 4" },
+    { key: "b", value: 2, label: "04.02", title: "2026-02-04: 2" },
+  ];
+
+  it("считает высоту столбиков относительно максимума", () => {
+    const { container } = render(<Sparkbars items={items} />);
+    const bars = Array.from(
+      container.querySelectorAll<HTMLElement>("div[title^='2026-02']"),
+    );
+    expect(bars).toHaveLength(2);
+    expect(bars[0].style.height).toBe("100%");
+    expect(bars[1].style.height).toBe("50%");
+  });
+
+  it("рисует значение над столбиком и подпись под ним", () => {
+    render(<Sparkbars items={items} />);
+    expect(screen.getByText("4")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("03.02")).toBeInTheDocument();
+    expect(screen.getByText("04.02")).toBeInTheDocument();
+  });
+
+  it("не падает на пустом наборе", () => {
+    const { container } = render(<Sparkbars items={[]} />);
+    expect(container.querySelectorAll("div[title]")).toHaveLength(0);
+  });
+});
+
+describe("Button", () => {
+  it("вариант success красит кнопку в токен success", () => {
+    render(<Button variant="success">Создать</Button>);
+    const btn = screen.getByRole("button", { name: "Создать" });
+    expect(btn.className).toContain("bg-success");
+    expect(btn.className).toContain("text-success-foreground");
+  });
+
+  it("вариант danger остаётся на токене destructive", () => {
+    render(<Button variant="danger">Удалить</Button>);
+    const btn = screen.getByRole("button", { name: "Удалить" });
+    expect(btn.className).toContain("bg-destructive");
   });
 });
