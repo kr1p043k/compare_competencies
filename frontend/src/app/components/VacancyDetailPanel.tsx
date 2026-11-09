@@ -49,14 +49,26 @@ export function VacancyDetailPanel({
   const [detail, setDetail] = useState<VacancyDetail | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Защита от гонок: быстрый клик A → B не должен показывать данные A
+  // под заголовком B. Прерываем старый запрос и применяем только свежий.
   useEffect(() => {
     if (!vacancy) return;
     setDetail(null);
     setLoading(true);
-    request<VacancyDetail>(`/api/vacancies/${vacancy.id}`)
-      .then((d) => setDetail(d))
-      .catch((err) => reportError("app/components/VacancyDetailPanel.tsx", err))
-      .finally(() => setLoading(false));
+    const controller = new AbortController();
+    request<VacancyDetail>(`/api/vacancies/${vacancy.id}`, { signal: controller.signal })
+      .then((d) => {
+        if (controller.signal.aborted) return;
+        setDetail(d);
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        reportError("app/components/VacancyDetailPanel.tsx", err);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
   }, [vacancy]);
 
   const extracted = (detail?.skills ?? []).filter((s: string) => (s || "").trim());

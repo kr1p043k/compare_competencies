@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import {
   Card,
   CardContent,
@@ -274,17 +274,20 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
       .catch((e) => setProfError(e.message));
   };
 
+  // Защита от гонок: быстрый выбор A → B не должен показывать тренды A.
+  const profTrendsSeqRef = useRef(0);
   const loadProfTrends = (prof: string) => {
     setSelectedProf(prof);
+    const seq = ++profTrendsSeqRef.current;
     if (!prof) {
       setProfTrends(null);
       return;
     }
     setProfTrendsLoading(true);
     api<ProfessionTrends>(`/trends/by-profession?profession=${encodeURIComponent(prof)}&limit=30`)
-      .then(setProfTrends)
-      .catch(() => setProfTrends(null))
-      .finally(() => setProfTrendsLoading(false));
+      .then((d) => { if (seq === profTrendsSeqRef.current) setProfTrends(d); })
+      .catch(() => { if (seq === profTrendsSeqRef.current) setProfTrends(null); })
+      .finally(() => { if (seq === profTrendsSeqRef.current) setProfTrendsLoading(false); });
   };
 
   useEffect(() => {

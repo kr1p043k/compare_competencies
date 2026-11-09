@@ -122,6 +122,10 @@ export default function App() {
   }>({ type: null, message: "" });
   const [loading, setLoading] = useState(false);
   const [lastResult, setLastResult] = useState<any>(null);
+  // Защита от гонок: результат применяем только если профиль не сменился
+  // (и не запущен другой запрос) с момента старта. Смена профиля
+  // инвалидирует ответы в полёте — иначе они затирают обнулённый lastResult.
+  const resultSeqRef = useRef(0);
   const [gapRunning, setGapRunning] = useState(false);
   const [gapMsg, setGapMsg] = useState("");
   const [resultLoadedAt, setResultLoadedAt] = useState<Record<string, string>>(() => {
@@ -141,6 +145,8 @@ export default function App() {
   const handleProfileChange = (newProfile: string) => {
     setProfile(newProfile);
     setLastResult(null);
+    // Ответы старого профиля ещё в полёте — не давать им вернуться.
+    resultSeqRef.current += 1;
     delete autoLoadedRef.current[newProfile];
   };
 
@@ -245,7 +251,10 @@ export default function App() {
       if (detail?.profile) {
         handleProfileChange(detail.profile);
         setActiveTab("data");
-        request<any>(`/api/results/recommendations/${detail.profile}`).catch(() => null).then(d => { if (d) { setLastResult(d); } }).catch((err) => reportError("app/App.tsx", err));
+        // Предзагрузка результатов: применяем только если профиль/запрос
+        // не сменился, пока ответ шёл.
+        const seq = ++resultSeqRef.current;
+        request<any>(`/api/results/recommendations/${detail.profile}`).catch(() => null).then(d => { if (d && seq === resultSeqRef.current) { setLastResult(d); } }).catch((err) => reportError("app/App.tsx", err));
       }
     };
     window.addEventListener("navigate-analysis", handler);
@@ -265,6 +274,8 @@ export default function App() {
   }
 
   async function apiCall(endpoint: string, method = "GET", body: any = null) {
+    // Каждый вызов инвалидирует предыдущие: побеждает последний запрос.
+    const seq = ++resultSeqRef.current;
     try {
       setLoading(true);
       showStatus("info", "Выполнение...");
@@ -272,13 +283,14 @@ export default function App() {
         method,
         ...(body ? { body } : {}),
       });
+      if (seq !== resultSeqRef.current) return undefined;
       setLastResult(data);
       showStatus("success", "✓ Готово");
       return data;
     } catch (e: any) {
-      showStatus("error", `✗ ${e.message}`);
+      if (seq === resultSeqRef.current) showStatus("error", `✗ ${e.message}`);
     } finally {
-      setLoading(false);
+      if (seq === resultSeqRef.current) setLoading(false);
     }
   }
 

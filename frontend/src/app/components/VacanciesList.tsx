@@ -189,6 +189,23 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
     loadVacancies();
   }, [currentPage, applied]);
 
+  // Монтирование: защита от setState после размонтирования (уход с вкладки
+  // во время запроса) и признак «компонент жив» для обработчиков ниже.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // Информация о базе вакансий не зависит от страницы и фильтров —
+  // грузим один раз на монтирование, а не при каждом переключении страницы
+  // (обновление после сбора данных делает refreshVacancies).
+  useEffect(() => {
+    request<VacancyInfo>("/api/vacancies/info")
+      .then((info) => { if (mountedRef.current) setVacancyInfo(info); })
+      .catch((err) => reportError("app/components/VacanciesList.tsx:info", err));
+  }, []);
+
   useEffect(() => {
     if (!pipelineStep) { handledCompleteRef.current = false; return; }
     if (pipelineStep.status === "completed" && !handledCompleteRef.current) {
@@ -203,13 +220,15 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
     }
   }, [restartFlag]);
 
+  // Защита от гонок: применяем результат только последнего запроса
+  // (быстрые клики по страницам/фильтрам — побеждает тот, кто запрошен
+  // последним, а не тот, кто позже разрешился).
+  const vacanciesSeqRef = useRef(0);
+
   const loadVacancies = async () => {
+    const seq = ++vacanciesSeqRef.current;
     setLoading(true);
     setError(null);
-    try {
-      setVacancyInfo(await request<VacancyInfo>("/api/vacancies/info"));
-    } catch (err) { reportError("app/components/VacanciesList.tsx:194", err); }
-
     try {
       const offset = (currentPage - 1) * itemsPerPage;
       const params = new URLSearchParams({
@@ -241,10 +260,9 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       }
 
       const data = await request<VacanciesResponse>(`/api/vacancies?${params}`);
+      if (seq !== vacanciesSeqRef.current || !mountedRef.current) return;
 
-      let filteredItems = data.items;
-
-      setVacancies(filteredItems);
+      setVacancies(data.items);
       setTotal(data.total);
 
       const cities = Array.from(new Set(data.items.map(v => v.area)))
@@ -252,13 +270,16 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         .sort();
       setAvailableCities(cities);
     } catch (err: any) {
+      if (seq !== vacanciesSeqRef.current || !mountedRef.current) return;
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (seq === vacanciesSeqRef.current && mountedRef.current) setLoading(false);
     }
-  }; 
+  };
 
   const refreshVacancies = async () => {
+    // Общий счётчик с loadVacancies: результаты не перебивают друг друга.
+    const seq = ++vacanciesSeqRef.current;
     try {
       const offset = (currentPage - 1) * itemsPerPage;
       const params = new URLSearchParams({ limit: itemsPerPage.toString(), offset: offset.toString() });
@@ -269,11 +290,14 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       if (applied.date_from) params.append("date_from", applied.date_from);
       if (applied.date_to) params.append("date_to", applied.date_to);
       const data = await request<VacanciesResponse>(`/api/vacancies?${params}`);
+      if (seq !== vacanciesSeqRef.current || !mountedRef.current) return;
       setVacancies(data.items);
       setTotal(data.total);
     } catch (err) { reportError("app/components/VacanciesList.tsx:265", err); }
     try {
-      setVacancyInfo(await request<VacancyInfo>("/api/vacancies/info"));
+      const info = await request<VacancyInfo>("/api/vacancies/info");
+      if (seq !== vacanciesSeqRef.current || !mountedRef.current) return;
+      setVacancyInfo(info);
     } catch (err) { reportError("app/components/VacanciesList.tsx:269", err); }
   };
 
