@@ -15,6 +15,9 @@
 - `eval_frozen.py` - гейт регресса ML (используется как CI-ориентир, не эксперимент);
 - `check_model_manifests.py` - проверка, что у каждого отгружаемого артефакта есть
   `.manifest.json`/`.metrics.json` с `feature_names` и NDCG@10 (`--write` их создаёт);
+- `check_calibration.py` - отчёт калибровки отгружаемого ранкера (log_loss/Brier на
+  frozen-сплите; калибратор НЕ отдаётся в прод);
+- `ml_eval_common.py` - общий сборщик frozen-фреймов для eval_frozen/калибровки/дрейфа;
 - `train_ltr_ranker.py`, `_dsn.py` - общие модули для скриптов и экспериментов.
 
 ## `experiments/` - разовые исследования
