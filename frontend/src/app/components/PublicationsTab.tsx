@@ -1,13 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Info, Loader2, RotateCcw, Search } from "lucide-react";
+import { Info, RotateCcw, Search } from "lucide-react";
 
-import { EmptyState, ErrorState, PageHeader, Skeleton } from "../../design";
+import {
+  Button,
+  Callout,
+  Card,
+  CardBody,
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  Progress,
+  Skeleton,
+  inputClass,
+} from "../../design";
 import { api } from "../api";
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
-import { Button } from "./ui/button";
-import { Card, CardContent } from "./ui/card";
-import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { cn } from "./ui/utils";
 import { PaginationBar, PublicationCard, errorText, isAbort } from "./PublicationCard";
 import { PublicationDetailDialog } from "./PublicationDetailDialog";
 import { type Publication } from "./publicationsFilter";
@@ -268,18 +276,18 @@ export function PublicationsTab() {
         title="Публикации ЮФУ"
         description="Репозиторий hub.sfedu.ru: статьи, учебники, диссертации, патенты и студенческие работы"
       />
-      <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
-        <CardContent className="p-4 sm:p-6 space-y-4">
+      <Card className="overflow-hidden">
+        <CardBody className="p-4 sm:p-6 space-y-4">
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400 pointer-events-none" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)}
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-subtle-foreground pointer-events-none" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)}
                 placeholder="Фильтр по названию, авторам, журналу, аннотации" aria-label="Фильтр публикаций"
-                className="pl-9 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600" />
+                className={cn(inputClass, "pl-9")} />
             </div>
             <Select value={typeId || "all"}
               onValueChange={(v) => setTypeId(v === "all" ? "" : v)}>
-              <SelectTrigger className="sm:w-64 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600"
+              <SelectTrigger className="sm:w-64"
                 aria-label="Фильтр по типу публикации">
                 <SelectValue placeholder="Все типы" />
               </SelectTrigger>
@@ -292,34 +300,33 @@ export function PublicationsTab() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={resetAll}
-              className="border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800">
-              <RotateCcw className="size-4" />Сбросить
+            <Button variant="secondary" onClick={resetAll} iconLeft={<RotateCcw className="size-4" />}>
+              Сбросить
             </Button>
             {/* Глубокий поиск: обычный поиск читает первые страницы корпуса,
                 этот сканирует до 500 страниц в фоне и показывает прогресс. */}
             <Button
               onClick={startDeepSearch}
-              disabled={deepStarting || query.trim().length < 2 || deepJob?.status === "running"}
+              disabled={query.trim().length < 2 || deepJob?.status === "running"}
+              loading={deepStarting}
+              iconLeft={<Search className="size-4" />}
               title="Просканировать значительно больше страниц корпуса (дольше)"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
             >
-              {deepStarting ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
               Глубокий поиск
             </Button>
           </div>
 
           {deepError ? (
-            <Alert className="border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
-              <AlertTitle>Глубокий поиск не запустился</AlertTitle>
-              <AlertDescription>{deepError}</AlertDescription>
-            </Alert>
+            <Callout role="alert" tone="danger">
+              <span className="block font-medium">Глубокий поиск не запустился</span>
+              <span className="block">{deepError}</span>
+            </Callout>
           ) : null}
 
           {deepJob ? (
-            <div className="rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/30 p-3 space-y-2">
+            <div className="rounded-md border border-primary/30 bg-primary-soft p-3 space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-indigo-800 dark:text-indigo-200">
+                <span className="font-medium text-primary-soft-foreground">
                   {deepJob.status === "running"
                     ? "Глубокий поиск выполняется…"
                     : deepJob.status === "done"
@@ -328,7 +335,7 @@ export function PublicationsTab() {
                         ? "Глубокий поиск отменён"
                         : "Глубокий поиск завершился с ошибкой"}
                 </span>
-                <span className="text-xs text-indigo-700 dark:text-indigo-300">
+                <span className="text-xs text-primary-soft-foreground/80">
                   просмотрено {deepJob.progress.scanned_pages.toLocaleString("ru-RU")}
                   {deepJob.progress.total_pages > 0
                     ? ` из ${deepJob.progress.total_pages.toLocaleString("ru-RU")}`
@@ -337,63 +344,60 @@ export function PublicationsTab() {
                   {" · "}совпадений: {deepJob.total.toLocaleString("ru-RU")}
                 </span>
               </div>
-              <div className="h-2 w-full rounded bg-indigo-200 dark:bg-indigo-900 overflow-hidden">
-                <div
-                  className="h-full bg-indigo-600 transition-all"
-                  style={{ width: `${Math.min(100, deepJob.progress.pct)}%` }}
-                />
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-indigo-700 dark:text-indigo-300">
+              <Progress value={deepJob.progress.pct} label="Прогресс сканирования корпуса" />
+              <div className="flex items-center justify-between text-[11px] text-primary-soft-foreground/80">
                 <span>
                   Записей просмотрено: {deepJob.total_scanned.toLocaleString("ru-RU")}
                   {deepJob.truncated ? " (корпус не дочитан до конца)" : ""}
                 </span>
                 {deepJob.status === "running" ? (
-                  <Button variant="outline" size="sm" onClick={cancelDeepSearch}>Отменить</Button>
+                  <Button variant="secondary" size="sm" onClick={cancelDeepSearch}>Отменить</Button>
                 ) : (
-                  <Button variant="outline" size="sm" onClick={() => { setDeepJob(null); setDeepError(""); }}>
+                  <Button variant="secondary" size="sm" onClick={() => { setDeepJob(null); setDeepError(""); }}>
                     Скрыть
                   </Button>
                 )}
               </div>
               {deepJob.error ? (
-                <p className="text-xs text-red-700 dark:text-red-300">{deepJob.error}</p>
+                <p className="text-xs text-destructive">{deepJob.error}</p>
               ) : null}
             </div>
           ) : null}
 
-          <Alert className="border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-            <Info className="size-4" />
-            <AlertTitle>Как работает поиск</AlertTitle>
-            <AlertDescription className="text-blue-700 dark:text-blue-300">
-              <p>
-                {applied ? (
-                  searching ? (
-                    <>Ищем по репозиторию…</>
-                  ) : (
-                    <>
-                      Просмотрено{" "}
-                      <strong>{(searchData?.total_scanned ?? 0).toLocaleString("ru-RU")}</strong>{" "}
-                      записей из {total.toLocaleString("ru-RU")}
-                      {searchData?.truncated ? " (это не весь корпус)" : ""}.
-                      Совпадений: <strong>{filtered.length.toLocaleString("ru-RU")}</strong>.
-                    </>
-                  )
+          <Callout
+            tone="info"
+            role="alert"
+            icon={<Info className="size-4" aria-hidden="true" />}
+            className="items-start"
+          >
+            <span className="block font-medium">Как работает поиск</span>
+            <span className="block">
+              {applied ? (
+                searching ? (
+                  <>Ищем по репозиторию…</>
                 ) : (
                   <>
-                    Показано {loaded.length.toLocaleString("ru-RU")} из{" "}
-                    {total.toLocaleString("ru-RU")} записей. Чтобы смотреть дальше,
-                    нажмите «Загрузить ещё».
+                    Просмотрено{" "}
+                    <strong>{(searchData?.total_scanned ?? 0).toLocaleString("ru-RU")}</strong>{" "}
+                    записей из {total.toLocaleString("ru-RU")}
+                    {searchData?.truncated ? " (это не весь корпус)" : ""}.
+                    Совпадений: <strong>{filtered.length.toLocaleString("ru-RU")}</strong>.
                   </>
-                )}
-              </p>
-              <p className="mt-1 text-[11px] opacity-80">
-                У hub.sfedu.ru нет полнотекстового индекса: поиск читает первые страницы
-                корпуса, а не весь репозиторий. Уточняйте запрос или выберите тип -
-                так совпадений в просмотренной части будет больше.
-              </p>
-            </AlertDescription>
-          </Alert>
+                )
+              ) : (
+                <>
+                  Показано {loaded.length.toLocaleString("ru-RU")} из{" "}
+                  {total.toLocaleString("ru-RU")} записей. Чтобы смотреть дальше,
+                  нажмите «Загрузить ещё».
+                </>
+              )}
+            </span>
+            <span className="mt-1 block text-[11px] opacity-80">
+              У hub.sfedu.ru нет полнотекстового индекса: поиск читает первые страницы
+              корпуса, а не весь репозиторий. Уточняйте запрос или выберите тип -
+              так совпадений в просмотренной части будет больше.
+            </span>
+          </Callout>
 
           {loading ? (
             <div className="space-y-3" role="status" aria-label="Загрузка публикаций">
@@ -412,7 +416,7 @@ export function PublicationsTab() {
             />
           ) : (
             <div className="space-y-3">
-              <p className="text-xs text-gray-500 dark:text-slate-400" aria-live="polite">
+              <p className="text-xs text-muted-foreground" aria-live="polite">
                 {applied
                   ? `Совпадений: ${filtered.length.toLocaleString("ru-RU")} · просмотрено ${(searchData?.total_scanned ?? 0).toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")}`
                   : `Загружено ${loaded.length.toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")}`}
@@ -425,8 +429,8 @@ export function PublicationsTab() {
                   description={`Просмотрено ${(deepActive ? deepJob?.total_scanned ?? 0 : searchData?.total_scanned ?? 0).toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")} записей. Уточните запрос или выберите тип публикации.`}
                   action={
                     !deepActive ? (
-                      <Button variant="outline" size="sm" onClick={loadMore} disabled={!canLoadMore}>
-                        {loadingMore ? <Loader2 className="size-4 animate-spin" /> : null}Загрузить ещё
+                      <Button variant="secondary" size="sm" onClick={loadMore} disabled={!canLoadMore} loading={loadingMore}>
+                        Загрузить ещё
                       </Button>
                     ) : undefined
                   }
@@ -439,9 +443,7 @@ export function PublicationsTab() {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <PaginationBar page={shownSafePage} totalPages={shownPages} pageSize={pageSize}
                       onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1); }} />
-                    <Button variant="outline" size="sm" onClick={loadMore} disabled={!canLoadMore}
-                      className="border-gray-300 dark:border-slate-600">
-                      {loadingMore ? <Loader2 className="size-4 animate-spin" /> : null}
+                    <Button variant="secondary" size="sm" onClick={loadMore} disabled={!canLoadMore} loading={loadingMore}>
                       Загрузить ещё {canLoadMore ? `(${Math.max(1, Math.min(pageSize, total - loaded.length))} шт.)` : ""}
                     </Button>
                   </div>
@@ -449,7 +451,7 @@ export function PublicationsTab() {
               )}
             </div>
           )}
-        </CardContent>
+        </CardBody>
       </Card>
       {detailId !== null ? <PublicationDetailDialog id={detailId} onClose={() => setDetailId(null)} /> : null}
     </div>
