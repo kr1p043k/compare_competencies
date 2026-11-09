@@ -10,6 +10,10 @@ def main() -> None:
     import argparse
     import asyncio
 
+    from src.logging_config import setup_structlog
+
+    setup_structlog()
+
     from src.cli import (
         backfill_market_snapshots,
         backup_db,

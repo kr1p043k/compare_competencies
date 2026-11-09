@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import re
 import time
 from collections import Counter
@@ -61,22 +60,15 @@ __all__ = [
 
 
 def setup_logging() -> None:
-    """Настраивает логирование: вывод в консоль (INFO) и в файл (DEBUG)."""
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)
+    """Единая настройка логирования.
 
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    Делегирует в setup_structlog (structlog + маскирование секретов), чтобы не
+    плодить вторые хендлеры и не обходить маскировку. Оставлено как алиас для
+    обратной совместимости вызовов.
+    """
+    from src.logging_config import setup_structlog
 
-    file_handler = logging.FileHandler(config.LOG_FILE, encoding="utf-8")
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(formatter)
-
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
-
-    root_logger.addHandler(file_handler)
-    root_logger.addHandler(console_handler)
+    setup_structlog()
 
 
 def read_json(filepath: Path) -> Result[Any, DomainError]:

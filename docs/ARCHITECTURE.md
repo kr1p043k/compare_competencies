@@ -275,12 +275,12 @@ rapidfuzz (JaccardEngine), joblib (сериализация вместо pickle)
 - **PHP-прокси (`/api.php?target=...`)** - обходное решение: PHP-скрипт на корне сайта проксирует запросы к бэкенду через Tailscale Funnel (`compareserver.tailb909df.ts.net`). Все `/api/` вызовы в скомпилированном JS заменены на `/api.php?target=/`
 
 ### Скрипты деплоя
-- **`update-deployment.sh`** - полный цикл: бэкап volumes + БД → git pull → compose down → build → up → health check → rollback при ошибке
-- **`backup-volumes.sh`** - бэкап всех Docker volumes и дампа PostgreSQL
-- **`seed_users.py`** + **`users.json`** - наполнение пользователей (admin/teacher/student) через `asyncpg`
+- **`deploy/update-deployment.sh`** - полный цикл: бэкап volumes + БД → git pull → compose down → build → up → health check → rollback при ошибке
+- **`deploy/backup-volumes.sh`** - бэкап всех Docker volumes и дампа PostgreSQL
+- **`python -m src.cli.seed_db`** + **`users.json`** - наполнение пользователей (admin/teacher/student)
 
 ### CI/CD (GitHub Actions)
-- Пуш в `main` → Tailscale authkey → appleboy/ssh-action → `update-deployment.sh` на compareserver
+- Пуш в `main` → Tailscale authkey → appleboy/ssh-action → `deploy/update-deployment.sh` на compareserver
 - Сборка backend + frontend внутри Docker Compose
 
 ## Планируемые улучшения
