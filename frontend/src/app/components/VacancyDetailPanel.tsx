@@ -230,7 +230,7 @@ export function VacancyDetailPanel({
                         <ul className="flex flex-wrap gap-1.5">
                           {displaySkills.map((skill: string, index: number) => (
                             <li key={`${skill}-${index}`}>
-                              <Badge tone="neutral" className="font-semibold">
+                              <Badge tone="info" className="font-semibold">
                                 <span
                                   aria-hidden="true"
                                   className="size-1.5 shrink-0 rounded-full bg-current opacity-70"
