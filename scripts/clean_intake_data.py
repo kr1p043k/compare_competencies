@@ -37,7 +37,6 @@ import sys
 from collections.abc import Collection
 from datetime import datetime
 from pathlib import Path
-from uuid import UUID
 
 import psycopg
 try:  # запуск как файла

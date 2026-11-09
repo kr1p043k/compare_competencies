@@ -540,11 +540,9 @@ def compute_mcnemar_per_category(results: list[dict]) -> dict:
     in hard categories (long, cross-lang) but not in easy ones.
     """
     from collections import defaultdict
-    try:
-        from scipy.stats import chi2 as chi2_dist
-        has_scipy = True
-    except ImportError:
-        has_scipy = False
+    from importlib.util import find_spec
+
+    has_scipy = find_spec("scipy.stats") is not None
 
     by_cat: dict[str, list[dict]] = defaultdict(list)
     for r in results:
