@@ -3991,6 +3991,50 @@
         ]
       }
     },
+    "/api/admin/llm/cost": {
+      "get": {
+        "description": "Сводка стоимости LLM-обращений (llm_interactions.cost_usd).",
+        "operationId": "admin_llm_cost_api_admin_llm_cost_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Llm Cost",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/admin/logs": {
       "get": {
         "description": "Логи запросов. AUDIT-строки несут detail 'action | target | by email (role)'.\n\naction - префикс-фильтр по audit-действию, напр. action=krm.recommendation.add.\nТолько admin: строки содержат email пользователей, пути и коды ответов.",

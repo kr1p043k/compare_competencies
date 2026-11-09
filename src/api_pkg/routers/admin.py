@@ -1118,6 +1118,77 @@ async def admin_monitoring_grafana(request: Request):
     return await _grafana_status()
 
 
+# ---------- LLM: стоимость обращений ----------
+
+
+async def _llm_cost_summary(days: int, pool: Any = None) -> dict[str, Any]:
+    """Сводка стоимости LLM-обращений (llm_interactions.cost_usd).
+
+    Fallback: если БД/таблица/колонка недоступны - нули и причина, а не 500
+    (колонка cost_usd приходит ревизией и на отставшей схеме её может не быть).
+    """
+    empty: dict[str, Any] = {
+        "total_usd": 0.0, "requests": 0, "by_model": [], "by_day": [], "reason": None,
+    }
+    if pool is None:
+        from src.db import get_pool
+
+        pool = get_pool()
+    if pool is None:
+        empty["reason"] = "БД недоступна"
+        return empty
+    try:
+        by_model = await pool.fetch(
+            """
+            SELECT model,
+                   count(*) AS requests,
+                   coalesce(sum(cost_usd), 0) AS cost_usd
+            FROM llm_interactions
+            WHERE created_at >= now() - make_interval(days => $1)
+            GROUP BY model
+            ORDER BY cost_usd DESC, requests DESC
+            """,
+            days,
+        )
+        by_day = await pool.fetch(
+            """
+            SELECT date_trunc('day', created_at)::date AS day,
+                   count(*) AS requests,
+                   coalesce(sum(cost_usd), 0) AS cost_usd
+            FROM llm_interactions
+            WHERE created_at >= now() - make_interval(days => $1)
+            GROUP BY 1
+            ORDER BY 1
+            """,
+            days,
+        )
+    except Exception as exc:  # noqa: BLE001 - схема может отставать; панель не должна падать
+        logger.warning("llm_cost_query_failed", error=str(exc))
+        empty["reason"] = f"Не удалось прочитать llm_interactions: {exc}"
+        return empty
+
+    return {
+        "total_usd": round(sum(float(r["cost_usd"]) for r in by_model), 6),
+        "requests": sum(int(r["requests"]) for r in by_model),
+        "by_model": [
+            {"model": r["model"], "requests": int(r["requests"]),
+             "cost_usd": round(float(r["cost_usd"]), 6)}
+            for r in by_model
+        ],
+        "by_day": [
+            {"day": r["day"].isoformat(), "requests": int(r["requests"]),
+             "cost_usd": round(float(r["cost_usd"]), 6)}
+            for r in by_day
+        ],
+        "reason": None,
+    }
+
+
+@router.get("/admin/llm/cost", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("30/minute")
+async def admin_llm_cost(request: Request, days: int = Query(30, ge=1, le=365)):
+    """Сводка стоимости LLM-обращений (llm_interactions.cost_usd)."""
+    return await _llm_cost_summary(days)
 def _parse_metric_families(wanted: set[str]) -> dict[str, dict]:
     """Разобрать экспозицию Prometheus в словарь семейств (в потоке)."""
     from prometheus_client.parser import text_string_to_metric_families
