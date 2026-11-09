@@ -166,7 +166,7 @@ def test_probe_script_describes_unknown_shapes(tmp_path: Path):
 
     root = Path(__file__).resolve().parent.parent
     spec = importlib.util.spec_from_file_location(
-        "probe_course_trends", root / "scripts" / "probe_course_trends.py"
+        "probe_course_trends", root / "scripts" / "experiments" / "probe_course_trends.py"
     )
     module = importlib.util.module_from_spec(spec)
     sys.modules["probe_course_trends"] = module
