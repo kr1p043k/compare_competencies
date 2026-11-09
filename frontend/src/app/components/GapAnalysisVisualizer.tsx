@@ -30,6 +30,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { api } from "../api";
 import { reportError } from "../../lib/errors";
+import { ShapExplanationCard } from "./ShapExplanationCard";
 import {
   axisProps,
   Button,
@@ -343,6 +344,11 @@ export function GapAnalysisVisualizer({ profile, onProfileChange }: GapAnalysisV
                 </ul>
               </motion.div>
             ))}
+
+          {/* ML #78: per-skill SHAP-объяснения под графиком важности.
+           * Карточка монтируется только на выбранной вкладке ml_importance,
+           * чтобы дорогой инференс не дёргался на других представлениях. */}
+          {selectedView === "ml_importance" && <ShapExplanationCard profile={viewProfile} />}
 
           {/* Image display (cluster insights) */}
           {selectedView === "cluster_insights" && (
