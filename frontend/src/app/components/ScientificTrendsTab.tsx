@@ -1,16 +1,31 @@
 import { useState, useEffect, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Badge } from "./ui/badge";
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
-import { Progress } from "./ui/progress";
+import {
+  type LucideIcon,
+  FlaskConical,
+  TrendingUp,
+  GitCompare,
+  Search,
+  Sparkles,
+  Target,
+  AlertCircle,
+  CheckCircle2,
+} from "lucide-react";
+import {
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  inputClass,
+} from "../../design";
 import { useAuth } from "../../lib/auth";
-import { FlaskConical, TrendingUp, GitCompare, Search, Sparkles, Target, AlertCircle, CheckCircle2 } from "lucide-react";
 import { reportError } from "./../../lib/errors";
 import { request } from "../../lib/api";
-import { PageHeader } from "./PageHeader";
+import { Label } from "./ui/label";
+import { Progress } from "./ui/progress";
+import { cn } from "./ui/utils";
 
 interface TrendCompetency {
   code: string;
@@ -138,6 +153,37 @@ async function academicCall(path: string, body: unknown): Promise<unknown> {
   return res.json();
 }
 
+/** Иконка-квадрат + заголовок раздела внутри Card: тонированная плашка
+ *  сверху, как в унаследованных экранах, но только на токенах. */
+function SectionHeader({
+  icon: Icon,
+  squareClass,
+  title,
+  description,
+}: {
+  icon: LucideIcon;
+  squareClass: string;
+  title: string;
+  description: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-3 border-b border-border bg-muted px-6 py-6">
+      <div
+        className={cn(
+          "flex size-10 shrink-0 items-center justify-center rounded-lg",
+          squareClass,
+        )}
+      >
+        <Icon className="size-5" />
+      </div>
+      <div>
+        <h4 className="text-xl font-semibold leading-none text-foreground">{title}</h4>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      </div>
+    </div>
+  );
+}
+
 export function ScientificTrendsTab() {
   const { role } = useAuth();
   const isStudent = role === "student";
@@ -230,90 +276,78 @@ export function ScientificTrendsTab() {
         description="Навыки и компетенции из научных публикаций и исследовательских вакансий."
       />
       {/* Запрос */}
-      <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
-        <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 bg-indigo-600 rounded-lg">
-              <Search className="size-5 text-white" />
-            </div>
-            <div>
-              <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">
-                Академический анализ
-              </CardTitle>
-              <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
-                Компетенции и разрывы по научной тематике (локальный анализ)
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6 space-y-4">
+      <Card>
+        <SectionHeader
+          icon={Search}
+          squareClass="bg-primary text-primary-foreground"
+          title="Академический анализ"
+          description="Компетенции и разрывы по научной тематике (локальный анализ)"
+        />
+        <CardBody className="p-6 space-y-4">
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">Тема / научный запрос</Label>
-            <Input
+            <Label className="text-sm font-medium text-foreground">Тема / научный запрос</Label>
+            <input
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") fetchTrends(); }}
               placeholder="Например: нейросетевые методы обработки изображений"
-              className="h-11"
+              className={cn(inputClass, "h-11")}
             />
           </div>
           <div className="flex gap-3 flex-wrap">
-            <Button onClick={fetchTrends} disabled={loading !== null} className="h-11 bg-indigo-600 hover:bg-indigo-700 text-white">
-              {loading === "trends"
+            <Button
+              onClick={fetchTrends}
+              disabled={loading !== null}
+              className="h-11"
+              iconLeft={loading === "trends"
                 ? <span className="mr-2 inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 : <Sparkles className="size-4 mr-2" />}
+            >
               Рекомендуемые компетенции
             </Button>
-            <Button onClick={analyzeGap} disabled={loading !== null || isStudent} title={isStudent ? "Анализ разрыва доступен преподавателям" : undefined} variant="outline" className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800">
-              {loading === "gap"
+            <Button
+              onClick={analyzeGap}
+              disabled={loading !== null || isStudent}
+              title={isStudent ? "Анализ разрыва доступен преподавателям" : undefined}
+              variant="secondary"
+              className="h-11"
+              iconLeft={loading === "gap"
                 ? <span className="mr-2 inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 : <Target className="size-4 mr-2" />}
+            >
               Анализ разрыва (вся КРМ)
             </Button>
           </div>
           {krmCount !== null && (
-            <p className="text-xs text-gray-500 dark:text-slate-400">
+            <p className="text-xs text-muted-foreground">
               В анализе разрыва учтено компетенций КРМ: <b>{krmCount}</b>
             </p>
           )}
 
           {loading === "gap" && (
             <div className="space-y-2">
-              <Progress value={gapProgress} className="h-2.5 bg-indigo-100 dark:bg-indigo-950/30 [&>div]:bg-indigo-600" />
-              <p className="text-xs text-gray-500 dark:text-slate-400">
+              <Progress value={gapProgress} className="h-2.5" />
+              <p className="text-xs text-muted-foreground">
                 Анализ разрыва выполняется, это может занять несколько минут… ({Math.round(gapProgress)}%)
               </p>
             </div>
           )}
           {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="size-4" />
-              <AlertTitle>Ошибка</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+            <ErrorState title="Ошибка" description={error} />
           )}
-        </CardContent>
+        </CardBody>
       </Card>
 
       {/* Рекомендуемые компетенции */}
       {trend && (
-        <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
-          <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 bg-emerald-600 rounded-lg">
-                <TrendingUp className="size-5 text-white" />
-              </div>
-              <div>
-                <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">
-                  Рекомендуемые компетенции
-                </CardTitle>
-                <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
-                  Тема: {trend.topic}
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-6 space-y-5">
+        <Card>
+          <SectionHeader
+            icon={TrendingUp}
+            squareClass="bg-success-soft text-success"
+            title="Рекомендуемые компетенции"
+            description={`Тема: ${trend.topic}`}
+          />
+          <CardBody className="p-6 space-y-5">
             {(() => {
               const trendsList = uniqueTrends(
                 trend.found_trends.flatMap((t) => parseTrendText(t))
@@ -321,21 +355,16 @@ export function ScientificTrendsTab() {
               if (trendsList.length === 0) return null;
               return (
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">{trend.trends_source === "market_skills" ? "Связанные рыночные навыки (не публикации)" : "Обнаруженные тренды"}</h4>
+                  <h4 className="text-sm font-semibold text-foreground mb-2">{trend.trends_source === "market_skills" ? "Связанные рыночные навыки (не публикации)" : "Обнаруженные тренды"}</h4>
                   <div className="space-y-3">
                     {trendsList.map((t) => (
-                      <div key={t.title} className="rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-                        <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{t.title}</p>
-                        {t.summary && <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">{t.summary}</p>}
+                      <div key={t.title} className="rounded-lg border border-border p-4">
+                        <p className="text-sm font-semibold text-foreground">{t.title}</p>
+                        {t.summary && <p className="text-xs text-muted-foreground mt-1">{t.summary}</p>}
                         {t.keywords.length > 0 && (
                           <div className="flex gap-1.5 flex-wrap mt-2">
                             {t.keywords.map((k) => (
-                              <span
-                                key={k}
-                                className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400"
-                              >
-                                {k}
-                              </span>
+                              <Badge key={k}>{k}</Badge>
                             ))}
                           </div>
                         )}
@@ -348,7 +377,7 @@ export function ScientificTrendsTab() {
 
             {trend.recommended_competencies.length > 0 && (
               <div>
-                <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Рекомендуемые компетенции</h4>
+                <h4 className="text-sm font-semibold text-foreground mb-2">Рекомендуемые компетенции</h4>
                 <div className="space-y-3">
                   {(() => {
                     const seenSources = new Set<string>();
@@ -362,25 +391,25 @@ export function ScientificTrendsTab() {
                         return true;
                       });
                       return (
-                        <div key={c.code} className="rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+                        <div key={c.code} className="rounded-lg border border-border p-4">
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className="font-mono text-sm font-semibold text-indigo-700 dark:text-indigo-300">{c.code}</span>
+                            <span className="font-mono text-sm font-semibold text-primary">{c.code}</span>
                             <div className="flex items-center gap-2">
                               {c.coverage_percent !== undefined && (
                                 <Badge
-                                  variant={
+                                  tone={
                                     c.coverage_percent >= 80
-                                      ? "secondary"
+                                      ? "neutral"
                                       : c.coverage_percent >= 40
-                                        ? "default"
-                                        : "destructive"
+                                        ? "primary"
+                                        : "danger"
                                   }
                                 >
                                   {c.status ?? "gap"} · {c.coverage_percent}%
                                 </Badge>
                               )}
                               {c.skills_count !== undefined && (
-                                <span className="text-xs text-gray-400 dark:text-slate-500">{c.skills_count} навыков</span>
+                                <span className="text-xs text-subtle-foreground">{c.skills_count} навыков</span>
                               )}
                             </div>
                           </div>
@@ -388,12 +417,10 @@ export function ScientificTrendsTab() {
                           {c.disciplines && c.disciplines.length > 0 && (
                             <div className="flex items-center gap-1.5 flex-wrap mt-1">
                               {c.disciplines.slice(0, 3).map((d) => (
-                                <span key={d} className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400">
-                                  {d}
-                                </span>
+                                <Badge key={d}>{d}</Badge>
                               ))}
                               {c.disciplines.length > 3 && (
-                                <span className="text-xs text-gray-400 dark:text-slate-500">+{c.disciplines.length - 3}</span>
+                                <span className="text-xs text-subtle-foreground">+{c.disciplines.length - 3}</span>
                               )}
                             </div>
                           )}
@@ -401,12 +428,9 @@ export function ScientificTrendsTab() {
                           {c.near_skills && c.near_skills.length > 0 && (
                             <div className="flex items-center gap-1.5 flex-wrap mt-2">
                               {c.near_skills.map((n) => (
-                                <span
-                                  key={n.skill}
-                                  className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-950/30"
-                                >
+                                <Badge key={n.skill} tone="success">
                                   {n.skill.length > 40 ? n.skill.slice(0, 40) + "…" : n.skill} ({n.similarity.toFixed(2)})
-                                </span>
+                                </Badge>
                               ))}
                             </div>
                           )}
@@ -414,28 +438,25 @@ export function ScientificTrendsTab() {
                           {c.missing_topic_skills && c.missing_topic_skills.length > 0 && (
                             <div className="flex items-center gap-1.5 flex-wrap mt-2">
                               {c.missing_topic_skills.map((m) => (
-                                <span
-                                  key={m}
-                                  className="text-xs px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-950/30"
-                                >
+                                <Badge key={m} tone="warning">
                                   {m.length > 40 ? m.slice(0, 40) + "…" : m}
-                                </span>
+                                </Badge>
                               ))}
                             </div>
                           )}
 
-                          {c.description && <p className="text-sm text-gray-700 dark:text-slate-300 mt-2">{c.description}</p>}
-                          {c.keywords && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Ключевые слова: {c.keywords}</p>}
-                          {c.reason && !c.description && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{c.reason}</p>}
+                          {c.description && <p className="text-sm text-muted-foreground mt-2">{c.description}</p>}
+                          {c.keywords && <p className="text-xs text-muted-foreground mt-1">Ключевые слова: {c.keywords}</p>}
+                          {c.reason && !c.description && <p className="text-xs text-muted-foreground mt-1">{c.reason}</p>}
 
                           {c.suggested_skills && c.suggested_skills.length > 0 && (
-                            <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+                            <div className="mt-2 text-xs text-muted-foreground">
                               <span className="font-medium">Рекомендуемые навыки:</span>
                               <ul className="mt-1 space-y-0.5">
                                 {c.suggested_skills.map((s) => (
                                   <li key={s.skill + s.source}>
-                                    <span className="font-mono text-indigo-700 dark:text-indigo-300">{s.skill}</span>{" "}
-                                    <span className="text-gray-400 dark:text-slate-500">
+                                    <span className="font-mono text-primary">{s.skill}</span>{" "}
+                                    <span className="text-subtle-foreground">
                                       ({s.similarity.toFixed(2)}
                                       {s.source === "competency" ? ", близок к компетенции" : ", по теме"})
                                     </span>
@@ -448,13 +469,9 @@ export function ScientificTrendsTab() {
                           {cardTrends.length > 0 && (
                             <div className="flex gap-1.5 flex-wrap mt-2">
                               {cardTrends.map((t) => (
-                                <span
-                                  key={t.title}
-                                  title={t.summary || t.title}
-                                  className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-950/30"
-                                >
+                                <Badge key={t.title} tone="primary" title={t.summary || t.title}>
                                   {t.title}
-                                </span>
+                                </Badge>
                               ))}
                             </div>
                           )}
@@ -467,42 +484,33 @@ export function ScientificTrendsTab() {
             )}
 
             {trend.rationale && (
-              <div className="rounded-lg bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-950/30 p-4 text-sm text-indigo-900 dark:text-indigo-100">
+              <div className="rounded-lg border border-primary/20 bg-primary-soft p-4 text-sm text-primary-soft-foreground">
                 <span className="font-semibold">Обоснование: </span>{trend.rationale}
               </div>
             )}
-          </CardContent>
+          </CardBody>
         </Card>
       )}
 
       {/* Анализ разрыва */}
       {gap && (
-        <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
-          <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
+        <Card>
+          <SectionHeader
+            icon={GitCompare}
+            squareClass="bg-destructive/10 text-destructive"
+            title="Анализ разрыва компетенций"
+            description={`Тема: ${gapTopic}`}
+          />
+          <CardBody className="p-6 space-y-5">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 bg-rose-600 rounded-lg">
-                <GitCompare className="size-5 text-white" />
-              </div>
-              <div>
-                <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">
-                  Анализ разрыва компетенций
-                </CardTitle>
-                <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
-                  Тема: {gapTopic}
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-6 space-y-5">
-            <div className="flex items-center gap-3">
-              <span className="text-3xl font-bold text-gray-900 dark:text-slate-100">
+              <span className="text-3xl font-bold text-foreground">
                 {Math.round(gap.overall_score * 100)}%
               </span>
-              <span className="text-sm text-gray-500 dark:text-slate-400">общее покрытие</span>
+              <span className="text-sm text-muted-foreground">общее покрытие</span>
             </div>
 
             {gap.summary && (
-              <p className="text-sm text-gray-700 dark:text-slate-300 rounded-lg bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 p-4">
+              <p className="text-sm text-foreground rounded-lg bg-muted border border-border p-4">
                 {gap.summary}
               </p>
             )}
@@ -511,12 +519,12 @@ export function ScientificTrendsTab() {
               {gap.detailed_analysis.map((item) => {
                 const covered = item.coverage_percent >= 80;
                 return (
-                  <div key={item.code} className="rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+                  <div key={item.code} className="rounded-lg border border-border p-4">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-sm font-semibold text-gray-800 dark:text-slate-200">{item.code}</span>
+                      <span className="font-mono text-sm font-semibold text-foreground">{item.code}</span>
                       <div className="flex items-center gap-2">
-                        {covered ? <CheckCircle2 className="size-4 text-emerald-600" /> : <AlertCircle className="size-4 text-amber-500" />}
-                        <Badge variant={covered ? "secondary" : "destructive"}>
+                        {covered ? <CheckCircle2 className="size-4 text-success" /> : <AlertCircle className="size-4 text-warning" />}
+                        <Badge tone={covered ? "neutral" : "danger"}>
                           {item.status} · {item.coverage_percent}%
                         </Badge>
                       </div>
@@ -524,56 +532,54 @@ export function ScientificTrendsTab() {
 
                     {item.disciplines && item.disciplines.length > 0 && (
                       <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                        <span className="text-xs text-gray-400 dark:text-slate-500">Дисциплины:</span>
+                        <span className="text-xs text-subtle-foreground">Дисциплины:</span>
                         {item.disciplines.slice(0, 3).map((d) => (
-                          <span key={d} className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400">
-                            {d}
-                          </span>
+                          <Badge key={d}>{d}</Badge>
                         ))}
                         {item.disciplines.length > 3 && (
-                          <span className="text-xs text-gray-400 dark:text-slate-500">+{item.disciplines.length - 3}</span>
+                          <span className="text-xs text-subtle-foreground">+{item.disciplines.length - 3}</span>
                         )}
                       </div>
                     )}
 
-                    {item.reason && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{item.reason}</p>}
+                    {item.reason && <p className="text-xs text-muted-foreground mt-1">{item.reason}</p>}
 
                     {item.near_skills && item.near_skills.length > 0 && (
                       <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                        <span className="text-xs text-gray-400 dark:text-slate-500">Близкие к теме:</span>
+                        <span className="text-xs text-subtle-foreground">Близкие к теме:</span>
                         {item.near_skills.map((n) => (
-                          <span key={n.skill} className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-950/30">
+                          <Badge key={n.skill} tone="success">
                             {n.skill.length > 40 ? n.skill.slice(0, 40) + "…" : n.skill} ({n.similarity.toFixed(2)})
-                          </span>
+                          </Badge>
                         ))}
                       </div>
                     )}
 
                     {item.missing_topic_skills && item.missing_topic_skills.length > 0 && (
                       <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                        <span className="text-xs text-gray-400 dark:text-slate-500">Чего не хватает:</span>
+                        <span className="text-xs text-subtle-foreground">Чего не хватает:</span>
                         {item.missing_topic_skills.map((m) => (
-                          <span key={m} className="text-xs px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-950/30">
+                          <Badge key={m} tone="warning">
                             {m.length > 40 ? m.slice(0, 40) + "…" : m}
-                          </span>
+                          </Badge>
                         ))}
                       </div>
                     )}
 
                     {item.recommendation && (
-                      <p className="text-sm text-indigo-800 dark:text-indigo-200 mt-2 bg-indigo-50 dark:bg-indigo-950/30 rounded p-2">
+                      <p className="text-sm text-primary-soft-foreground mt-2 bg-primary-soft rounded p-2">
                         Рекомендация: {item.recommendation}
                       </p>
                     )}
 
                     {item.suggested_skills && item.suggested_skills.length > 0 && (
-                      <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+                      <div className="mt-2 text-xs text-muted-foreground">
                         <span className="font-medium">Рекомендуемые навыки:</span>
                         <ul className="mt-1 space-y-0.5">
                           {item.suggested_skills.map((s) => (
                             <li key={s.skill + s.source}>
-                              <span className="font-mono text-indigo-700 dark:text-indigo-300">{s.skill}</span>{" "}
-                              <span className="text-gray-400 dark:text-slate-500">
+                              <span className="font-mono text-primary">{s.skill}</span>{" "}
+                              <span className="text-subtle-foreground">
                                 ({s.similarity.toFixed(2)}
                                 {s.source === "competency" ? ", близок к вашим навыкам" : ", по теме"})
                               </span>
@@ -586,23 +592,17 @@ export function ScientificTrendsTab() {
                 );
               })}
             </div>
-          </CardContent>
+          </CardBody>
         </Card>
       )}
 
       {/* Пустое состояние */}
       {!trend && !gap && !error && (
-        <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-slate-500">
-              <TrendingUp className="size-12 mb-4" />
-              <p className="text-lg font-medium">Задайте тему</p>
-              <p className="text-sm mt-1">
-                Анализ вернёт рекомендуемые компетенции по научным трендам и разрыв относительно компетенций КРМ
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={<TrendingUp className="size-12" />}
+          title="Задайте тему"
+          description="Анализ вернёт рекомендуемые компетенции по научным трендам и разрыв относительно компетенций КРМ"
+        />
       )}
     </div>
   );

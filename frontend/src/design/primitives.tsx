@@ -7,6 +7,7 @@
  */
 
 import { Slot } from "@radix-ui/react-slot";
+import type { LucideIcon } from "lucide-react";
 import {
   type ButtonHTMLAttributes,
   type HTMLAttributes,
@@ -147,30 +148,53 @@ export function CardBody({ className, ...rest }: HTMLAttributes<HTMLDivElement>)
 
 export function PageHeader({
   eyebrow,
+  icon: Icon,
   title,
   description,
   actions,
   className,
 }: {
   eyebrow?: ReactNode;
+  /** Иконка раздела в нейтральном квадрате (наследие локального PageHeader). */
+  icon?: LucideIcon;
   title: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
   className?: string;
 }) {
+  const textBlock = (
+    <div className="min-w-0">
+      {eyebrow ? (
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-primary mb-1.5">
+          {eyebrow}
+        </div>
+      ) : null}
+      <h1 className="text-2xl font-semibold text-foreground tracking-tight">{title}</h1>
+      {description ? (
+        <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">{description}</p>
+      ) : null}
+    </div>
+  );
+
   return (
-    <div className={cn("flex flex-wrap items-end justify-between gap-4 mb-6", className)}>
-      <div className="min-w-0">
-        {eyebrow ? (
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-primary mb-1.5">
-            {eyebrow}
+    <div
+      className={cn(
+        "flex flex-wrap items-end justify-between gap-4 mb-6",
+        // С иконкой блок выравнивается по верху, как в унаследованных экранах.
+        Icon && "items-start",
+        className,
+      )}
+    >
+      {Icon ? (
+        <div className="flex min-w-0 items-start gap-4">
+          <div className="shrink-0 grid place-items-center size-10 rounded-lg bg-muted text-muted-foreground">
+            <Icon className="size-5" />
           </div>
-        ) : null}
-        <h1 className="text-2xl font-semibold text-foreground tracking-tight">{title}</h1>
-        {description ? (
-          <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
+          {textBlock}
+        </div>
+      ) : (
+        textBlock
+      )}
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
   );
