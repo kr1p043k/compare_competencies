@@ -9,12 +9,12 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from src import config
+from src import Err, Ok, config
 from src.api_pkg import deps
 from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.api_pkg.summary_builder import build_summary_payload, load_recommendations_from_disk
@@ -190,6 +190,172 @@ async def get_recommendations_result(
         "message": "Рекомендации не найдены. Запустите gap-анализ.",
         "recommendations": [],
     }
+
+
+# ---------------------------------------------------------------- ML #78: SHAP
+# Ленивая LTRRecommendationEngine для ML-объяснений: артефакт + эмбеддинги
+# тяжёлые, создаём при первом запросе и держим один инстанс на процесс.
+# Read-only: инференс (predict + SHAP) состояние движка не меняет.
+_explanation_engine: Any | None = None
+_explanation_engine_lock = threading.Lock()
+
+# Сколько недостающих навыков-кандидатов ранжировать перед SHAP. Как в
+# teacher_analysis_runner: co-occurrence + SHAP на всех ~4000 навыках
+# неприемлемо медленны, а топ рекомендаций почти всегда среди частых.
+_EXPLANATION_CANDIDATE_LIMIT = 200
+
+
+def _get_or_load_explanation_engine() -> Any:
+    """Вернуть LTR-движок; подгрузить артефакт, если он ещё не загружен.
+
+    Незагруженный артефакт перепроверяется при каждом запросе: после
+    обучения модели пайплайном объяснения появляются без рестарта API.
+    Возвращает unfit-движок, если артефакта нет - эндпоинт ответит
+    graceful-сообщением.
+    """
+    global _explanation_engine
+    with _explanation_engine_lock:
+        if _explanation_engine is None:
+            # Импорт внутри функции: xgboost/shap не нужны остальным роутам.
+            from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
+
+            _explanation_engine = LTRRecommendationEngine()
+        if not getattr(_explanation_engine, "is_fitted", False):
+            from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
+
+            match _explanation_engine.load_model(LTRRecommendationEngine._resolve_model_path()):
+                case Ok(_):
+                    logger.info("ml_explanations_model_loaded")
+                case Err(e):
+                    logger.warning("ml_explanations_model_not_ready", error=str(e))
+        return _explanation_engine
+
+
+def _shap_contributions(
+    explain_result: tuple[Any, Any, Any],
+    row: int,
+    top: int,
+) -> list[dict[str, Any]]:
+    """Топ-|SHAP|-вкладов строки: feature, value, direction, feature_value.
+
+    Строки shap_values/X выровнены с impacts контрактом
+    predict_skill_impact_with_shap (индекс i = навык impacts[i]).
+    """
+    _impacts, shap_vals, x = explain_result
+    if shap_vals is None or x is None or row >= len(shap_vals):
+        return []
+    columns = list(x.columns)
+    row_values = shap_vals[row]
+    # Точные нули не несут сигнала в топ-списке: не тратим на них слоты top.
+    candidates = [
+        j
+        for j in range(len(row_values))
+        if j < len(columns) and float(row_values[j]) != 0.0
+    ]
+    order = sorted(candidates, key=lambda j: abs(float(row_values[j])), reverse=True)[:top]
+    contributions: list[dict[str, Any]] = []
+    for j in order:
+        value = float(row_values[j])
+        feature = str(columns[j])
+        try:
+            feature_value = round(float(x.iloc[row][feature]), 4)
+        except Exception:  # нечисловое значение столбца - не ронять объяснение
+            feature_value = None
+        contributions.append(
+            {
+                "feature": feature,
+                "value": round(value, 4),
+                "direction": "positive" if value > 0 else "negative" if value < 0 else "zero",
+                "feature_value": feature_value,
+            }
+        )
+    return contributions
+
+
+@router.get(
+    "/results/ml-explanations/{profile}",
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+    response_model=dict,
+)
+@limiter.limit("10/minute")
+async def get_ml_explanations(
+    request: Request,
+    profile: str,
+    top: int = Query(default=5, ge=1, le=8),
+    profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
+):
+    """ML #78: per-skill объяснение рекомендаций (SHAP-вклады признаков).
+
+    Read-only view: живой инференс LTR-модели по навыкам профиля, без
+    записи на диск. SHAP считаем для топ-навыков (дорого), поэтому
+    rate-limit жёстче, чем у файловых эндпоинтов.
+    """
+    if profile not in profiles:
+        raise HTTPException(status_code=404, detail="Профиль не найден")
+
+    student_profile = profiles[profile]
+    student_skills = (
+        student_profile.skills
+        or [*student_profile.competencies, *student_profile.technologies]
+    )
+
+    engine = _get_or_load_explanation_engine()
+    if engine is None or not getattr(engine, "is_fitted", False):
+        return {
+            "profile": profile,
+            "model": "ltr_xgboost_shap",
+            "message": "ML-модель не обучена - объяснения недоступны. Запустите обучение пайплайна.",
+            "explanations": [],
+        }
+
+    market_all = list(engine.skill_metadata.keys())
+    known_lower = {s.lower().strip() for s in student_skills}
+    missing = [s for s in market_all if s.lower().strip() not in known_lower]
+    # Ограничение по частоте - то же, что в teacher_analysis_runner.
+    missing = sorted(
+        missing,
+        key=lambda s: engine.skill_metadata.get(s, {}).get("freq_normalized", 0.0),
+        reverse=True,
+    )[:_EXPLANATION_CANDIDATE_LIMIT]
+
+    if not missing:
+        return {
+            "profile": profile,
+            "model": "ltr_xgboost_shap",
+            "message": "Профиль уже покрывает все навыки рынка.",
+            "explanations": [],
+        }
+
+    match await asyncio.to_thread(
+        engine.predict_skill_impact_with_shap, student_skills, missing, True, 8
+    ):
+        case Ok((impacts, shap_vals, x_out)):
+            explanations: list[dict[str, Any]] = []
+            for i, (skill, score, text) in enumerate(impacts[:10]):
+                contributions = _shap_contributions(
+                    (impacts, shap_vals, x_out), i, top
+                )
+                explanations.append(
+                    {
+                        "skill": skill,
+                        "score": score,
+                        "explanation": text,
+                        "contributions": contributions,
+                    }
+                )
+            return {
+                "profile": profile,
+                "model": "ltr_xgboost_shap",
+                "explanations": explanations,
+            }
+        case Err(e):
+            logger.warning("ml_explanations_predict_failed", profile=profile, error=str(e))
+            return {
+                "profile": profile,
+                "model": "ltr_xgboost_shap",
+                "message": "Не удалось посчитать объяснения ML-модели.",
+                "explanations": [],
+            }
 
 
 @router.get("/results/report/{profile}", dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])

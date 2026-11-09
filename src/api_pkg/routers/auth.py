@@ -612,6 +612,37 @@ async def logout(request: Request, response: Response):
     return {"status": "ok", "message": "Logged out"}
 
 
+@router.post("/auth/logout-all")
+@limiter.limit("10/minute")
+async def logout_all(request: Request, response: Response):
+    """Выход отовсюду: погасить ВСЕ активные сессии пользователя.
+
+    Одного /auth/logout мало, если сессию могли угнать: сброс пароля/выход на
+    своём устройстве не гасит чужой токен. Здесь закрываются все сессии, включая
+    текущую, поэтому клиенту нужно увести пользователя на экран входа.
+    """
+    user_data = await get_current_user(request)
+    if user_data is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    pool = get_pool()
+    if pool is None:
+        logger.error("logout_all_no_pool")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+    status = await pool.execute(
+        "UPDATE sessions SET logged_out_at = NOW() "
+        "WHERE user_id = $1 AND logged_out_at IS NULL",
+        user_data["uid"],
+    )
+    revoked = int(status.split()[-1]) if status.startswith("UPDATE") else 0
+
+    response.delete_cookie("token", path="/")
+    await audit_action(request, "auth.logout_all", f"uid={user_data['uid']} revoked={revoked}")
+    logger.info("user_logged_out_all", email=user_data.get("u"), revoked=revoked)
+    return {"status": "ok", "revoked": revoked}
+
+
 @router.get("/auth/me")
 @limiter.limit("60/minute")
 async def me(request: Request):
@@ -675,13 +706,19 @@ async def _check_totp_or_recovery(
         codes: list[str] = json.loads(raw) if isinstance(raw, str) else list(raw)
         target = _hash_recovery_code(code.strip())
         if target in codes:
-            ok = True
-            used_recovery = True
             remaining = [c for c in codes if c != target]
-            await pool.execute(
-                "UPDATE admin_totp SET recovery_codes = $2::jsonb WHERE user_id = $1",
-                user_id, json.dumps(remaining),
+            # Атомарно: гасим код только если он ещё в наборе. Без условия
+            # `@>` два параллельных запроса с одним кодом оба прошли бы
+            # read-check-write и погасили один recovery-код дважды.
+            status = await pool.execute(
+                """UPDATE admin_totp
+                      SET recovery_codes = $3::jsonb
+                    WHERE user_id = $1 AND recovery_codes @> $2::jsonb""",
+                user_id, json.dumps([target]), json.dumps(remaining),
             )
+            if status.split()[-1] == "1":
+                ok = True
+                used_recovery = True
 
     if not ok:
         failures = int(state.get("failed_attempts") or 0) + 1

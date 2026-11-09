@@ -1,0 +1,33 @@
+{
+  "artifact": "ltr_ranker_ensemble_human.joblib",
+  "gold": "tests\\fixtures\\gold_frozen.csv",
+  "split": "per-role stratified 25% holdout, seed 42",
+  "n_train": 372,
+  "n_test": 128,
+  "served": false,
+  "served_note": "The calibrator is NOT served: src/ has no ranker_calibrator reference; the engine ranks raw query-relative scores and exposes no probability.",
+  "candidates": {
+    "platt": {
+      "log_loss": 3.8856,
+      "brier": 0.2812,
+      "reliability": [
+        {
+          "mean_pred": 0.0,
+          "frac_pos": 0.268,
+          "n": 71
+        },
+        {
+          "mean_pred": 1.0,
+          "frac_pos": 0.702,
+          "n": 57
+        }
+      ]
+    },
+    "base_rate": {
+      "log_loss": 0.6901,
+      "brier": 0.2485
+    }
+  },
+  "train_positive_rate": 0.4651,
+  "winner": "base_rate"
+}

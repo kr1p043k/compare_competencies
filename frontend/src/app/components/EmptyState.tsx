@@ -28,19 +28,19 @@ export function EmptyState({ icon: Icon, title, description, action, size = "def
       }
     >
       {Icon && (
-        <Icon className={compact ? "size-5 text-slate-300 dark:text-slate-600" : "size-8 text-slate-300 dark:text-slate-600"} />
+        <Icon className={compact ? "size-5 text-subtle-foreground" : "size-8 text-subtle-foreground"} />
       )}
       <p
         className={
           compact
-            ? "text-xs text-slate-500 dark:text-slate-400"
-            : "text-sm font-medium text-slate-600 dark:text-slate-300"
+            ? "text-xs text-muted-foreground"
+            : "text-sm font-medium text-foreground"
         }
       >
         {title}
       </p>
       {description && (
-        <p className="max-w-sm text-xs text-slate-400 dark:text-slate-500">{description}</p>
+        <p className="max-w-sm text-xs text-subtle-foreground">{description}</p>
       )}
       {action && <div className="mt-1">{action}</div>}
     </div>

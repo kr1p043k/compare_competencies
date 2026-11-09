@@ -1,12 +1,18 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
-import { Input } from "./ui/input";
 import { FileText, RefreshCw, AlertCircle, Search, Radio } from "lucide-react";
 import { request } from "../../lib/api";
-import { PageHeader } from "./PageHeader";
-import { EmptyState } from "./EmptyState";
+import {
+  Badge,
+  Button,
+  Callout,
+  Card,
+  CardBody,
+  CardHeader,
+  EmptyState,
+  PageHeader,
+  inputClass,
+} from "../../design";
+import { cn } from "./ui/utils";
 
 const MAX_LINES = 500;
 
@@ -160,49 +166,65 @@ function LogsTabBase() {
       />
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-gray-500 dark:text-slate-400">Системный лог бэкенда (logs/backend.log)</p>
+          <p className="text-sm text-muted-foreground">Системный лог бэкенда (logs/backend.log)</p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant={live ? "default" : "secondary"} className="gap-1">
-            <Radio className={`size-3 ${live ? "text-green-500 " : ""}`} />
+          <Badge tone={live ? "success" : "neutral"} className="gap-1">
+            <Radio className="size-3" aria-hidden="true" />
             {live ? "Live" : fallback ? "Fallback (10с)" : "..."}
           </Badge>
-          <Button variant="outline" size="sm" onClick={loadLogs} disabled={loading}>
-            <RefreshCw className={`size-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+          <Button variant="secondary" size="sm" onClick={loadLogs} disabled={loading}>
+            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
             Обновить
           </Button>
         </div>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-red-600 bg-red-50 dark:bg-red-950/30 p-3 rounded-lg">
-          <AlertCircle className="size-5" />
-          <span>{error}</span>
-        </div>
+        <Callout
+          tone="danger"
+          role="alert"
+          icon={<AlertCircle className="size-5" aria-hidden="true" />}
+        >
+          {error}
+        </Callout>
       )}
 
       <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <FileText className="size-5" />
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2 text-lg">
+              <FileText className="size-5" aria-hidden="true" />
               Хвост backend.log
-              <Badge variant="secondary" className="text-xs">{lines.length} строк</Badge>
-            </CardTitle>
+              <Badge tone="neutral" className="text-xs">{lines.length} строк</Badge>
+            </span>
+          }
+          description={
+            <>
+              Последние записи системного журнала бэкенда - обновляются в реальном времени
+              {fallback ? " (WebSocket недоступен, автообновление раз в 10 секунд)" : ""}
+            </>
+          }
+          actions={
             <div className="flex items-center gap-2">
               <div className="relative">
-                <Search className="size-4 absolute left-2.5 top-2.5 text-gray-400 dark:text-slate-500" />
-                <Input
+                <Search
+                  className="size-4 absolute left-2.5 top-2.5 text-subtle-foreground"
+                  aria-hidden="true"
+                />
+                <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Поиск по логам..."
-                  className="pl-9 w-56 h-9"
+                  aria-label="Поиск по логам"
+                  className={cn(inputClass, "h-9 w-56 pl-9")}
                 />
               </div>
               <select
                 value={level}
                 onChange={(e) => setLevel(e.target.value)}
-                className="h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm"
+                aria-label="Фильтр по уровню"
+                className={cn(inputClass, "h-9 w-auto")}
               >
                 <option value="all">Все уровни</option>
                 <option value="error">Ошибки</option>
@@ -211,17 +233,13 @@ function LogsTabBase() {
                 <option value="debug">Debug</option>
               </select>
             </div>
-          </div>
-          <CardDescription>
-            Последние записи системного журнала бэкенда - обновляются в реальном времени
-            {fallback ? " (WebSocket недоступен, автообновление раз в 10 секунд)" : ""}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading && <p className="text-sm text-gray-500 dark:text-slate-400">Загрузка...</p>}
+          }
+        />
+        <CardBody>
+          {loading && <p className="text-sm text-muted-foreground">Загрузка...</p>}
           {!loading && filtered.length === 0 && (
             <EmptyState
-              icon={FileText}
+              icon={<FileText className="size-8" aria-hidden="true" />}
               title="Записей не найдено"
               description="Измените фильтр по уровню или обновите список."
             />
@@ -229,11 +247,11 @@ function LogsTabBase() {
           <pre
             ref={scrollRef}
             onScroll={onScroll}
-            className="p-4 bg-gray-950 rounded-lg overflow-x-auto text-xs leading-5 max-h-[70vh] overflow-y-auto font-mono whitespace-pre-wrap break-words"
+            className="p-4 bg-muted border border-border rounded-lg overflow-x-auto text-xs leading-5 max-h-[70vh] overflow-y-auto font-mono whitespace-pre-wrap break-words"
           >
             {logRows}
           </pre>
-        </CardContent>
+        </CardBody>
       </Card>
     </div>
   );
@@ -241,11 +259,13 @@ function LogsTabBase() {
 
 // Чистая функция без доступа к стейту - вынесена на уровень модуля,
 // чтобы useMemo по filtered не зависел от рекреации на каждом рендере.
+// Тональности - дизайн-токены: ошибка - destructive, предупреждение -
+// warning, debug - muted-foreground, обычные строки - success.
 function levelColor(line: string) {
-  if (line.includes("level=error") || line.startsWith("ERROR ")) return "text-red-600";
-  if (line.includes("level=warning") || line.startsWith("WARNING ") || line.startsWith("WARN ")) return "text-amber-600";
-  if (line.includes("level=debug")) return "text-gray-400 dark:text-slate-500";
-  return "text-gray-700 dark:text-slate-300";
+  if (line.includes("level=error") || line.startsWith("ERROR ")) return "text-destructive";
+  if (line.includes("level=warning") || line.startsWith("WARNING ") || line.startsWith("WARN ")) return "text-warning";
+  if (line.includes("level=debug")) return "text-muted-foreground";
+  return "text-success";
 }
 
 export const LogsTab = memo(LogsTabBase);

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 
+import { Badge, type BadgeTone } from "../../design";
+
 interface CompetencyNode {
   code: string;
   total_skills?: number;
@@ -14,6 +16,20 @@ interface CompetencyNode {
 
 function shortSkill(s: string): string {
   return s.length > 35 ? s.slice(0, 35) + "\u2026" : s;
+}
+
+function coverageTone(val: number | undefined): BadgeTone {
+  if (val === undefined) return "neutral";
+  if (val >= 0.6) return "success";
+  if (val >= 0.2) return "warning";
+  return "danger";
+}
+
+function rowColor(val: number | undefined): string {
+  if (val === undefined) return "bg-muted";
+  if (val >= 0.6) return "bg-success-soft border-success/30";
+  if (val >= 0.2) return "bg-warning-soft border-warning/30";
+  return "bg-destructive/5 border-destructive/30";
 }
 
 function buildTree(flat: CompetencyNode[]): CompetencyNode[] {
@@ -45,20 +61,13 @@ function buildTree(flat: CompetencyNode[]): CompetencyNode[] {
   return roots;
 }
 
-function coverageColor(val: number | undefined): string {
-  if (val === undefined) return "text-gray-300";
-  if (val >= 0.6) return "text-green-600";
-  if (val >= 0.2) return "text-yellow-600";
-  return "text-red-600";
-}
-
-function bgColor(val: number | undefined): string {
-  if (val === undefined) return "bg-gray-50 dark:bg-slate-900";
-  if (val >= 0.6) return "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800";
-  if (val >= 0.2) return "bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800";
-  return "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800";
-}
-
+/**
+ * Строка узла дерева. Отступ уровней - вложенные `pl-4` обёртки
+ * (16px на уровень), а не inline-стили: геометрия та же, что была при
+ * `marginLeft: depth * 16` (список навыков: 16px * depth + 20px + px-3
+ * = `pl-8`). Строка - кнопка: дерево работает и с клавиатуры.
+ * Все цвета - дизайн-токены, светлая и тёмная темы без правок.
+ */
 function TreeNode({ node, depth }: { node: CompetencyNode; depth: number }) {
   const [open, setOpen] = useState(depth < 2);
   const hasChildren = node.children && node.children.length > 0;
@@ -71,57 +80,63 @@ function TreeNode({ node, depth }: { node: CompetencyNode; depth: number }) {
   const matchedList = node.matched ?? [];
   const gapList = node.gaps ?? [];
   const hasSkills = matchedList.length + gapList.length > 0;
+  const expandable = Boolean(hasChildren || hasSkills);
 
   return (
     <div>
-      <div
-        className={`flex items-center justify-between px-3 py-2 text-sm border rounded mb-0.5 cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-slate-800 ${bgColor(displayCov)}`}
-        style={{ marginLeft: depth * 16 }}
+      <button
+        type="button"
+        aria-expanded={expandable ? open : undefined}
         onClick={() => (hasChildren || hasSkills) && setOpen(!open)}
+        className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm rounded border mb-0.5 cursor-pointer transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${rowColor(displayCov)}`}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          {hasChildren ? (
-            open ? <ChevronDown className="size-4 shrink-0 text-gray-400 dark:text-slate-500" /> : <ChevronRight className="size-4 shrink-0 text-gray-400 dark:text-slate-500" />
+        <span className="flex items-center gap-2 min-w-0">
+          {(hasChildren && open) ? (
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          ) : hasChildren ? (
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           ) : (
-            <span className="size-4 inline-block" />
+            <span className="size-4 inline-block" aria-hidden="true" />
           )}
-          <span className="font-medium text-gray-800 dark:text-slate-200 truncate">{node.code}</span>
+          <span className="font-medium text-foreground truncate">{node.code}</span>
           {hasChildren && (
-            <span className="text-xs text-gray-400 dark:text-slate-500 shrink-0">({node.children!.length})</span>
+            <Badge tone="neutral" className="shrink-0">
+              ({node.children!.length})
+            </Badge>
           )}
-        </div>
-        <div className="flex items-center gap-3 shrink-0 ml-3">
-          <span className={`text-xs ${total > 0 ? "text-gray-500 dark:text-slate-400" : "text-gray-300"}`}>
+        </span>
+        <span className="flex items-center gap-3 shrink-0 ml-3">
+          <Badge tone="neutral" className="text-xs tabular-nums">
             {matched}/{total}
-          </span>
-          <span className={`font-semibold text-sm tabular-nums ${coverageColor(displayCov)}`}>
+          </Badge>
+          <Badge tone={coverageTone(displayCov)} className="font-semibold text-sm tabular-nums">
             {displayCov !== undefined ? (displayCov * 100).toFixed(0) : "-"}%
-          </span>
-        </div>
-      </div>
+          </Badge>
+        </span>
+      </button>
       {open && hasChildren && (
-        <div>
+        <div className="pl-4">
           {node.children!.map((child) => (
             <TreeNode key={child.code} node={child} depth={depth + 1} />
           ))}
         </div>
       )}
       {open && hasSkills && (
-        <div className="flex flex-wrap gap-1 px-3 py-2" style={{ marginLeft: depth * 16 + 20 }}>
+        <div className="flex flex-wrap gap-1 py-2 pl-8 pr-3">
           {matchedList.slice(0, 8).map((s, i) => (
-            <span key={"m" + i} title={s} className="text-xs px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800">
+            <Badge key={"m" + i} tone="success" title={s}>
               {shortSkill(s)}
-            </span>
+            </Badge>
           ))}
           {gapList.slice(0, 8).map((s, i) => (
-            <span key={"g" + i} title={s} className="text-xs px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
+            <Badge key={"g" + i} tone="danger" title={s}>
               {shortSkill(s)}
-            </span>
+            </Badge>
           ))}
           {(matchedList.length > 8 || gapList.length > 8) && (
-            <span className="text-xs px-2 py-0.5 text-gray-400 dark:text-slate-500">
+            <Badge tone="neutral" className="self-center">
               +{Math.max(0, matchedList.length - 8) + Math.max(0, gapList.length - 8)} more
-            </span>
+            </Badge>
           )}
         </div>
       )}
@@ -141,7 +156,7 @@ export function CompetencyTree({
   if (tree.length === 0) return null;
 
   return (
-    <div className={`divide-y divide-gray-100 border rounded-lg ${className}`}>
+    <div className={`divide-y divide-border border rounded-lg bg-card ${className}`}>
       {tree.map((root) => (
         <TreeNode key={root.code} node={root} depth={0} />
       ))}

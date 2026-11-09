@@ -47,6 +47,7 @@
 | GET | /admin/scheduler/status | admin | состояние планировщика (следующий запуск, занятость) | нет |
 | GET | /admin/monitoring | admin | метрики Prometheus (фильтр по именам, пагинация) | нет |
 | GET | /admin/monitoring/summary | admin | p95 по эндпоинтам, топ по нагрузке, ошибки за 1ч, сессии, свежесть | нет |
+| GET | /admin/monitoring/grafana | admin | список дашбордов Grafana (GRAFANA_URL/USER/PASSWORD; graceful-фолбэк вместо 500) | нет |
 | GET | /admin/students | admin | профили студентов из каталога data/students (чтение в потоке) | нет |
 | GET | /admin/directions | admin | направления из КРМ | нет |
 | GET | /admin/student-actions | admin | агрегат действий студентов | нет |

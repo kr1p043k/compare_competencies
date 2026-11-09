@@ -3,6 +3,11 @@
 Раньше step-up (свой пароль) спрашивался только при сбросе 2FA ДРУГОМУ
 админу. Угнанная админ-сессия могла снять собственный второй фактор одним
 запросом. Теперь пароль нужен всегда для админского аккаунта.
+
+Тест намеренно не ходит через вход и таблицу `sessions`: параллельный воркер
+на общей БД может отозвать админ-сессии (тесты включения 2FA), и тогда вход
+становится недостоверным. Вызывающего подставляет monkeypatch, а сам предмет
+проверки - step-up по паролю из БД.
 """
 from __future__ import annotations
 
@@ -12,11 +17,13 @@ import socket
 import urllib.parse
 from collections.abc import AsyncIterator
 from typing import Any
+from uuid import UUID
 
 import asyncpg
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+import src.api_pkg.routers.admin as admin_mod
 import src.api_pkg.routers.auth as auth_mod
 from src.api_pkg import create_app
 
@@ -47,7 +54,10 @@ async def _drop(pool: asyncpg.Pool) -> None:
         "DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE lower(email) = $1)",
         EMAIL,
     )
-    await pool.execute("DELETE FROM admin_totp WHERE user_id IN (SELECT id FROM users WHERE lower(email) = $1)", EMAIL)
+    await pool.execute(
+        "DELETE FROM admin_totp WHERE user_id IN (SELECT id FROM users WHERE lower(email) = $1)",
+        EMAIL,
+    )
     await pool.execute("DELETE FROM users WHERE lower(email) = $1", EMAIL)
 
 
@@ -55,18 +65,25 @@ async def _drop(pool: asyncpg.Pool) -> None:
 async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
     import src.db as dbmod
 
-    # Флаг выключен: вход одношаговый, тест проверяет именно step-up сброса.
-    async def _flag_off(_pool: Any) -> bool:
-        return False
-
-    monkeypatch.setattr(auth_mod, "get_two_factor_enabled", _flag_off)
-    monkeypatch.delenv("TWO_FACTOR", raising=False)
-
     old = dbmod.pool
     pool = await asyncpg.create_pool(DB_URL, min_size=1, max_size=2, command_timeout=30)
     dbmod.pool = pool
+    # Лимитер общий на процесс: сбрасываем, чтобы чужие тесты в этом воркере
+    # не оставили нам 429.
     with contextlib.suppress(Exception):
         auth_mod.limiter._storage.reset()
+    # Эндпоинт ходит через общий кэшированный движок (src.database._engine),
+    # который привязан к чужому event loop/fоновым задачам и под нагрузкой
+    # роняет запрос в asyncpg «another operation is in progress». Даём тесту
+    # собственный движок на текущий loop: патчим фабрику сессий.
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    import src.database as database_mod
+    from src.config import settings
+
+    own_engine = create_async_engine(settings.DATABASE_URL)
+    own_maker = async_sessionmaker(own_engine, expire_on_commit=False)
+    monkeypatch.setattr(database_mod, "async_session_factory", lambda: own_maker())
     await _drop(pool)
     uid = await pool.fetchval(
         """INSERT INTO users (email, password_hash, role, full_name, is_active)
@@ -81,6 +98,17 @@ async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
            VALUES ($1, 'dummy', true, 0)""",
         uid,
     )
+
+    caller = {"uid": str(uid), "u": EMAIL, "r": "admin", "t": None}
+
+    async def _current_user(_request: Any) -> dict[str, Any]:
+        return caller
+
+    # admin.py импортирует имя на уровне модуля, зависимость роли - из auth:
+    # патчим оба, чтобы запрос не трогал таблицу sessions.
+    monkeypatch.setattr(auth_mod, "get_current_user", _current_user)
+    monkeypatch.setattr(admin_mod, "get_current_user", _current_user)
+
     try:
         async with AsyncClient(
             transport=ASGITransport(app=create_app()), base_url="http://t"
@@ -90,47 +118,33 @@ async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
         await _drop(pool)
         dbmod.pool = old
         await pool.close()
-
-
-async def _token(client: AsyncClient) -> str:
-    r = await client.post("/api/auth/login", json={"email": EMAIL, "password": PASSWORD})
-    assert r.status_code == 200, r.text
-    token = r.json().get("token")
-    assert token, r.text
-    return token
+        await own_engine.dispose()
 
 
 @pytest.mark.asyncio
 async def test_self_reset_requires_password(env):
     client = env["client"]
     uid = env["uid"]
-    token = await _token(client)
-    headers = {"Authorization": f"Bearer {token}"}
+    row_count = "SELECT count(*) FROM admin_totp WHERE user_id = $1"
 
     # без пароля - отказ
-    no_pw = await client.post(f"/api/admin/users/{uid}/2fa/reset", headers=headers)
+    no_pw = await client.post(f"/api/admin/users/{uid}/2fa/reset")
     assert no_pw.status_code == 403, no_pw.text
 
     # неверный пароль - отказ
     bad = await client.post(
         f"/api/admin/users/{uid}/2fa/reset",
         json={"caller_password": "definitely-wrong"},
-        headers=headers,
     )
     assert bad.status_code == 403, bad.text
 
     # строка 2FA на месте
-    assert await env["pool"].fetchval(
-        "SELECT count(*) FROM admin_totp WHERE user_id = $1", __import__("uuid").UUID(uid)
-    ) == 1
+    assert await env["pool"].fetchval(row_count, UUID(uid)) == 1
 
     # верный пароль - сброс проходит
     ok = await client.post(
         f"/api/admin/users/{uid}/2fa/reset",
         json={"caller_password": PASSWORD},
-        headers=headers,
     )
     assert ok.status_code == 200, ok.text
-    assert await env["pool"].fetchval(
-        "SELECT count(*) FROM admin_totp WHERE user_id = $1", __import__("uuid").UUID(uid)
-    ) == 0
+    assert await env["pool"].fetchval(row_count, UUID(uid)) == 0

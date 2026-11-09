@@ -74,7 +74,7 @@
             "type": "string"
           },
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           },
@@ -2904,13 +2904,6 @@
       },
       "ValidationError": {
         "properties": {
-          "ctx": {
-            "title": "Context",
-            "type": "object"
-          },
-          "input": {
-            "title": "Input"
-          },
           "loc": {
             "items": {
               "anyOf": [
@@ -3986,6 +3979,50 @@
           }
         },
         "summary": "Export Full Report",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/llm/cost": {
+      "get": {
+        "description": "Сводка стоимости LLM-обращений (llm_interactions.cost_usd).",
+        "operationId": "admin_llm_cost_api_admin_llm_cost_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Llm Cost",
         "tags": [
           "admin"
         ]
@@ -5785,6 +5822,26 @@
           }
         },
         "summary": "Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/logout-all": {
+      "post": {
+        "description": "Выход отовсюду: погасить ВСЕ активные сессии пользователя.\n\nОдного /auth/logout мало, если сессию могли угнать: сброс пароля/выход на\nсвоём устройстве не гасит чужой токен. Здесь закрываются все сессии, включая\nтекущую, поэтому клиенту нужно увести пользователя на экран входа.",
+        "operationId": "logout_all_api_auth_logout_all_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout All",
         "tags": [
           "auth"
         ]
@@ -8567,6 +8624,63 @@
           }
         },
         "summary": "Get Profile Image",
+        "tags": [
+          "results"
+        ]
+      }
+    },
+    "/api/results/ml-explanations/{profile}": {
+      "get": {
+        "description": "ML #78: per-skill объяснение рекомендаций (SHAP-вклады признаков).\n\nRead-only view: живой инференс LTR-модели по навыкам профиля, без\nзаписи на диск. SHAP считаем для топ-навыков (дорого), поэтому\nrate-limit жёстче, чем у файловых эндпоинтов.",
+        "operationId": "get_ml_explanations_api_results_ml_explanations__profile__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profile",
+            "required": true,
+            "schema": {
+              "title": "Profile",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "top",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 8,
+              "minimum": 1,
+              "title": "Top",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Ml Explanations Api Results Ml Explanations  Profile  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ml Explanations",
         "tags": [
           "results"
         ]
@@ -12373,6 +12487,32 @@
         "summary": "Get Vacancy Detail",
         "tags": [
           "vacancies"
+        ]
+      }
+    },
+    "/api/version": {
+      "get": {
+        "description": "Версия публичного API (контракта). Политика - docs/API-CHANGELOG.md.",
+        "operationId": "api_version_api_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Api Version Api Version Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Version",
+        "tags": [
+          "monitoring"
         ]
       }
     },

@@ -13,6 +13,15 @@
 - `sync_*.py`, `prune_*.py`, `audit_*.py`, `merge_*.py`, `normalize_*.py`,
   `find_skill_duplicates.py` - обслуживание данных KRM/навыков;
 - `eval_frozen.py` - гейт регресса ML (используется как CI-ориентир, не эксперимент);
+- `check_model_manifests.py` - проверка, что у каждого отгружаемого артефакта есть
+  `.manifest.json`/`.metrics.json` с `feature_names` и NDCG@10 (`--write` их создаёт);
+- `check_calibration.py` - отчёт калибровки отгружаемого ранкера (log_loss/Brier на
+  frozen-сплите; калибратор НЕ отдаётся в прод);
+- `check_feature_drift.py` - дрейф признаков против baseline (KS/PSI/сдвиг среднего),
+  `--write-baseline` сохраняет эталон;
+- `retrain_ranker.py` - цикл переобучения ранкера (обучение -> манифесты -> гейт),
+  `--dry-run` показывает план; см. `docs/MODEL-CARD.md`;
+- `ml_eval_common.py` - общий сборщик frozen-фреймов для eval_frozen/калибровки/дрейфа;
 - `train_ltr_ranker.py`, `_dsn.py` - общие модули для скриптов и экспериментов.
 
 ## `experiments/` - разовые исследования

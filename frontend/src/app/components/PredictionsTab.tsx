@@ -3,7 +3,7 @@ import {
   TrendingUp, TrendingDown,
   ChevronDown, ChevronUp, AlertCircle, CalendarDays,
 } from "lucide-react";
-import { Skeleton } from "../../design";
+import { EmptyState, Skeleton } from "../../design";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -139,30 +139,30 @@ export function PredictionsTab() {
         description="Что будет востребовано на рынке через 1, 3 и 6 месяцев."
       />
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="inline-flex h-12 items-center justify-center rounded-lg bg-gray-100 dark:bg-slate-800 p-1">
-          <TabsTrigger value="growing" className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-slate-100">
-            <TrendingUp className="size-4 text-green-600" />
+        <TabsList className="inline-flex h-12 items-center justify-center rounded-lg bg-muted p-1">
+          <TabsTrigger value="growing" className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium data-[state=active]:bg-card data-[state=active]:shadow-sm dark:data-[state=active]:text-foreground">
+            <TrendingUp className="size-4 text-success" />
             Растущие
           </TabsTrigger>
-          <TabsTrigger value="declining" className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-slate-100">
-            <TrendingDown className="size-4 text-red-600" />
+          <TabsTrigger value="declining" className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium data-[state=active]:bg-card data-[state=active]:shadow-sm dark:data-[state=active]:text-foreground">
+            <TrendingDown className="size-4 text-destructive" />
             Падающие
           </TabsTrigger>
         </TabsList>
 
           <TabsContent value="growing" className="space-y-4">
-            <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
-              <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
+            <Card className="border border-border shadow-sm">
+              <CardHeader className="border-b border-border bg-muted">
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 bg-green-600 rounded-lg">
+                  <div className="flex items-center justify-center w-10 h-10 bg-success rounded-lg">
                     <TrendingUp className="size-5 text-white" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">Топ растущих навыков</CardTitle>
+                    <CardTitle className="text-xl font-semibold text-foreground">Топ растущих навыков</CardTitle>
                     <CardDescription>Прогноз популярности · {vacanciesCount ? `${vacanciesCount} вакансий` : "-"} · {dataFrom && dataTo ? `${dataFrom}-${dataTo}` : "-"}{engineInfo?.engine ? ` · Движок: ${engineInfo.engine === "prophet" ? `Prophet (${engineInfo.prophet_models} моделей)` : "Trend (Prophet ещё считается)"}` : ""}</CardDescription>
                   </div>
                   <div className="ml-auto flex items-center gap-2">
-                    <CalendarDays className="size-4 text-gray-400 dark:text-slate-500" />
+                    <CalendarDays className="size-4 text-subtle-foreground" />
                     <Select value={String(months)} onValueChange={(v) => { const m = Number(v); setMonths(m); loadForecasts(activeTab, m); }}>
                       <SelectTrigger className="w-28 h-9 text-sm">
                         <SelectValue />
@@ -192,7 +192,7 @@ export function PredictionsTab() {
                   {Array.from({ length: 6 }, (_, i) => (
                     <div
                       key={`forecast-skeleton-${i}`}
-                      className="flex items-center gap-3 rounded-lg border border-gray-100 p-3 dark:border-slate-800"
+                      className="flex items-center gap-3 rounded-lg border border-border p-3"
                     >
                       <Skeleton className="size-6 shrink-0 rounded-full" />
                       <Skeleton className="h-4 max-w-52 flex-1" />
@@ -203,22 +203,23 @@ export function PredictionsTab() {
                   ))}
                 </div>
               ) : error ? (
-                <div className="flex items-center gap-3 py-8 text-red-600">
+                <div className="flex items-center gap-3 py-8 text-destructive">
                   <AlertCircle className="size-5" />
                   <span>{error}</span>
                 </div>
               ) : (<div className="space-y-2">
               {fitStatus?.state === "fitting" && (
-                <div className="text-xs text-gray-500 dark:text-slate-400">
+                <div className="text-xs text-muted-foreground">
                   Prophet считается: {fitStatus.done ?? 0}/{fitStatus.total ?? "?"} моделей
                   {fitStatus.eta_seconds != null ? ` · осталось ~${fitStatus.eta_seconds < 120 ? `${Math.max(1, Math.round(fitStatus.eta_seconds))} с` : `${Math.round(fitStatus.eta_seconds / 60)} мин`}` : ""}
                 </div>
               )}
               {forecasts.length === 0 && (
-                <div className="py-8 text-center text-gray-500 dark:text-slate-400 text-sm">
-                  <p>Нет прогнозов: у навыков с частотой от 50 пока не хватает истории (нужно ≥3 помесячных снимка).</p>
-                  <p className="mt-1">Загрузите помесячные снимки рынка в data/history и перезапустите пайплайн.</p>
-                </div>
+                <EmptyState
+                  icon={<TrendingUp className="size-8" />}
+                  title="Нет прогнозов"
+                  description="У навыков с частотой от 50 пока не хватает истории (нужно ≥3 помесячных снимка). Загрузите помесячные снимки рынка в data/history и перезапустите пайплайн."
+                />
               )}
               {forecasts.map((f, i) => (<ForecastRow key={f.skill} item={f} rank={i + 1} expanded={selectedSkill?.skill === f.skill} months={months} onToggle={() => setSelectedSkill(selectedSkill?.skill === f.skill ? null : f)} />))}
               </div>)}
@@ -227,18 +228,18 @@ export function PredictionsTab() {
         </TabsContent>
 
         <TabsContent value="declining" className="space-y-4">
-          <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
-            <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
+          <Card className="border border-border shadow-sm">
+            <CardHeader className="border-b border-border bg-muted">
               <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-10 h-10 bg-red-600 rounded-lg">
+                <div className="flex items-center justify-center w-10 h-10 bg-destructive rounded-lg">
                   <TrendingDown className="size-5 text-white" />
                 </div>
                 <div>
-                  <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">Падающие навыки</CardTitle>
+                  <CardTitle className="text-xl font-semibold text-foreground">Падающие навыки</CardTitle>
                   <CardDescription>Измеренное падение спроса за период · {vacanciesCount ? `${vacanciesCount} вакансий` : "-"} · {dataFrom && dataTo ? `${dataFrom}-${dataTo}` : "-"}</CardDescription>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
-                  <CalendarDays className="size-4 text-gray-400 dark:text-slate-500" />
+                  <CalendarDays className="size-4 text-subtle-foreground" />
                   <Select value={String(months)} onValueChange={(v) => { const m = Number(v); setMonths(m); loadForecasts(activeTab, m); }}>
                     <SelectTrigger className="w-28 h-9 text-sm" title="Окно измерения">
                       <SelectValue />
@@ -255,16 +256,17 @@ export function PredictionsTab() {
             </CardHeader>
             <CardContent className="p-6">
               {fitStatus?.state === "fitting" && (
-                <div className="mb-3 text-xs text-gray-500 dark:text-slate-400">
+                <div className="mb-3 text-xs text-muted-foreground">
                   Prophet считается: {fitStatus.done ?? 0}/{fitStatus.total ?? "?"} моделей
                   {fitStatus.eta_seconds != null ? ` · осталось ~${fitStatus.eta_seconds < 120 ? `${Math.max(1, Math.round(fitStatus.eta_seconds))} с` : `${Math.round(fitStatus.eta_seconds / 60)} мин`}` : ""}
                 </div>
               )}
               {observed.length === 0 && (
-                <div className="py-8 text-center text-gray-500 dark:text-slate-400 text-sm">
-                  <p>Нет данных: для окна нужно снимков: {observedMeta?.required_points ?? "-"}, есть максимум: {observedMeta?.max_points ?? snapshotsCount ?? "-"}.</p>
-                  <p className="mt-1">Уменьшите окно или дождитесь новых снимков пайплайна.</p>
-                </div>
+                <EmptyState
+                  icon={<CalendarDays className="size-8" />}
+                  title="Нет данных за окно"
+                  description={`Для окна нужно снимков: ${observedMeta?.required_points ?? "-"}, есть максимум: ${observedMeta?.max_points ?? snapshotsCount ?? "-"}. Уменьшите окно или дождитесь новых снимков пайплайна.`}
+                />
               )}
               {observed.map((f, i) => (<ObservedRow key={f.skill} item={f} rank={i + 1} />))}
             </CardContent>
@@ -278,40 +280,40 @@ export function PredictionsTab() {
 function ForecastRow({ item, rank, expanded, onToggle, months }: { item: ForecastItem; rank: number; expanded: boolean; onToggle: () => void; months?: number }) {
   const changePct = item.predicted_change_pct ?? (item.predicted_growth * 100);
   const changePctSign = changePct > 0 ? "+" : "";
-  const methodColors: Record<string, string> = { prophet: "bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300", ets: "bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300", linear: "bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300", trend: "bg-sky-100 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300", insufficient_data: "bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400" };
+  const methodColors: Record<string, string> = { prophet: "bg-primary-soft text-primary", ets: "bg-info-soft text-info", linear: "bg-muted text-foreground", trend: "bg-warning-soft text-warning", insufficient_data: "bg-muted text-muted-foreground" };
   const insufficient = item.method === "insufficient_data" || (item.data_points !== undefined && item.data_points < 3);
   const horizon = item.forecast_months ?? (insufficient ? 0 : (months || 12));
   const confPct = Math.round((item.confidence ?? 0) * 100);
 
   return (
-    <div className="border border-gray-100 dark:border-slate-800 rounded-lg overflow-hidden">
-      <button onClick={onToggle} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors text-left">
-        <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-xs font-medium text-gray-500 dark:text-slate-400">{rank}</span>
-        <span className="flex-1 font-medium text-gray-900 dark:text-slate-100">{item.skill}</span>
+    <div className="border border-border rounded-lg overflow-hidden">
+      <button onClick={onToggle} className="w-full flex items-center gap-3 p-3 hover:bg-muted transition-colors text-left">
+        <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground">{rank}</span>
+        <span className="flex-1 font-medium text-foreground">{item.skill}</span>
         <div className="flex items-center gap-2">
-          <span className={`text-sm font-semibold ${insufficient ? "text-gray-400 dark:text-slate-500" : changePct > 0 ? "text-green-600" : "text-red-600"}`}>
+          <span className={`text-sm font-semibold ${insufficient ? "text-subtle-foreground" : changePct > 0 ? "text-success" : "text-destructive"}`}>
             {insufficient ? "-" : `${changePctSign}${changePct.toFixed(1)}%`}
           </span>
-          <Badge className={`text-xs border-0 ${methodColors[item.method] || "bg-gray-100 dark:bg-slate-800"}`}>
+          <Badge className={`text-xs border-0 ${methodColors[item.method] || "bg-muted"}`}>
             {insufficient ? "нет данных" : (item.method || "trend")}
           </Badge>
-          {!insufficient && <div className={`w-2 h-2 rounded-full ${changePct > 0 ? "bg-green-50 dark:bg-green-950/30" : "bg-red-50 dark:bg-red-950/30"}`} />}
+          {!insufficient && <div className={`w-2 h-2 rounded-full ${changePct > 0 ? "bg-success-soft" : "bg-destructive/15"}`} />}
         </div>
-        {expanded ? <ChevronUp className="size-4 text-gray-400 dark:text-slate-500" /> : <ChevronDown className="size-4 text-gray-400 dark:text-slate-500" />}
+        {expanded ? <ChevronUp className="size-4 text-subtle-foreground" /> : <ChevronDown className="size-4 text-subtle-foreground" />}
       </button>
       {expanded && (
-        <div className="px-3 pb-3 pt-0 border-t border-gray-100 dark:border-slate-800">
+        <div className="px-3 pb-3 pt-0 border-t border-border">
           <div className="grid grid-cols-3 gap-4 mt-3 mb-3">
-            <div className="text-center p-2 bg-gray-50 dark:bg-slate-900 rounded-lg"><div className="text-xs text-gray-500 dark:text-slate-400">Сейчас</div><div className="text-lg font-semibold text-gray-900 dark:text-slate-100">{item.current_frequency.toFixed(0)}</div></div>
-            <div className="text-center p-2 bg-gray-50 dark:bg-slate-900 rounded-lg"><div className="text-xs text-gray-500 dark:text-slate-400">Через {horizon === 1 ? "месяц" : `${horizon} мес`}</div><div className="text-lg font-semibold text-gray-900 dark:text-slate-100">{insufficient ? "-" : item.next_year_frequency.toFixed(0)}</div></div>
-            <div className="text-center p-2 bg-gray-50 dark:bg-slate-900 rounded-lg"><div className="text-xs text-gray-500 dark:text-slate-400">Уверенность</div><div className="text-lg font-semibold text-gray-900 dark:text-slate-100">{insufficient ? "-" : `${confPct}%`}</div></div>
+            <div className="text-center p-2 bg-muted rounded-lg"><div className="text-xs text-muted-foreground">Сейчас</div><div className="text-lg font-semibold text-foreground">{item.current_frequency.toFixed(0)}</div></div>
+            <div className="text-center p-2 bg-muted rounded-lg"><div className="text-xs text-muted-foreground">Через {horizon === 1 ? "месяц" : `${horizon} мес`}</div><div className="text-lg font-semibold text-foreground">{insufficient ? "-" : item.next_year_frequency.toFixed(0)}</div></div>
+            <div className="text-center p-2 bg-muted rounded-lg"><div className="text-xs text-muted-foreground">Уверенность</div><div className="text-lg font-semibold text-foreground">{insufficient ? "-" : `${confPct}%`}</div></div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-slate-400 mb-2">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-2">
             {item.data_points !== undefined && (
-              <span className="px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-800">месяцев истории: {item.data_points}</span>
+              <span className="px-2 py-0.5 rounded bg-muted">месяцев истории: {item.data_points}</span>
             )}
             {insufficient && (
-              <span className="px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300">недостаточно данных для прогноза</span>
+              <span className="px-2 py-0.5 rounded bg-warning-soft text-warning">недостаточно данных для прогноза</span>
             )}
             {!insufficient && (confPct < 50 || (item.data_points ?? 99) < MIN_POINTS_FOR_CONFIDENCE) && (
               <LowConfidenceBadge item={item} confPct={confPct} />
@@ -371,7 +373,7 @@ function LowConfidenceBadge({ item, confPct }: { item: ForecastItem; confPct: nu
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onClick={() => setOpen((v) => !v)}
-        className="px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 underline decoration-dotted underline-offset-2 cursor-help"
+        className="px-2 py-0.5 rounded bg-warning-soft text-warning underline decoration-dotted underline-offset-2 cursor-help"
       >
         {label}
       </button>
@@ -379,9 +381,9 @@ function LowConfidenceBadge({ item, confPct }: { item: ForecastItem; confPct: nu
         <span
           id={tipId}
           role="tooltip"
-          className="basis-full mt-1 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-[11px] leading-relaxed text-gray-700 dark:text-slate-300"
+          className="basis-full mt-1 rounded-lg border border-warning/30 bg-warning-soft px-3 py-2 text-[11px] leading-relaxed text-foreground"
         >
-          <span className="block font-semibold text-gray-900 dark:text-slate-100 mb-1">
+          <span className="block font-semibold text-foreground mb-1">
             Почему прогноз неточный
           </span>
           {reasons.map((r) => (
@@ -390,7 +392,7 @@ function LowConfidenceBadge({ item, confPct }: { item: ForecastItem; confPct: nu
               <span>{r}</span>
             </span>
           ))}
-          <span className="block mt-1.5 text-gray-500 dark:text-slate-400">
+          <span className="block mt-1.5 text-muted-foreground">
             Направление (растёт или падает) надёжнее, чем конкретное число.
           </span>
         </span>
@@ -401,14 +403,14 @@ function LowConfidenceBadge({ item, confPct }: { item: ForecastItem; confPct: nu
 
 function ObservedRow({ item, rank }: { item: ObservedItem; rank: number }) {
   return (
-    <div className="border border-gray-100 dark:border-slate-800 rounded-lg overflow-hidden">
+    <div className="border border-border rounded-lg overflow-hidden">
       <div className="w-full flex items-center gap-3 p-3">
-        <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-xs font-medium text-gray-500 dark:text-slate-400">{rank}</span>
-        <span className="flex-1 font-medium text-gray-900 dark:text-slate-100">{item.skill}</span>
-        <span className="text-sm font-semibold text-red-600">
+        <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground">{rank}</span>
+        <span className="flex-1 font-medium text-foreground">{item.skill}</span>
+        <span className="text-sm font-semibold text-destructive">
           {item.observed_change_pct.toFixed(1)}%
         </span>
-        <span className="text-xs text-gray-500 dark:text-slate-400 tabular-nums">
+        <span className="text-xs text-muted-foreground tabular-nums">
           {item.first_frequency.toFixed(0)} → {item.last_frequency.toFixed(0)} · точек: {item.points}
         </span>
       </div>
@@ -422,7 +424,7 @@ function MiniChart({ data }: { data: number[] }) {
     // Single point: dot instead of NaN polyline (verified: i/0 = NaN)
     return (
       <svg viewBox="0 0 400 60" className="w-full h-12" preserveAspectRatio="none">
-        <circle cx="200" cy="30" r="4" fill="#3b82f6" />
+        <circle cx="200" cy="30" r="4" fill="var(--primary)" />
       </svg>
     );
   }
@@ -434,7 +436,7 @@ function MiniChart({ data }: { data: number[] }) {
   const points = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`).join(" ");
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-12" preserveAspectRatio="none">
-      <polyline points={points} fill="none" stroke="#3b82f6" strokeWidth="2" />
+      <polyline points={points} fill="none" stroke="var(--primary)" strokeWidth="2" />
     </svg>
   );
 }

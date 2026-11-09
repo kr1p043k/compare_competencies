@@ -207,6 +207,23 @@ docker exec competency-postgres psql -U postgres -d compare_competencies -c \
 
 ---
 
+---
+
+## 4.1. Мониторинг, дашборды и версия API
+
+- **Версия API (публично):** `GET /api/version` -> `{"api_version": ...}`.
+- **Метрики Prometheus:** `GET /metrics` требует `METRICS_TOKEN` (иначе 403).
+- **Алерты Prometheus:** правила `prometheus/alerts.yml` (5xx rate, p95 latency,
+  падение пайплайна, DB down); проверка - `tests/test_prometheus_config.py`.
+- **Дашборды Grafana (админ):** `GET /admin/monitoring/grafana` отдаёт список
+  дашбордов по `GRAFANA_URL`/`GRAFANA_USER`/`GRAFANA_PASSWORD`; при недоступном
+  Grafana - `enabled/reachable=false` и причина, а не 500.
+
+```bash
+curl -s http://localhost:8000/api/version
+curl -s http://localhost:8000/api/admin/monitoring/grafana -H "Authorization: Bearer $TOKEN"
+```
+
 ## 5. Диск заполнен (disk full)
 
 Ориентиры: `data` ~724 MB, `logs` ~48.7 MB, `uploads` ~0.1 MB. Логи backend
@@ -272,3 +289,12 @@ docker compose up -d backend prometheus --force-recreate
 должен вернуть `200`. Имя заголовка `X-Metrics-Token` - часть контракта
 `/metrics`: Prometheus шлёт его через `http_headers` в `prometheus/prometheus.yml`,
 а не через `Authorization: Bearer` (см. `monitoring/README.md`).
+
+
+## Backup / restore drill
+
+- Бэкап: `python -m src.cli.backup_db` -> `data/backups/backup_<ts>.sql` (pg_dump custom).
+- Восстановление: `python -m src.cli.backup_db --restore latest` (или путь к дампу) -> `pg_restore --clean`.
+- По расписанию дамп делает таймер `deploy/cc-backup.timer`.
+- Дрилл (проверяем, что бэкап реально разворачивается): снять дамп, развернуть в
+  scratch-БД и сравнить число строк ключевых таблиц. На PROD-БД дрилл не запускать.

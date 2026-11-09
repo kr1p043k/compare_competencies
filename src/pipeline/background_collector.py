@@ -35,6 +35,9 @@ HH_MAX_PAGES = 20
 
 _scheduler_cache: dict | None = None
 _scheduler_busy: str | None = None
+#: Хендл фоновой задачи планировщика: нужен, чтобы остановить её при
+#: graceful shutdown, а не бросать на произвол uvicorn.
+_scheduler_task: asyncio.Task | None = None
 
 
 def _scheduler_path() -> Path:
@@ -194,8 +197,32 @@ async def _wait_until_ready(timeout_s: int = 7200) -> bool:
     return False
 
 
-async def start_background_collector():
-    asyncio.create_task(_scheduler_loop())
+async def start_background_collector() -> None:
+    """Запустить цикл планировщика один раз (повторные вызовы - no-op)."""
+    global _scheduler_task
+
+    if _scheduler_task is not None and not _scheduler_task.done():
+        return
+    _scheduler_task = asyncio.create_task(_scheduler_loop())
+
+
+async def stop_background_collector() -> None:
+    """Остановить планировщик при выключении сервиса.
+
+    Отменяем задачу и ждём её завершения с подавлением CancelledError,
+    чтобы не оставить висящую корутину и не портить лог трейсбеком.
+    """
+
+    global _scheduler_task
+
+    task = _scheduler_task
+    _scheduler_task = None
+    if task is None or task.done():
+        return
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError, Exception):
+        await task
+    logger.info("scheduler_stopped")
 
 
 async def _scheduler_loop() -> None:

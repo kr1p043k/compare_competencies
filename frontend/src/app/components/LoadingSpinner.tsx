@@ -48,7 +48,7 @@ export function LoadingSpinner() {
 export function FullPageLoader() {
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-slate-950/80 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-md"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -63,7 +63,7 @@ export function FullPageLoader() {
             ease: "linear",
           }}
         >
-          <div className="w-24 h-24 border-4 border-blue-200 dark:border-blue-900 rounded-full" />
+          <div className="w-24 h-24 border-4 border-border rounded-full" />
           <div className="absolute inset-0 w-24 h-24 border-4 border-transparent border-t-blue-600 dark:border-t-blue-400 rounded-full" />
         </motion.div>
         <motion.div
@@ -71,10 +71,10 @@ export function FullPageLoader() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <p className="text-lg font-semibold text-slate-700 dark:text-slate-300">
+          <p className="text-lg font-semibold text-foreground">
             Загрузка...
           </p>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+          <p className="text-sm text-muted-foreground mt-2">
             Подождите, выполняется обработка
           </p>
         </motion.div>
