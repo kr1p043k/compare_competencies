@@ -4,7 +4,7 @@ missing keys, unknown categories.
 """
 import sys
 
-sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "scripts"))
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "scripts" / "experiments"))
 import benchmark_matching as bm
 
 
