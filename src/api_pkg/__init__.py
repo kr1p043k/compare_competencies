@@ -82,7 +82,11 @@ def create_app() -> FastAPI:
         from src.database import get_engine
         from src.db import close_pool
         from src.infrastructure.hub_publications import close_client as close_hub_client
+        from src.pipeline.background_collector import stop_background_collector
 
+        # Сначала гасим фоновый планировщик, потом закрываем соединения:
+        # иначе он может дёрнуть пул после закрытия.
+        await stop_background_collector()
         await close_hub_client()
         await close_pool()
         await get_engine().dispose()
