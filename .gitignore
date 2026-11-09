@@ -98,3 +98,6 @@ cov.out.log
 cov.err.log
 run_cov.cmd
 .venv/
+
+# pytest-benchmark
+.benchmarks/
