@@ -38,9 +38,6 @@ jobs:
       # Advisory: the full rule set still reports ~1.7k stylistic findings
       # inherited from the existing tree. Visible, but not blocking, until the
       # backlog is burned down.
-      # Advisory намеренно: в baseline есть существующие находки. Переключение
-      # в fail-closed - после расчистки бэклога (item 61). Обязателен шаг
-      # 'Ruff (correctness)' выше.
       - name: Ruff (full, advisory)
         continue-on-error: true
         run: ruff check src tests scripts --statistics
@@ -170,9 +167,6 @@ jobs:
       # Диагностика, а не гейт: расхождение установленных версий с пинами
       # уже один раз маскировалось под баг в коде (aiohttp 3.14.4 против
       # 3.12.14 ломал aioresponses). Печатаем, чтобы причина была видна.
-      # Advisory: зависит от окружения и зеркал; шумит на временных расхождениях.
-      # Критичные гейты (ruff-correctness, typecheck, build, alembic head,
-      # openapi-drift, pytest+coverage) обязательны и валят CI.
       - name: Dependency drift (advisory)
         continue-on-error: true
         run: python scripts/check_dependency_drift.py

@@ -87,6 +87,12 @@ class Settings(BaseSettings):
     # у Prometheus нет пользовательской сессии, и без этого таргет падал 401.
     METRICS_TOKEN: SecretStr | None = None
 
+    # Grafana: адрес и логин дашбордов для панели мониторинга в админке.
+    # Пока URL не задан, эндпоинт мониторинга отвечает enabled=false, а не 500.
+    GRAFANA_URL: str | None = None
+    GRAFANA_USER: str | None = None
+    GRAFANA_PASSWORD: SecretStr | None = None
+
     MAX_REQUEST_SIZE: int = 20 * 1024 * 1024  # 20 MB
 
     # ---------- hh.ru API ----------
@@ -397,6 +403,9 @@ ALLOWED_ORIGINS = settings.ALLOWED_ORIGINS
 MAX_REQUEST_SIZE = settings.MAX_REQUEST_SIZE
 TOKEN_TTL_DAYS = settings.TOKEN_TTL_DAYS
 METRICS_TOKEN = settings.METRICS_TOKEN
+GRAFANA_URL = settings.GRAFANA_URL
+GRAFANA_USER = settings.GRAFANA_USER
+GRAFANA_PASSWORD = settings.GRAFANA_PASSWORD
 
 KRM_DISCIPLINES_PATH = settings.KRM_DISCIPLINES_PATH
 TEACHER_RECOMMENDATIONS_PATH = settings.TEACHER_RECOMMENDATIONS_PATH

@@ -45,6 +45,19 @@ interface NotificationItem {
   created_at: string;
 }
 
+interface GrafanaDashboard {
+  uid: string;
+  title: string;
+  url?: string | null;
+}
+
+interface GrafanaStatus {
+  enabled: boolean;
+  reachable: boolean;
+  reason?: string | null;
+  dashboards: GrafanaDashboard[];
+}
+
 function MonitoringTabBase() {
   const [metrics, setMetrics] = useState<Record<string, MetricFamily> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,6 +70,8 @@ function MonitoringTabBase() {
     recent_runs?: Array<{ action?: string; status?: string; started_at?: string; completed_at?: string; error_message?: string | null }>;
     freshness?: { vacancies?: number; date_from?: string | null; date_to?: string | null };
   } | null>(null);
+
+  const [grafana, setGrafana] = useState<GrafanaStatus | null>(null);
 
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [subsLoading, setSubsLoading] = useState(false);
@@ -86,6 +101,9 @@ function MonitoringTabBase() {
     try {
       setHealth(await request<NonNullable<typeof health>>("/api/admin/monitoring/summary"));
     } catch (err) { reportError("app/components/MonitoringTab.tsx:88", err); }
+    try {
+      setGrafana(await request<GrafanaStatus>("/api/admin/monitoring/grafana"));
+    } catch (err) { reportError("app/components/MonitoringTab.tsx:grafana", err); }
   }, []);
 
   const loadSubscriptions = useCallback(async () => {
@@ -604,24 +622,43 @@ function MonitoringTabBase() {
             <BarChart3 className="size-5" />
             Grafana
           </CardTitle>
-          <CardDescription>Дашборд доступен по логину и паролю из окружения (GRAFANA_USER / GRAFANA_PASSWORD)</CardDescription>
+          <CardDescription>Дашборды из Grafana (GRAFANA_URL / GRAFANA_USER / GRAFANA_PASSWORD)</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center justify-center gap-4 py-10 text-center">
-            <div className="flex size-12 items-center justify-center rounded-full bg-gray-100 dark:bg-slate-800">
-              <BarChart3 className="size-6 text-gray-600 dark:text-slate-400" />
+          {grafana === null ? (
+            <Skeleton className="h-20 w-full" />
+          ) : !grafana.enabled ? (
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>Grafana не сконфигурирована. Задайте GRAFANA_URL (и GRAFANA_USER / GRAFANA_PASSWORD) в окружении.</span>
             </div>
-            <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-slate-100">Мониторинг в Grafana</p>
-              <p className="text-xs text-gray-500 dark:text-slate-400">Дашборд откроется в новой вкладке</p>
+          ) : !grafana.reachable ? (
+            <div className="flex items-center gap-3 text-sm text-warning">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{grafana.reason || "Grafana недоступна."}</span>
             </div>
-            <a href="/grafana/d/competency-gap-analyzer/competency-gap-analyzer?orgId=1&kiosk" target="_blank" rel="noopener noreferrer">
-              <Button variant="outline">
-                <ExternalLink className="size-4 mr-2" />
-                Посмотреть в Grafana
-              </Button>
-            </a>
-          </div>
+          ) : grafana.dashboards.length === 0 ? (
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <BarChart3 className="size-4 shrink-0" />
+              <span>Дашборды не найдены.</span>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {grafana.dashboards.map((d) => (
+                <div key={d.uid} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
+                  <span className="text-sm font-medium text-foreground truncate">{d.title}</span>
+                  {d.url ? (
+                    <a href={d.url} target="_blank" rel="noopener noreferrer">
+                      <Button variant="outline" size="sm">
+                        <ExternalLink className="size-4 mr-2" />
+                        Открыть
+                      </Button>
+                    </a>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
