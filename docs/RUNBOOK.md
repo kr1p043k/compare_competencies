@@ -207,6 +207,23 @@ docker exec competency-postgres psql -U postgres -d compare_competencies -c \
 
 ---
 
+---
+
+## 4.1. Мониторинг, дашборды и версия API
+
+- **Версия API (публично):** `GET /api/version` -> `{"api_version": ...}`.
+- **Метрики Prometheus:** `GET /metrics` требует `METRICS_TOKEN` (иначе 403).
+- **Алерты Prometheus:** правила `prometheus/alerts.yml` (5xx rate, p95 latency,
+  падение пайплайна, DB down); проверка - `tests/test_prometheus_config.py`.
+- **Дашборды Grafana (админ):** `GET /admin/monitoring/grafana` отдаёт список
+  дашбордов по `GRAFANA_URL`/`GRAFANA_USER`/`GRAFANA_PASSWORD`; при недоступном
+  Grafana - `enabled/reachable=false` и причина, а не 500.
+
+```bash
+curl -s http://localhost:8000/api/version
+curl -s http://localhost:8000/api/admin/monitoring/grafana -H "Authorization: Bearer $TOKEN"
+```
+
 ## 5. Диск заполнен (disk full)
 
 Ориентиры: `data` ~724 MB, `logs` ~48.7 MB, `uploads` ~0.1 MB. Логи backend
