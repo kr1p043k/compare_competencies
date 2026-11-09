@@ -176,14 +176,14 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
     color: dk ? "#e2e8f0" : "#0f172a",
   };
   const LEVEL_COLORS: Record<LevelKey, string> = {
-    base: "#0ea5e9",
-    dc: "#6366f1",
-    top_dc: "#7c3aed",
+    base: "var(--chart-1)",
+    dc: "var(--chart-2)",
+    top_dc: "var(--chart-3)",
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16 text-gray-400 dark:text-slate-500">
+      <div className="flex items-center justify-center py-16 text-subtle-foreground">
         <Loader2 className="size-7 animate-spin" />
       </div>
     );
@@ -191,13 +191,13 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
   if (error || topSkills.length === 0) {
     return (
       <div className="text-center py-10">
-        <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
+        <p className="text-sm text-muted-foreground mb-4">
           {error || "Нет данных для графиков. Запустите gap-анализ."}
         </p>
         {onStartGapAnalysis && (
           <button
             onClick={onStartGapAnalysis}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-warning hover:bg-warning/90 rounded-lg transition-colors cursor-pointer"
           >
             Запустить gap-анализ
           </button>
@@ -209,19 +209,19 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-3">
-        <div className="flex items-center justify-center w-9 h-9 bg-blue-600 rounded-lg">
+        <div className="flex items-center justify-center w-9 h-9 bg-primary rounded-lg">
           <RadarIcon className="size-5 text-white" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Аналитические графики</h3>
-          <p className="text-sm text-gray-600 dark:text-slate-400">Нажмите на точку, столбец или ячейку, чтобы увидеть детали навыка</p>
+          <h3 className="text-lg font-semibold text-foreground">Аналитические графики</h3>
+          <p className="text-sm text-muted-foreground">Нажмите на точку, столбец или ячейку, чтобы увидеть детали навыка</p>
         </div>
       </div>
 
       <section>
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <Select value={level} onValueChange={(v) => setLevel(v as LevelKey)}>
-            <SelectTrigger className="w-52 h-9 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600 text-xs">
+            <SelectTrigger className="w-52 h-9 bg-input-background border-input text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -233,7 +233,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
             </SelectContent>
           </Select>
           <Select value={String(axesCount)} onValueChange={(v) => setAxesCount(Number(v) as 12 | 15 | 20)}>
-            <SelectTrigger className="w-36 h-9 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600 text-xs">
+            <SelectTrigger className="w-36 h-9 bg-input-background border-input text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -245,17 +245,17 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
             </SelectContent>
           </Select>
         </div>
-        <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+        <Card className="border border-border shadow-sm overflow-hidden">
           <CardHeader>
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <CardTitle className="text-base">Радар: профиль vs рынок (топ-{axesCount} навыков)</CardTitle>
-              <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-slate-400">
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-2.5 rounded-full bg-violet-500"  />
+                  <span className="size-2.5 rounded-full bg-primary"  />
                   Рынок
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-2.5 rounded-full bg-blue-600"  />
+                  <span className="size-2.5 rounded-full bg-primary"  />
                   Профиль
                 </span>
               </div>
@@ -311,7 +311,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
       </section>
 
       <section>
-        <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+        <Card className="border border-border shadow-sm overflow-hidden">
           <CardHeader>
             <CardTitle className="text-base">Покрытие топ-50 навыков рынка по уровням</CardTitle>
             <CardDescription>
@@ -325,7 +325,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                 onClick={() => setCoverageOpen((v) => !v)}
                 aria-expanded={coverageOpen}
                 aria-controls="coverage-chart"
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 shadow-sm transition-all hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border-strong bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm transition-all hover:border-primary hover:text-primary cursor-pointer"
               >
                 <ChevronDown
                   className={`size-3.5 transition-transform duration-200 ${coverageOpen ? "rotate-180" : ""}`}
@@ -335,9 +335,9 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
               </button>
             </CardAction>
           {profileError && (
-            <Alert className="mt-2 border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+            <Alert className="mt-2 border-warning/30 bg-warning-soft text-warning">
               <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
-              <AlertDescription className="text-amber-700 dark:text-amber-300">{profileError}</AlertDescription>
+              <AlertDescription className="text-warning">{profileError}</AlertDescription>
             </Alert>
           )}
           </CardHeader>
@@ -376,9 +376,9 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                     onClick={() => openCoverageDrill(c.key)}
                     aria-label={`${c.level}: покрытие ${c.pct}% топ-50, открыть списки навыков`}
                     title={`Покрытие топ-50: ${c.pct}%. Клик покажет списки навыков`}
-                    className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2 text-left transition-colors hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer"
+                    className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-left transition-colors hover:border-primary cursor-pointer"
                   >
-                    <span className="flex min-w-0 items-center gap-1.5 text-xs text-gray-700 dark:text-slate-300">
+                    <span className="flex min-w-0 items-center gap-1.5 text-xs text-foreground">
                       <span
                         className="size-2 shrink-0 rounded-full"
                         style={{ background: LEVEL_COLORS[c.key] }}
@@ -387,7 +387,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                       <span className="truncate">{c.level}</span>
                     </span>
                     <span
-                      className="h-1.5 min-w-10 flex-1 shrink overflow-hidden rounded-full bg-gray-100 dark:bg-slate-800"
+                      className="h-1.5 min-w-10 flex-1 shrink overflow-hidden rounded-full bg-muted"
                       aria-hidden="true"
                     >
                       <span
@@ -395,7 +395,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                         style={{ width: `${c.pct}%`, background: LEVEL_COLORS[c.key] }}
                       />
                     </span>
-                    <span className="shrink-0 text-xs font-semibold tabular-nums text-gray-900 dark:text-slate-100">
+                    <span className="shrink-0 text-xs font-semibold tabular-nums text-foreground">
                       {c.pct}%
                     </span>
                   </button>
@@ -407,7 +407,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
       </section>
 
       <section>
-        <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+        <Card className="border border-border shadow-sm overflow-hidden">
           <CardHeader>
             <CardTitle className="text-base">Тепловая карта: топ-15 навыков × уровни</CardTitle>
             <CardDescription>Яркость по рыночному весу, зелёный навык есть в профиле. Клик по ячейке откроет детали</CardDescription>
@@ -417,16 +417,16 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr>
-                    <th className="text-left font-medium text-gray-500 dark:text-slate-400 p-2 min-w-36">Навык</th>
+                    <th className="text-left font-medium text-muted-foreground p-2 min-w-36">Навык</th>
                     {LEVELS.map((l) => (
-                      <th key={l.key} className="font-medium text-gray-500 dark:text-slate-400 p-2 min-w-28">{l.label}</th>
+                      <th key={l.key} className="font-medium text-muted-foreground p-2 min-w-28">{l.label}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {heatRows.map((row) => (
-                    <tr key={row.skill} className="border-t border-gray-100 dark:border-slate-800">
-                      <td className="p-2 font-medium text-gray-800 dark:text-slate-200">{row.skill}</td>
+                    <tr key={row.skill} className="border-t border-border">
+                      <td className="p-2 font-medium text-foreground">{row.skill}</td>
                       {LEVELS.map((l) => {
                         const has = row.has[l.key];
                         const a = 0.12 + row.intensity * 0.55;
@@ -438,12 +438,10 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                               className="w-full rounded-md px-2 py-2 font-mono cursor-pointer transition-transform hover:scale-[1.03]"
                               style={{
                                 background: has
-                                  ? `rgba(16, 185, 129, ${a})`
-                                  : dk
-                                    ? "rgba(30, 41, 59, 0.9)"
-                                    : "rgba(241, 245, 249, 0.9)",
-                                color: has ? (dk ? "#a7f3d0" : "#065f46") : tick,
-                                border: `1px solid ${has ? "rgba(16,185,129,0.4)" : grid}`,
+                                  ? `color-mix(in srgb, var(--success) ${Math.round(a * 100)}%, transparent)`
+                                  : `color-mix(in srgb, var(--muted) ${dk ? 90 : 60}%, transparent)`,
+                                color: has ? "var(--success)" : tick,
+                                border: `1px solid ${has ? "color-mix(in srgb, var(--success) 40%, transparent)" : grid}`,
                               }}
                             >
                               {has ? "●" : "○"}
@@ -466,7 +464,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 p-4"
             onClick={() => setDrill(null)}
           >
             <motion.div
@@ -474,7 +472,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.96, y: 8 }}
               transition={{ type: "tween", duration: 0.15, ease: "easeOut" }}
-              className="w-full max-w-md rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 shadow-sm p-6"
+              className="w-full max-w-md rounded-xl bg-card border border-border shadow-sm p-6"
               onClick={(e) => e.stopPropagation()}
             >
               {drill.skill.startsWith("__coverage__") ? (
@@ -486,40 +484,40 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                 <>
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div>
-                      <h4 className="text-lg font-bold text-gray-900 dark:text-slate-100">{drill.skill}</h4>
-                      <p className="text-xs text-gray-500 dark:text-slate-400">{drill.category}</p>
+                      <h4 className="text-lg font-bold text-foreground">{drill.skill}</h4>
+                      <p className="text-xs text-muted-foreground">{drill.category}</p>
                     </div>
                     <button
                       onClick={() => setDrill(null)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer"
+                      className="p-1.5 rounded-lg text-subtle-foreground hover:text-foreground hover:bg-muted cursor-pointer"
                       aria-label="Закрыть"
                     >
                       <X className="size-4" />
                     </button>
                   </div>
                   {drillLoading ? (
-                    <p className="text-sm text-gray-400">Загрузка...</p>
+                    <p className="text-sm text-subtle-foreground">Загрузка...</p>
                   ) : (
                     <>
                       <div className="grid grid-cols-2 gap-3 mb-4 text-center">
-                        <div className="rounded-lg bg-gray-50 dark:bg-slate-950/60 p-3">
-                          <div className="text-xl font-bold text-gray-900 dark:text-slate-100">{drill.frequency}</div>
-                          <div className="text-xs text-gray-500 dark:text-slate-400">вакансий</div>
+                        <div className="rounded-lg bg-muted p-3">
+                          <div className="text-xl font-bold text-foreground">{drill.frequency}</div>
+                          <div className="text-xs text-muted-foreground">вакансий</div>
                         </div>
-                        <div className="rounded-lg bg-gray-50 dark:bg-slate-950/60 p-3">
-                          <div className="text-xl font-bold text-gray-900 dark:text-slate-100">{drill.weight}</div>
-                          <div className="text-xs text-gray-500 dark:text-slate-400">рыночный вес</div>
+                        <div className="rounded-lg bg-muted p-3">
+                          <div className="text-xl font-bold text-foreground">{drill.weight}</div>
+                          <div className="text-xs text-muted-foreground">рыночный вес</div>
                         </div>
                       </div>
                       <div className="space-y-2">
                         {LEVELS.map((l) => (
-                          <div key={l.key} className="flex items-center justify-between text-sm rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2">
-                            <span className="text-gray-700 dark:text-slate-300">{l.label}</span>
+                          <div key={l.key} className="flex items-center justify-between text-sm rounded-lg border border-border px-3 py-2">
+                            <span className="text-foreground">{l.label}</span>
                             <span
                               className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                                 drill.has[l.key]
-                                  ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300"
-                                  : "bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400"
+                                  ? "bg-success-soft text-success"
+                                  : "bg-muted text-muted-foreground"
                               }`}
                             >
                               {drill.has[l.key] ? "в профиле" : "нет"}
@@ -545,12 +543,12 @@ function CoverageDetail({ entry, onClose }: { entry: any; onClose: () => void })
     <>
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h4 className="text-lg font-bold text-gray-900 dark:text-slate-100">{entry.level}</h4>
-          <p className="text-xs text-gray-500 dark:text-slate-400">Покрытие топ-50: {entry.pct}%</p>
+          <h4 className="text-lg font-bold text-foreground">{entry.level}</h4>
+          <p className="text-xs text-muted-foreground">Покрытие топ-50: {entry.pct}%</p>
         </div>
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer"
+          className="p-1.5 rounded-lg text-subtle-foreground hover:text-foreground hover:bg-muted cursor-pointer"
           aria-label="Закрыть"
         >
           <X className="size-4" />
@@ -558,18 +556,18 @@ function CoverageDetail({ entry, onClose }: { entry: any; onClose: () => void })
       </div>
       <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
         <div>
-          <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-2">Есть ({entry.hit.length})</p>
+          <p className="text-xs font-semibold text-success mb-2">Есть ({entry.hit.length})</p>
           <div className="flex flex-wrap gap-1.5">
             {entry.hit.map((s: string) => (
-              <span key={s} className="px-2 py-0.5 text-xs rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300">{s}</span>
+              <span key={s} className="px-2 py-0.5 text-xs rounded-full bg-success-soft text-success">{s}</span>
             ))}
           </div>
         </div>
         <div>
-          <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 mb-2">Нет ({entry.miss.length})</p>
+          <p className="text-xs font-semibold text-muted-foreground mb-2">Нет ({entry.miss.length})</p>
           <div className="flex flex-wrap gap-1.5">
             {entry.miss.map((s: string) => (
-              <span key={s} className="px-2 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400">{s}</span>
+              <span key={s} className="px-2 py-0.5 text-xs rounded-full bg-muted text-muted-foreground">{s}</span>
             ))}
           </div>
         </div>
