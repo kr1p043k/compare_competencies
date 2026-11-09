@@ -104,26 +104,30 @@ export function MetricsGlossary({ compact = false }: { compact?: boolean }) {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls="metrics-glossary"
-        className="inline-flex items-center gap-1.5 cursor-pointer text-violet-700 dark:text-violet-300 hover:underline"
+        className="inline-flex items-center gap-1.5 cursor-pointer text-primary hover:underline"
       >
-        <HelpCircle className="size-4" />
+        <HelpCircle className="size-4" aria-hidden="true" />
         Как читать метрики
-        {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+        {open ? (
+          <ChevronUp className="size-4" aria-hidden="true" />
+        ) : (
+          <ChevronDown className="size-4" aria-hidden="true" />
+        )}
       </button>
 
       {open && (
         <div
           id="metrics-glossary"
-          className="mt-2 rounded-md border border-gray-200 dark:border-slate-700 p-3 space-y-2"
+          className="mt-2 rounded-md border border-border p-3 space-y-2"
         >
           {METRICS.map((m) => (
             <div key={m.key}>
-              <div className="font-medium text-gray-900 dark:text-slate-100">{m.label}</div>
-              <div className="text-gray-600 dark:text-slate-400">{m.short}</div>
-              <div className="text-gray-500 dark:text-slate-500 mt-0.5">{m.detail}</div>
+              <div className="font-medium text-foreground">{m.label}</div>
+              <div className="text-muted-foreground">{m.short}</div>
+              <div className="text-subtle-foreground mt-0.5">{m.detail}</div>
             </div>
           ))}
-          <div className="pt-1 border-t border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-500">
+          <div className="pt-1 border-t border-border text-subtle-foreground">
             Дисциплины без навыков помечаются «нет данных» и не участвуют в средних:
             0% покрытия при нулевых разрывах - это отсутствие данных, а не результат.
           </div>

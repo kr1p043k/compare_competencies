@@ -11,7 +11,7 @@ import {
   UserCheck,
 } from "lucide-react";
 
-import { Button } from "../components/ui/button";
+import { Badge, Button, inputClass } from "../../design";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
 import { TabsList } from "../components/ui/tabs";
+import { cn } from "../components/ui/utils";
 import type { Theme } from "../../lib/theme";
 
 import { buildNavGroups, type NavGroupDef, type NavItem } from "./tabConfig";
@@ -28,8 +29,8 @@ import { buildNavGroups, type NavGroupDef, type NavItem } from "./tabConfig";
  * переход в профиль, селект предпросмотра роли (только admin), переключатель
  * темы, выход. Ниже шапки - баннер активного предпросмотра.
  *
- * Разрез из App.tsx без изменения верстки: классы, порядок и подписи
- * сохранены дословно.
+ * Разрез из App.tsx: порядок и подписи сохранены дословно, все краски -
+ * дизайн-токены из src/design (светлая и тёмная темы без правок здесь).
  */
 export function AppHeader({
   name,
@@ -67,7 +68,7 @@ export function AppHeader({
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center justify-center size-11 rounded-xl bg-primary shadow-md shadow-primary/25">
-                <TrendingUp className="size-6 text-white" />
+                <TrendingUp className="size-6 text-primary-foreground" aria-hidden="true" />
               </div>
               <div>
                 <h1 className="text-xl font-semibold tracking-tight text-foreground">
@@ -80,27 +81,27 @@ export function AppHeader({
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400">
-                {roleIcon}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span aria-hidden="true">{roleIcon}</span>
                 <span>{name || roleLabel}</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-primary-soft text-primary-soft-foreground font-medium">{roleLabel}</span>
+                <Badge tone="primary" className="text-xs">{roleLabel}</Badge>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={onOpenProfile}
                 title="Мой профиль"
-                className="cursor-pointer transition-colors duration-200 text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
+                className="cursor-pointer transition-colors duration-200"
               >
-                <User className="size-4" />
+                <User className="size-4" aria-hidden="true" />
               </Button>
               {canPreview && (
-                <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   Просмотр как
                   <select
                     value={rolePreview ?? ""}
                     onChange={(e) => onPreviewChange(e.target.value || null)}
-                    className="h-8 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-1.5 text-xs text-gray-700 dark:text-slate-200"
+                    className={cn(inputClass, "h-8 w-auto px-1.5 text-xs")}
                   >
                     <option value="">своя роль</option>
                     <option value="admin">admin</option>
@@ -115,24 +116,23 @@ export function AppHeader({
                 size="sm"
                 onClick={onToggleTheme}
                 title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
-                className="text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100"
               >
-                {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                {theme === "dark" ? <Sun className="size-4" aria-hidden="true" /> : <Moon className="size-4" aria-hidden="true" />}
               </Button>
-              <Button variant="ghost" size="sm" onClick={onLogout} className="text-gray-500 dark:text-slate-400 hover:text-red-600">
-                <LogOut className="size-4" />
+              <Button variant="ghost" size="sm" onClick={onLogout} className="hover:text-destructive">
+                <LogOut className="size-4" aria-hidden="true" />
               </Button>
             </div>
           </div>
         </div>
       </header>
       {previewActive && (
-        <div className="bg-amber-100 dark:bg-amber-950/40 border-b border-amber-300 dark:border-amber-800">
+        <div className="bg-warning-soft border-b border-warning/40">
           <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-3">
-            <p className="text-xs text-amber-800 dark:text-amber-200">
+            <p className="text-xs text-warning">
               Предпросмотр интерфейса роли «{rolePreview}». API-права не меняются - данные чужих ролей могут быть недоступны.
             </p>
-            <Button variant="ghost" size="sm" onClick={onResetPreview} className="h-7 text-xs text-amber-800 dark:text-amber-200">
+            <Button variant="ghost" size="sm" onClick={onResetPreview} className="h-7 text-xs text-warning hover:text-warning">
               Сбросить
             </Button>
           </div>
@@ -165,13 +165,14 @@ function NavGroup({
     return (
       <button
         onClick={() => onSelect(only.value)}
-        className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all cursor-pointer ${
+        className={cn(
+          "inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all cursor-pointer",
           isActive
-            ? "bg-white text-gray-900 shadow-sm dark:bg-slate-800 dark:text-slate-100"
-            : "text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
-        }`}
+            ? "bg-card text-foreground shadow-sm dark:bg-input/30"
+            : "text-muted-foreground hover:text-foreground",
+        )}
       >
-        <only.Icon className="size-4" />
+        <only.Icon className="size-4" aria-hidden="true" />
         {only.label}
       </button>
     );
@@ -180,15 +181,16 @@ function NavGroup({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all cursor-pointer ${
+          className={cn(
+            "inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all cursor-pointer",
             active
-              ? "bg-white text-gray-900 shadow-sm dark:bg-slate-800 dark:text-slate-100"
-              : "text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
-          }`}
+              ? "bg-card text-foreground shadow-sm dark:bg-input/30"
+              : "text-muted-foreground hover:text-foreground",
+          )}
         >
-          {active ? <active.Icon className="size-4" /> : null}
+          {active ? <active.Icon className="size-4" aria-hidden="true" /> : null}
           {active ? active.label : title}
-          <ChevronDown className="size-3.5 opacity-60" />
+          <ChevronDown className="size-3.5 opacity-60" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-52">
@@ -196,9 +198,9 @@ function NavGroup({
           <DropdownMenuItem
             key={value}
             onSelect={() => onSelect(value)}
-            className={`gap-2 cursor-pointer ${value === activeTab ? "font-semibold text-blue-700 dark:text-blue-300" : ""}`}
+            className={cn("gap-2 cursor-pointer", value === activeTab && "font-semibold text-primary")}
           >
-            <Icon className="size-4" />
+            <Icon className="size-4" aria-hidden="true" />
             {label}
           </DropdownMenuItem>
         ))}

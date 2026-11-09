@@ -1,10 +1,12 @@
 import { motion } from "motion/react";
 import { Heart, Sparkles } from "lucide-react";
 
+import { Badge } from "../../design";
+
 export function Footer() {
   return (
     <motion.footer
-      className="relative mt-20 py-12 border-t border-slate-200/50 dark:border-slate-700/50 bg-white/30 dark:bg-slate-900/30"
+      className="relative mt-20 py-12 border-t border-border/50 bg-surface/30"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: 0.5 }}
@@ -14,14 +16,14 @@ export function Footer() {
           {/* About */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <div className="p-2 bg-blue-600 rounded-lg">
-                <Sparkles className="size-5 text-white" />
+              <div className="p-2 bg-primary rounded-lg">
+                <Sparkles className="size-5 text-primary-foreground" aria-hidden="true" />
               </div>
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white">
+              <h3 className="text-lg font-bold text-foreground">
                 Gap Analyzer
               </h3>
             </div>
-            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               Платформа для анализа соответствия образовательных программ
               требованиям рынка труда с использованием машинного обучения.
             </p>
@@ -29,24 +31,24 @@ export function Footer() {
 
           {/* Features */}
           <div className="space-y-4">
-            <h4 className="text-sm font-semibold text-slate-800 dark:text-white uppercase tracking-wider">
+            <h4 className="text-sm font-semibold text-foreground uppercase tracking-wider">
               Возможности
             </h4>
-            <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+            <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 bg-blue-600 rounded-full" />
+                <div className="w-1.5 h-1.5 bg-chart-1 rounded-full" aria-hidden="true" />
                 Сбор данных с hh.ru
               </li>
               <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 bg-purple-600 rounded-full" />
+                <div className="w-1.5 h-1.5 bg-chart-5 rounded-full" aria-hidden="true" />
                 ML-кластеризация вакансий
               </li>
               <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 bg-pink-600 rounded-full" />
+                <div className="w-1.5 h-1.5 bg-chart-4 rounded-full" aria-hidden="true" />
                 Gap-анализ компетенций
               </li>
               <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 bg-emerald-600 rounded-full" />
+                <div className="w-1.5 h-1.5 bg-chart-3 rounded-full" aria-hidden="true" />
                 Интерактивная визуализация
               </li>
             </ul>
@@ -54,7 +56,7 @@ export function Footer() {
 
           {/* Tech Stack */}
           <div className="space-y-4">
-            <h4 className="text-sm font-semibold text-slate-800 dark:text-white uppercase tracking-wider">
+            <h4 className="text-sm font-semibold text-foreground uppercase tracking-wider">
               Технологии
             </h4>
             <div className="flex flex-wrap gap-2">
@@ -66,21 +68,18 @@ export function Footer() {
                 "Python",
                 "ML",
               ].map((tech) => (
-                <span
-                  key={tech}
-                  className="px-3 py-1 text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-full border border-slate-200 dark:border-slate-700"
-                >
+                <Badge key={tech} tone="neutral" className="px-3 py-1 text-xs">
                   {tech}
-                </span>
+                </Badge>
               ))}
             </div>
           </div>
         </div>
 
         {/* Bottom */}
-        <div className="mt-12 pt-8 border-t border-slate-200/50 dark:border-slate-700/50">
+        <div className="mt-12 pt-8 border-t border-border/50">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>Сделано с</span>
               <motion.div
                 animate={{
@@ -92,11 +91,11 @@ export function Footer() {
                   ease: "easeInOut",
                 }}
               >
-                <Heart className="size-4 text-red-500 fill-red-500" />
+                <Heart className="size-4 text-destructive fill-current" aria-hidden="true" />
               </motion.div>
 
             </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-sm text-subtle-foreground">
               © 2026 Competency Gap Analyzer. Все права защищены.
             </p>
           </div>

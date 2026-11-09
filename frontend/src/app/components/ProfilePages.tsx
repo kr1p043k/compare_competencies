@@ -1,8 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
-import { Input } from "./ui/input";
 import {
   Shield,
   Users,
@@ -25,19 +21,29 @@ import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { request } from "../../lib/api";
 import { reportError } from "../../lib/errors";
-import { PageHeader, Skeleton, ErrorState, EmptyState } from "../../design";
+import {
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  Skeleton,
+  StatCard,
+  inputClass,
+} from "../../design";
 import { AdminSecurity } from "./AdminSecurity";
+import { cn } from "./ui/utils";
 
 type AccountProps = { displayName?: string; email?: string };
 
 function AccountCard({ displayName, email, roleLabel }: AccountProps & { roleLabel: string }) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-lg text-foreground">Учётная запись</CardTitle>
-        <CardDescription className="text-muted-foreground">{roleLabel}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-1 text-sm text-foreground">
+      <CardHeader title="Учётная запись" description={roleLabel} />
+      <CardBody className="space-y-1 text-sm text-foreground">
         <p>
           <span className="text-muted-foreground">ФИО: </span>
           {displayName || "-"}
@@ -46,7 +52,7 @@ function AccountCard({ displayName, email, roleLabel }: AccountProps & { roleLab
           <span className="text-muted-foreground">Email: </span>
           {email || "-"}
         </p>
-      </CardContent>
+      </CardBody>
     </Card>
   );
 }
@@ -89,16 +95,16 @@ export function AdminProfilePage({ displayName, email, onNavigate }: AccountProp
       <AccountCard displayName={displayName} email={email} roleLabel="Администратор" />
       <TwoFactorCard />
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2 text-foreground">
-            <Activity className="size-5 text-primary" />
-            Живая сводка
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Активность, ошибки и свежесть данных - прочерк при недоступности
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <Activity className="size-5 text-primary" />
+              Живая сводка
+            </span>
+          }
+          description="Активность, ошибки и свежесть данных - прочерк при недоступности"
+        />
+        <CardBody>
           {sumLoading ? (
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2" aria-label="Загрузка сводки">
               {[0, 1, 2].map((i) => (
@@ -110,56 +116,63 @@ export function AdminProfilePage({ displayName, email, onNavigate }: AccountProp
             </div>
           ) : (
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-              <div className="rounded-lg border border-border bg-card shadow-sm p-3 text-center transition-colors duration-200">
-                <div className="text-2xl font-bold text-foreground">
-                  {typeof sum?.sessions_active === "number" ? sum.sessions_active : "-"}
-                </div>
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Сессии активны
-                </div>
-              </div>
-              <div className="rounded-lg border border-border bg-card shadow-sm p-3 text-center transition-colors duration-200">
-                <div className="text-2xl font-bold text-foreground">
-                  {errorsTotal === null ? "-" : errorsTotal}
-                </div>
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Ошибки за час
-                </div>
-              </div>
-              <div className="rounded-lg border border-border bg-card shadow-sm p-3 text-center transition-colors duration-200 col-span-2 lg:col-span-1">
-                <div className="text-2xl font-bold text-foreground">
-                  {typeof sum?.freshness?.vacancies === "number" ? sum.freshness.vacancies.toLocaleString("ru-RU") : "-"}
-                </div>
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Вакансии{sum?.freshness?.date_from ? ` · ${sum.freshness.date_from}-${sum.freshness.date_to ?? "…"}` : ""}
-                </div>
-              </div>
+              <StatCard
+                className="p-3"
+                label="Сессии активны"
+                value={typeof sum?.sessions_active === "number" ? sum.sessions_active : "-"}
+              />
+              <StatCard
+                className="p-3"
+                label="Ошибки за час"
+                value={errorsTotal === null ? "-" : errorsTotal}
+              />
+              <StatCard
+                className="col-span-2 lg:col-span-1 p-3"
+                label={`Вакансии${sum?.freshness?.date_from ? ` · ${sum.freshness.date_from}-${sum.freshness.date_to ?? "…"}` : ""}`}
+                value={
+                  typeof sum?.freshness?.vacancies === "number" ? sum.freshness.vacancies.toLocaleString("ru-RU") : "-"
+                }
+              />
             </div>
           )}
-        </CardContent>
+        </CardBody>
       </Card>
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2 text-foreground">
-            <Shield className="size-5 text-primary" />
-            Администрирование
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">Быстрые ссылки на административные разделы</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => onNavigate("admin")} className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-            <Users className="mr-2 size-4" />
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <Shield className="size-5 text-primary" />
+              Администрирование
+            </span>
+          }
+          description="Быстрые ссылки на административные разделы"
+        />
+        <CardBody className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            className="cursor-pointer"
+            onClick={() => onNavigate("admin")}
+            iconLeft={<Users className="size-4" />}
+          >
             Пользователи
           </Button>
-          <Button variant="outline" onClick={() => onNavigate("logs")} className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-            <FileText className="mr-2 size-4" />
+          <Button
+            variant="secondary"
+            className="cursor-pointer"
+            onClick={() => onNavigate("logs")}
+            iconLeft={<FileText className="size-4" />}
+          >
             Логи
           </Button>
-          <Button variant="outline" onClick={() => onNavigate("monitoring")} className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-            <Activity className="mr-2 size-4" />
+          <Button
+            variant="secondary"
+            className="cursor-pointer"
+            onClick={() => onNavigate("monitoring")}
+            iconLeft={<Activity className="size-4" />}
+          >
             Мониторинг
           </Button>
-        </CardContent>
+        </CardBody>
       </Card>
       <AdminSecurity />
     </div>
@@ -196,14 +209,16 @@ export function TeacherProfilePage({ displayName, email, onNavigate }: AccountPr
       <AccountCard displayName={displayName} email={email} roleLabel="Преподаватель" />
       <TwoFactorCard />
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2 text-foreground">
-            <BookOpen className="size-5 text-success" />
-            Зона преподавания
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">Дисциплины направления 09.03.02 (только просмотр)</CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <BookOpen className="size-5 text-success" />
+              Зона преподавания
+            </span>
+          }
+          description="Дисциплины направления 09.03.02 (только просмотр)"
+        />
+        <CardBody>
           {discs === null && !error && (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
@@ -222,25 +237,25 @@ export function TeacherProfilePage({ displayName, email, onNavigate }: AccountPr
                       <span className="block truncate">{d.name}</span>
                       <span className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {typeof d.semester === "number" && (
-                          <Badge variant="outline" className="text-xs">сем. {d.semester}</Badge>
+                          <Badge tone="neutral" className="text-xs">сем. {d.semester}</Badge>
                         )}
                         {typeof d.competencies_count === "number" && (
-                          <Badge variant="secondary" className="text-xs">компетенций: {d.competencies_count}</Badge>
+                          <Badge tone="neutral" className="text-xs">компетенций: {d.competencies_count}</Badge>
                         )}
                         {typeof d.skills_count === "number" && (
-                          <Badge variant="secondary" className="text-xs">навыков: {d.skills_count}</Badge>
+                          <Badge tone="neutral" className="text-xs">навыков: {d.skills_count}</Badge>
                         )}
                       </span>
                     </span>
                     {onNavigate && (
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
                         onClick={() => onNavigate("teacher")}
                         title={`Анализ дисциплины «${d.name}»`}
-                        className="shrink-0 cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        className="shrink-0 cursor-pointer"
+                        iconLeft={<Activity className="size-3.5" />}
                       >
-                        <Activity className="mr-1.5 size-3.5" />
                         Анализ
                       </Button>
                     )}
@@ -251,17 +266,27 @@ export function TeacherProfilePage({ displayName, email, onNavigate }: AccountPr
           )}
           {onNavigate && (
             <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
-              <Button variant="outline" size="sm" onClick={() => onNavigate("teacher")} className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-                <Activity className="mr-1.5 size-3.5" />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => onNavigate("teacher")}
+                className="cursor-pointer"
+                iconLeft={<Activity className="size-3.5" />}
+              >
                 Преподавательский анализ
               </Button>
-              <Button variant="outline" size="sm" onClick={() => onNavigate("taxonomy")} className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-                <BookOpen className="mr-1.5 size-3.5" />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => onNavigate("taxonomy")}
+                className="cursor-pointer"
+                iconLeft={<BookOpen className="size-3.5" />}
+              >
                 Таксономия
               </Button>
             </div>
           )}
-        </CardContent>
+        </CardBody>
       </Card>
     </div>
   );
@@ -718,19 +743,23 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       />
       {/* Identity header */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg text-foreground">
-            <User className="size-5 text-success" />
-            {name || "Мой профиль"}
-          </CardTitle>
-          {(login || self) && (
-            <p className="text-sm text-muted-foreground">
-              {login || "-"}
-              {self ? ` · уровень ${self.target_level} · профиль ${self.profile}` : ""}
-            </p>
-          )}
-        </CardHeader>
-        <CardContent>
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <User className="size-5 text-success" />
+              {name || "Мой профиль"}
+            </span>
+          }
+          description={
+            login || self ? (
+              <>
+                {login || "-"}
+                {self ? ` · уровень ${self.target_level} · профиль ${self.profile}` : ""}
+              </>
+            ) : undefined
+          }
+        />
+        <CardBody>
           {selfLoading && (
             <div className="flex items-center gap-3" aria-label="Загрузка профиля">
               <Skeleton className="size-10 rounded-full" />
@@ -741,7 +770,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
             </div>
           )}
           {selfError && <ErrorState description={selfError} onRetry={() => void loadAll()} />}
-        </CardContent>
+        </CardBody>
       </Card>
 
       <TwoFactorCard />
@@ -764,29 +793,23 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
             { label: "Совпало", value: krm ? String(overlap) : "-" },
             { label: "Дисциплин", value: krm ? String(discsCount) : "-" },
           ].map((k) => (
-            <div
-              key={k.label}
-              className="rounded-lg border border-border bg-card shadow-sm p-3 text-center transition-colors duration-200"
-            >
-              <div className="text-2xl font-bold text-foreground">{k.value}</div>
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">{k.label}</div>
-            </div>
+            <StatCard key={k.label} className="p-3" label={k.label} value={k.value} />
           ))}
         </div>
       )}
 
       {/* Мои навыки */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg text-foreground">
-            <GraduationCap className="size-5 text-success" />
-            Мои навыки{self ? ` (${skillsCount})` : ""}
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Свои навыки хранятся в вашем профиле - добавляйте и удаляйте
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <GraduationCap className="size-5 text-success" />
+              Мои навыки{self ? ` (${skillsCount})` : ""}
+            </span>
+          }
+          description="Свои навыки хранятся в вашем профиле - добавляйте и удаляйте"
+        />
+        <CardBody className="space-y-3">
           {selfLoading && (
             <div className="flex flex-wrap gap-1.5" aria-label="Загрузка навыков">
               {[0, 1, 2, 3, 4].map((i) => (
@@ -808,7 +831,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                     return (
                       <Badge
                         key={s}
-                        variant={mine ? "default" : "secondary"}
+                        tone={mine ? "primary" : "neutral"}
                         className="text-xs gap-1"
                         title={mine ? "Добавлен вами - можно удалить" : "Из программы - удалить нельзя"}
                       >
@@ -829,7 +852,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                 </div>
               )}
               <div className="flex gap-2">
-                <Input
+                <input
                   value={newSkill}
                   onChange={(e) => setNewSkill(e.target.value)}
                   onKeyDown={(e) => {
@@ -837,12 +860,13 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                   }}
                   placeholder="Новый навык, Enter - добавить"
                   aria-label="Новый навык"
-                  className="h-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  className={inputClass}
                 />
                 <Button
+                  variant="success"
                   onClick={() => void handleAddSkill()}
                   disabled={saving || !newSkill.trim()}
-                  className="h-10 shrink-0 cursor-pointer bg-success text-white hover:bg-success/90 transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  className="shrink-0 cursor-pointer"
                   aria-label="Добавить навык"
                 >
                   {saving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
@@ -851,22 +875,22 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
               {opError && <p className="text-sm text-destructive">{opError}</p>}
             </>
           )}
-        </CardContent>
+        </CardBody>
       </Card>
 
       {/* Мои компетенции - drill-down */}
 
       <Card id="my-technologies">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg text-foreground">
-            <Cpu className="size-5 text-success" />
-            Мои технологии{self && !selfLoading ? " (" + techList.length + ")" : ""}
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Стек, с которым вы работаете: добавляйте новое и убирайте устаревшее
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <Cpu className="size-5 text-success" />
+              Мои технологии{self && !selfLoading ? " (" + techList.length + ")" : ""}
+            </span>
+          }
+          description="Стек, с которым вы работаете: добавляйте новое и убирайте устаревшее"
+        />
+        <CardBody className="space-y-3">
           {selfLoading && (
             <div className="flex flex-wrap gap-1.5" aria-label="Загрузка технологий">
               {[0, 1, 2, 3].map((i) => (
@@ -881,7 +905,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {techList.map((t) => (
-                    <Badge key={t} variant="secondary" className="text-xs gap-1">
+                    <Badge key={t} tone="neutral" className="text-xs gap-1">
                       {t}
                       <button
                         onClick={() => void handleRemoveTech(t)}
@@ -896,7 +920,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                 </div>
               )}
               <div className="flex gap-2">
-                <Input
+                <input
                   value={techInput}
                   onChange={(e) => setTechInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -905,7 +929,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                   placeholder="Например: Docker. Enter - добавить"
                   aria-label="Новая технология"
                   list="my-tech-suggest"
-                  className="h-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  className={inputClass}
                 />
                 <datalist id="my-tech-suggest">
                   {(customOptions?.technologies_suggest ?? []).map((s) => (
@@ -913,9 +937,10 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                   ))}
                 </datalist>
                 <Button
+                  variant="success"
                   onClick={() => void handleAddTech()}
                   disabled={techSaving || !techInput.trim()}
-                  className="h-10 shrink-0 cursor-pointer bg-success text-white hover:bg-success/90 transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  className="shrink-0 cursor-pointer"
                   aria-label="Добавить технологию"
                 >
                   {techSaving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
@@ -940,20 +965,20 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
               {techError && <p className="text-sm text-destructive">{techError}</p>}
             </>
           )}
-        </CardContent>
+        </CardBody>
       </Card>
 
       <Card id="my-profiles">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg text-foreground">
-            <Layers className="size-5 text-primary" />
-            Мои профили{createdProfiles.length > 0 ? " (" + createdProfiles.length + ")" : ""}
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Свои профили компетенций: соберите из готовых или опишите новые
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <Layers className="size-5 text-primary" />
+              Мои профили{createdProfiles.length > 0 ? " (" + createdProfiles.length + ")" : ""}
+            </span>
+          }
+          description="Свои профили компетенций: соберите из готовых или опишите новые"
+        />
+        <CardBody className="space-y-4">
           {optionsLoading && (
             <div className="space-y-2" aria-label="Загрузка опций профилей">
               <Skeleton className="h-4 w-2/3" />
@@ -976,13 +1001,13 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                     {cp.name}
                   </span>
                   <span className="flex flex-wrap gap-1.5">
-                    <Badge variant="secondary" className="text-xs">{cp.target_level}</Badge>
-                    <Badge variant="secondary" className="text-xs">компетенций: {cp.competencies}</Badge>
+                    <Badge tone="neutral" className="text-xs">{cp.target_level}</Badge>
+                    <Badge tone="neutral" className="text-xs">компетенций: {cp.competencies}</Badge>
                     {cp.created_new > 0 && (
-                      <Badge variant="secondary" className="text-xs">новых: {cp.created_new}</Badge>
+                      <Badge tone="neutral" className="text-xs">новых: {cp.created_new}</Badge>
                     )}
                     {cp.technologies > 0 && (
-                      <Badge variant="secondary" className="text-xs">технологий: {cp.technologies}</Badge>
+                      <Badge tone="neutral" className="text-xs">технологий: {cp.technologies}</Badge>
                     )}
                   </span>
                 </div>
@@ -995,13 +1020,13 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="cp-name">Название профиля</Label>
-              <Input
+              <input
                 id="cp-name"
                 value={cpName}
                 onChange={(e) => setCpName(e.target.value)}
                 placeholder="my_backend"
                 aria-label="Название профиля"
-                className="h-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className={inputClass}
               />
               <p className="text-xs text-muted-foreground">Латиница, цифры и подчёркивание, 2-32 символа</p>
             </div>
@@ -1039,17 +1064,17 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
           <div className="space-y-2 rounded-lg border border-border p-3">
             <div className="flex items-center justify-between gap-2">
               <Label>Компетенции</Label>
-              <Badge variant="secondary" className="text-xs">выбрано: {compCodes.length}</Badge>
+              <Badge tone="neutral" className="text-xs">выбрано: {compCodes.length}</Badge>
             </div>
 
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
+              <input
                 value={compSearch}
                 onChange={(e) => setCompSearch(e.target.value)}
                 placeholder="Поиск по коду или названию"
                 aria-label="Поиск компетенций"
-                className="h-9 pl-8 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className={cn(inputClass, "h-9 pl-8")}
               />
             </div>
             {filteredCustomComps.length === 0 ? (
@@ -1075,7 +1100,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                           ) : null}
                         </span>
                         {typeof c.skills_count === "number" ? (
-                          <Badge variant="secondary" className="shrink-0 text-xs">
+                          <Badge tone="neutral" className="shrink-0 text-xs">
                             {c.skills_count}
                           </Badge>
                         ) : null}
@@ -1090,19 +1115,19 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
             <Label>Новая компетенция</Label>
 
             <div className="grid gap-2 sm:grid-cols-2">
-              <Input
+              <input
                 value={draftCode}
                 onChange={(e) => setDraftCode(e.target.value)}
                 placeholder="Код, например ПК-5"
                 aria-label="Код компетенции"
-                className="h-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className={inputClass}
               />
-              <Input
+              <input
                 value={draftTitle}
                 onChange={(e) => setDraftTitle(e.target.value)}
                 placeholder="Название (необязательно)"
                 aria-label="Название компетенции"
-                className="h-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className={inputClass}
               />
             </div>
             <div className="grid gap-2 md:grid-cols-3">
@@ -1132,18 +1157,18 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
               />
             </div>
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={addDraft}
-              className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              className="cursor-pointer"
+              iconLeft={<Plus className="size-3.5" />}
             >
-              <Plus className="mr-1.5 size-3.5" />
               Добавить компетенцию
             </Button>
             {newComps.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {newComps.map((d) => (
-                  <Badge key={d.code} variant="default" className="text-xs gap-1">
+                  <Badge key={d.code} tone="primary" className="text-xs gap-1">
                     {d.code}
                     <button
                       onClick={() => removeDraft(d.code)}
@@ -1159,13 +1184,13 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cp-tech">Технологии (через запятую)</Label>
-            <Input
+            <input
               id="cp-tech"
               value={cpTech}
               onChange={(e) => setCpTech(e.target.value)}
               placeholder="Python, Docker, PostgreSQL"
               aria-label="Технологии профиля"
-              className="h-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              className={inputClass}
             />
           </div>
           {!cpNameValid && cpName.length > 0 && (
@@ -1176,26 +1201,27 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
           )}
           {createError && <p className="text-sm text-destructive">{createError}</p>}
           <Button
+            variant="primary"
             onClick={() => void handleCreateProfile()}
             disabled={creating}
-            className="h-10 cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="cursor-pointer"
           >
             {creating ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Plus className="mr-2 size-4" />}
             Создать профиль
           </Button>
-        </CardContent>
+        </CardBody>
       </Card>
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg text-foreground">
-            <BookOpen className="size-5 text-primary" />
-            Мои компетенции
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Программа {krm?.direction_name || dirCode}: что совпало, чего не хватает
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <BookOpen className="size-5 text-primary" />
+              Мои компетенции
+            </span>
+          }
+          description={`Программа ${krm?.direction_name || dirCode}: что совпало, чего не хватает`}
+        />
+        <CardBody className="space-y-3">
           {krmLoading && (
             <div className="space-y-2" aria-label="Загрузка компетенций">
               {[0, 1, 2].map((i) => (
@@ -1227,7 +1253,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                         {topGaps.map((g) => (
                           <li key={g.name} className="flex items-center justify-between gap-2">
                             <span className="truncate">{g.name}</span>
-                            <Badge variant="secondary" className="text-xs shrink-0">
+                            <Badge tone="neutral" className="text-xs shrink-0">
                               не хватает {g.missing}/{g.total}
                             </Badge>
                           </li>
@@ -1236,9 +1262,10 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                       {missingPool.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {missingPool.slice(0, 4).map((m) => (
-                            <span
+                            <Badge
                               key={`${m.discipline}::${m.code}::${m.text}`}
-                              className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-card px-2 py-0.5 text-xs text-foreground transition-colors duration-200"
+                              tone="neutral"
+                              className="max-w-full text-xs"
                             >
                               <span className="break-words">{m.text}</span>
                               <button
@@ -1249,7 +1276,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                               >
                                 <Plus className="size-3" />
                               </button>
-                            </span>
+                            </Badge>
                           ))}
                         </div>
                       )}
@@ -1276,7 +1303,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                               {d.discipline}
                             </span>
                             <span className="flex shrink-0 items-center gap-2">
-                              <Badge variant={has > 0 ? "default" : "secondary"} className="text-xs">
+                              <Badge tone={has > 0 ? "primary" : "neutral"} className="text-xs">
                                 {has}/{total}
                               </Badge>
                               <ChevronDown className={`size-4 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
@@ -1296,14 +1323,15 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                                   </div>
                                   <div className="flex flex-wrap gap-1.5">
                                     {matched.map((s, i) => (
-                                      <span
+                                      <Badge
                                         key={i}
+                                        tone="success"
+                                        className="max-w-full text-xs"
                                         title="Есть у вас"
-                                        className="inline-flex max-w-full items-center gap-1 rounded-md border border-success/30 bg-success-soft px-2 py-0.5 text-xs font-medium text-success transition-colors duration-200"
                                       >
                                         <CheckCircle2 className="size-3 shrink-0" />
                                         <span className="break-words">{s.text}</span>
-                                      </span>
+                                      </Badge>
                                     ))}
                                   </div>
                                 </div>
@@ -1315,10 +1343,11 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                                   </div>
                                   <div className="flex flex-wrap gap-1.5">
                                     {missing.map((s, i) => (
-                                      <span
+                                      <Badge
                                         key={i}
+                                        tone="neutral"
+                                        className="max-w-full text-xs"
                                         title="Нет у вас - нажмите +, чтобы добавить"
-                                        className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-card px-2 py-0.5 text-xs text-foreground transition-colors duration-200"
                                       >
                                         <span className="break-words">{s.text}</span>
                                         <button
@@ -1329,7 +1358,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                                         >
                                           <Plus className="size-3" />
                                         </button>
-                                      </span>
+                                      </Badge>
                                     ))}
                                   </div>
                                 </div>
@@ -1344,17 +1373,17 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
               )}
               <div>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   onClick={() => onNavigate("data")}
-                  className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  className="cursor-pointer"
+                  iconLeft={<Database className="size-4" />}
                 >
-                  <Database className="mr-2 size-4" />
                   Открыть результаты
                 </Button>
               </div>
             </>
           )}
-        </CardContent>
+        </CardBody>
       </Card>
     </div>
   );
