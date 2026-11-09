@@ -90,6 +90,7 @@ export function AppHeader({
                 size="sm"
                 onClick={onOpenProfile}
                 title="Мой профиль"
+                aria-label="Мой профиль"
                 className="cursor-pointer transition-colors duration-200 text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
               >
                 <User className="size-4" />
@@ -115,11 +116,19 @@ export function AppHeader({
                 size="sm"
                 onClick={onToggleTheme}
                 title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
+                aria-label={theme === "dark" ? "Переключить на светлую тему" : "Переключить на тёмную тему"}
                 className="text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100"
               >
                 {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </Button>
-              <Button variant="ghost" size="sm" onClick={onLogout} className="text-gray-500 dark:text-slate-400 hover:text-red-600">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onLogout}
+                title="Выйти"
+                aria-label="Выйти"
+                className="text-gray-500 dark:text-slate-400 hover:text-red-600"
+              >
                 <LogOut className="size-4" />
               </Button>
             </div>

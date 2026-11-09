@@ -9,11 +9,10 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_any_role
 from src.database import async_session_factory
 from src.models.krm_models import AuditLog
@@ -21,7 +20,6 @@ from src.models.krm_models import AuditLog
 logger = structlog.get_logger("api")
 
 router = APIRouter(tags=["audit"], dependencies=[Depends(require_any_role("admin"))])
-limiter = Limiter(key_func=get_remote_address)
 
 
 def _parse_iso(value: str, label: str) -> datetime:

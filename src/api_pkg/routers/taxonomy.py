@@ -2,12 +2,11 @@
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from src import Err, Ok
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.api_pkg import deps
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_authenticated, user_error_detail
 from src.models.api_responses import (
     KRMCoverageResponse,
@@ -19,7 +18,6 @@ from src.models.api_responses import (
 logger = structlog.get_logger("api")
 
 router = APIRouter(tags=["taxonomy"], dependencies=[Depends(require_authenticated())])
-limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/taxonomy/coverage", response_model=TaxonomyCoverageResponse)

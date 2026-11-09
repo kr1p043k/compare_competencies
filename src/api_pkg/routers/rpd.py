@@ -19,15 +19,13 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from src import config
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_any_role
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["rpd"], dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
-limiter = Limiter(key_func=get_remote_address)
 
 _DIR_CODE_RE = re.compile(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$")
 

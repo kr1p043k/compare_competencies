@@ -433,7 +433,10 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       {toast && (
-        <div className="fixed top-4 right-4 z-[60] max-w-sm rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950 px-4 py-3 text-sm text-red-800 dark:text-red-200 shadow-sm flex items-start gap-2">
+        <div
+          role="alert"
+          className="fixed top-4 right-4 z-[60] max-w-sm rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950 px-4 py-3 text-sm text-red-800 dark:text-red-200 shadow-sm flex items-start gap-2"
+        >
           <span className="flex-1">{toast}</span>
           <button
             type="button"
@@ -471,6 +474,7 @@ export default function App() {
               className="mb-6"
             >
               <div
+                aria-live="polite"
                 className={`px-4 py-3 rounded-lg border ${
                   status.type === "success"
                     ? "bg-green-50 border-green-200 text-green-800 dark:bg-green-950/40 dark:border-green-800 dark:text-green-200"

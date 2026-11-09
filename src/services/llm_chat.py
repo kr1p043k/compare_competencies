@@ -635,13 +635,19 @@ async def assess(
         return _fallback(_deterministic_blocks(context))
 
     try:
-        text = answer_text(context, client=client, message=message, history=history)
+        # answer_text/answer_blocks синхронные (sync OpenAI-клиент внутри):
+        # без to_thread они выполняются в event loop и держат весь API,
+        # пока модель отвечает (~десятки секунд на длинных контекстах).
+        text = await asyncio.to_thread(
+            answer_text, context, client=client, message=message, history=history
+        )
         if not text:
             # Текстовый вызов упал (answer_text вернул "") -> детерминированный
             # фолбэк; llm_used=False, блоки НЕ считаются полученными от LLM.
             return _fallback(_deterministic_blocks(context))
         blocks_status: list[bool] = []
-        blocks = answer_blocks(
+        blocks = await asyncio.to_thread(
+            answer_blocks,
             context,
             text,
             client=client,

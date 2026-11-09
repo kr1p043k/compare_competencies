@@ -82,6 +82,11 @@ class Settings(BaseSettings):
     RATELIMIT_ENABLED: bool = True
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8000"
     TOKEN_TTL_DAYS: int = 7
+    # Пул соединений asyncpg. Поля обязаны быть объявлены в Settings: раньше
+    # src/db.py читал их через getattr(settings, 'DB_POOL_MIN', 2) — при
+    # extra='ignore' значения из .env тихо отбрасывались и пул всегда был 2-10.
+    DB_POOL_MIN: int = 2
+    DB_POOL_MAX: int = 10
     # Токен для скрейпинга /metrics (Prometheus). Если задан, эндпоинт
     # принимает Authorization: Bearer <токен> в обход ролевой проверки:
     # у Prometheus нет пользовательской сессии, и без этого таргет падал 401.

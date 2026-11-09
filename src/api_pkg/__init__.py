@@ -13,12 +13,11 @@ from cmdstanpy.utils.logging import disable_logging as _disable_cmdstan
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from src import config
-from src.api_pkg.client_ip import client_ip
+from src.api_pkg.rate_limit import limiter as limiter  # noqa: F401
 from src.monitoring.metrics import get_metrics
 
 _disable_cmdstan().__enter__()
@@ -52,24 +51,6 @@ def _warn_metrics_token_unset() -> None:
 
 class _BodyTooLargeError(Exception):
     """Тело превысило лимит при стриминге (без Content-Length)."""
-
-
-def _rate_limit_key(request: Request) -> str:
-    """Rate limit by user email (from JWT) if authenticated, else by real IP.
-
-    IP берётся через `client_ip`, который не доверяет `X-Forwarded-For` от
-    недоверенных соединений: иначе лимит обходится подменой заголовка
-    (15 запросов с разными XFF давали 15 попыток входа).
-    """
-    user = getattr(request.state, "user", None)
-    if user and isinstance(user, dict):
-        email = user.get("u")
-        if email:
-            return f"user:{email}"
-    return f"ip:{client_ip(request)}"
-
-
-limiter = Limiter(key_func=_rate_limit_key, enabled=getattr(config, "RATELIMIT_ENABLED", True))
 
 
 def create_app() -> FastAPI:

@@ -15,11 +15,10 @@ import numpy as np
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from src import Err, Ok, config
 from src.api_pkg import deps
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.models.api_responses import (
     DeadSkillsResponse,
@@ -34,7 +33,6 @@ from src.parsing.skills.skill_validator import SkillValidator
 logger = structlog.get_logger("api")
 
 router = APIRouter(tags=["profiles"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 def _json_safe(value: Any) -> Any:

@@ -1,14 +1,12 @@
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, field_validator
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import get_current_user
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["subscriptions"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 # ─── Pydantic models ───────────────────────────────────────────────────────

@@ -405,7 +405,7 @@ docker compose up -d backend frontend prometheus grafana postgres-exporter node-
 | `n8n` | Автоматизация воркфлоу | `:5678` |
 | `n8n-postgres` | БД n8n | - |
 | `prometheus` | Сбор метрик (30 дней хранения) | `:9090` |
-| `grafana` | Визуализация метрик (admin / 2JQeA2nD7Ndsj1kr) | `:3001` |
+| `grafana` | Визуализация метрик (admin / пароль в `.env`, ключ GRAFANA_PASSWORD) | `:3001` |
 | `postgres-exporter` | Метрики PostgreSQL | `:9187` |
 | `node-exporter` | Метрики хоста | `:9100` |
 | `cadvisor` | Метрики Docker-контейнеров | `:8081` |
@@ -418,7 +418,7 @@ docker compose up -d backend frontend prometheus grafana postgres-exporter node-
 | http://localhost:8000/docs | Swagger-документация API |
 | http://localhost:8000/metrics | Prometheus-метрики (raw) |
 | http://localhost:8000/api/admin/monitoring | JSON-дашборд мониторинга |
-| http://localhost:3001 | Grafana (admin / 2JQeA2nD7Ndsj1kr) - дашборды: Server, Application, LLM & AI Monitoring |
+| http://localhost:3001 | Grafana (admin / пароль в `.env`) - дашборды: Server, Application, LLM & AI Monitoring |
 | http://localhost:9090 | Prometheus Web UI |
 | http://localhost:5678 | n8n |
 | http://localhost:3000 | Open WebUI (чат с Qwen 3.6) |

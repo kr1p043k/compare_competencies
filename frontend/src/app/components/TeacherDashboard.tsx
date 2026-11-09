@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { ListFilter } from "lucide-react";
 import { api } from "../api";
 import { Badge, MetricPair, Skeleton } from "../../design";
@@ -619,6 +619,53 @@ export function TeacherDashboard() {
     } catch (err) { reportError("app/components/TeacherDashboard.tsx:534", err); }
   }
 
+  // Фильтрация/сортировка списков: useMemo обязательно ДО раннего return
+  // скелетона ниже (правила хуков) и ради производительности — раньше каждый
+  // чекбокс/символ поиска пересчитывал все списки заново на каждом рендере.
+  const analysisByName = useMemo(
+    () => new Map((analysis?.disciplines ?? []).map((a) => [a.name, a])),
+    [analysis],
+  );
+  // Поиск + чипы-фильтры задают состав списка, сортировка — только порядок.
+  const filtered = useMemo(
+    () =>
+      sortDisciplines(
+        filterDisciplines(disciplines, analysisByName, { search, year: yearFilter, filter: discFilter }),
+        analysisByName,
+        discSort,
+      ),
+    [disciplines, analysisByName, search, yearFilter, discFilter, discSort],
+  );
+  const discCounts = useMemo(
+    () => disciplineFilterCounts(disciplines, analysisByName, { search, year: yearFilter }),
+    [disciplines, analysisByName, search, yearFilter],
+  );
+  const discFiltersActive =
+    !!search.trim() || yearFilter !== 0 || discFilter !== "all" || discSort !== "plan";
+  // Шаг «Компетенции и ЗУН»: поиск + наличие ЗУН.
+  const compsVisible = useMemo(
+    () => (selected ? filterCompetencies(selected.competencies, { search: compSearch, filter: compFilter }) : []),
+    [selected, compSearch, compFilter],
+  );
+  const compCounts = useMemo(
+    () =>
+      selected
+        ? competencyFilterCounts(filterCompetencies(selected.competencies, { search: compSearch }))
+        : null,
+    [selected, compSearch],
+  );
+  const compFiltersActive = !!compSearch.trim() || compFilter !== "all";
+  // Шаг «Рекомендации»: по компетенции и по типу.
+  const discRecCount = useMemo(
+    () => (selected ? recs.filter((r) => r.discipline_id === selected.name).length : 0),
+    [recs, selected],
+  );
+  const recsVisible = useMemo(
+    () => (selected ? filterRecommendations(recs, selected.name, { comp: recComp, type: recTypeF }) : []),
+    [recs, selected, recComp, recTypeF],
+  );
+  const recFiltersActive = !!recComp || !!recTypeF;
+
   if (loading) {
     return (
       <div
@@ -649,32 +696,6 @@ export function TeacherDashboard() {
     );
   }
 
-  const analysisByName = new Map((analysis?.disciplines ?? []).map((a) => [a.name, a]));
-  // Поиск + чипы-фильтры задают состав списка, сортировка — только порядок.
-  const filteredSet = filterDisciplines(disciplines, analysisByName, {
-    search,
-    year: yearFilter,
-    filter: discFilter,
-  });
-  const filtered = sortDisciplines(filteredSet, analysisByName, discSort);
-  const discCounts = disciplineFilterCounts(disciplines, analysisByName, { search, year: yearFilter });
-  const discFiltersActive =
-    !!search.trim() || yearFilter !== 0 || discFilter !== "all" || discSort !== "plan";
-  // Шаг «Компетенции и ЗУН»: поиск + наличие ЗУН.
-  const compsVisible = selected
-    ? filterCompetencies(selected.competencies, { search: compSearch, filter: compFilter })
-    : [];
-  const compCounts = selected
-    ? competencyFilterCounts(filterCompetencies(selected.competencies, { search: compSearch }))
-    : null;
-  const compFiltersActive = !!compSearch.trim() || compFilter !== "all";
-  // Шаг «Рекомендации»: по компетенции и по типу.
-  const discRecCount = selected ? recs.filter((r) => r.discipline_id === selected.name).length : 0;
-  const recsVisible = selected ? filterRecommendations(recs, selected.name, { comp: recComp, type: recTypeF }) : [];
-  const recFiltersActive = !!recComp || !!recTypeF;
-
-  // Класс-эквивалент прежнего inline-стиля `card` (фактические значения совпадают:
-  // radius 8px = rounded-lg, padding 14px = p-3.5, margin 10px = mb-2.5).
   const card = "rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3.5 mb-2.5 shadow-xs";
 
   function covBorderClass(cov: number) {
@@ -1102,7 +1123,8 @@ export function TeacherDashboard() {
             </div>
           )}
           {filtered.map((d) => {
-            const discAnalysis = analysis?.disciplines.find((a) => a.name === d.name);
+            // Map.get вместо .find по массиву: O(1), а не O(n) на каждую строку.
+            const discAnalysis = analysisByName.get(d.name);
             return (
               <div
                 key={d.name}

@@ -11,11 +11,10 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from src import config
 from src.api_pkg import deps
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.api_pkg.summary_builder import build_summary_payload, load_recommendations_from_disk
 from src.api_pkg.user_keys import self_profile_keys
@@ -24,7 +23,6 @@ from src.models.student import StudentProfile
 logger = structlog.get_logger("api")
 
 router = APIRouter(tags=["results"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 # Кэш распарсенных result-файлов по (path, mtime_ns, size). result/*/_full_...json

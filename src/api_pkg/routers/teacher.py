@@ -16,10 +16,9 @@ import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from src import config
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role
 from src.api_pkg.routers.profiles import _load_self_profile, _self_profile_name
@@ -27,7 +26,6 @@ from src.db import get_pool
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["teacher"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 # ---------- models ----------
@@ -1023,11 +1021,21 @@ async def export_vacancies_excel(request: Request, search: str | None = None,
     _cleanup_old_exports(config.REPORTS_DIR, max_age_hours=24)
 
     excel_path = config.REPORTS_DIR / f"vacancies_export_{_uuid.uuid4().hex[:12]}.xlsx"
-    df.to_excel(excel_path, index=False, engine="openpyxl")
+    try:
+        # 57k строк openpyxl упаковывает десятки секунд. Это делалось прямо
+        # в event loop и замораживало весь API на время выгрузки; паттерн
+        # перенесён из admin-экспорта (to_thread + удаление после отдачи).
+        await asyncio.to_thread(df.to_excel, excel_path, index=False, engine="openpyxl")
+    except Exception:
+        excel_path.unlink(missing_ok=True)
+        raise
     if not excel_path.exists():
         raise HTTPException(status_code=500, detail="Excel export failed")
+    from starlette.background import BackgroundTask
+
     return FileResponse(str(excel_path), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        filename="vacancies_export.xlsx")
+                        filename="vacancies_export.xlsx",
+                        background=BackgroundTask(excel_path.unlink, missing_ok=True))
 
 
 @router.get("/teacher/krm/competencies/tree", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])

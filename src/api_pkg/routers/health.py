@@ -9,17 +9,15 @@ from typing import Literal
 import structlog
 from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel, Field, model_validator
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 import src.db as _db
 from src import config
 from src.api_pkg import deps
+from src.api_pkg.rate_limit import limiter
 from src.model_registry import ModelRegistry
 from src.models.api_responses import HealthResponse
 
 logger = structlog.get_logger("api")
-limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(tags=["monitoring"])
 
