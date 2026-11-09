@@ -68,7 +68,7 @@ const DEACTIVATION_WORD = "УДАЛИТЬ";
 
 const SKELETON_ROWS = 6;
 const selectClass =
-  "h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm";
+  "h-9 px-3 rounded-lg border border-input bg-input-background text-sm";
 
 interface Direction {
   dir_code: string;
@@ -496,8 +496,8 @@ export function AdminUsersTab() {
           aria-live="polite"
           className={
             banner.ok
-              ? "rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
-              : "rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
+              ? "rounded-lg border border-success/30 bg-success-soft px-3 py-2 text-sm text-success"
+              : "rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
           }
         >
           {banner.text}
@@ -592,7 +592,7 @@ export function AdminUsersTab() {
           {phase === "error" && rows.length > 0 && (
             <div
               role="alert"
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
             >
               <span>{fetchError}</span>
               <Button size="sm" variant="secondary" onClick={loadUsers}>
@@ -862,7 +862,7 @@ export function AdminUsersTab() {
                               : prev.filter((x) => x !== d.dir_code),
                           )
                         }
-                        className="accent-violet-600"
+                        className="accent-primary"
                       />
                       <span className="font-mono text-xs text-muted-foreground">{d.dir_code}</span>
                       <span className="truncate text-xs text-muted-foreground">{d.name}</span>
@@ -884,8 +884,8 @@ export function AdminUsersTab() {
                   aria-live="polite"
                   className={
                     userCreated.ok
-                      ? "text-sm text-emerald-600 dark:text-emerald-400"
-                      : "text-sm text-red-600 dark:text-red-400"
+                      ? "text-sm text-success"
+                      : "text-sm text-destructive"
                   }
                 >
                   {userCreated.text}
@@ -938,7 +938,7 @@ export function AdminUsersTab() {
                             : prev.filter((x) => x !== d.dir_code),
                         )
                       }
-                      className="accent-violet-600"
+                      className="accent-primary"
                     />
                     <span className="font-mono text-xs text-muted-foreground">{d.dir_code}</span>
                     <span className="truncate text-xs text-muted-foreground">{d.name}</span>
@@ -958,8 +958,8 @@ export function AdminUsersTab() {
                     aria-live="polite"
                     className={
                       dirMsg.ok
-                        ? "text-sm text-emerald-600 dark:text-emerald-400"
-                        : "text-sm text-red-600 dark:text-red-400"
+                        ? "text-sm text-success"
+                        : "text-sm text-destructive"
                     }
                   >
                     {dirMsg.text}
@@ -1087,7 +1087,7 @@ export function AdminUsersTab() {
                 {dialogErr && (
                   <div
                     role="alert"
-                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
+                    className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
                   >
                     {dialogErr}
                   </div>
@@ -1096,7 +1096,7 @@ export function AdminUsersTab() {
                   <div
                     role="status"
                     aria-live="polite"
-                    className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
+                    className="rounded-lg border border-success/30 bg-success-soft px-3 py-2 text-sm text-success"
                   >
                     {dialogMsg}
                   </div>
