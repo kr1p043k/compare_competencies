@@ -1052,6 +1052,72 @@ async def admin_monitoring(
     return {"total": total, "limit": limit, "offset": offset, "families": page}
 
 
+# ---------- Мониторинг: дашборды Grafana ----------
+# Панель админки показывает состояние дашбордов из Grafana. Если GRAFANA_URL
+# не задан или Grafana недоступна, отдаём enabled/reachable=false и причину:
+# UI рисует понятное состояние вместо 500.
+
+
+def _grafana_creds() -> tuple[str, str, str] | None:
+    """(base_url, user, password) или None, если Grafana не сконфигурирована."""
+    url = config.settings.GRAFANA_URL
+    if not url:
+        return None
+    pwd = config.settings.GRAFANA_PASSWORD
+    pwd_val = pwd.get_secret_value() if hasattr(pwd, "get_secret_value") else (pwd or "")
+    return url.rstrip("/"), config.settings.GRAFANA_USER or "", pwd_val
+
+
+async def _grafana_search(base: str, user: str, password: str) -> list[dict]:
+    """Список дашбордов из Grafana API (/api/search)."""
+    import httpx
+
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.get(
+            f"{base}/api/search",
+            params={"type": "dash-db"},
+            auth=(user, password) if user else None,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    return data if isinstance(data, list) else []
+
+
+def _map_dashboards(base: str, items: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for it in items:
+        if isinstance(it, dict) and it.get("uid"):
+            out.append({
+                "uid": it.get("uid", ""),
+                "title": it.get("title", ""),
+                "url": f"{base}{it.get('url', '')}" if it.get("url") else None,
+            })
+    return out
+
+
+async def _grafana_status() -> dict[str, Any]:
+    creds = _grafana_creds()
+    if creds is None:
+        return {"enabled": False, "reachable": False,
+                "reason": "GRAFANA_URL не задан", "dashboards": []}
+    base, user, password = creds
+    try:
+        items = await _grafana_search(base, user, password)
+    except Exception as exc:  # noqa: BLE001 - недоступность Grafana не должна ломать панель
+        logger.warning("grafana_unreachable", error=str(exc))
+        return {"enabled": True, "reachable": False,
+                "reason": f"Grafana недоступна: {exc}", "dashboards": []}
+    return {"enabled": True, "reachable": True, "reason": None,
+            "dashboards": _map_dashboards(base, items)}
+
+
+@router.get("/admin/monitoring/grafana", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("30/minute")
+async def admin_monitoring_grafana(request: Request):
+    """Дашборды Grafana для панели мониторинга (fallback вместо 500)."""
+    return await _grafana_status()
+
+
 def _parse_metric_families(wanted: set[str]) -> dict[str, dict]:
     """Разобрать экспозицию Prometheus в словарь семейств (в потоке)."""
     from prometheus_client.parser import text_string_to_metric_families
