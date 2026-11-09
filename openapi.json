@@ -74,7 +74,7 @@
             "type": "string"
           },
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           },
@@ -2904,13 +2904,6 @@
       },
       "ValidationError": {
         "properties": {
-          "ctx": {
-            "title": "Context",
-            "type": "object"
-          },
-          "input": {
-            "title": "Input"
-          },
           "loc": {
             "items": {
               "anyOf": [
@@ -5829,6 +5822,26 @@
           }
         },
         "summary": "Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/logout-all": {
+      "post": {
+        "description": "Выход отовсюду: погасить ВСЕ активные сессии пользователя.\n\nОдного /auth/logout мало, если сессию могли угнать: сброс пароля/выход на\nсвоём устройстве не гасит чужой токен. Здесь закрываются все сессии, включая\nтекущую, поэтому клиенту нужно увести пользователя на экран входа.",
+        "operationId": "logout_all_api_auth_logout_all_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout All",
         "tags": [
           "auth"
         ]
