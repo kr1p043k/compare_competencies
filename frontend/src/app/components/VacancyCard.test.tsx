@@ -60,8 +60,9 @@ describe("VacancyCard", () => {
 
   it("renders the list variant as a compact row", () => {
     const { container } = render(<VacancyCard vacancy={baseVacancy} variant="list" />);
-    // В list-варианте карточка строчная
-    expect(container.querySelector('[data-slot="card"]')).toHaveClass("flex-row");
+    // list-вариант карточка строчная: корень рендера (design Card без data-slot)
+    // обязан раскладываться в строку
+    expect(container.firstElementChild).toHaveClass("flex-row");
   });
 
   it("exposes the hh.ru link", () => {
