@@ -36,6 +36,9 @@ alembic upgrade head
 | колонка `competency_skills.is_flat` | `git grep` - 0 совпадений |
 | колонка `disciplines.direction_codes` | в коде только функция `_user_direction_codes`, сама колонка не читается |
 
+> УДАЛЕНО миграцией `drop_legacy_dead_objects` (2026-11-09): таблицы `saved_files`, `timelog`, `todos` и колонки `competency_skills.is_flat`, `disciplines.direction_codes`. Перед удалением повторно проверено: `git grep` по src/tests/alembic/scripts/frontend - 0 ссылок; локальная БД обновлена (`alembic upgrade head`), `tests/api` 873 passed.
+
+
 ### Живые (НЕ legacy, вопреки черновому списку)
 
 | Объект | Где используется |

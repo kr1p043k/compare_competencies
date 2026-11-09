@@ -1,0 +1,19 @@
+{
+  "artifact": "ltr_ranker_ensemble_human.joblib",
+  "data_hash": null,
+  "model_version": null,
+  "feature_names": [
+    "level_encoded",
+    "category_encoded",
+    "cosine_sim",
+    "in_student_profile",
+    "skill_freq_normalized",
+    "co_occurrence",
+    "category_avg_weight",
+    "student_skills_count"
+  ],
+  "metrics": {
+    "ndcg@10": 0.7455,
+    "human_ndcg_at_10": 0.7455
+  }
+}
