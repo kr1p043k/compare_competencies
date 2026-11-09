@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ListFilter } from "lucide-react";
 import { api } from "../api";
-import { Badge, MetricPair, Skeleton } from "../../design";
+import { Badge, MetricPair, Skeleton, StatCard } from "../../design";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { MetricsGlossary } from "./MetricsGlossary";
 import { TaxonomyBrowser } from "./TaxonomyBrowser";
@@ -1296,52 +1296,41 @@ export function TeacherDashboard() {
             const wCov = discData ? discData.market_weight_coverage : analysis.average_market_weight_coverage;
           return (<>
           <div className="flex gap-3 mb-4 flex-wrap">
-            <div className={card}>
-              <div className="text-xs text-gray-500 dark:text-slate-400">
-                {discData ? `Охват рынка: ${selected?.name ?? ""}` : "Средний охват рынка"}
-                {covTotal ? ` (из ${covTotal})` : ""}
-              </div>
-                  <div className={`text-2xl font-bold ${covReliable ? covTextClass(cov) : "text-gray-400"}`}>
-                    {covReliable ? `${(cov * 100).toFixed(1)}%` : "н/д"}
-                  </div>
-                  <div className="text-xs font-semibold text-gray-500 dark:text-slate-400">
-                    {covReliable ? (level || "").toUpperCase() : "мало релевантных навыков"}
-                  </div>
-                  {/* Пара к строгому охвату сверху: без неё один процент
-                  читается как полная оценка. Только при достоверном знаменателе. */}
-                  {covReliable && wCov != null && (
-                    <div
-                      className="text-xs text-gray-500 dark:text-slate-400 mt-0.5"
-                      title="Взвешенный охват (по спросу): насколько востребовано то из топа рынка, что реально покрыто. Может быть выше или ниже строгого"
-                    >
-                      взвешенный охват: {(wCov * 100).toFixed(1)}%
-                    </div>
-                  )}
-                  {/* Откуда знаменатель: ручная привязка, автоподбор по навыкам
-                      дисциплины или слабая оценка по названию. */}
-                  {discData?.market_top_source && (
-                    <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-                      {discData.market_top_source === "explicit"
-                        ? "знаменатель: ручная привязка"
-                        : discData.market_top_source === "derived"
-                          ? "знаменатель: авто по навыкам"
-                          : "знаменатель: по профилю дисциплины"}
-                    </div>
-                  )}
-                </div>
-                <div className={card}>
-                  <div className="text-xs text-gray-500 dark:text-slate-400">Gaps</div>
-                  <div className="text-2xl font-bold text-red-300">
-                    {gaps}
-                  </div>
-                </div>
-                <div className={card}>
-                  <div className="text-xs text-gray-500 dark:text-slate-400">Disciplines</div>
-                  <div className="text-2xl font-bold text-blue-300">
-                    {analysis.total_disciplines}
-                  </div>
-                </div>
-              </div>
+            <StatCard
+              className="min-w-[200px]"
+              tone={!covReliable ? "default" : cov > 0.5 ? "success" : cov > 0.2 ? "warning" : "danger"}
+              label={<>{discData ? `Охват рынка: ${selected?.name ?? ""}` : "Средний охват рынка"}{covTotal ? ` (из ${covTotal})` : ""}</>}
+              value={covReliable ? `${(cov * 100).toFixed(1)}%` : "н/д"}
+              hint={<>
+                <span className="font-semibold">
+                  {covReliable ? (level || "").toUpperCase() : "мало релевантных навыков"}
+                </span>
+                {/* Пара к строгому охвату сверху: без неё один процент
+                читается как полная оценка. Только при достоверном знаменателе. */}
+                {covReliable && wCov != null && (
+                  <span
+                    className="block text-subtle-foreground mt-0.5"
+                    title="Взвешенный охват (по спросу): насколько востребовано то из топа рынка, что реально покрыто. Может быть выше или ниже строгого"
+                  >
+                    взвешенный охват: {(wCov * 100).toFixed(1)}%
+                  </span>
+                )}
+                {/* Откуда знаменатель: ручная привязка, автоподбор по навыкам
+                    дисциплины или слабая оценка по названию. */}
+                {discData?.market_top_source && (
+                  <span className="block text-subtle-foreground mt-0.5">
+                    {discData.market_top_source === "explicit"
+                      ? "знаменатель: ручная привязка"
+                      : discData.market_top_source === "derived"
+                        ? "знаменатель: авто по навыкам"
+                        : "знаменатель: по профилю дисциплины"}
+                  </span>
+                )}
+              </>}
+            />
+            <StatCard label="Gaps" value={gaps} tone="danger" className="min-w-[140px]" />
+            <StatCard label="Disciplines" value={analysis.total_disciplines} tone="primary" className="min-w-[140px]" />
+          </div>
           </>)})()}
 
               {/* Общие блоки направления - только пока дисциплина не выбрана.
