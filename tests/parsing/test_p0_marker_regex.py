@@ -15,12 +15,12 @@ class TestMarkerWordBoundary:
         assert r.is_ok()
         assert "go" not in _texts(r.unwrap())
 
-    def test_single_char_skills_skipped_in_marker(self):
+    def test_single_char_language_r_extracted_in_marker(self):
         p = SkillParser()
         r = p._marker_search("Требования: r, python", SkillSource.DESCRIPTION)
         assert r.is_ok()
         texts = _texts(r.unwrap())
-        assert "r" not in texts
+        assert "r" in texts
         assert "python" in texts
 
     def test_marker_negation(self):
