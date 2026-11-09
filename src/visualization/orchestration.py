@@ -235,9 +235,9 @@ def show_context_info() -> None:
 
 
 if __name__ == "__main__":
-    import logging
+    from src.logging_config import setup_structlog
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    setup_structlog()
     show_context_info()
 
     skill_weights = load_skill_weights()

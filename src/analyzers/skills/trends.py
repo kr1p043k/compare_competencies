@@ -6,7 +6,6 @@
 import argparse
 import contextlib
 import json
-import logging
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -455,7 +454,9 @@ class TrendAnalyzer:
 
 # ============================== CLI ==============================
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    from src.logging_config import setup_structlog
+
+    setup_structlog()
 
     parser = argparse.ArgumentParser(description="Анализ трендов навыков по историческим снимкам")
     parser.add_argument("--current", "-c", type=Path, help="Путь к файлу текущего снимка")
