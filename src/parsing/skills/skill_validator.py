@@ -20,6 +20,11 @@ from src.parsing.utils import load_it_skills
 logger = structlog.get_logger(__name__)
 
 
+def _identity(word: str) -> str:
+    """Запасной лемматизатор, когда src.text.ru_morph недоступен."""
+    return word
+
+
 class ValidationReason(Enum):
     """Причины отклонения навыка"""
 
@@ -232,7 +237,7 @@ class SkillValidator:
                             try:
                                 from src.text.ru_morph import lemma as _lemma
                             except Exception:
-                                _lemma = lambda w: w  # noqa: E731
+                                _lemma = _identity
                             self.__dict__["_wl_lemmatize"] = _lemma
                             # Фразы - по словам ( _wl_norm целиком склеил бы
                             # 'автоматизация тестирования' в один токен).

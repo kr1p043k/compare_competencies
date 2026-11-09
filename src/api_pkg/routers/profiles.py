@@ -321,7 +321,9 @@ async def create_custom_profile(request: Request, body: CustomProfileIn):
     data/students/<name>_competency.json and registers it in memory.
 
     Old shape {name, target_level, competencies[], skills[]} still works.
-    New shape adds {base, competency_codes[], new_competencies[{code,title,knowledge,abilities,skills}], technologies[]}."""  # noqa: E501
+    New shape adds {base, competency_codes[], new_competencies
+    [{code,title,knowledge,abilities,skills}], technologies[]}.
+    """
     import json
     import re
     from pathlib import Path

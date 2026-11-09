@@ -36,7 +36,7 @@ async def get_trends(
     request: Request,
     top_n: int = Query(15),
     min_change: float = Query(3.0),
-    trend_analyzer_instance: TrendAnalyzer = Depends(deps.get_trend_analyzer),  # noqa: B008
+    trend_analyzer_instance: TrendAnalyzer = Depends(deps.get_trend_analyzer),
 ):
     """Тренды навыков."""
     try:

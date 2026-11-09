@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -61,7 +61,7 @@ def mock_pool():
     async def _fetchval(sql, *args):
         lower = sql.lower()
         if "max(completed_at)" in lower:
-            return datetime(2000, 1, 1, tzinfo=timezone.utc)  # noqa: UP017
+            return datetime(2000, 1, 1, tzinfo=UTC)
         if "select max(ts)" in lower:
             return None
         if "count(*)::text" in lower or "sum(hashtext" in lower:
@@ -678,7 +678,7 @@ class TestRunTeacherAnalysisErrorPaths:
             lower = sql.lower()
             if "max(completed_at)" in lower:
                 # summary is newer than last run -> market unchanged
-                return datetime(2000, 1, 1, tzinfo=timezone.utc)  # noqa: UP017
+                return datetime(2000, 1, 1, tzinfo=UTC)
             if "select max(ts)" in lower:
                 return None
             if "count(*)::text" in lower:
@@ -706,7 +706,7 @@ class TestRunTeacherAnalysisErrorPaths:
         async def _fetchval(sql, *args):
             lower = sql.lower()
             if "max(completed_at)" in lower:
-                return datetime(2000, 1, 1, tzinfo=timezone.utc)  # noqa: UP017
+                return datetime(2000, 1, 1, tzinfo=UTC)
             if "select max(ts)" in lower:
                 return None
             if "count(*)::text" in lower:

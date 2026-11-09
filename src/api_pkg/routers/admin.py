@@ -171,7 +171,11 @@ async def whitelist_remove(request: Request, body: WhitelistRemoveRequest):
     }
 
 
-@router.post("/admin/whitelist/backup", response_model=WhitelistBackupResponse, dependencies=[Depends(require_any_role("admin"))])  # noqa: E501
+@router.post(
+    "/admin/whitelist/backup",
+    response_model=WhitelistBackupResponse,
+    dependencies=[Depends(require_any_role("admin"))],
+)
 @limiter.limit("5/minute")
 async def whitelist_backup(request: Request):
     """Бэкап whitelist в файл."""

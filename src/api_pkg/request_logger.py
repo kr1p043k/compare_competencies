@@ -546,9 +546,13 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
         if response.status_code >= 500 and not getattr(request.state, "system_error_notified", False):
             request.state.system_error_notified = True
             from src.notifications.system import queue_system_error
+            detail = (
+                f"Статус {response.status_code} за {elapsed:.0f} мс | "
+                f"user={user or 'anonymous'} | path={request.url.path}"
+            )
             queue_system_error(
                 f"Ошибка API: {request.method} {request.url.path}",
-                f"Статус {response.status_code} за {elapsed:.0f} мс | user={user or 'anonymous'} | path={request.url.path}",  # noqa: E501 - f-string, must not split
+                detail,
                 severity="error" if response.status_code >= 500 else "warning",
                 article_url=f"api:{request.method} {request.url.path}",
                 dedupe=True,

@@ -986,10 +986,14 @@ async def run_teacher_analysis(
         from src.models.teacher_analysis import Recommendation
         for comp_code, ctx in ksa_context.items():
             for skill in ctx.get("ksa_not_on_market", []):
+                message = (
+                    f"Навык «{skill}» упомянут в KSA компетенции {comp_code}, "
+                    "но не обнаружен на рынке. Рекомендуется проверить актуальность."
+                )
                 recs.append(Recommendation(
                     type="ksa_context", priority="medium",
                     skill_name=skill,
-                    message=f"Навык «{skill}» упомянут в KSA компетенции {comp_code}, но не обнаружен на рынке. Рекомендуется проверить актуальность.",  # noqa: E501 - f-string, must not split
+                    message=message,
                 ))
 
         with _discipline_lock:
