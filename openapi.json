@@ -74,7 +74,7 @@
             "type": "string"
           },
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
@@ -2904,6 +2904,13 @@
       },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
           "loc": {
             "items": {
               "anyOf": [
@@ -4176,6 +4183,26 @@
           }
         },
         "summary": "Admin Monitoring",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/monitoring/grafana": {
+      "get": {
+        "description": "Дашборды Grafana для панели мониторинга (fallback вместо 500).",
+        "operationId": "admin_monitoring_grafana_api_admin_monitoring_grafana_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Admin Monitoring Grafana",
         "tags": [
           "admin"
         ]
@@ -7626,7 +7653,7 @@
     },
     "/api/profiles/custom": {
       "post": {
-        "description": "Create your own competency profile (Data tab): persists to\ndata/students/<name>_competency.json and registers it in memory.\n\nOld shape {name, target_level, competencies[], skills[]} still works.\nNew shape adds {base, competency_codes[], new_competencies[{code,title,knowledge,abilities,skills}], technologies[]}.",
+        "description": "Create your own competency profile (Data tab): persists to\ndata/students/<name>_competency.json and registers it in memory.\n\nOld shape {name, target_level, competencies[], skills[]} still works.\nNew shape adds {base, competency_codes[], new_competencies\n[{code,title,knowledge,abilities,skills}], technologies[]}.",
         "operationId": "create_custom_profile_api_profiles_custom_post",
         "requestBody": {
           "content": {
