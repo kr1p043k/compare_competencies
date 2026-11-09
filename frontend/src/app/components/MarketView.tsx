@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { motion } from "motion/react";
 import { BarChart3, Briefcase, CalendarDays, Database, Trophy } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardBody, CardHeader, EmptyState, StatCard } from "../../design";
 
 interface MarketSkill {
   skill: string;
@@ -56,61 +56,57 @@ export function MarketView({ data }: MarketViewProps) {
       className="space-y-6"
     >
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((s, i) => (
-          <Card key={i} className="border border-slate-200 dark:border-slate-700">
-            <CardContent className="pt-5">
-              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                <s.icon className="size-4" />
-                <span className="text-xs font-medium">{s.label}</span>
-              </div>
-              <div className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100 truncate" title={s.value}>
-                {s.value}
-              </div>
-            </CardContent>
-          </Card>
+        {stats.map((s) => (
+          <StatCard
+            key={s.label}
+            label={s.label}
+            value={<span className="block truncate" title={s.value}>{s.value}</span>}
+            icon={<s.icon className="size-4" aria-hidden="true" />}
+          />
         ))}
       </div>
 
-      <Card className="border-0 shadow-sm bg-white/80 dark:bg-slate-900/80">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-3 text-base">
-            <div className="p-2 bg-blue-700 rounded-lg">
-              <BarChart3 className="size-5 text-white" />
-            </div>
-            Топ-15 навыков рынка
-          </CardTitle>
-          <CardDescription>
-            Вес - нормализованная метрика спроса (частота с учётом BM25 и эмбеддингов), а не число вакансий
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <Card>
+        <CardHeader
+          title={
+            <span className="flex items-center gap-3">
+              <span className="p-2 bg-primary rounded-lg">
+                <BarChart3 className="size-5 text-primary-foreground" aria-hidden="true" />
+              </span>
+              Топ-15 навыков рынка
+            </span>
+          }
+          description="Вес - нормализованная метрика спроса (частота с учётом BM25 и эмбеддингов), а не число вакансий"
+        />
+        <CardBody>
           <div className="space-y-2.5">
             {top.map((t, i) => (
               <div key={t.skill} className="flex items-center gap-3">
-                <span className="w-6 text-right text-xs font-mono text-slate-400">{i + 1}</span>
-                <span className="w-44 truncate text-sm font-medium text-slate-800 dark:text-slate-200" title={t.skill}>
+                <span className="w-6 text-right text-xs font-mono text-subtle-foreground">{i + 1}</span>
+                <span className="w-44 truncate text-sm font-medium text-foreground" title={t.skill}>
                   {t.skill}
                 </span>
-                <div className="flex-1 h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                <div className="flex-1 h-2.5 rounded-full bg-muted overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${Math.max(2, (t.weight / maxW) * 100)}%` }}
                     transition={{ delay: i * 0.03, duration: 0.4, ease: "easeOut" }}
-                    className="h-full rounded-full bg-blue-700"
+                    className="h-full rounded-full bg-primary"
                   />
                 </div>
-                <span className="w-14 text-right text-xs font-mono text-slate-500 dark:text-slate-400">
+                <span className="w-14 text-right text-xs font-mono text-muted-foreground">
                   {((t.weight / maxW) * 100).toFixed(0)}%
                 </span>
               </div>
             ))}
           </div>
           {top.length === 0 && (
-            <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-8">
-              Нет данных. Запустите сбор вакансий.
-            </p>
+            <EmptyState
+              title="Нет данных. Запустите сбор вакансий."
+              className="py-8"
+            />
           )}
-        </CardContent>
+        </CardBody>
       </Card>
     </motion.div>
   );
