@@ -13,6 +13,8 @@
 - `sync_*.py`, `prune_*.py`, `audit_*.py`, `merge_*.py`, `normalize_*.py`,
   `find_skill_duplicates.py` - обслуживание данных KRM/навыков;
 - `eval_frozen.py` - гейт регресса ML (используется как CI-ориентир, не эксперимент);
+- `check_model_manifests.py` - проверка, что у каждого отгружаемого артефакта есть
+  `.manifest.json`/`.metrics.json` с `feature_names` и NDCG@10 (`--write` их создаёт);
 - `train_ltr_ranker.py`, `_dsn.py` - общие модули для скриптов и экспериментов.
 
 ## `experiments/` - разовые исследования
