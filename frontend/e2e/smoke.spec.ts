@@ -25,10 +25,9 @@
  * включён, валидный вход админа уйдёт в challenge-экран и тест честно
  * упадёт, а не «пройдёт» мимо смысла.
  *
- * «Остались на логине» проверяем по контенту, а не по URL: приложение
- * hash-роутится и выставляет «#/vacancies» ещё до входа
- * (src/lib/router.ts:40-41 монтируется вместе с App, App.tsx:175), так что
- * URL одинаковый и на логине, и в шелле.
+ * «Остались на логине» проверяем по контенту, а не только по URL: приложение
+ * hash-роутится, но с гейтом isAuth (App.tsx -> useTabNavigation) адрес
+ * меняется только после входа - на логине URL остаётся чистым, без «#/vacancies».
  */
 
 /** База API для health-проверки (FastAPI). */
@@ -44,6 +43,9 @@ test.describe("smoke: login screen", () => {
     await expect(page.getByLabel("Почта")).toBeVisible();
     await expect(page.getByLabel("Пароль")).toBeVisible();
     await expect(page.getByRole("button", { name: "Войти" })).toBeVisible();
+
+    // Роутер гейтится isAuth: экран входа не подменяет адрес на #/vacancies.
+    expect(new URL(page.url()).hash).toBe("");
   });
 
   test("invalid credentials show an error and keep the login screen", async ({ page }) => {
