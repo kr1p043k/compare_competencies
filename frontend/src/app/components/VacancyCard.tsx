@@ -42,27 +42,27 @@ interface VacancyCardProps {
 const experienceLevels = {
   junior: {
     label: "Junior",
-    dot: "bg-sky-500",
+    dot: "bg-info",
     badge:
-      "bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/25",
+      "bg-info-soft text-info ring-info/30",
   },
   middle: {
     label: "Middle",
-    dot: "bg-violet-500",
+    dot: "bg-primary",
     badge:
-      "bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/25",
+      "bg-primary-soft text-primary ring-primary/30",
   },
   senior: {
     label: "Senior",
-    dot: "bg-amber-500",
+    dot: "bg-warning",
     badge:
-      "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/25",
+      "bg-warning-soft text-warning ring-warning/30",
   },
   unknown: {
     label: "Уровень не указан",
-    dot: "bg-slate-400",
+    dot: "bg-muted-foreground",
     badge:
-      "bg-slate-50 text-slate-500 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700",
+      "bg-muted text-muted-foreground ring-border",
   },
 } as const;
 
@@ -203,7 +203,7 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
   const snippet = vacancy.snippet?.requirement || vacancy.snippet?.responsibility;
 
   const Logo = (
-    <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+    <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg border border-border bg-card">
       {vacancy.employer_logo ? (
         <img
           src={vacancy.employer_logo}
@@ -212,7 +212,7 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
           loading="lazy"
         />
       ) : (
-        <Building2 className="size-5 text-slate-400 dark:text-slate-500" />
+        <Building2 className="size-5 text-subtle-foreground" />
       )}
     </div>
   );
@@ -230,7 +230,7 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
   const SpamChip = vacancy.is_spam ? (
     <span
       title={vacancy.spam_reason || ""}
-      className="inline-flex items-center gap-1 rounded bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300"
+      className="inline-flex items-center gap-1 rounded bg-destructive/10 px-1.5 py-0.5 text-xs font-medium text-destructive"
     >
       <AlertTriangle className="size-3" />
       Спам
@@ -242,13 +242,13 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
       {skills.slice(0, 7).map((skill) => (
         <span
           key={skill}
-          className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+          className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
         >
           {skill}
         </span>
       ))}
       {skills.length > 7 && (
-        <span className="rounded px-1.5 py-0.5 text-xs text-slate-400">
+        <span className="rounded px-1.5 py-0.5 text-xs text-subtle-foreground">
           +{skills.length - 7}
         </span>
       )}
@@ -282,17 +282,17 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
   // ---------------------------------------------------------------- list
   if (variant === "list") {
     return (
-      <Card className="flex flex-row items-start gap-4 gap-y-0 rounded-lg border border-slate-200 bg-white p-4 shadow-none transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700">
+      <Card className="flex flex-row items-start gap-4 gap-y-0 rounded-lg border border-border bg-card p-4 shadow-none transition-colors hover:border-border-strong">
         {Logo}
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate text-[15px] font-semibold text-slate-900 dark:text-slate-100">
+            <h3 className="truncate text-[15px] font-semibold text-foreground">
               {vacancy.name}
             </h3>
             {LevelChip}
             {SpamChip}
           </div>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <span className="truncate">{vacancy.employer_name}</span>
             <span aria-hidden>·</span>
             <span className="inline-flex items-center gap-1">
@@ -308,8 +308,8 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
           {SkillChips}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <span className="whitespace-nowrap text-sm font-semibold text-slate-900 dark:text-slate-100">
-            {salary ?? <span className="font-normal text-slate-400">не указана</span>}
+          <span className="whitespace-nowrap text-sm font-semibold text-foreground">
+            {salary ?? <span className="font-normal text-subtle-foreground">не указана</span>}
           </span>
           <div className="w-[150px]">{Actions}</div>
         </div>
@@ -319,14 +319,14 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
 
   // ---------------------------------------------------------------- grid
   return (
-    <Card className="flex h-full flex-col gap-0 rounded-lg border border-slate-200 bg-white p-4 shadow-none transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700">
+    <Card className="flex h-full flex-col gap-0 rounded-lg border border-border bg-card p-4 shadow-none transition-colors hover:border-border-strong">
       <div className="flex items-start gap-3">
         {Logo}
         <div className="min-w-0 flex-1">
-          <h3 className="line-clamp-2 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100">
+          <h3 className="line-clamp-2 text-[15px] font-semibold leading-snug text-foreground">
             {vacancy.name}
           </h3>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <span className="truncate">{vacancy.employer_name}</span>
             <span aria-hidden>·</span>
             <span className="inline-flex items-center gap-1">
@@ -340,13 +340,13 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {LevelChip}
         {SpamChip}
-        <span className="ml-auto text-sm font-semibold text-slate-900 dark:text-slate-100">
-          {salary ?? <span className="font-normal text-slate-400">з/п не указана</span>}
+        <span className="ml-auto text-sm font-semibold text-foreground">
+          {salary ?? <span className="font-normal text-subtle-foreground">з/п не указана</span>}
         </span>
       </div>
 
       {snippet && (
-        <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+        <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
           {sanitizeHtml(snippet)}
         </p>
       )}
@@ -354,7 +354,7 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
       {skills.length > 0 && <div className="mt-3">{SkillChips}</div>}
 
       <div className="mt-auto pt-3">
-        <div className="flex items-center justify-between gap-2 text-xs text-slate-400">
+        <div className="flex items-center justify-between gap-2 text-xs text-subtle-foreground">
           <span className="inline-flex items-center gap-1">
             <Calendar className="size-3" />
             {formatDate(vacancy.published_at)}

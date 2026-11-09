@@ -88,7 +88,7 @@ export function VacancyDetailPanel({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          className="fixed inset-0 z-50 flex justify-end bg-slate-900/30 dark:bg-black/50"
+          className="fixed inset-0 z-50 flex justify-end bg-foreground/40"
           onClick={onClose}
         >
           <motion.div
@@ -96,14 +96,14 @@ export function VacancyDetailPanel({
             animate={{ x: 0 }}
             exit={{ x: 32 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="flex h-full w-full max-w-2xl flex-col bg-white shadow-xl dark:bg-slate-900"
+            className="flex h-full w-full max-w-2xl flex-col bg-card shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <Card className="flex h-full flex-col gap-0 overflow-hidden rounded-none border-0 bg-white dark:bg-slate-900">
-              <CardHeader className="shrink-0 border-b border-slate-200 dark:border-slate-800">
+            <Card className="flex h-full flex-col gap-0 overflow-hidden rounded-none border-0 bg-card">
+              <CardHeader className="shrink-0 border-b border-border">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+                    <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg border border-border bg-card">
                       {logoUrl ? (
                         <img
                           src={logoUrl}
@@ -111,14 +111,14 @@ export function VacancyDetailPanel({
                           className="size-full object-contain p-1.5"
                         />
                       ) : (
-                        <Building2 className="size-5 text-slate-400 dark:text-slate-500" />
+                        <Building2 className="size-5 text-subtle-foreground" />
                       )}
                     </div>
                     <div className="min-w-0">
                       <CardTitle className="text-lg leading-snug">
                         {detail?.name || vacancy.name}
                       </CardTitle>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                         {employerName && (
                           <span className="inline-flex items-center gap-1">
                             <Building2 className="size-3.5" />
@@ -153,7 +153,7 @@ export function VacancyDetailPanel({
               <CardContent className="flex min-h-0 flex-1 flex-col p-5">
                 {loading ? (
                   <div className="flex flex-1 items-center justify-center">
-                    <Loader2 className="size-6 animate-spin text-slate-400" />
+                    <Loader2 className="size-6 animate-spin text-subtle-foreground" />
                   </div>
                 ) : (
                   <>
@@ -228,7 +228,7 @@ export function VacancyDetailPanel({
                       )}
 
                       {detail?.alternate_url && (
-                        <Button asChild className="w-full bg-slate-900 text-white hover:bg-slate-800">
+                        <Button asChild className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
                           <a href={detail.alternate_url} target="_blank" rel="noopener noreferrer">
                             Открыть на hh.ru
                             <ExternalLink className="ml-2 size-4" />
@@ -254,12 +254,12 @@ export function VacancyDetailPanel({
                       </div>
                       {detail?.description ? (
                         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                          <p className="whitespace-pre-line text-justify text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                          <p className="whitespace-pre-line text-justify text-sm leading-relaxed text-foreground">
                             {sanitizeHtml(detail.description)}
                           </p>
                         </div>
                       ) : (
-                        <p className="text-sm text-slate-400">Нет описания</p>
+                        <p className="text-sm text-subtle-foreground">Нет описания</p>
                       )}
                     </section>
                   </>
