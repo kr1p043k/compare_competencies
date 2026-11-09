@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Badge } from "./ui/badge";
-import { PageHeader } from "./PageHeader";
+import { Badge, Callout, Card, CardBody, CardHeader, EmptyState, PageHeader } from "../../design";
 import { useApi } from "../../lib/useApi";
 import {
   Target,
@@ -66,24 +64,24 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
         description="Сравнение навыков учебной программы с требованиями рынка труда."
       />
       {(pipelineQuery || pipelineRegions) && (
-      <div className="flex flex-wrap justify-center gap-2 text-sm text-slate-500">
+      <div className="flex flex-wrap justify-center gap-2">
       {pipelineQuery && (
-      <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-950/30 rounded-full">
-      <Briefcase className="size-3.5" />
+      <Badge tone="primary" className="px-3 py-1 text-sm">
+      <Briefcase className="size-3.5" aria-hidden="true" />
       Запрос: {pipelineQuery}
-      </span>
+      </Badge>
       )}
       {pipelineRegions && pipelineRegions !== "0" && (
-      <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-950/30 rounded-full">
-      <MapPin className="size-3.5" />
+      <Badge tone="primary" className="px-3 py-1 text-sm">
+      <MapPin className="size-3.5" aria-hidden="true" />
       Города: {pipelineRegions.split(",").length}
-      </span>
+      </Badge>
       )}
       {pipelineRegions === "0" && (
-      <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-950/30 rounded-full">
-      <MapPin className="size-3.5" />
+      <Badge tone="primary" className="px-3 py-1 text-sm">
+      <MapPin className="size-3.5" aria-hidden="true" />
       Весь рынок
-      </span>
+      </Badge>
       )}
       </div>
       )}
@@ -94,19 +92,20 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
       >
-        <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-600 rounded-lg">
-                <Users className="size-5 text-white" />
-              </div>
-              <div>
-                <CardTitle>Тренды по профессиям</CardTitle>
-                <CardDescription>Самые востребованные навыки в выбранной профессии</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+        <Card>
+          <CardHeader
+            className="border-b border-border"
+            title={
+              <span className="flex items-center gap-3">
+                <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
+                  <Users className="size-5" />
+                </span>
+                Тренды по профессиям
+              </span>
+            }
+            description="Самые востребованные навыки в выбранной профессии"
+          />
+          <CardBody className="pt-6">
             <Select value={selectedProf} onValueChange={loadProfessionTrends}>
               <SelectTrigger className="h-11 border-2 mb-4">
                 <SelectValue placeholder="Выберите профессию..." />
@@ -118,16 +117,16 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
               </SelectContent>
             </Select>
 
-            {profLoading && <div className="text-center text-slate-500 py-4">Загрузка...</div>}
+            {profLoading && <div className="text-center text-muted-foreground py-4">Загрузка...</div>}
 
             {!profLoading && profError && (
-              <div className="text-center text-red-600 dark:text-red-400 py-4 text-sm">{profError}</div>
+              <div role="alert" className="text-center text-destructive py-4 text-sm">{profError}</div>
             )}
 
             {!profLoading && !profError && profSkills.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {profSkills.map((s) => (
-                  <Badge key={s.skill} variant="secondary" className="px-3 py-1.5 text-sm">
+                  <Badge key={s.skill} tone="neutral" className="px-3 py-1.5 text-sm">
                     {s.skill}
                     <span className="ml-2 text-xs opacity-60">×{s.frequency}</span>
                   </Badge>
@@ -136,9 +135,9 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
             )}
 
             {!profLoading && !profError && selectedProf && profSkills.length === 0 && (
-              <div className="text-center text-slate-400 py-4">Нет данных для этой профессии</div>
+              <EmptyState title="Нет данных для этой профессии" className="py-4" />
             )}
-          </CardContent>
+          </CardBody>
         </Card>
       </motion.div>
 
@@ -149,13 +148,11 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
       >
-        <Card className="border-2 border-blue-200 dark:border-blue-800 bg-slate-50 dark:bg-slate-900">
-          <CardContent className="pt-6 pb-6 text-sm text-slate-700 dark:text-slate-300">
-            Подгрузка результатов, скачивание Excel и отчёта - во вкладке
-            «Данные». Как считаются метрики и насколько им можно доверять - во вкладке
-            «Помощь», раздел «Анализ компетенций».
-          </CardContent>
-        </Card>
+        <Callout tone="info">
+          Подгрузка результатов, скачивание Excel и отчёта - во вкладке
+          «Данные». Как считаются метрики и насколько им можно доверять - во вкладке
+          «Помощь», раздел «Анализ компетенций».
+        </Callout>
       </motion.div>
 
     </div>
