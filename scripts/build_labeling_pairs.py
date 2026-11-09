@@ -88,7 +88,6 @@ async def main() -> None:
     freq = await market_frequencies()
     print("market distinct skills:", len(freq))
     ranked = [s for s, _ in freq.most_common()]
-    top_set = set(ranked[:150])
     tail = ranked[150:]
 
     pairs: list[tuple[str, str, str]] = []

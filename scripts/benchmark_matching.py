@@ -539,12 +539,10 @@ def compute_mcnemar_per_category(results: list[dict]) -> dict:
     Article use: shows fuzzy-vs-semantic difference is significant
     in hard categories (long, cross-lang) but not in easy ones.
     """
+    import importlib.util
     from collections import defaultdict
-    try:
-        from scipy.stats import chi2 as chi2_dist
-        has_scipy = True
-    except ImportError:
-        has_scipy = False
+
+    has_scipy = importlib.util.find_spec("scipy") is not None
 
     by_cat: dict[str, list[dict]] = defaultdict(list)
     for r in results:
