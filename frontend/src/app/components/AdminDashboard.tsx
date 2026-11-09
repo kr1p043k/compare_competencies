@@ -357,7 +357,7 @@ export function AdminDashboard() {
       } catch (err) {
         if (err instanceof ApiError && err.isRateLimited) {
           setCollectCooldown(30);
-          throw new Error("Слишком частые запросы - кнопка заблокирована на 30 секунд");
+          throw new Error("Слишком частые запросы - кнопка заблокирована на 30 секунд", { cause: err });
         }
         throw err;
       }

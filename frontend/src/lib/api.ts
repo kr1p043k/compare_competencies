@@ -108,7 +108,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   if (!res.ok) {
-    let detail: unknown = null;
+    let detail: unknown;
     try {
       detail = await res.json();
     } catch {

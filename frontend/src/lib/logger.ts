@@ -20,7 +20,9 @@ function sendLog(level: string, message: string, data?: Record<string, unknown>)
       body: JSON.stringify({ level, message: message.slice(0, 2000), data, timestamp: new Date(now).toISOString() }),
       keepalive: true,
     });
-  } catch {}
+  } catch {
+    // логирование фронтенда не должно ломать приложение
+  }
 }
 
 let fetchOriginal: typeof globalThis.fetch | null = null;

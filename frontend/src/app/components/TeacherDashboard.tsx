@@ -380,7 +380,7 @@ export function TeacherDashboard() {
       setRpdRun({ run_id: stored });
       setRpdCollecting(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // восстановление после перезагрузки страницы: выполняем один раз.
   }, []);
 
   useEffect(() => {
@@ -479,7 +479,7 @@ export function TeacherDashboard() {
       } catch (err) {
         if (err instanceof ApiError && err.isRateLimited) {
           setCollectCooldown(30);
-          throw new Error("Слишком частые запросы - кнопка заблокирована на 30 секунд");
+          throw new Error("Слишком частые запросы - кнопка заблокирована на 30 секунд", { cause: err });
         }
         throw err;
       }

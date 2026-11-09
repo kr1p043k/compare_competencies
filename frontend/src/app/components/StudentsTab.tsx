@@ -67,7 +67,8 @@ export function StudentsTab() {
 
   useEffect(() => {
     loadList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadList стабилен (объявлен через useCallback без зависимостей),
+    // а повторный вызов при каждом рендере не нужен — грузим один раз.
   }, []);
 
   async function selectStudent(email: string) {

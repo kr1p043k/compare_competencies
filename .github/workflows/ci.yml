@@ -60,6 +60,8 @@ jobs:
       # жили только на машине разработчика.
       - name: Typecheck
         run: npm run typecheck
+      - name: Lint
+        run: npm run lint
       - name: Unit tests
         run: npm test -- --reporter=basic
       - name: Build

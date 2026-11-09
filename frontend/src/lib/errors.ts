@@ -38,7 +38,6 @@ export function reportError(context: string, error: unknown, userVisible = false
         ? error.message
         : String(error);
 
-  // eslint-disable-next-line no-console
   console.error(`[${context}]`, error);
 
   void logToBackend(context, message);
