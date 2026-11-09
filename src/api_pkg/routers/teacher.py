@@ -417,6 +417,23 @@ async def krm_scope_summary(request: Request, dir_code: str = "09.03.02",
     }
 
 
+#: Таймаут запроса к БД для карточки дисциплины. Медленная/заблокированная
+#: выборка раньше давала 500-стектрейс TimeoutError; теперь это 504 с текстом.
+KRM_QUERY_TIMEOUT_SECONDS = 10.0
+
+
+async def _db_call(coro):
+    """Обернуть запрос к пулу таймаутом и превратить таймаут в 504."""
+    try:
+        return await asyncio.wait_for(coro, timeout=KRM_QUERY_TIMEOUT_SECONDS)
+    except TimeoutError as exc:
+        logger.warning("krm_discipline_query_timeout", timeout=KRM_QUERY_TIMEOUT_SECONDS)
+        raise HTTPException(
+            status_code=504,
+            detail="Запрос к базе занял слишком долго, повторите позже",
+        ) from exc
+
+
 @router.get(
     "/teacher/krm/disciplines/{discipline_name:path}",
     dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
@@ -430,8 +447,10 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
     и без фильтра LIMIT 1 мог вернуть запись другого набора.
     """
     pool = get_pool()
+    if pool is None:
+        raise HTTPException(status_code=503, detail="База данных недоступна, попробуйте позже")
 
-    disc = await pool.fetchrow("""
+    disc = await _db_call(pool.fetchrow("""
         SELECT disc.id, disc.name
         FROM disciplines disc
         JOIN directions d ON d.id = disc.direction_id
@@ -439,11 +458,11 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
           AND disc.year = $3
           AND REPLACE(disc.name, ' ', '') ILIKE REPLACE($2, ' ', '')
         LIMIT 1
-    """, dir_code, discipline_name, year)
+    """, dir_code, discipline_name, year))
     if not disc:
         raise HTTPException(404, f"Discipline '{discipline_name}' not found")
 
-    comps = await pool.fetch("""
+    comps = await _db_call(pool.fetch("""
         SELECT c.id, c.code,
                ARRAY_AGG(k.cleaned_text ORDER BY k.sort_order) FILTER (WHERE k.cleaned_text IS NOT NULL) AS skills,
                ARRAY_AGG(k.cleaned_text ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'knowledge' AND k.cleaned_text IS NOT NULL) AS knowledge,
@@ -457,7 +476,7 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
         WHERE c.discipline_id = $1 AND c.parent_id IS NULL
         GROUP BY c.id, c.code
         ORDER BY c.sort_order, c.code
-    """, disc["id"])  # noqa: E501
+    """, disc["id"]))  # noqa: E501
 
     return {
         "name": disc["name"],
