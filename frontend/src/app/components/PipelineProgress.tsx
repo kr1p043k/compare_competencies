@@ -86,6 +86,20 @@ const TITLE_CLASS: Record<StepState, string> = {
   pending: "text-sm font-medium text-muted-foreground",
 };
 
+/** Цвет строки журнала по содержимому: краски - дизайн-токены обеих тем. */
+function logLineClass(line: string): string {
+  if (line.includes("ошибка") || line.includes("Error") || line.includes("❌")) {
+    return "text-destructive";
+  }
+  if (line.includes("✅") || line.includes("успешно") || line.includes("завершён")) {
+    return "text-success";
+  }
+  if (line.includes("⚠") || line.includes("warning")) {
+    return "text-warning";
+  }
+  return "text-muted-foreground";
+}
+
 export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = true }: PipelineProgressProps) {
   const [elapsed, setElapsed] = useState(0);
 
@@ -123,18 +137,7 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
   const logLines = useMemo(
     () =>
       (currentStep?.logs ?? []).map((line, i) => (
-        <div
-          key={i}
-          className={`${
-            line.includes("ошибка") || line.includes("Error") || line.includes("❌")
-              ? "text-red-400"
-              : line.includes("✅") || line.includes("успешно") || line.includes("завершён")
-                ? "text-green-400"
-                : line.includes("⚠") || line.includes("warning")
-                  ? "text-yellow-400"
-                  : "text-gray-300"
-          }`}
-        >
+        <div key={i} className={logLineClass(line)}>
           {line}
         </div>
       )),
@@ -399,7 +402,7 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
                 <Terminal className="size-3.5" aria-hidden="true" />
                 Журнал пайплайна
               </div>
-              <ScrollArea className="h-48 rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-950 p-3">
+              <ScrollArea className="h-48 rounded-lg border border-border bg-muted/50 p-3">
                 <div className="font-mono text-xs leading-relaxed">{logLines}</div>
               </ScrollArea>
             </motion.div>
