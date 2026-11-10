@@ -1,9 +1,9 @@
-"""Генерирует docs/MODEL_CARD.md из реестра моделей.
+"""Генерирует docs/MODEL_REGISTRY.md из реестра моделей.
 
 Читает `data/models/registry/registry_index.json` (ведётся ``ModelRegistry``) и
 пишет человекочитаемую карту: версии артефактов, размеры, метрики и теги.
 
-    python -m scripts.generate_model_card [--out docs/MODEL_CARD.md] [--registry-dir DIR]
+    python -m scripts.generate_model_card [--out docs/MODEL_REGISTRY.md] [--registry-dir DIR]
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def build_model_card(index: dict[str, list[dict[str, Any]]], generated_at: str |
     """Собирает markdown-карту по индексу реестра. Чистая функция."""
     stamp = generated_at or datetime.now(UTC).isoformat()
     lines = [
-        "# Model Card",
+        "# Model Registry",
         "",
         f"_Сгенерировано: {stamp}_",
         "",
@@ -79,7 +79,7 @@ def main(out: Path | None = None, registry_dir: Path | None = None) -> Path:
             index = json.loads(index_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             index = {}
-    target = Path(out) if out else Path("docs/MODEL_CARD.md")
+    target = Path(out) if out else Path("docs/MODEL_REGISTRY.md")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(build_model_card(index), encoding="utf-8")
     print(f"Wrote {target}")
@@ -87,7 +87,7 @@ def main(out: Path | None = None, registry_dir: Path | None = None) -> Path:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Сгенерировать docs/MODEL_CARD.md из реестра моделей")
+    parser = argparse.ArgumentParser(description="Сгенерировать docs/MODEL_REGISTRY.md из реестра моделей")
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--registry-dir", type=Path, default=None)
     args = parser.parse_args()
