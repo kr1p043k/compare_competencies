@@ -334,7 +334,6 @@
 ├── 📄 .pre-commit-config.yaml          # pre-commit хуки
 ├── 📄 .dockerignore                    # Игнор для Docker
 ├── 📁 deploy/                          # Скрипты деплоя (backup/update/logs/validate)
-├── 📄 users.json                       # Пользователи по умолчанию (admin/teacher/student)
 ├── 📄 start-ollama.sh                  # Запуск Ollama
 └── 📄 README.md
 ```
@@ -549,8 +548,8 @@ python main.py --interactive
 
 | Файл | Назначение |
 |------|------------|
-| `python -m src.cli.seed_db` | Наполнение пользователей из `users.json` в PostgreSQL. Запуск: `python -m src.cli.seed_db` |
-| `users.json` | Пользователи по умолчанию: admin, teacher, student |
+| `python -m src.cli.seed_db` | Наполнение БД демо-пользователями: запускает `python -m src.cli.seed_db`; если существует локальный файл `users.json` (путь можно задать через `SEED_USERS_FILE`), использует его — иначе создаёт стандартных пользователей (admin/teacher/student). Файл локальный, gitignored (содержит пароли в открытом виде) и не поставляется с репозиторием. |
+| `users.json` | Локальный файл (gitignored) с демо-пользователями: admin, teacher, student. Не поставляется с репозиторием — содержит пароли в открытом виде. Путь можно переопределить через `SEED_USERS_FILE`. |
 | `deploy/backup-volumes.sh` | Бэкап Docker volumes + дамп PostgreSQL в `./backups/` |
 | `deploy/update-deployment.sh` | Полный деплой: бэкап → git pull → compose down → build → up → health check → rollback при ошибке |
 | `start-ollama.sh` | Запуск Ollama (для локальной разработки) |

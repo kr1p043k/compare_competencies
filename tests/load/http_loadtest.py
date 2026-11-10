@@ -17,8 +17,10 @@ error rate:
 * ``GET /api/vacancies?limit=20``      - DB-backed, requires a token
 * ``GET /api/taxonomy/categories``     - in-memory taxonomy, requires a token
 
-The token is obtained once with ``POST /api/auth/login`` using a demo account
-from ``users.json``. The password is read from that file and never printed.
+Credentials come from the ``LOADTEST_EMAIL`` / ``LOADTEST_PASSWORD`` env vars
+(email defaults to ``DEFAULT_USER``). If ``LOADTEST_PASSWORD`` is unset, a local
+``users.json`` (local/optional, not committed) is read instead; if that file is
+absent too, the script exits with an error. The password is never printed.
 The only write the script performs is that single login POST (which inserts a
 session row); every measured request is a GET, so a shared DB is safe.
 
@@ -36,6 +38,7 @@ import argparse
 import asyncio
 import contextlib
 import json
+import os
 import sys
 import time
 from dataclasses import dataclass, field
@@ -126,12 +129,17 @@ def percentile(values: list[float], pct: float) -> float:
 
 async def _login(client: httpx.AsyncClient, base_url: str, email: str) -> str:
     """Log in once and return the bearer token. Never prints the password."""
-    if not USERS_FILE.exists():
-        raise SystemExit(f"users.json not found at {USERS_FILE}")
-    users = json.loads(USERS_FILE.read_text(encoding="utf-8"))
-    if email not in users:
-        raise SystemExit(f"user {email!r} not present in users.json")
-    password = users[email]["password"]
+    password = os.environ.get("LOADTEST_PASSWORD")
+    if password is None:
+        if not USERS_FILE.exists():
+            raise SystemExit(
+                "set LOADTEST_PASSWORD or provide a local users.json "
+                f"(looked for users.json at {USERS_FILE})"
+            )
+        users = json.loads(USERS_FILE.read_text(encoding="utf-8"))
+        if email not in users:
+            raise SystemExit(f"user {email!r} not present in users.json")
+        password = users[email]["password"]
     payload = {"email": email, "password": password}
     for attempt in range(3):
         resp = await client.post(f"{base_url}/api/auth/login", json=payload)
@@ -299,7 +307,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--concurrency", type=int, default=10)
     parser.add_argument("--warmup", type=int, default=1, help="untimed warmup requests per endpoint")
     parser.add_argument("--timeout", type=float, default=15.0)
-    parser.add_argument("--user", default=DEFAULT_USER, help="email from users.json")
+    parser.add_argument(
+        "--user",
+        default=os.environ.get("LOADTEST_EMAIL", DEFAULT_USER),
+        help="login email (env LOADTEST_EMAIL, default DEFAULT_USER)",
+    )
     parser.add_argument("--json-out", default=None, help="write JSON summary to this path")
     return parser
 

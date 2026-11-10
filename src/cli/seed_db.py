@@ -7,6 +7,7 @@ Usage:
 import argparse
 import asyncio
 import json
+import os
 import re
 import sys
 from datetime import datetime
@@ -212,9 +213,16 @@ async def seed_krm(session, skill_map: dict[str, str]) -> None:
 
 
 async def seed_users(session) -> None:
-    users_file = Path(__file__).parent.parent.parent / "users.json"
+    users_file = Path(
+        os.environ.get("SEED_USERS_FILE")
+        or Path(__file__).parent.parent.parent / "users.json"
+    )
     if not users_file.exists():
-        print("users.json not found, skipping users seed")
+        print(
+            "users.json не найден (файл локальный, в репозитории его нет). "
+            "Создайте его или задайте SEED_USERS_FILE=<path>, "
+            "чтобы засеять демо-пользователей."
+        )
         return
     with open(users_file, encoding="utf-8") as f:
         raw = json.load(f)
