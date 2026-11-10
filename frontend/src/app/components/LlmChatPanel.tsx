@@ -537,7 +537,7 @@ export function LlmChatPanel({ role, discipline, contextLabel }: LlmChatPanelPro
           {/* затемнение закрывает панель тапом - только на узких экранах,
               где панель занимает всю ширину */}
           <div
-            className="fixed inset-0 z-[75] bg-black/30 sm:hidden"
+            className="fixed inset-0 z-[75] bg-overlay sm:hidden"
             onClick={onClose}
             aria-hidden="true"
           />

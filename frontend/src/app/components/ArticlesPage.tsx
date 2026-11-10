@@ -161,7 +161,7 @@ function BlockCard({
       <CardHeader className="border-b border-border bg-muted">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-9 h-9 bg-primary rounded-lg shrink-0">
-            <Icon className="size-5 text-white" />
+            <Icon className="size-5 text-primary-foreground" />
           </div>
           <div className="min-w-0">
             <CardTitle className="text-lg font-semibold text-foreground">{title}</CardTitle>
@@ -671,7 +671,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
         <CardHeader className="border-b border-border bg-muted">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-9 h-9 bg-primary rounded-lg">
-              <BookOpen className="size-5 text-white" />
+              <BookOpen className="size-5 text-primary-foreground" />
             </div>
             <div className="flex-1 min-w-0">
               <CardTitle className="text-lg font-semibold text-foreground">Тренды по профессиям</CardTitle>

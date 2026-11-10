@@ -101,7 +101,7 @@ export function DataTab({
       <CardHeader className="border-b border-border bg-muted">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-10 h-10 bg-success rounded-lg">
-            <Database className="size-5 text-white" />
+            <Database className="size-5 text-primary-foreground" />
           </div>
           <div>
             <CardTitle className="text-xl font-semibold text-foreground">
@@ -144,7 +144,7 @@ export function DataTab({
           <Button
             onClick={onLoadRecommendations}
             disabled={loading}
-            className="h-11 bg-info text-white hover:bg-info/90"
+            className="h-11 bg-info text-primary-foreground hover:bg-info/90"
           >
             <Search className="mr-2 size-4" />
             Показать сохранённые
@@ -153,7 +153,7 @@ export function DataTab({
             onClick={onLoadRecommendations}
             disabled={loading || isStudent}
             title={isStudent ? "Только для преподавателя" : undefined}
-            className="h-11 bg-success text-white hover:bg-success/90"
+            className="h-11 bg-success text-primary-foreground hover:bg-success/90"
           >
             <Sparkles className="mr-2 size-4" />
             Рекомендации
@@ -172,7 +172,7 @@ export function DataTab({
             onClick={onRunGapAnalysis}
             disabled={loading || gapRunning || isStudent}
             title={isStudent ? "Только для преподавателя" : undefined}
-            className="h-11 bg-warning text-white hover:bg-warning/90"
+            className="h-11 bg-warning text-primary-foreground hover:bg-warning/90"
           >
             <Zap className="mr-2 size-4" />
             Запустить gap-анализ
@@ -258,7 +258,7 @@ export function DataTab({
                     <CardContent className="pt-5">
                       <div className="flex items-center gap-3 mb-3">
                         <div className="p-2 bg-primary rounded-lg">
-                          <Briefcase className="size-5 text-white" />
+                          <Briefcase className="size-5 text-primary-foreground" />
                         </div>
                         <div>
                           <div className="font-bold text-foreground">

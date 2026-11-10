@@ -206,7 +206,7 @@ const LEVEL_BG: Record<LevelKey, string> = {
         {onStartGapAnalysis && (
           <button
             onClick={onStartGapAnalysis}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-warning hover:bg-warning/90 rounded-lg transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-warning hover:bg-warning/90 rounded-lg transition-colors cursor-pointer"
           >
             Запустить gap-анализ
           </button>
@@ -219,7 +219,7 @@ const LEVEL_BG: Record<LevelKey, string> = {
     <div className="space-y-8">
       <div className="flex items-center gap-3">
         <div className="flex items-center justify-center w-9 h-9 bg-primary rounded-lg">
-          <RadarIcon className="size-5 text-white" />
+          <RadarIcon className="size-5 text-primary-foreground" />
         </div>
         <div>
           <h3 className="text-lg font-semibold text-foreground">Аналитические графики</h3>
