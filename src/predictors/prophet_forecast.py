@@ -436,10 +436,15 @@ def has_enough_history(n_points: int, minimum: int = MIN_HISTORY_POINTS) -> bool
 
 
 class ProphetForecastEngine(BasePredictor):
-    """Forecast engine using Prophet for skills with >= 3 history points and
-    actual frequency >= MIN_FREQ, falling back to SkillForecastEngine."""
+    """Forecast engine using Prophet for skills with >= MIN_HISTORY_FOR_PROPHET
+    history points and actual frequency >= MIN_FREQ, falling back to
+    SkillForecastEngine (trend/insufficient) otherwise."""
 
     MIN_FREQ = 10
+    # Fewer than 6 monthly points makes Prophet unstable (wild extrapolation:
+    # see the "unreliable +200%" reports). Such skills are served by the trend
+    # fallback and surfaced as insufficient, not by a fitted Prophet model.
+    MIN_HISTORY_FOR_PROPHET = 6
     MAX_GROWTH_CAP = 2.0
     # Top-prediction display: only show skills with meaningful frequency
     TOP_DISPLAY_MIN_FREQ = 50
@@ -533,7 +538,7 @@ class ProphetForecastEngine(BasePredictor):
             self._skill_npoints[skill] = len(points)
             if len(points) >= 5:
                 self._skill_mape[skill] = _holdout_mape(points)
-            if len(points) >= 3 and last_actual >= self.MIN_FREQ:
+            if len(points) >= self.MIN_HISTORY_FOR_PROPHET and last_actual >= self.MIN_FREQ:
                 prophet_candidates.append((skill, points))
             else:
                 self._skill_history[skill] = points

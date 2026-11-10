@@ -121,12 +121,30 @@ def test_prophet_engine_fit_returns_ok():
         Snapshot(date(2025, 2, 1), {"python": 60, "sql": 50}),
         Snapshot(date(2025, 3, 1), {"python": 70, "sql": 60}),
         Snapshot(date(2025, 4, 1), {"python": 80, "sql": 70}),
+        Snapshot(date(2025, 5, 1), {"python": 90, "sql": 75}),
+        Snapshot(date(2025, 6, 1), {"python": 100, "sql": 80}),
     ]
     engine = ProphetForecastEngine()
     result = engine.fit(snapshots)
     assert isinstance(result, Ok)
     assert engine.is_fitted
     assert "python" in engine._models
+
+
+def test_prophet_engine_needs_six_points():
+    """"Fewer than 6 monthly points -> NOT a Prophet model (trend fallback).
+
+    Prophet with 3-5 points extrapolates wildly; those skills must fall back.
+    """
+    snapshots = [
+        Snapshot(date(2025, 1, 1), {"python": 50}),
+        Snapshot(date(2025, 2, 1), {"python": 60}),
+        Snapshot(date(2025, 3, 1), {"python": 70}),
+        Snapshot(date(2025, 4, 1), {"python": 80}),
+    ]
+    engine = ProphetForecastEngine()
+    engine.fit(snapshots, fallback_freqs={"python": 80})
+    assert "python" not in engine._models
 
 
 @requires_prophet
@@ -136,6 +154,8 @@ def test_prophet_engine_predict():
         Snapshot(date(2025, 2, 1), {"python": 60}),
         Snapshot(date(2025, 3, 1), {"python": 70}),
         Snapshot(date(2025, 4, 1), {"python": 80}),
+        Snapshot(date(2025, 5, 1), {"python": 90}),
+        Snapshot(date(2025, 6, 1), {"python": 100}),
     ]
     engine = ProphetForecastEngine()
     engine.fit(snapshots)
@@ -183,6 +203,9 @@ def test_prophet_engine_forecast_all():
         Snapshot(date(2025, 1, 1), {"python": 50, "sql": 40}),
         Snapshot(date(2025, 2, 1), {"python": 60, "sql": 50}),
         Snapshot(date(2025, 3, 1), {"python": 70, "sql": 60}),
+        Snapshot(date(2025, 4, 1), {"python": 80, "sql": 65}),
+        Snapshot(date(2025, 5, 1), {"python": 90, "sql": 70}),
+        Snapshot(date(2025, 6, 1), {"python": 100, "sql": 75}),
     ]
     engine = ProphetForecastEngine()
     engine.fit(snapshots)
@@ -199,6 +222,9 @@ def test_prophet_engine_top_growing():
         Snapshot(date(2025, 1, 1), {"python": 50, "sql": 40, "java": 30}),
         Snapshot(date(2025, 2, 1), {"python": 60, "sql": 50, "java": 30}),
         Snapshot(date(2025, 3, 1), {"python": 70, "sql": 60, "java": 30}),
+        Snapshot(date(2025, 4, 1), {"python": 80, "sql": 65, "java": 30}),
+        Snapshot(date(2025, 5, 1), {"python": 90, "sql": 70, "java": 30}),
+        Snapshot(date(2025, 6, 1), {"python": 100, "sql": 75, "java": 30}),
     ]
     engine = ProphetForecastEngine()
     engine.fit(snapshots)
