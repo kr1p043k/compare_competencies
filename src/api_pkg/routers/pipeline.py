@@ -621,6 +621,7 @@ async def reload_api(request: Request):
     """Перезагрузить данные API без рестарта."""
     try:
         asyncio.create_task(_reload_api_data())
+        await audit_action(request, "pipeline.reload_api", "api data reload requested")
         return PipelineResponse(
             status="started", message="API data reload started. Check /api/status for completion.",
         )

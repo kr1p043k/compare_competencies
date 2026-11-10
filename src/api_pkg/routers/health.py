@@ -182,4 +182,23 @@ async def ready_check(response: Response) -> ReadyBody:
     return ReadyBody(status="ok", components=components, problems=problems)
 
 
+class LiveBody(BaseModel):
+    """Ответ /live: процесс жив (liveness-проба, без проверки зависимостей)."""
+
+    status: str = "ok"
+
+
+@router.get("/live", response_model=LiveBody)
+@router.get("/api/live", response_model=LiveBody)
+async def live_check() -> LiveBody:
+    """Liveness-проба: 200, пока процесс отвечает.
+
+    В отличие от /ready (он проверяет загрузку данных и пул БД), liveness
+    не ходит в зависимости: он отвечает за то, что процесс не завис. Так
+    оркестратор перезапускает только реально мёртвый контейнер, а не тот,
+    что временно не готов.
+    """
+    return LiveBody(status="ok")
+
+
 

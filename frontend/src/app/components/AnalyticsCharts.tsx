@@ -1,3 +1,4 @@
+import { useFocusTrap } from "../../lib/a11y/useFocusTrap";
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -22,6 +23,8 @@ import { Radar as RadarIcon, X, Loader2, AlertTriangle, ChevronDown } from "luci
 import { api } from "../api";
 import { useTheme } from "../../lib/theme";
 import { profileLabel } from "../../lib/profiles";
+import { Meter } from "../../design";
+import { cn } from "./ui/utils";
 
 const LEVELS = [
   { key: "base", label: profileLabel("base") },
@@ -54,6 +57,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [drill, setDrill] = useState<Drill>(null);
+  const drillTrapRef = useFocusTrap<HTMLDivElement>(drill !== null, () => setDrill(null));
   const [drillLoading, setDrillLoading] = useState(false);
   // Блок покрытия по умолчанию свёрнут в компактный свод: диаграмма раскрывается по клику.
   const [coverageOpen, setCoverageOpen] = useState(false);
@@ -175,11 +179,18 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
     fontSize: 12,
     color: "var(--popover-foreground)",
   };
-  const LEVEL_COLORS: Record<LevelKey, string> = {
-    base: "var(--chart-1)",
-    dc: "var(--chart-2)",
-    top_dc: "var(--chart-3)",
-  };
+const LEVEL_COLORS: Record<LevelKey, string> = {
+  base: "var(--chart-1)",
+  dc: "var(--chart-2)",
+  top_dc: "var(--chart-3)",
+};
+
+// Классы-токены для тех же уровней (вместо inline background).
+const LEVEL_BG: Record<LevelKey, string> = {
+  base: "bg-chart-1",
+  dc: "bg-chart-2",
+  top_dc: "bg-chart-3",
+};
 
   if (loading) {
     return (
@@ -197,7 +208,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
         {onStartGapAnalysis && (
           <button
             onClick={onStartGapAnalysis}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-warning hover:bg-warning/90 rounded-lg transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-warning hover:bg-warning/90 rounded-lg transition-colors cursor-pointer"
           >
             Запустить gap-анализ
           </button>
@@ -210,7 +221,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
     <div className="space-y-8">
       <div className="flex items-center gap-3">
         <div className="flex items-center justify-center w-9 h-9 bg-primary rounded-lg">
-          <RadarIcon className="size-5 text-white" />
+          <RadarIcon className="size-5 text-primary-foreground" />
         </div>
         <div>
           <h3 className="text-lg font-semibold text-foreground">Аналитические графики</h3>
@@ -380,20 +391,13 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                   >
                     <span className="flex min-w-0 items-center gap-1.5 text-xs text-foreground">
                       <span
-                        className="size-2 shrink-0 rounded-full"
-                        style={{ background: LEVEL_COLORS[c.key] }}
+                        className={cn("size-2 shrink-0 rounded-full", LEVEL_BG[c.key])}
                         aria-hidden="true"
                       />
                       <span className="truncate">{c.level}</span>
                     </span>
-                    <span
-                      className="h-1.5 min-w-10 flex-1 shrink overflow-hidden rounded-full bg-muted"
-                      aria-hidden="true"
-                    >
-                      <span
-                        className="block h-full rounded-full"
-                        style={{ width: `${c.pct}%`, background: LEVEL_COLORS[c.key] }}
-                      />
+                    <span className="h-1.5 min-w-10 flex-1 shrink" aria-hidden="true">
+                      <Meter value={c.pct} className="h-full" fillClassName={LEVEL_BG[c.key]} />
                     </span>
                     <span className="shrink-0 text-xs font-semibold tabular-nums text-foreground">
                       {c.pct}%
@@ -435,16 +439,22 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                             <button
                               onClick={() => openDrill(row.skill)}
                               title={`${row.skill}: ${has ? "есть" : "нет"} · ${(row.intensity * 100).toFixed(0)}% от топ-навыка`}
-                              className="w-full rounded-md px-2 py-2 font-mono cursor-pointer transition-transform hover:scale-[1.03]"
-                              style={{
-                                background: has
-                                  ? `color-mix(in srgb, var(--success) ${Math.round(a * 100)}%, transparent)`
-                                  : `color-mix(in srgb, var(--muted) ${dk ? 90 : 60}%, transparent)`,
-                                color: has ? "var(--success)" : tick,
-                                border: `1px solid ${has ? "color-mix(in srgb, var(--success) 40%, transparent)" : grid}`,
-                              }}
+                              className={cn(
+                                "relative w-full rounded-md border px-2 py-2 font-mono cursor-pointer transition-transform hover:scale-[1.03]",
+                                has
+                                  ? "border-success/40 text-success"
+                                  : "border-border bg-muted/60 dark:bg-muted/90 text-muted-foreground"
+                              )}
                             >
-                              {has ? "●" : "○"}
+                              {has && (
+                                <motion.span
+                                  className="pointer-events-none absolute inset-0 rounded-md bg-success"
+                                  initial={false}
+                                  animate={{ opacity: a }}
+                                  aria-hidden="true"
+                                />
+                              )}
+                              <span className="relative">{has ? "●" : "○"}</span>
                             </button>
                           </td>
                         );
@@ -468,6 +478,10 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
             onClick={() => setDrill(null)}
           >
             <motion.div
+              ref={drillTrapRef}
+              role="dialog"
+              aria-modal="true"
+              tabIndex={-1}
               initial={{ scale: 0.96, y: 8 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.96, y: 8 }}

@@ -524,7 +524,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
               <Button
                 onClick={() => void handleAddSkill()}
                 disabled={savingSkill || !newSkill.trim()}
-                className="h-9 shrink-0 bg-success text-white hover:bg-success/90 cursor-pointer"
+                className="h-9 shrink-0 bg-success text-success-foreground hover:bg-success/90 cursor-pointer"
                 aria-label="Добавить навык"
               >
                 {savingSkill ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
@@ -558,7 +558,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
               <Button
                 onClick={() => void handleAddCompetency()}
                 disabled={savingComp || !compPick.trim()}
-                className="h-9 shrink-0 bg-success text-white hover:bg-success/90 cursor-pointer"
+                className="h-9 shrink-0 bg-success text-success-foreground hover:bg-success/90 cursor-pointer"
                 aria-label="Добавить компетенцию"
               >
                 {savingComp ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}

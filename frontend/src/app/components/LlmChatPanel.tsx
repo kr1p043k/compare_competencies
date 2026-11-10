@@ -25,6 +25,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { useFocusTrap } from "../../lib/a11y/useFocusTrap";
 import { RotateCcw, Send, Sparkles, X } from "lucide-react";
 import { Badge, Button, EmptyState, ErrorState, Skeleton } from "../../design";
 import { ApiError, request } from "../../lib/api";
@@ -213,11 +214,13 @@ function MessageView({
         ))}
         {message.streaming && (
           <span className="flex items-center gap-1 pt-0.5" aria-hidden="true">
-            {[0, 0.15, 0.3].map((delay) => (
+            {["[animation-delay:0s]", "[animation-delay:150ms]", "[animation-delay:300ms]"].map((delayClass) => (
               <span
-                key={delay}
-                className="size-1.5 animate-pulse rounded-full bg-muted-foreground/70 motion-reduce:animate-none"
-                style={{ animationDelay: `${delay}s` }}
+                key={delayClass}
+                className={cn(
+                  "size-1.5 animate-pulse rounded-full bg-muted-foreground/70 motion-reduce:animate-none",
+                  delayClass
+                )}
               />
             ))}
           </span>
@@ -478,6 +481,7 @@ export function LlmChatPanel({ role, discipline, contextLabel }: LlmChatPanelPro
   };
 
   const onClose = () => setOpen(false);
+  const trapRef = useFocusTrap<HTMLElement>(open, onClose);
 
   /* ------------------------------------------------------------------ рендер */
 
@@ -535,11 +539,12 @@ export function LlmChatPanel({ role, discipline, contextLabel }: LlmChatPanelPro
           {/* затемнение закрывает панель тапом - только на узких экранах,
               где панель занимает всю ширину */}
           <div
-            className="fixed inset-0 z-[75] bg-black/30 sm:hidden"
+            className="fixed inset-0 z-[75] bg-overlay sm:hidden"
             onClick={onClose}
             aria-hidden="true"
           />
           <aside
+            ref={trapRef}
             id={PANEL_ID}
             aria-label="Чат с ассистентом"
             className="fixed inset-y-0 right-0 z-[80] flex h-full w-full flex-col border-l border-border bg-background shadow-2xl sm:w-[440px]"

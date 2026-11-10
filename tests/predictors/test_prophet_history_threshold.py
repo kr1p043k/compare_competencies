@@ -36,3 +36,45 @@ def test_predict_returns_insufficient_data_below_threshold():
     assert fr.data_points == 3
     assert fr.forecast_months == 0
     assert fr.next_year_frequency == pytest.approx(12.0)
+
+
+def _fake_result(skill: str, data_points: int):
+    from src.predictors.prophet_forecast import ForecastResult
+
+    return ForecastResult(
+        skill=skill,
+        current_frequency=10.0,
+        predicted_growth=0.1,
+        confidence=0.5,
+        next_year_frequency=11.0,
+        engine_used="trend",
+        data_points=data_points,
+        mape=None,
+        forecast_months=6,
+    )
+
+
+def test_forecast_all_uses_same_threshold_as_predict():
+    """forecast_all и predict должны давать insufficient_data одинаково (<6 точек)."""
+
+    engine = ProphetForecastEngine()
+    engine._fallback_engine = _FakeFallback([
+        _fake_result("few", data_points=3),
+        _fake_result("enough", data_points=6),
+    ])
+    engine._skill_npoints.update({"few": 3, "enough": 6})
+
+    out = engine.forecast_all().unwrap()
+    by_skill = {r.skill: r for r in out}
+    assert by_skill["few"].engine_used == "insufficient_data"
+    assert by_skill["enough"].engine_used != "insufficient_data"
+
+
+class _FakeFallback:
+    def __init__(self, results):
+        self._results = results
+
+    def forecast_all(self, _months):
+        from src import Ok
+
+        return Ok(self._results)

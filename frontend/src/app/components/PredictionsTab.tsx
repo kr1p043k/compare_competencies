@@ -155,7 +155,7 @@ export function PredictionsTab() {
               <CardHeader className="border-b border-border bg-muted">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center justify-center w-10 h-10 bg-success rounded-lg">
-                    <TrendingUp className="size-5 text-white" />
+                    <TrendingUp className="size-5 text-primary-foreground" />
                   </div>
                   <div>
                     <CardTitle className="text-xl font-semibold text-foreground">Топ растущих навыков</CardTitle>
@@ -232,7 +232,7 @@ export function PredictionsTab() {
             <CardHeader className="border-b border-border bg-muted">
               <div className="flex items-center gap-3">
                 <div className="flex items-center justify-center w-10 h-10 bg-destructive rounded-lg">
-                  <TrendingDown className="size-5 text-white" />
+                  <TrendingDown className="size-5 text-primary-foreground" />
                 </div>
                 <div>
                   <CardTitle className="text-xl font-semibold text-foreground">Падающие навыки</CardTitle>

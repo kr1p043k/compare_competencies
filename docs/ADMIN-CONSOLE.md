@@ -48,6 +48,7 @@
 | GET | /admin/monitoring | admin | метрики Prometheus (фильтр по именам, пагинация) | нет |
 | GET | /admin/monitoring/summary | admin | p95 по эндпоинтам, топ по нагрузке, ошибки за 1ч, сессии, свежесть | нет |
 | GET | /admin/monitoring/grafana | admin | список дашбордов Grafana (GRAFANA_URL/USER/PASSWORD; graceful-фолбэк вместо 500) | нет |
+| GET | /admin/llm/cost | admin | стоимость LLM-обращений: `?days=1..365`, итог и разбивка по модели и дням (graceful-фолбэк вместо 500) | нет |
 | GET | /admin/students | admin | профили студентов из каталога data/students (чтение в потоке) | нет |
 | GET | /admin/directions | admin | направления из КРМ | нет |
 | GET | /admin/student-actions | admin | агрегат действий студентов | нет |
@@ -199,6 +200,16 @@ Rate limit — 30/мин. При недоступной БД или Prometheus �
 
 ```bash
 curl -s "$BASE/admin/monitoring/summary" -H "Authorization: Bearer $TOKEN"
+```
+
+**`GET /admin/llm/cost`** — стоимость обращений к LLM
+`routers/admin.py` (`_llm_cost_summary`). Читает `llm_interactions`: итог
+`total_usd`, `requests` и разбивку `by_model` / `by_day` за `?days=` (1..365,
+по умолчанию 30). При недоступной БД или отсутствии колонки `cost_usd`
+(отставшая схема) отдаёт нули и `reason`, без 500.
+
+```bash
+curl -s "$BASE/admin/llm/cost?days=30" -H "Authorization: Bearer $TOKEN"
 ```
 
 ## Аудит-действия

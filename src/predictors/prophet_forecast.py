@@ -769,7 +769,9 @@ class ProphetForecastEngine(BasePredictor):
                         # Единый контракт: fallback-результат оборачиваем как в predict(),
                         # а не отдаем сырым (иначе insufficient_data выглядит валидным трендом).
                         n_pts = self._skill_npoints.get(r.skill, r.data_points)
-                        if n_pts < 3:
+                        # Тот же порог, что в predict(): иначе forecast_all отдаёт
+                        # «тренд» там, где одиночный predict уже insufficient_data.
+                        if not has_enough_history(n_pts):
                             results.append(ForecastResult(
                                 skill=r.skill,
                                 current_frequency=r.current_frequency,
