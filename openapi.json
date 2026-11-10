@@ -74,7 +74,7 @@
             "type": "string"
           },
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
@@ -875,6 +875,18 @@
           }
         },
         "title": "LevelClusters",
+        "type": "object"
+      },
+      "LiveBody": {
+        "description": "Ответ /live: процесс жив (liveness-проба, без проверки зависимостей).",
+        "properties": {
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "LiveBody",
         "type": "object"
       },
       "LogActionRequest": {
@@ -2904,6 +2916,13 @@
       },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
           "loc": {
             "items": {
               "anyOf": [
@@ -6767,6 +6786,28 @@
         "summary": "Krm Teacher My Directions",
         "tags": [
           "krm_teacher"
+        ]
+      }
+    },
+    "/api/live": {
+      "get": {
+        "description": "Liveness-проба: 200, пока процесс отвечает.\n\nВ отличие от /ready (он проверяет загрузку данных и пул БД), liveness\nне ходит в зависимости: он отвечает за то, что процесс не завис. Так\nоркестратор перезапускает только реально мёртвый контейнер, а не тот,\nчто временно не готов.",
+        "operationId": "live_check_api_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveBody"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Live Check",
+        "tags": [
+          "monitoring"
         ]
       }
     },
@@ -12533,6 +12574,28 @@
           }
         },
         "summary": "Health Check",
+        "tags": [
+          "monitoring"
+        ]
+      }
+    },
+    "/live": {
+      "get": {
+        "description": "Liveness-проба: 200, пока процесс отвечает.\n\nВ отличие от /ready (он проверяет загрузку данных и пул БД), liveness\nне ходит в зависимости: он отвечает за то, что процесс не завис. Так\nоркестратор перезапускает только реально мёртвый контейнер, а не тот,\nчто временно не готов.",
+        "operationId": "live_check_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveBody"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Live Check",
         "tags": [
           "monitoring"
         ]
