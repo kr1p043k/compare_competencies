@@ -20,8 +20,8 @@
   /* текст */
   --foreground: #0f172a;
   --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --subtle-foreground: #94a3b8;
+  --muted-foreground: #475569;
+  --subtle-foreground: #5b6675;
 
   /* акцент */
   --primary: #2563eb;
@@ -109,8 +109,8 @@
 
   --foreground: #e2e8f0;
   --muted: #1e293b;
-  --muted-foreground: #94a3b8;
-  --subtle-foreground: #64748b;
+  --muted-foreground: #cbd5e1;
+  --subtle-foreground: #94a3b8;
 
   --primary: #3b82f6;
   --primary-foreground: #ffffff;
