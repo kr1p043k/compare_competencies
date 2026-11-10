@@ -9,7 +9,7 @@ from scripts.generate_model_card import build_model_card, main
 
 def test_empty_registry_mentions_no_models():
     card = build_model_card({}, generated_at="2026-01-01T00:00:00+00:00")
-    assert "# Model Card" in card
+    assert "# Model Registry" in card
     assert "не зарегистрированы" in card
     assert "2026-01-01T00:00:00+00:00" in card
 

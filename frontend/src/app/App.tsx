@@ -41,12 +41,12 @@ const API = "/api";
 function TabSpinner() {
   return (
     <div
-      className="p-6 flex items-center gap-2 text-sm text-gray-500"
+      className="p-6 flex items-center gap-2 text-sm text-muted-foreground"
       role="status"
       aria-live="polite"
     >
       <span
-        className="mr-2 inline-block size-4 shrink-0 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin motion-reduce:animate-none"
+        className="mr-2 inline-block size-4 shrink-0 rounded-full border-2 border-border-strong border-t-muted-foreground animate-spin motion-reduce:animate-none"
         aria-hidden="true"
       />
       Загрузка раздела…
@@ -80,11 +80,11 @@ const MemoPipelineProgress = memo(PipelineProgress);
 
 function MaintenanceScreen() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white p-6">
+    <div className="min-h-screen flex items-center justify-center bg-background text-foreground p-6">
       <div className="text-center max-w-md">
         <div className="text-5xl mb-4">🔧</div>
         <h1 className="text-2xl font-bold mb-3">Извините, на сайте ведутся технические работы</h1>
-        <p className="text-gray-200 leading-relaxed mb-6">
+        <p className="text-muted-foreground leading-relaxed mb-6">
           Мы обновляем систему и скоро вернёмся. Пожалуйста, попробуйте зайти чуть позже.
         </p>
         <div className="h-7 w-7 border-[3px] border-white/20 border-t-white rounded-full animate-spin mx-auto" />
@@ -435,12 +435,12 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       {toast && (
-        <div className="fixed top-4 right-4 z-[60] max-w-sm rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950 px-4 py-3 text-sm text-red-800 dark:text-red-200 shadow-sm flex items-start gap-2">
+        <div className="fixed top-4 right-4 z-[60] max-w-sm rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive shadow-sm flex items-start gap-2">
           <span className="flex-1">{toast}</span>
           <button
             type="button"
             onClick={() => setToast(null)}
-            className="text-red-500 hover:text-red-700 dark:hover:text-red-300"
+            className="text-destructive hover:text-destructive/80"
             aria-label="Закрыть"
           >
             ×
@@ -475,10 +475,10 @@ export default function App() {
               <div
                 className={`px-4 py-3 rounded-lg border ${
                   status.type === "success"
-                    ? "bg-green-50 border-green-200 text-green-800 dark:bg-green-950/40 dark:border-green-800 dark:text-green-200"
+                    ? "bg-success-soft border-success/30 text-success"
                     : status.type === "error"
-                      ? "bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-800 dark:text-red-200"
-                      : "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-200"
+                      ? "bg-destructive/10 border-destructive/30 text-destructive"
+                      : "bg-info-soft border-info/30 text-info"
                 }`}
               >
                 {status.message}
@@ -499,7 +499,7 @@ export default function App() {
           )}
 
           {/* Vacancies Tab */}
-          <Suspense fallback={<div className="p-6 text-sm text-gray-500">Загрузка раздела…</div>}>
+          <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Загрузка раздела…</div>}>
           <TabsContent value="vacancies">
             <ErrorBoundary scope="vacancies">
               <VacanciesList

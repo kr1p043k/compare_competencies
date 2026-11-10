@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, field_validator
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import get_current_user
 
 logger = structlog.get_logger(__name__)
@@ -103,6 +104,7 @@ async def create_subscription(request: Request, body: SubscriptionCreate, user: 
         session.add(sub)
         await session.commit()
         await session.refresh(sub)
+    await audit_action(request, "subscriptions.create", f"uid={uid} id={sub.id}")
     return {"status": "ok", "id": sub.id}
 
 
@@ -122,6 +124,7 @@ async def delete_subscription(sub_id: str, request: Request, user: dict = Depend
             raise HTTPException(status_code=403, detail="Forbidden")
         await session.delete(sub)
         await session.commit()
+    await audit_action(request, "subscriptions.delete", f"uid={uid} id={sub_id}")
     return {"status": "ok"}
 
 
