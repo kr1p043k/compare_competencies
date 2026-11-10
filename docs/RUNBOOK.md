@@ -301,3 +301,11 @@ docker compose up -d backend prometheus --force-recreate
 - По расписанию дамп делает таймер `deploy/cc-backup.timer`.
 - Дрилл (проверяем, что бэкап реально разворачивается): снять дамп, развернуть в
   scratch-БД и сравнить число строк ключевых таблиц. На PROD-БД дрилл не запускать.
+
+## Аудит зависимостей (pip-audit / npm audit)
+
+- Python: `python -m pip_audit -r requirements.txt` (и `-r requirements-dev.txt`).
+- Frontend: `cd frontend && npm audit --omit=dev`.
+- Статус на 2026-11 (проверено): pip-audit по `requirements.txt` - уязвимостей нет;
+  `npm audit --omit=dev` - 0 уязвимостей. Прогонять перед релизом и периодически.
+- При находке: обновить пакет, прогнать тесты, зафиксировать в `requirements*.txt` / `package-lock.json`.
