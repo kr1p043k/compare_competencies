@@ -372,30 +372,26 @@ export function LoginPage({
   return (
     <div className="min-h-screen grid lg:grid-cols-[1.1fr_1fr] bg-background">
       {/* Brand panel */}
-      <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-blue-600 to-sky-500 p-12 text-white">
+      <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-primary to-chart-2 p-12 text-primary-foreground">
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 opacity-30"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 20% 20%, rgba(255,255,255,0.35) 0, transparent 45%), radial-gradient(circle at 80% 70%, rgba(255,255,255,0.25) 0, transparent 40%)",
-          }}
+          className="pointer-events-none absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_20%_20%,color-mix(in_srgb,var(--primary-foreground)_35%,transparent)_0,transparent_45%),radial-gradient(circle_at_80%_70%,color-mix(in_srgb,var(--primary-foreground)_25%,transparent)_0,transparent_40%)]"
         />
         <div className="relative">
           <div className="flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/30 backdrop-blur">
+            <div className="flex size-11 items-center justify-center rounded-xl bg-primary-foreground/15 ring-1 ring-primary-foreground/30 backdrop-blur">
               <TrendingUp className="size-6" />
             </div>
             <div>
               <div className="text-base font-semibold tracking-tight">Карта компетенций</div>
-              <div className="text-xs text-white/70">Competency Gap Analyzer</div>
+              <div className="text-xs text-primary-foreground/70">Competency Gap Analyzer</div>
             </div>
           </div>
 
           <h2 className="mt-14 max-w-md text-3xl font-semibold leading-tight tracking-tight">
             Соединяем учебные программы с реальными требованиями рынка
           </h2>
-          <p className="mt-3 max-w-md text-sm text-white/80">
+          <p className="mt-3 max-w-md text-sm text-primary-foreground/80">
             Аналитика компетенций, gap-анализ и прогнозы - в одном рабочем месте
             для преподавателей, руководителей программ и студентов.
           </p>
@@ -403,19 +399,19 @@ export function LoginPage({
           <ul className="mt-10 space-y-5">
             {FEATURES.map(({ icon: Icon, title, text }) => (
               <li key={title} className="flex gap-3">
-                <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/25">
+                <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary-foreground/15 ring-1 ring-primary-foreground/25">
                   <Icon className="size-4" />
                 </div>
                 <div>
                   <div className="text-sm font-medium">{title}</div>
-                  <div className="text-xs text-white/75">{text}</div>
+                  <div className="text-xs text-primary-foreground/75">{text}</div>
                 </div>
               </li>
             ))}
           </ul>
         </div>
 
-        <div className="relative flex items-center gap-2 text-xs text-white/70">
+        <div className="relative flex items-center gap-2 text-xs text-primary-foreground/70">
           <ShieldCheck className="size-4" />
           Персональные данные обрабатываются только внутри системы
         </div>
