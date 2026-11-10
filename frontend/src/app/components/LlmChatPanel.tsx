@@ -25,6 +25,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { useFocusTrap } from "../../lib/a11y/useFocusTrap";
 import { RotateCcw, Send, Sparkles, X } from "lucide-react";
 import { Badge, Button, EmptyState, ErrorState, Skeleton } from "../../design";
 import { ApiError, request } from "../../lib/api";
@@ -480,6 +481,7 @@ export function LlmChatPanel({ role, discipline, contextLabel }: LlmChatPanelPro
   };
 
   const onClose = () => setOpen(false);
+  const trapRef = useFocusTrap<HTMLElement>(open, onClose);
 
   /* ------------------------------------------------------------------ рендер */
 
@@ -542,6 +544,7 @@ export function LlmChatPanel({ role, discipline, contextLabel }: LlmChatPanelPro
             aria-hidden="true"
           />
           <aside
+            ref={trapRef}
             id={PANEL_ID}
             aria-label="Чат с ассистентом"
             className="fixed inset-y-0 right-0 z-[80] flex h-full w-full flex-col border-l border-border bg-background shadow-2xl sm:w-[440px]"

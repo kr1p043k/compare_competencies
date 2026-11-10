@@ -85,9 +85,14 @@ def create_app() -> FastAPI:
         from src.infrastructure.hub_publications import close_client as close_hub_client
         from src.pipeline.background_collector import stop_background_collector
 
-        # Сначала гасим фоновый планировщик, потом закрываем соединения:
-        # иначе он может дёрнуть пул после закрытия.
+        # Сначала гасим фоновую работу (планировщик, флашеры логов/ошибок),
+        # потом закрываем соединения: иначе кто-то дёрнет пул после закрытия.
         await stop_background_collector()
+        from src.api_pkg.request_logger import stop_log_flusher
+        from src.notifications.system import stop_system_error_flusher
+
+        await stop_log_flusher()
+        await stop_system_error_flusher()
         await close_hub_client()
         await close_pool()
         await get_engine().dispose()
@@ -242,9 +247,21 @@ def create_app() -> FastAPI:
         response.headers.setdefault(
             "Permissions-Policy", "geolocation=(), microphone=(), camera=()"
         )
-        response.headers.setdefault(
-            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
-        )
+        # HSTS только по TLS: на голом http браузер запомнил бы хост как
+        # https-only на год (больно для локального/внутреннего http-доступа).
+        forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+        if request.url.scheme == "https" or forwarded_proto == "https":
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+            )
+        # CSP: жёсткий для API-ответов (это JSON, внешние ресурсы не нужны) и не
+        # трогает /docs и /openapi.json - Swagger UI тянет CDN и инлайн-скрипты.
+        path = request.url.path
+        if path.startswith("/api/") and "/docs" not in path:
+            response.headers.setdefault(
+                "Content-Security-Policy",
+                "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+            )
         response.headers.setdefault("Cache-Control", "no-store")
         return response
 

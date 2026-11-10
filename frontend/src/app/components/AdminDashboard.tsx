@@ -28,6 +28,8 @@ import {
   tableRowClass,
 } from "../../design";
 
+import { AdminLlmCostCard } from "./AdminLlmCostCard";
+
 export function AdminDashboard() {
   const RPD_STAGE_LABELS: Record<string, string> = {
     saved: "файл сохранён",
@@ -950,6 +952,7 @@ export function AdminDashboard() {
 
         {/* ── Проверка состояния (только админ; с вкладки «Данные» убрана) ── */}
         <TabsContent value="health" className="space-y-4">
+          <AdminLlmCostCard />
           <Card>
             <CardHeader
               title={

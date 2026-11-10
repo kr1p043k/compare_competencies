@@ -1,3 +1,4 @@
+import { useFocusTrap } from "../../lib/a11y/useFocusTrap";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Badge, Button, Skeleton } from "../../design";
@@ -44,6 +45,8 @@ export function VacancyDetailPanel({
   vacancy: VacancySummary | null;
   onClose: () => void;
 }) {
+  // Дровер кастомный (не Radix): держим фокус внутри и закрываем по Escape.
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
   const [detail, setDetail] = useState<VacancyDetail | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -89,14 +92,18 @@ export function VacancyDetailPanel({
           className="fixed inset-0 z-50 flex justify-end bg-overlay"
           onClick={onClose}
         >
-          <motion.div
-            initial={{ x: 32 }}
-            animate={{ x: 0 }}
-            exit={{ x: 32 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="flex h-full w-full max-w-2xl flex-col overflow-hidden bg-card shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <motion.div
+          ref={trapRef}
+          role="dialog"
+          aria-modal="true"
+          tabIndex={-1}
+          initial={{ x: 32 }}
+          animate={{ x: 0 }}
+          exit={{ x: 32 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="flex h-full w-full max-w-2xl flex-col overflow-hidden bg-card shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
             <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-5 pt-5 pb-3">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg border border-border bg-surface">

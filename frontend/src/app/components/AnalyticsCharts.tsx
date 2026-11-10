@@ -1,3 +1,4 @@
+import { useFocusTrap } from "../../lib/a11y/useFocusTrap";
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -56,6 +57,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [drill, setDrill] = useState<Drill>(null);
+  const drillTrapRef = useFocusTrap<HTMLDivElement>(drill !== null, () => setDrill(null));
   const [drillLoading, setDrillLoading] = useState(false);
   // Блок покрытия по умолчанию свёрнут в компактный свод: диаграмма раскрывается по клику.
   const [coverageOpen, setCoverageOpen] = useState(false);
@@ -476,6 +478,10 @@ const LEVEL_BG: Record<LevelKey, string> = {
             onClick={() => setDrill(null)}
           >
             <motion.div
+              ref={drillTrapRef}
+              role="dialog"
+              aria-modal="true"
+              tabIndex={-1}
               initial={{ scale: 0.96, y: 8 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.96, y: 8 }}

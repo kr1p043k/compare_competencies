@@ -3,6 +3,13 @@
 Pure unit tests: no data/models, no DB, no embedding model. The manifest
 validator and the drift statistics are exercised on synthetic artifacts/arrays
 so a regression in the checkers is caught in CI on a fresh clone.
+
+Контракт scripts.check_model_manifests (после редизайна 7b5512f2):
+    validate(name, feature_names, manifest, runtime_features, incompatible)
+    _manifest_ndcg(manifest)  - приоритет human_ndcg_at_10 > ndcg@10 > ndcg_at_10
+    _artifact_feature_names(path)
+Раньше тест ссылался на удалённый API (pick_ndcg/write_sidecars/validate(dir, об.
+report)) - таких функций в модуле нет, тест приведён к реальному контракту.
 """
 
 from __future__ import annotations
@@ -14,6 +21,8 @@ from scripts import check_feature_drift
 from scripts import check_model_manifests as cmm
 
 FEATURES = ["a", "b", "c"]
+RUNTIME = ["a", "b", "c"]
+MANIFEST_OK = {"metrics": {"human_ndcg_at_10": 0.7}}
 
 
 def _artifact(models_dir, name="ltr_ranker_demo.joblib", features=FEATURES):
@@ -21,60 +30,62 @@ def _artifact(models_dir, name="ltr_ranker_demo.joblib", features=FEATURES):
     return name
 
 
-def _report(name, ndcg=0.7):
-    return {"results": {name: {"ndcg@10": ndcg}}}
+# ---------- _manifest_ndcg: приоритет ключей ----------
 
 
-def test_pick_ndcg_precedence():
-    assert cmm.pick_ndcg({"human_ndcg_at_10": 0.8, "ndcg@10": 0.7}) == 0.8
-    assert cmm.pick_ndcg({"ndcg@10": 0.7, "ndcg_at_10": 0.6}) == 0.7
-    assert cmm.pick_ndcg({"ndcg_at_10": 0.6}) == 0.6
-    assert cmm.pick_ndcg({"other": 1.0}) is None
-    assert cmm.pick_ndcg(None) is None
+def test_manifest_ndcg_precedence():
+    assert cmm._manifest_ndcg({"metrics": {"human_ndcg_at_10": 0.8, "ndcg@10": 0.7}}) == 0.8
+    assert cmm._manifest_ndcg({"metrics": {"ndcg@10": 0.7, "ndcg_at_10": 0.6}}) == 0.7
+    assert cmm._manifest_ndcg({"metrics": {"ndcg_at_10": 0.6}}) == 0.6
 
 
-def test_validate_passes_with_manifest(tmp_path):
-    name = _artifact(tmp_path)
-    (tmp_path / "ltr_ranker_demo.manifest.json").write_text(
-        '{"feature_names": ["a", "b", "c"], "metrics": {"human_ndcg_at_10": 0.7}}',
-        encoding="utf-8",
-    )
-    assert cmm.validate(tmp_path, _report(name)) == []
+def test_manifest_ndcg_none_cases():
+    assert cmm._manifest_ndcg({"metrics": {"other": 1.0}}) is None
+    assert cmm._manifest_ndcg({"metrics": {"ndcg@10": "bad"}}) is None
+    assert cmm._manifest_ndcg(None) is None
+    assert cmm._manifest_ndcg({"metrics": None}) is None
 
 
-def test_validate_flags_missing_sidecar(tmp_path):
-    name = _artifact(tmp_path)
-    problems = cmm.validate(tmp_path, _report(name))
-    assert any("no .manifest.json" in p for p in problems)
+# ---------- validate: реальный контракт ----------
 
 
-def test_validate_flags_feature_mismatch(tmp_path):
-    name = _artifact(tmp_path)
-    (tmp_path / "ltr_ranker_demo.manifest.json").write_text(
-        '{"feature_names": ["a", "b"], "metrics": {"ndcg@10": 0.7}}',
-        encoding="utf-8",
-    )
-    problems = cmm.validate(tmp_path, _report(name))
+def test_validate_passes_when_consistent():
+    assert cmm.validate("m", ["a", "b", "c"], MANIFEST_OK, RUNTIME, {}) == []
+
+
+def test_validate_flags_incompatible_model():
+    problems = cmm.validate("m", ["a", "b", "c"], MANIFEST_OK, RUNTIME, {"m": "старая"})
+    assert problems and "несовместим" in problems[0]
+
+
+def test_validate_flags_missing_feature_names():
+    problems = cmm.validate("m", None, MANIFEST_OK, RUNTIME, {})
     assert any("feature_names" in p for p in problems)
 
 
-def test_validate_flags_missing_ndcg(tmp_path):
-    name = _artifact(tmp_path)
-    (tmp_path / "ltr_ranker_demo.joblib.metrics.json").write_text(
-        '{"feature_names": ["a", "b", "c"]}',
-        encoding="utf-8",
-    )
-    problems = cmm.validate(tmp_path, _report(name))
-    assert any("no NDCG@10" in p for p in problems)
+def test_validate_flags_feature_mismatch():
+    problems = cmm.validate("m", ["a", "b"], MANIFEST_OK, RUNTIME, {})
+    assert any("feature_names" in p for p in problems)
 
 
-def test_write_sidecars_creates_both_files(tmp_path):
+def test_validate_flags_missing_ndcg():
+    problems = cmm.validate("m", ["a", "b", "c"], {"metrics": {}}, RUNTIME, {})
+    assert any("NDCG" in p for p in problems)
+
+
+# ---------- _artifact_feature_names ----------
+
+
+def test_artifact_feature_names_reads_joblib(tmp_path):
     name = _artifact(tmp_path)
-    written = cmm.write_sidecars(tmp_path, _report(name, ndcg=0.71))
-    assert written == 1
-    assert (tmp_path / "ltr_ranker_demo.manifest.json").exists()
-    assert (tmp_path / "ltr_ranker_demo.joblib.metrics.json").exists()
-    assert cmm.validate(tmp_path, _report(name, ndcg=0.71)) == []
+    assert cmm._artifact_feature_names(tmp_path / name) == tuple(FEATURES)
+
+
+def test_artifact_feature_names_missing_file(tmp_path):
+    assert cmm._artifact_feature_names(tmp_path / "nope.joblib") is None
+
+
+# ---------- feature drift (не менялось) ----------
 
 
 def test_psi_zero_for_identical_distributions():

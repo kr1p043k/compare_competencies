@@ -69,3 +69,14 @@ import { PageHeader, Card, StatCard, Badge, EmptyState } from "../../design";
 Экраны переводятся по одному: сначала шапка и сетка (`PageHeader` + `Card`),
 затем состояния, затем таблицы и графики. Старые классы Tailwind продолжают
 работать — жёсткой миграции нет.
+
+## Состав модулей `src/design`
+
+| Модуль | Экспорт |
+|---|---|
+| `primitives.tsx` | Button, Card, CardHeader, CardBody, PageHeader, Badge, StatCard, MetricPair, EmptyState, ErrorState, Skeleton, TableFrame, Field, Toolbar, SectionTitle, Meter, Sparkbars, tableHeadClass, tableRowClass, inputClass |
+| `feedback.tsx` | Progress, Callout |
+| `ErrorBoundary.tsx` | ErrorBoundary (обёртка вкладки) |
+| `chartTheme.ts` | axisProps, gridProps, tooltipProps, legendProps |
+| `tokens.ts` | токены статусов, уровней, текста, кнопок |
+| `index.ts` | реэкспорт всего выше |
