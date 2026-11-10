@@ -23,6 +23,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import config
+from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role
 
 logger = structlog.get_logger(__name__)
@@ -396,6 +397,7 @@ async def rpd_upload(
         target_path.unlink(missing_ok=True)
         raise HTTPException(status_code=413, detail="Файл слишком большой: превышен лимит 64 МБ")
     logger.info("rpd_pdf_saved", dir_code=dir_code, file=safe_name, bytes=total)
+    await audit_action(request, "rpd.upload", f"dir_code={dir_code} file={safe_name}")
 
     from src.pipeline.db_writer import create_pipeline_run
     run_id = await create_pipeline_run("rpd-import")

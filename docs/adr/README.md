@@ -17,3 +17,6 @@
 | [0001](0001-vetki-i-integraciya.md) | Интеграционная ветка `dev`, `main` не трогают | Принято |
 | [0002](0002-2fa-runtime-flag.md) | 2FA как runtime-флаг, чтение fail-closed | Принято |
 | [0003](0003-hub-proxy-bez-zerkala.md) | Хаб ЮФУ - stateless-прокси, без зеркала в БД | Принято |
+| [0004](0004-design-system-tokens.md) | UI на токенах и примитивах `src/design`, без хардкод-цветов | Принято |
+| [0005](0005-unified-structlog.md) | Единое логирование через `setup_structlog` | Принято |
+| [0006](0006-api-versioning.md) | Версионирование API: `/api` + `GET /api/version` | Принято |

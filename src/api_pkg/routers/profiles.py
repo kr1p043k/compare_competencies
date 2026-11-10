@@ -20,6 +20,7 @@ from slowapi.util import get_remote_address
 
 from src import Err, Ok, config
 from src.api_pkg import deps
+from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.models.api_responses import (
     DeadSkillsResponse,
@@ -450,6 +451,7 @@ async def create_custom_profile(request: Request, body: CustomProfileIn):
                 profile_name=name, competencies=codes, skills=skills, target_level=level)
         logger.info("custom_profile_created", profile=name, competencies=len(codes),
                     skills=len(skills), technologies=len(techs))
+        await audit_action(request, "profiles.create_custom", f"profile={name}")
         return {"name": name, "profile": name, "file": f"{name}_competency.json",
                 "counts": {"competencies": len(codes), "skills": len(skills), "technologies": len(techs)},
                 "target_level": level.value,
@@ -924,6 +926,10 @@ async def patch_self_profile(request: Request, body: SelfProfilePatch):
         logger.warning("self_profile_log_action_failed", profile=name, error=str(exc), exc_info=True)
     logger.info("self_profile_patched", profile=name,
                 added=len(added), removed=len(removed), refused=len(refused))
+    await audit_action(
+        request, "profiles.patch_self",
+        f"profile={name} added={len(added)} removed={len(removed)} refused={len(refused)}",
+    )
     return {"profile": name, "target_level": data.get("target_level"),
             "skills": skills, "user_added": owned,
             "technologies": data.get("technologies", []),
