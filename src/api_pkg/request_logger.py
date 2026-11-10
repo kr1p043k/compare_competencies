@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import contextlib
 import hashlib
 import hmac
 import json
@@ -254,13 +255,34 @@ async def _periodic_flush() -> None:
         await _flush_to_db()
 
 
+#: Ссылка на фоновую задачу флашера. Без неё задачу нельзя остановить, и её
+#: может собрать сборщик мусора посреди работы.
+_flusher_task: asyncio.Task | None = None
+
+
 def start_log_flusher() -> None:
-    """Start the background log flusher (call from startup)."""
+    """Start the background log flusher (call from startup). Идемпотентно."""
+    global _flusher_task
+    if _flusher_task is not None and not _flusher_task.done():
+        return
     loop = asyncio.get_event_loop()
     if loop.is_running():
-        asyncio.ensure_future(_periodic_flush())
+        _flusher_task = asyncio.ensure_future(_periodic_flush())
     else:
-        loop.create_task(_periodic_flush())
+        _flusher_task = loop.create_task(_periodic_flush())
+
+
+async def stop_log_flusher(*, flush: bool = True) -> None:
+    """Остановить флашер и (по умолчанию) сбросить буфер в БД при выходе."""
+    global _flusher_task
+    task = _flusher_task
+    _flusher_task = None
+    if task is not None and not task.done():
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await task
+    if flush:
+        await _flush_to_db()
 
 
 def get_logs(
