@@ -213,11 +213,13 @@ function MessageView({
         ))}
         {message.streaming && (
           <span className="flex items-center gap-1 pt-0.5" aria-hidden="true">
-            {[0, 0.15, 0.3].map((delay) => (
+            {["[animation-delay:0s]", "[animation-delay:150ms]", "[animation-delay:300ms]"].map((delayClass) => (
               <span
-                key={delay}
-                className="size-1.5 animate-pulse rounded-full bg-muted-foreground/70 motion-reduce:animate-none"
-                style={{ animationDelay: `${delay}s` }}
+                key={delayClass}
+                className={cn(
+                  "size-1.5 animate-pulse rounded-full bg-muted-foreground/70 motion-reduce:animate-none",
+                  delayClass
+                )}
               />
             ))}
           </span>

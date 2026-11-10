@@ -7,6 +7,17 @@ import {
   CardDescription,
 } from "./ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Meter } from "../../design";
+import { cn } from "./ui/utils";
+
+// Соответствие CSS-значений цветов уровня классам-токенам (вместо inline-стилей).
+const FILL_BY_COLOR: Record<string, string> = {
+  "var(--chart-1)": "bg-chart-1",
+  "var(--chart-2)": "bg-chart-2",
+  "var(--chart-3)": "bg-chart-3",
+  "var(--success)": "bg-success",
+  "var(--destructive)": "bg-destructive",
+};
 import {
   Newspaper,
   Briefcase,
@@ -112,9 +123,11 @@ function BarRow({
         {label}
       </div>
       <div className="flex-1 h-6 bg-muted rounded overflow-hidden">
-        <div
-          className="h-full rounded transition-all duration-700"
-          style={{ width: `${width}%`, backgroundColor: color }}
+        <Meter
+          value={width}
+          className="h-full"
+          trackClassName="bg-transparent"
+          fillClassName={cn("rounded transition-all duration-700", FILL_BY_COLOR[color] ?? "bg-primary")}
         />
       </div>
       <div className="w-24 shrink-0 text-sm font-medium text-foreground tabular-nums">
