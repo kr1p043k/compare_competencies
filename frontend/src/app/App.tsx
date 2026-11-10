@@ -87,7 +87,7 @@ function MaintenanceScreen() {
         <p className="text-muted-foreground leading-relaxed mb-6">
           Мы обновляем систему и скоро вернёмся. Пожалуйста, попробуйте зайти чуть позже.
         </p>
-        <div className="h-7 w-7 border-[3px] border-white/20 border-t-white rounded-full animate-spin mx-auto" />
+        <div className="h-7 w-7 border-[3px] border-primary-foreground/20 border-t-primary-foreground rounded-full animate-spin mx-auto" />
       </div>
     </div>
   );

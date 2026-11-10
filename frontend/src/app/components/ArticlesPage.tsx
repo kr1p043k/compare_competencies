@@ -7,6 +7,17 @@ import {
   CardDescription,
 } from "./ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Meter } from "../../design";
+import { cn } from "./ui/utils";
+
+// Соответствие CSS-значений цветов уровня классам-токенам (вместо inline-стилей).
+const FILL_BY_COLOR: Record<string, string> = {
+  "var(--chart-1)": "bg-chart-1",
+  "var(--chart-2)": "bg-chart-2",
+  "var(--chart-3)": "bg-chart-3",
+  "var(--success)": "bg-success",
+  "var(--destructive)": "bg-destructive",
+};
 import {
   Newspaper,
   Briefcase,
@@ -112,9 +123,11 @@ function BarRow({
         {label}
       </div>
       <div className="flex-1 h-6 bg-muted rounded overflow-hidden">
-        <div
-          className="h-full rounded transition-all duration-700"
-          style={{ width: `${width}%`, backgroundColor: color }}
+        <Meter
+          value={width}
+          className="h-full"
+          trackClassName="bg-transparent"
+          fillClassName={cn("rounded transition-all duration-700", FILL_BY_COLOR[color] ?? "bg-primary")}
         />
       </div>
       <div className="w-24 shrink-0 text-sm font-medium text-foreground tabular-nums">
@@ -148,7 +161,7 @@ function BlockCard({
       <CardHeader className="border-b border-border bg-muted">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-9 h-9 bg-primary rounded-lg shrink-0">
-            <Icon className="size-5 text-white" />
+            <Icon className="size-5 text-primary-foreground" />
           </div>
           <div className="min-w-0">
             <CardTitle className="text-lg font-semibold text-foreground">{title}</CardTitle>
@@ -658,7 +671,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
         <CardHeader className="border-b border-border bg-muted">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-9 h-9 bg-primary rounded-lg">
-              <BookOpen className="size-5 text-white" />
+              <BookOpen className="size-5 text-primary-foreground" />
             </div>
             <div className="flex-1 min-w-0">
               <CardTitle className="text-lg font-semibold text-foreground">Тренды по профессиям</CardTitle>
