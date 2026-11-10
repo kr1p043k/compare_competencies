@@ -429,11 +429,22 @@ def _interpolate_missing_months(snapshots: list[tuple[date, dict[str, float]]]) 
     return result
 
 
+MIN_HISTORY_POINTS = 6
+def has_enough_history(n_points: int, minimum: int = MIN_HISTORY_POINTS) -> bool:
+    """Достаточно ли согласованных точек для прогноза (< 6 -> insufficient_data)."""
+    return n_points >= minimum
+
+
 class ProphetForecastEngine(BasePredictor):
-    """Forecast engine using Prophet for skills with >= 3 history points and
-    actual frequency >= MIN_FREQ, falling back to SkillForecastEngine."""
+    """Forecast engine using Prophet for skills with >= MIN_HISTORY_FOR_PROPHET
+    history points and actual frequency >= MIN_FREQ, falling back to
+    SkillForecastEngine (trend/insufficient) otherwise."""
 
     MIN_FREQ = 10
+    # Fewer than 6 monthly points makes Prophet unstable (wild extrapolation:
+    # see the "unreliable +200%" reports). Such skills are served by the trend
+    # fallback and surfaced as insufficient, not by a fitted Prophet model.
+    MIN_HISTORY_FOR_PROPHET = 6
     MAX_GROWTH_CAP = 2.0
     # Top-prediction display: only show skills with meaningful frequency
     TOP_DISPLAY_MIN_FREQ = 50
@@ -527,7 +538,7 @@ class ProphetForecastEngine(BasePredictor):
             self._skill_npoints[skill] = len(points)
             if len(points) >= 5:
                 self._skill_mape[skill] = _holdout_mape(points)
-            if len(points) >= 3 and last_actual >= self.MIN_FREQ:
+            if len(points) >= self.MIN_HISTORY_FOR_PROPHET and last_actual >= self.MIN_FREQ:
                 prophet_candidates.append((skill, points))
             else:
                 self._skill_history[skill] = points
@@ -642,8 +653,22 @@ class ProphetForecastEngine(BasePredictor):
             return Err(DomainError(f"months must be 1-60, got {months}"))
 
         if skill in self._models:
+            n_pts = self._skill_npoints.get(skill, 0)
+            if not has_enough_history(n_pts):
+                # Слишком короткая история -> явный статус, а не дикие проценты.
+                last_actual = self._last_actual_freq.get(skill, 0.0)
+                return Ok(ForecastResult(
+                    skill=skill,
+                    current_frequency=round(last_actual, 4),
+                    predicted_growth=0.0,
+                    confidence=0.0,
+                    next_year_frequency=round(last_actual, 4),
+                    engine_used="insufficient_data",
+                    data_points=n_pts,
+                    mape=None,
+                    forecast_months=0,
+                ))
             model = self._models[skill]
-            n_pts = len(model.history) if hasattr(model, "history") and model.history is not None else 3
             # Limit forecast horizon based on data points, but be more generous:
             # 3 pts -> 3m, 6 pts -> 6m, 12+ pts -> 12m (was n_pts//2 - too conservative).
             max_months = max(1, min(n_pts, 12))
@@ -678,12 +703,6 @@ class ProphetForecastEngine(BasePredictor):
             # (раньше использовались только для conf и выбрасывались).
             unc_lower = max(float(last_row["yhat_lower"]), 0.0)
             unc_upper = float(last_row["yhat_upper"])
-            # Penalize confidence and cap growth when few data points
-            n_pts = len(model.history) if hasattr(model, "history") and model.history is not None else 3
-            if n_pts < 6:
-                conf *= n_pts / 6.0
-                # Low-data: shrink further toward flat (no fixed clip).
-                growth *= n_pts / 6.0
             return Ok(ForecastResult(
                 skill=skill,
                 current_frequency=round(last_actual, 4),
@@ -703,7 +722,7 @@ class ProphetForecastEngine(BasePredictor):
                 fr = result.unwrap()
                 n_pts = self._skill_npoints.get(skill, 0)
                 # Явный статус: недостаточно данных для прогноза
-                if n_pts < 3:
+                if not has_enough_history(n_pts):
                     return Ok(ForecastResult(
                         skill=fr.skill,
                         current_frequency=fr.current_frequency,

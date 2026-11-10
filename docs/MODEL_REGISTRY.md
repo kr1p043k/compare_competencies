@@ -1,6 +1,6 @@
-# Model Card
+# Model Registry
 
-_Сгенерировано: 2026-11-09T19:13:13.892242+00:00_
+_Сгенерировано: 2026-11-10T12:35:13.897813+00:00_
 
 Реестр артефактов моделей (LTR / embeddings / clusters).
 Источник: `data/models/registry/registry_index.json` (ведётся `ModelRegistry`).
