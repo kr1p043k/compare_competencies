@@ -17,7 +17,7 @@ export function ShowMore({ total, shown, expanded, onToggle, className }: ShowMo
       <button
         onClick={onToggle}
         aria-expanded={expanded}
-        className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950 px-4 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 shadow-sm transition-all hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-700 dark:hover:text-blue-300 hover:shadow cursor-pointer"
+        className="inline-flex items-center gap-1.5 rounded-full border border-border-strong bg-card px-4 py-1.5 text-xs font-medium text-muted-foreground shadow-sm transition-all hover:border-primary hover:text-primary hover:shadow cursor-pointer"
       >
         <ChevronDown
           className={cn("size-3.5 transition-transform duration-200", expanded && "rotate-180")}
