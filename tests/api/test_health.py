@@ -23,8 +23,20 @@ class TestRootEndpoint:
         assert resp.status_code in (200, 500)
 
     def test_ready_endpoint(self, client):
-        # Без lifespan данных нет -> readiness обязан честно сказать "не готов":
-        # 503 и status != ok. Раньше здесь стояло == 200, что скрывало проблему.
+        # Без lifespan данные не загружены -> readiness отвечает честно "не готов":
+        # 503 и status != ok. Когда данные загружены, будет == 200, но проверять
+        # конкретику тут хрупко.
         resp = client.get("/ready")
         assert resp.status_code in (200, 503)
         assert resp.json()["status"] in ("ok", "not_ready")
+
+    def test_live_endpoint_always_ok(self, client):
+        # Liveness не зависит от данных и БД: процесс жив -> 200 ok.
+        resp = client.get("/live")
+        assert resp.status_code == 200, resp.text
+        assert resp.json() == {"status": "ok"}
+
+    def test_live_endpoint_api_alias(self, client):
+        resp = client.get("/api/live")
+        assert resp.status_code == 200, resp.text
+        assert resp.json() == {"status": "ok"}

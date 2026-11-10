@@ -212,6 +212,9 @@ docker exec competency-postgres psql -U postgres -d compare_competencies -c \
 ## 4.1. Мониторинг, дашборды и версия API
 
 - **Версия API (публично):** `GET /api/version` -> `{"api_version": ...}`.
+- **Проверки живости:** `GET /live` (`/api/live`) - 200, пока процесс отвечает,
+  зависимости не проверяет (liveness); `GET /ready` - готовность (данные + пул БД,
+  503 с `problems`, если не готов); `GET /health` - сводка состояния.
 - **Метрики Prometheus:** `GET /metrics` требует `METRICS_TOKEN` (иначе 403).
 - **Алерты Prometheus:** правила `prometheus/alerts.yml` (5xx rate, p95 latency,
   падение пайплайна, DB down); проверка - `tests/test_prometheus_config.py`.
