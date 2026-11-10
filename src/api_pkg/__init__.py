@@ -10,12 +10,14 @@ import structlog
 
 # Suppress cmdstanpy BEFORE any imports that might trigger Prophet
 from cmdstanpy.utils.logging import disable_logging as _disable_cmdstan
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.gzip import GZipMiddleware
 
 from src import config
@@ -27,6 +29,31 @@ _disable_cmdstan().__enter__()
 from src.api_pkg import deps as deps  # noqa: F401,E402
 
 logger = structlog.get_logger("api")
+
+
+#: slug кода ошибки по HTTP-статусу (единый конверт ответов об ошибке).
+_STATUS_ERROR_CODES: dict[int, str] = {
+    400: "bad_request",
+    401: "unauthorized",
+    403: "forbidden",
+    404: "not_found",
+    409: "conflict",
+    413: "payload_too_large",
+    422: "validation_error",
+    429: "rate_limited",
+    500: "internal_error",
+    503: "service_unavailable",
+}
+
+
+def _error_body(code: str, detail: object, request_id: str) -> dict:
+    """Единый конверт ошибки: {code, message, request_id} плюс detail.
+
+    `detail` остаётся прежним (клиенты смотрят на него), `message` - строка для
+    показа, `code` - машинный слаг, `request_id` - для сопоставления с логами.
+    """
+    message = detail if isinstance(detail, str) else "Ошибка запроса"
+    return {"code": code, "message": message, "detail": detail, "request_id": request_id}
 
 
 _metrics_token_warned = False
@@ -125,7 +152,11 @@ def create_app() -> FastAPI:
         )
         return JSONResponse(
             status_code=429,
-            content={"detail": "Too many requests. Please try again later."},
+            content=_error_body(
+                "rate_limited",
+                "Too many requests. Please try again later.",
+                getattr(request.state, "request_id", "unknown"),
+            ),
             headers={"Retry-After": str(retry_after)},
         )
 
@@ -165,9 +196,23 @@ def create_app() -> FastAPI:
             try:
                 if int(content_length) > limit:
                     logger.warning("request_body_too_large", size=int(content_length))
-                    return JSONResponse(status_code=413, content={"detail": "Request body too large"})
+                    return JSONResponse(
+                        status_code=413,
+                        content=_error_body(
+                            "payload_too_large",
+                            "Request body too large",
+                            getattr(request.state, "request_id", "unknown"),
+                        ),
+                    )
             except ValueError:
-                return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length"})
+                return JSONResponse(
+                        status_code=400,
+                        content=_error_body(
+                            "bad_request",
+                            "Invalid Content-Length",
+                            getattr(request.state, "request_id", "unknown"),
+                        ),
+                    )
 
         # Chunked/стриминговое тело приходит БЕЗ Content-Length - проверка выше
         # его не ловит. Оборачиваем приём и рвём соединение, как только тело
@@ -201,11 +246,25 @@ def create_app() -> FastAPI:
             # прилетает завёрнутым в BaseExceptionGroup, поэтому ловим и его.
             if _contains_too_large(eg):
                 logger.warning("request_body_too_large_streaming", size=received)
-                return JSONResponse(status_code=413, content={"detail": "Request body too large"})
+                return JSONResponse(
+                        status_code=413,
+                        content=_error_body(
+                            "payload_too_large",
+                            "Request body too large",
+                            getattr(request.state, "request_id", "unknown"),
+                        ),
+                    )
             raise
         except _BodyTooLargeError:
             logger.warning("request_body_too_large_streaming", size=received)
-            return JSONResponse(status_code=413, content={"detail": "Request body too large"})
+            return JSONResponse(
+                        status_code=413,
+                        content=_error_body(
+                            "payload_too_large",
+                            "Request body too large",
+                            getattr(request.state, "request_id", "unknown"),
+                        ),
+                    )
 
     @app.middleware("http")
     async def add_request_id_middleware(request: Request, call_next):
@@ -281,14 +340,13 @@ def create_app() -> FastAPI:
             )
         return JSONResponse(
             status_code=500,
-            content={
-                "detail": "Internal server error",
-                "request_id": request_id,
-            },
+            content=_error_body(
+                "internal_error", "Internal server error", request_id
+            ),
         )
 
-    @app.exception_handler(HTTPException)
-    async def http_exception_handler(request: Request, exc: HTTPException):
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         request_id = getattr(request.state, "request_id", "unknown")
         logger.warning(
             "HTTP exception",
@@ -300,9 +358,24 @@ def create_app() -> FastAPI:
         # клиент не знает, когда повторять, и долбит сервер в цикле.
         return JSONResponse(
             status_code=exc.status_code,
-            content={"detail": exc.detail, "request_id": request_id},
+            content=_error_body(
+                _STATUS_ERROR_CODES.get(exc.status_code, f"http_{exc.status_code}"),
+                exc.detail,
+                request_id,
+            ),
             headers=exc.headers or None,
         )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(
+        request: Request, exc: RequestValidationError
+    ):
+        request_id = getattr(request.state, "request_id", "unknown")
+        body = _error_body(
+            "validation_error", "Проверьте параметры запроса", request_id
+        )
+        body["errors"] = exc.errors()
+        return JSONResponse(status_code=422, content=body)
 
     from src.api_pkg.routers.health import router as health_router
     app.include_router(health_router)  # /, /health, /ready (without /api)
