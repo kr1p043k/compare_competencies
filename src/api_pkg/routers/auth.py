@@ -608,6 +608,7 @@ async def logout(request: Request, response: Response):
     )
 
     response.delete_cookie("token", path="/")
+    await audit_action(request, "auth.logout", f"uid={user_data.get('uid')}")
     logger.info("user_logged_out", email=user_data.get("u"))
     return {"status": "ok", "message": "Logged out"}
 
