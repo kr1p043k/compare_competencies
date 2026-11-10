@@ -137,6 +137,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setHint(false);
     setState(EMPTY);
+    // Сбросить хэш вкладки: после выхода в адресной строке оставался #/vacancies.
+    if (window.location.hash) {
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + window.location.search,
+      );
+    }
   };
 
   return (
