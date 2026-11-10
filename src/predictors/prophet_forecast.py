@@ -661,10 +661,19 @@ class ProphetForecastEngine(BasePredictor):
             last_actual = self._last_actual_freq.get(skill, 0.0)
             baseline = max(last_actual, self.MIN_FREQ)
             growth = (next_freq - baseline) / baseline
-            growth = max(min(growth, self.MAX_GROWTH_CAP), -self.MAX_GROWTH_CAP)
+            # Soft, data-driven regularization instead of a fixed +/-200% clip:
+            # fewer months of history -> pull the forecast toward flat, and the
+            # safety cap grows with the number of observed points.
+            growth *= min(1.0, n_pts / 12.0)
+            _soft_cap = 1.0 + 0.25 * n_pts
+            growth = max(min(growth, _soft_cap), -_soft_cap)
 
             uncertainty = float(last_row["yhat_upper"] - last_row["yhat_lower"])
             conf = max(0.0, 1.0 - min(uncertainty / max(next_freq, 1.0), 0.85))
+            # Backtest (hold-out MAPE): worse historical error -> lower trust.
+            _mape = self._skill_mape.get(skill)
+            if _mape is not None:
+                conf *= max(0.0, 1.0 - min(_mape, 1.0))
             # F6 (2026-10-14): несём реальные границы интервала наружу
             # (раньше использовались только для conf и выбрасывались).
             unc_lower = max(float(last_row["yhat_lower"]), 0.0)
@@ -673,9 +682,8 @@ class ProphetForecastEngine(BasePredictor):
             n_pts = len(model.history) if hasattr(model, "history") and model.history is not None else 3
             if n_pts < 6:
                 conf *= n_pts / 6.0
-                # Tighten growth cap for low-data skills (prevents absurd spikes)
-                tight_cap = 1.5 if n_pts < 4 else 2.0
-                growth = max(min(growth, tight_cap), -tight_cap)
+                # Low-data: shrink further toward flat (no fixed clip).
+                growth *= n_pts / 6.0
             return Ok(ForecastResult(
                 skill=skill,
                 current_frequency=round(last_actual, 4),
