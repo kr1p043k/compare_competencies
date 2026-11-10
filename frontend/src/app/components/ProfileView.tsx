@@ -1,7 +1,6 @@
 import { motion } from "motion/react";
 import { Award, BarChart3, Briefcase, GraduationCap } from "lucide-react";
-import { Badge } from "./ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Badge, Card, CardBody, CardHeader } from "../../design";
 
 interface ProfileViewProps {
   data: {
@@ -37,8 +36,8 @@ export function ProfileView({ data }: ProfileViewProps) {
           { icon: Award, label: "Навыков", value: String(data.skills_count ?? skills.length) },
           { icon: BarChart3, label: "Компетенций", value: String(data.competencies_count ?? (data.competencies || []).length) },
         ].map((s, i) => (
-          <Card key={i} className="border border-border">
-            <CardContent className="pt-5">
+          <Card key={i}>
+            <CardBody className="pt-5">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <s.icon className="size-4" />
                 <span className="text-xs font-medium">{s.label}</span>
@@ -46,27 +45,27 @@ export function ProfileView({ data }: ProfileViewProps) {
               <div className="mt-1 text-xl font-bold text-foreground truncate" title={s.value}>
                 {s.value}
               </div>
-            </CardContent>
+            </CardBody>
           </Card>
         ))}
       </div>
 
       <Card className="border-0 shadow-sm bg-card/80">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-3 text-base">
-            <div className="p-2 bg-success rounded-lg">
-              <Award className="size-5 text-white" />
-            </div>
-            Навыки профиля
-          </CardTitle>
-          <CardDescription>
-            Всего: {skills.length}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardHeader
+          title={
+            <span className="flex items-center gap-3 text-base">
+              <span className="p-2 bg-success rounded-lg">
+                <Award className="size-5 text-success-foreground" />
+              </span>
+              Навыки профиля
+            </span>
+          }
+          description={`Всего: ${skills.length}`}
+        />
+        <CardBody>
           <div className="flex flex-wrap gap-1.5">
             {show.map((s) => (
-              <Badge key={s} variant="outline" className="text-xs">
+              <Badge key={s} tone="neutral" className="text-xs">
                 {s}
               </Badge>
             ))}
@@ -74,7 +73,7 @@ export function ProfileView({ data }: ProfileViewProps) {
               <p className="text-sm text-muted-foreground">Нет навыков.</p>
             )}
           </div>
-        </CardContent>
+        </CardBody>
       </Card>
     </motion.div>
   );

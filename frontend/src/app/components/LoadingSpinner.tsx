@@ -64,7 +64,7 @@ export function FullPageLoader() {
           }}
         >
           <div className="w-24 h-24 border-4 border-border rounded-full" />
-          <div className="absolute inset-0 w-24 h-24 border-4 border-transparent border-t-blue-600 dark:border-t-blue-400 rounded-full" />
+          <div className="absolute inset-0 w-24 h-24 border-4 border-transparent border-t-primary rounded-full" />
         </motion.div>
         <motion.div
           initial={{ opacity: 0, y: 10 }}

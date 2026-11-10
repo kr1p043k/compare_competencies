@@ -10,8 +10,7 @@
  * на старте.
  */
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Button } from "./ui/button";
+import { Button, Card, CardBody, CardHeader } from "../../design";
 import { CircleCheck, Lightbulb, ArrowRight } from "lucide-react";
 import { request } from "../../lib/api";
 import { reportError } from "../../lib/errors";
@@ -47,13 +46,16 @@ export function StudentStartHere({ onNavigate }: { onNavigate?: (tab: string) =>
 
   return (
     <Card className="border-primary/30">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Lightbulb className="size-5 text-primary" />
-          Начните здесь
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
+      <CardHeader
+        className="pb-3"
+        title={
+          <span className="flex items-center gap-2">
+            <Lightbulb className="size-5 text-primary" />
+            Начните здесь
+          </span>
+        }
+      />
+      <CardBody className="space-y-3 text-sm">
         <p className="text-muted-foreground">
           Ваш профиль пока пуст, поэтому сравнить вас с программой не с чем.
           Заполните навыки - и платформа покажет, что уже совпадает с учебным
@@ -79,7 +81,7 @@ export function StudentStartHere({ onNavigate }: { onNavigate?: (tab: string) =>
             <ArrowRight className="size-4 ml-1.5" />
           </Button>
         )}
-      </CardContent>
+      </CardBody>
     </Card>
   );
 }

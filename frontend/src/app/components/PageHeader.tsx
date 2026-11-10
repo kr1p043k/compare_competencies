@@ -1,6 +1,8 @@
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { PageHeader as DesignPageHeader } from "../../design";
+
 interface PageHeaderProps {
   title: string;
   description?: string;
@@ -15,23 +17,11 @@ interface PageHeaderProps {
  */
 export function PageHeader({ title, description, icon: Icon, actions }: PageHeaderProps) {
   return (
-    <div className="flex items-start gap-4 mb-6">
-      {Icon && (
-        <div className="shrink-0 grid place-items-center size-10 rounded-lg bg-muted text-muted-foreground">
-          <Icon className="size-5" />
-        </div>
-      )}
-      <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          {title}
-        </h1>
-        {description && (
-          <p className="mt-1 text-sm text-muted-foreground max-w-2xl">
-            {description}
-          </p>
-        )}
-      </div>
-      {actions && <div className="ml-auto shrink-0 flex items-center gap-2">{actions}</div>}
-    </div>
+    <DesignPageHeader
+      title={title}
+      description={description}
+      icon={Icon}
+      actions={actions}
+    />
   );
 }

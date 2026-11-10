@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Input } from "./ui/input";
+import { Badge, Button, Card, CardBody, CardHeader, inputClass } from "../../design";
 import {
   Select,
   SelectContent,
@@ -67,19 +64,20 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <User className="size-5 text-success" />
-          Мой профиль
-        </CardTitle>
-        {(displayName || email) && (
-          <p className="text-sm text-muted-foreground">
-            {displayName || "-"}
-            {email && displayName !== email ? ` · ${email}` : ""}
-          </p>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-4">
+      <CardHeader
+        title={
+          <span className="flex items-center gap-2">
+            <User className="size-5 text-success" />
+            Мой профиль
+          </span>
+        }
+        description={
+          displayName || email
+            ? `${displayName || "-"}${email && displayName !== email ? ` · ${email}` : ""}`
+            : undefined
+        }
+      />
+      <CardBody className="space-y-4">
         {loading && (
           <p className="text-sm text-muted-foreground">Загрузка…</p>
         )}
@@ -113,7 +111,7 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {(data.competencies || []).map((c) => (
-                    <Badge key={c} variant="outline" className="text-xs">
+                    <Badge key={c} tone="neutral" className="text-xs">
                       {c}
                     </Badge>
                   ))}
@@ -124,13 +122,14 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
             <div>
               <div className="text-sm font-medium text-foreground mb-2">
                 Мои навыки ({data.skills.length})
-              </div>              <div className="flex flex-wrap gap-1.5">
+              </div>
+              <div className="flex flex-wrap gap-1.5">
                 {data.skills.map((s) => {
                   const mine = owned.has(s.toLowerCase());
                   return (
                     <Badge
                       key={s}
-                      variant={mine ? "default" : "secondary"}
+                      tone={mine ? "primary" : "neutral"}
                       className="text-xs gap-1"
                       title={mine ? "Добавлен вами - можно удалить" : "Из программы - удалить нельзя"}
                     >
@@ -139,7 +138,7 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
                         <button
                           onClick={() => patch({ remove_skills: [s] })}
                           disabled={saving}
-                          className="ml-1 hover:text-destructive cursor-pointer"
+                          className="ml-1 cursor-pointer rounded p-0.5 transition-colors duration-200 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                           aria-label={`Удалить ${s}`}
                         >
                           <X className="size-3" />
@@ -157,7 +156,7 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
             </div>
 
             <div className="flex gap-2">
-              <Input
+              <input
                 value={newSkill}
                 onChange={(e) => setNewSkill(e.target.value)}
                 onKeyDown={(e) => {
@@ -167,9 +166,11 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
                   }
                 }}
                 placeholder="Новый навык, Enter - добавить"
-                className="h-10"
+                aria-label="Новый навык"
+                className={inputClass}
               />
               <Button
+                variant="success"
                 onClick={() => {
                   if (newSkill.trim()) {
                     patch({ add_skills: [newSkill.trim()] });
@@ -177,14 +178,15 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
                   }
                 }}
                 disabled={saving || !newSkill.trim()}
-                className="h-10 bg-success hover:bg-success/90 text-white"
+                className="shrink-0 cursor-pointer"
+                aria-label="Добавить навык"
               >
                 {saving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
               </Button>
             </div>
           </>
         )}
-      </CardContent>
+      </CardBody>
     </Card>
   );
 }
