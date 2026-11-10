@@ -94,6 +94,10 @@ class Settings(BaseSettings):
     # Grafana: адрес и логин дашбордов для панели мониторинга в админке.
     # Пока URL не задан, эндпоинт мониторинга отвечает enabled=false, а не 500.
     GRAFANA_URL: str | None = None
+    # Публичный адрес Grafana для ссылок в браузере (может отличаться от
+    # внутреннего GRAFANA_URL, по которому API ходит в /api/search, напр.
+    # внутренний http://grafana:3000 vs внешний https://host/grafana).
+    GRAFANA_PUBLIC_URL: str | None = None
     GRAFANA_USER: str | None = None
     GRAFANA_PASSWORD: SecretStr | None = None
 
@@ -408,6 +412,7 @@ MAX_REQUEST_SIZE = settings.MAX_REQUEST_SIZE
 TOKEN_TTL_DAYS = settings.TOKEN_TTL_DAYS
 METRICS_TOKEN = settings.METRICS_TOKEN
 GRAFANA_URL = settings.GRAFANA_URL
+GRAFANA_PUBLIC_URL = settings.GRAFANA_PUBLIC_URL
 API_VERSION = settings.API_VERSION
 GRAFANA_USER = settings.GRAFANA_USER
 GRAFANA_PASSWORD = settings.GRAFANA_PASSWORD

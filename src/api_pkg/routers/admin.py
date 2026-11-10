@@ -1101,14 +1101,17 @@ async def _grafana_status() -> dict[str, Any]:
         return {"enabled": False, "reachable": False,
                 "reason": "GRAFANA_URL не задан", "dashboards": []}
     base, user, password = creds
+    # Ссылки открываются в браузере пользователя, поэтому для url берём
+    # публичный адрес (если задан), а в API (/api/search) ходим по внутреннему.
+    public = (config.settings.GRAFANA_PUBLIC_URL or base).rstrip("/")
     try:
         items = await _grafana_search(base, user, password)
-    except Exception as exc:  # noqa: BLE001 - недоступность Grafana не должна ломать панель
+    except Exception as exc:  # noqa: BLE001 - недоступность Grafana не должна ронять админку
         logger.warning("grafana_unreachable", error=str(exc))
         return {"enabled": True, "reachable": False,
-                "reason": f"Grafana недоступна: {exc}", "dashboards": []}
+                "reason": f"Grafana недоступен: {exc}", "dashboards": []}
     return {"enabled": True, "reachable": True, "reason": None,
-            "dashboards": _map_dashboards(base, items)}
+            "dashboards": _map_dashboards(public, items)}
 
 
 @router.get("/admin/monitoring/grafana", dependencies=[Depends(require_any_role("admin"))])
