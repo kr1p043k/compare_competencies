@@ -4,6 +4,33 @@
 
 Competency Gap Analyzer - система анализа соответствия учебных компетенций студентов требованиям IT-рынка. Собирает вакансии с hh.ru, нормализует навыки, выполняет gap-анализ и формирует персонализированные рекомендации.
 
+```mermaid
+flowchart LR
+  subgraph Sources[Внешние источники]
+    HH[hh.ru API]
+    HUB[Hub / публикации]
+    REF[data/reference/*]
+  end
+  subgraph API["Backend: FastAPI (src/api_pkg)"]
+    ROUTERS[Routers + auth/2FA]
+    PIPE[Pipeline]
+    AN[Analyzers]
+    PRED[Predictors LTR]
+  end
+  DB[(PostgreSQL + pgvector)]
+  UI[React SPA: frontend]
+  UI -->|REST /api| ROUTERS
+  ROUTERS --> PIPE
+  ROUTERS --> DB
+  PIPE --> AN
+  PIPE --> DB
+  AN --> PRED
+  PRED --> DB
+  REF --> AN
+  HH --> PIPE
+  HUB --> PRED
+```
+
 ## Pipeline
 
 ```
@@ -237,6 +264,17 @@ FAISS-обёртка: `FaissIndex` с поддержкой FlatIP и HNSW. Ме�
               scripts/experiments/benchmark_matching.py, в прод-пути не используются)
 
               Метрики + рекомендации → data/result/
+```
+
+```mermaid
+flowchart TD
+  V[Вакансии hh.ru, JSON] --> SE[SkillExtractor: BM25 + эмбеддинги]
+  SE --> SF[skill_freq + hybrid_weights]
+  SF --> WC[WeightCleaner]
+  ST[Студенты, JSON] --> PE[ProfileEvaluator]
+  WC --> PE
+  PE --> EC[EmbeddingComparator: cosine, порог 0.6]
+  EC --> RES[data/result: метрики + рекомендации]
 ```
 
 ## Профили студентов
