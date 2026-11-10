@@ -41,6 +41,11 @@ jobs:
       - name: Ruff (full, advisory)
         continue-on-error: true
         run: ruff check src tests scripts --statistics
+      # Hard gate: no high-confidence secrets in tracked files (private keys,
+      # AWS/GitHub/Slack/Google/Stripe tokens, Telegram bot tokens). .env and
+      # .secrets are gitignored, so they are out of scope by construction.
+      - name: Secret scan (fail-closed)
+        run: python scripts/check_secrets.py
 
   frontend:
     runs-on: ubuntu-latest
