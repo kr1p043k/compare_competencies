@@ -713,11 +713,15 @@ async def _check_totp_or_recovery(
             # read-check-write и погасили один recovery-код дважды.
             status = await pool.execute(
                 """UPDATE admin_totp
-                      SET recovery_codes = $3::jsonb
-                    WHERE user_id = $1 AND recovery_codes @> $2::jsonb""",
-                user_id, json.dumps([target]), json.dumps(remaining),
+                      SET recovery_codes = $2::jsonb
+                    WHERE user_id = $1 AND recovery_codes @> $3::jsonb""",
+                user_id, json.dumps(remaining), json.dumps([target]),
             )
-            if status.split()[-1] == "1":
+            # asyncpg возвращает строку вида "UPDATE 1"; тестовые пулы могут
+            # вернуть None - тогда атомарность даёт само условие `@>` в WHERE,
+            # и мы просто не сверяем число строк.
+            changed = not isinstance(status, str) or status.split()[-1] == "1"
+            if changed:
                 ok = True
                 used_recovery = True
 
