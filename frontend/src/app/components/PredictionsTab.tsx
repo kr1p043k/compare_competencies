@@ -236,7 +236,7 @@ export function PredictionsTab() {
                 </div>
                 <div>
                   <CardTitle className="text-xl font-semibold text-foreground">Падающие навыки</CardTitle>
-                  <CardDescription>Измеренное падение спроса за период · {vacanciesCount ? `${vacanciesCount} вакансий` : "-"} · {dataFrom && dataTo ? `${dataFrom}-${dataTo}` : "-"}</CardDescription>
+                  <CardDescription>Измеренное падение спроса за период{vacanciesCount ? ` · ${vacanciesCount} вакансий` : ""}{dataFrom && dataTo ? ` · ${dataFrom}-${dataTo}` : ""}</CardDescription>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                   <CalendarDays className="size-4 text-subtle-foreground" />
@@ -373,7 +373,7 @@ function LowConfidenceBadge({ item, confPct }: { item: ForecastItem; confPct: nu
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onClick={() => setOpen((v) => !v)}
-        className="px-2 py-0.5 rounded bg-warning-soft text-warning underline decoration-dotted underline-offset-2 cursor-help"
+        className="px-2 py-0.5 rounded bg-muted text-muted-foreground cursor-help"
       >
         {label}
       </button>
@@ -411,7 +411,7 @@ function ObservedRow({ item, rank }: { item: ObservedItem; rank: number }) {
           {item.observed_change_pct.toFixed(1)}%
         </span>
         <span className="text-xs text-muted-foreground tabular-nums">
-          {item.first_frequency.toFixed(0)} → {item.last_frequency.toFixed(0)} · точек: {item.points}
+          с {item.first_frequency.toFixed(0)} до {item.last_frequency.toFixed(0)} · точек: {item.points}
         </span>
       </div>
     </div>
