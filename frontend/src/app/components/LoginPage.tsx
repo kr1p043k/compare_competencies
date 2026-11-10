@@ -421,7 +421,7 @@ export function LoginPage({
       <main className="flex items-center justify-center p-6 sm:p-10">
         <div className="w-full max-w-sm">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-chart-2 text-white shadow-md shadow-primary/25">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-chart-2 text-primary-foreground shadow-md shadow-primary/25">
               <TrendingUp className="size-5" />
             </div>
             <div>
