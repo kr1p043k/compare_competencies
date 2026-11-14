@@ -6,6 +6,9 @@ from logging.config import fileConfig
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+# Модели должны быть импортированы, иначе Base.metadata пуста и autogenerate/
+# `alembic check` видит «дрейф на удаление всех таблиц» (ложное срабатывание).
+import src.models.krm_models  # noqa: F401,E402
 from alembic import context
 from src.config import settings
 from src.database import Base
