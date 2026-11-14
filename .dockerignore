@@ -13,3 +13,27 @@ backups/
 *.md
 *.sh
 *.ps1
+
+# Секреты и ключи - никогда не в контекст сборки/образ
+.env*
+.secrets/
+*.pem
+*.key
+*.crt
+*.p12
+id_rsa*
+
+# Кэши/артефакты инструментов
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.benchmarks/
+.coverage
+htmlcov/
+*.sqlite
+*.db
+
+# Фронтенд-сборка (backend-образ её не содержит)
+node_modules/
+frontend/node_modules/
+frontend/dist/
