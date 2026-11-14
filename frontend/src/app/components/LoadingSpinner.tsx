@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 
 export function LoadingSpinner() {
   return (
-    <div className="flex items-center justify-center space-x-2">
+    <div role="status" aria-label="Загрузка" className="flex items-center justify-center space-x-2">
       <motion.div
         className="w-2 h-2 bg-current rounded-full"
         animate={{
@@ -48,6 +48,8 @@ export function LoadingSpinner() {
 export function FullPageLoader() {
   return (
     <motion.div
+      role="status"
+      aria-label="Загрузка"
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-md"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
