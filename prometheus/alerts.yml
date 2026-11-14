@@ -66,3 +66,36 @@ groups:
         annotations:
           summary: "Database unavailable"
           description: "PostgreSQL is down (pg_up == 0) or the postgres-exporter scrape target (job 'postgres') is down."
+
+      # Metric: skill_matching_duration_seconds (Histogram)
+      # Defined: src/monitoring/metrics.py (matching_latency)
+      # Observed: src/analyzers/skill_matcher.py (SkillMatcher.match)
+      - alert: HighMatchingLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(skill_matching_duration_seconds_bucket[10m])) by (le)
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High skill matching latency (p95)"
+          description: "p95 skill matching duration is {{ $value | humanizeDuration }} over the last 10m (threshold 50ms)."
+
+      # Metric: llm_requests_total (Counter, labels model/status)
+      # Defined: src/monitoring/metrics.py (llm_requests_total)
+      # Emitted: src/services/llm_client.py, src/predictors/recommendation_engine.py
+      - alert: LLMErrorRate
+        expr: |
+          (
+            sum(rate(llm_requests_total{status="error"}[10m]))
+            /
+            sum(rate(llm_requests_total[10m]))
+          ) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High LLM error rate"
+          description: "LLM errors are {{ $value | humanizePercentage }} of LLM requests over the last 10m (threshold 10%)."
