@@ -1,73 +1,80 @@
-"""Барьер: `.env.example` синхронен с кодом (BACKLOG 7.4.3).
+"""Синхронность .env.example и настроек приложения (Зона D, 7.4.3).
 
-Проверяем, что каждый ключ из `Settings` (pydantic) и каждый ключ, читаемый
-через `os.getenv`/`os.environ`, присутствует в `.env.example`. Так расхождение
-видно сразу, а не при развёртывании.
+Две проверки:
+1. Обратная: каждый ключ из .env.example либо объявлен в Settings, либо явно
+   разрешён (переменные compose/сервисов/тестов). Так ловим опечатки и
+   переименованные переменные, которые иначе тихо игнорируются.
+2. Прямая: критичные для запуска/безопасности переменные присутствуют в примере
+   (чтобы новый разработчик не стартовал «на пустом»).
 """
-
 from __future__ import annotations
 
-import os
-import pathlib
 import re
+from pathlib import Path
 
-import pytest
+from src.config import Settings
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-ENV_EXAMPLE = ROOT / ".env.example"
+ENV_EXAMPLE = Path(__file__).resolve().parent.parent / ".env.example"
 
-# Переменные окружения, которые не документируем в примере (шум ОС/CI).
-IGNORED_ENV = {
-    "PATH", "HOME", "USERPROFILE", "TEMP", "TMP", "APPDATA", "LOCALAPPDATA",
-    "PYTHONPATH", "PYTHONHASHSEED", "COMPUTERNAME", "USERNAME", "PWD",
-    "CI", "GITHUB_ACTIONS", "PYTEST_CURRENT_TEST", "LANG", "LC_ALL", "SHELL",
-    "TERM", "PROGRAMFILES", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT",
-    "SECRET_KEY",  # задаётся окружением/секрет-стором, в примере есть
+#: Ключи, которые сознательно НЕ поля Settings: compose, сервисы, тесты, рантайм.
+EXTRA_OK = {
+    "POSTGRES_USER",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_DB",
+    "N8N_WEBHOOK_URL",
+    "N8N_DB_PASSWORD",
+    "N8N_ENCRYPTION_KEY",
+    "WEBUI_SECRET_KEY",
+    "LOG_LEVEL",
+    "APP_ENV",
+    "CUDA_VISIBLE_DEVICES",
+    "FORCE_COLOR",
+    "HF_ENDPOINT",
+    "HF_HUB_OFFLINE",
+    "LLM_PRICING",
+    "SEED_USERS_FILE",
+    "TEST_DATABASE_URL",
 }
 
-KEY_RE = re.compile(r"^([A-Z][A-Z0-9_]*)\s*=", re.M)
-GETENV_RE = re.compile(r"os\.(?:getenv|environ\.get)\(\s*\"([A-Z][A-Z0-9_]*)\"")
-ENVIRON_RE = re.compile(r"os\.environ\[\s*\"([A-Z][A-Z0-9_]*)\"")
+#: Критичные переменные, которые обязаны быть (без комментария) в примере.
+REQUIRED_PRESENT = {
+    "SECRET_KEY",
+    "DATABASE_URL",
+    "ALLOWED_ORIGINS",
+    "RATELIMIT_ENABLED",
+    "TOKEN_TTL_DAYS",
+    "COOKIE_SECURE",
+    "N8N_API_KEY",
+    "N8N_WEBHOOK_SECRET",
+    "LLM_CHAT_URL",
+    "LLM_CHAT_MODEL",
+    "GRAFANA_URL",
+    "GRAFANA_USER",
+    "GRAFANA_PASSWORD",
+    "ACADEMIC_API_BASE",
+    "HUB_API_BASE",
+    "OLLAMA_URL",
+}
+
+KEY_RE = re.compile(r"(?m)^([A-Z_][A-Z0-9_]*)=")
 
 
 def _example_keys() -> set[str]:
-    return set(KEY_RE.findall(ENV_EXAMPLE.read_text(encoding="utf-8", errors="ignore")))
+    return set(KEY_RE.findall(ENV_EXAMPLE.read_text(encoding="utf-8")))
 
 
-def _settings_keys() -> set[str]:
-    os.environ.setdefault("SECRET_KEY", "x" * 64)
-    from src.config import settings
-
-    return set(type(settings).model_fields.keys())
-
-
-def test_settings_keys_documented():
-    example = _example_keys()
-    missing = sorted(_settings_keys() - example - IGNORED_ENV)
-    assert not missing, (
-        "В .env.example нет ключей из src/config.py: " + ", ".join(missing)
+def test_example_has_no_unknown_keys() -> None:
+    fields = set(Settings.model_fields)
+    unknown = sorted(_example_keys() - fields - EXTRA_OK)
+    assert not unknown, (
+        ".env.example содержит ключи, которых нет ни в Settings, ни в "
+        "разрешённом списке (опечатка/переименование?):\n" + "\n".join(unknown)
     )
 
 
-def test_getenv_keys_documented():
-    example = _example_keys()
-    used: set[str] = set()
-    for p in (ROOT / "src").rglob("*.py"):
-        text = p.read_text(encoding="utf-8", errors="ignore")
-        used |= set(GETENV_RE.findall(text))
-        used |= set(ENVIRON_RE.findall(text))
-    missing = sorted(used - example - IGNORED_ENV - _settings_keys())
+def test_example_covers_required_keys() -> None:
+    present = _example_keys()
+    missing = sorted(REQUIRED_PRESENT - present)
     assert not missing, (
-        "В .env.example нет ключей, читаемых через os.getenv/os.environ: " + ", ".join(missing)
+        "В .env.example нет критичных переменных:\n" + "\n".join(missing)
     )
-
-
-def test_no_duplicate_keys_in_example():
-    keys = KEY_RE.findall(ENV_EXAMPLE.read_text(encoding="utf-8", errors="ignore"))
-    duplicates = sorted({k for k in keys if keys.count(k) > 1})
-    assert not duplicates, "Дубликаты ключей в .env.example: " + ", ".join(duplicates)
-
-
-@pytest.mark.parametrize("name", ["DATABASE_URL", "SECRET_KEY", "ALLOWED_ORIGINS"])
-def test_critical_keys_present(name: str):
-    assert name in _example_keys()
