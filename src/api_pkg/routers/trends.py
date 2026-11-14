@@ -10,13 +10,12 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import select
 
 from src import Err, Ok
 from src.analyzers.skills.trends import TrendAnalyzer
 from src.api_pkg import deps
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_authenticated, user_error_detail
 from src.database import async_session_factory
 from src.db import get_pool
@@ -27,7 +26,6 @@ from src.utils import load_competency_mapping, load_inverted_skill_index, skill_
 logger = structlog.get_logger("api")
 
 router = APIRouter(tags=["trends"], dependencies=[Depends(require_authenticated())])
-limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/trends", response_model=TrendsResponse)

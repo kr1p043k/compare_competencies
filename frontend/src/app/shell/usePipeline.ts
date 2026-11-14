@@ -147,7 +147,7 @@ export function usePipeline({ profile, role, setResult, navigate }: UsePipelineP
       .then(s => {
         if (pipelineTaskRef.current !== taskId) return; // cancelled or replaced while fetching
         const step = Math.min(s.step || 1, 4);
-        let subProgress = s.sub_progress ?? undefined;
+        const subProgress = s.sub_progress ?? undefined;
         setPipelineStep(() => {
           const pct = s.status === "completed" ? 100 : Math.min(step * 25, 95);
           return {

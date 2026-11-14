@@ -12,9 +12,8 @@ from pathlib import Path
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.models.api_responses import (
@@ -165,7 +164,6 @@ def _resolve_city_name_sync(name: str) -> int | None:
 
 
 router = APIRouter(tags=["pipeline"])
-limiter = Limiter(key_func=get_remote_address)
 
 pipeline_tasks: dict[str, PipelineTaskStatus] = {}
 _running_futures: dict[str, asyncio.Task] = {}

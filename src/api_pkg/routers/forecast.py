@@ -5,12 +5,11 @@ from pathlib import Path
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import text
 
 import src.api_pkg.deps as deps
 from src import DomainError, Err, Ok, Result, config
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_authenticated, user_error_detail
 from src.predictors.prophet_forecast import ProphetForecastEngine
 from src.predictors.skill_forecast import ForecastResult, SkillForecastEngine
@@ -18,7 +17,6 @@ from src.utils import safe_read_json
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["forecast"], dependencies=[Depends(require_authenticated())])
-limiter = Limiter(key_func=get_remote_address)
 
 _forecast_engine_lock = asyncio.Lock()
 _FORECAST_FIT_TIMEOUT_S = 180
@@ -386,8 +384,8 @@ async def get_top_forecasts(
     request: Request,
     n: int = Query(25, ge=1, le=50),
     months: int = Query(12, ge=1, le=24),
-    direction: str = Query("growing", regex="^(growing|declining)$"),
-    sort: str = Query("growth", regex="^(growth|popular)$"),
+    direction: str = Query("growing", pattern="^(growing|declining)$"),
+    sort: str = Query("growth", pattern="^(growth|popular)$"),
     min_freq: float = Query(50, ge=0),
 ):
     """Топ навыков: sort=growth (по росту, умолчанию) или popular (по текущей частоте).
@@ -487,9 +485,9 @@ async def get_observed_drops(
     request: Request,
     n: int = Query(25, ge=1, le=50),
     months: int = Query(3),
-    sort: str = Query("growth", regex="^(growth|popular)$"),
+    sort: str = Query("growth", pattern="^(growth|popular)$"),
     min_freq: float = Query(50, ge=0),
-    direction: str = Query("declining", regex="^(declining|growing|all)$"),
+    direction: str = Query("declining", pattern="^(declining|growing|all)$"),
 ):
     """Измеренное изменение спроса за окно - факт, не прогноз.
 

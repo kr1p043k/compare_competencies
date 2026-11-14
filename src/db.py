@@ -3,8 +3,9 @@ import asyncpg
 from src.config import settings
 
 DATABASE_URL = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-DB_POOL_MIN = getattr(settings, "DB_POOL_MIN", 2)
-DB_POOL_MAX = getattr(settings, "DB_POOL_MAX", 10)
+# Поля объявлены в Settings (см. комментарий там); .env теперь работает.
+DB_POOL_MIN = settings.DB_POOL_MIN
+DB_POOL_MAX = settings.DB_POOL_MAX
 
 pool: asyncpg.Pool | None = None
 

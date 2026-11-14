@@ -8,10 +8,9 @@
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from src.api_pkg import deps
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_any_role
 from src.api_pkg.routers.krm_teacher import (
     _list_all_dirs,
@@ -25,7 +24,6 @@ from src.parsing.skills.skill_normalizer import SkillNormalizer
 logger = structlog.get_logger("api")
 
 router = APIRouter(tags=["krm_student"])
-limiter = Limiter(key_func=get_remote_address)
 
 _STUDENT_ROLES = ("admin", "teacher", "rop", "student")
 

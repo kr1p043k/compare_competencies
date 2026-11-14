@@ -16,16 +16,14 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from src import config
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_any_role
 from src.db import get_pool
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["krm_teacher"])
-limiter = Limiter(key_func=get_remote_address)
 
 _DIR_CODE_RE = re.compile(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$")
 
