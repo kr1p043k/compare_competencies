@@ -20,3 +20,4 @@
 | [0004](0004-design-system-tokens.md) | UI на токенах и примитивах `src/design`, без хардкод-цветов | Принято |
 | [0005](0005-unified-structlog.md) | Единое логирование через `setup_structlog` | Принято |
 | [0006](0006-api-versioning.md) | Версионирование API: `/api` + `GET /api/version` | Принято |
+| [0007](0007-error-envelope.md) | Единый конверт ошибок API: code/message/request_id | accepted |
