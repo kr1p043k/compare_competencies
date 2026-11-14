@@ -82,6 +82,9 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
 "src/loaders_student/student_loader.py" = ["E402"]
 # ML: матрица признаков традиционно называется X.
 "src/predictors/ltr_recommendation_engine.py" = ["N806", "N803"]
+# Одноразовые скрипты/миграции: ML-конвенция (X, Y, Xtr), длинные метки, ASCII-выкладки.
+"scripts/**/*.py" = ["N806", "N803", "E501", "SIM102"]
+"alembic/**/*.py" = ["N806", "E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

@@ -5,15 +5,15 @@
 discipline_scope_table). Схемные изменения уже в самих миграциях, здесь
 только сводим историю к одному head.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 revision: str = "merge_intake_year_main"
-down_revision: Union[str, Sequence[str], None] = (
+down_revision: str | Sequence[str] | None = (
     "merge_for_nikita_main",
     "add_discipline_intake_year",
 )
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

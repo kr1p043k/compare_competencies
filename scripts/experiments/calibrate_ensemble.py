@@ -10,9 +10,9 @@ from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import brier_score_loss, log_loss
 
 ROOT = Path(__file__).resolve().parents[1]
-oof = json.load(open(ROOT / "labeling" / "loro_ensemble_oof.json", encoding="utf-8"))
+oof = json.load(open(ROOT / "labeling" / "loro_ensemble_oof.json", encoding="utf-8"))  # noqa: SIM115
 z, yb = [], []
-for rl, d in oof.items():
+for _rl, d in oof.items():
     z.extend(d["ens_z"])
     yb.extend([1 if g >= 1 else 0 for g in d["grade"]])
 z, yb = np.asarray(z), np.asarray(yb)

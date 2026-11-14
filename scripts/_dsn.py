@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 _DRIVER_SUFFIXES = ("+asyncpg", "+psycopg", "+psycopg2")
 
 
-class DSNNotConfigured(RuntimeError):
+class DSNNotConfiguredError(RuntimeError):
     """DSN не найден ни в аргументах, ни в окружении, ни в .env."""
 
 
@@ -52,7 +52,7 @@ def _strip_driver(url: str) -> str:
 
 
 def resolve_dsn(explicit: str | None = None) -> str:
-    """DSN для синхронного psycopg. Бросает DSNNotConfigured, если пусто."""
+    """DSN для синхронного psycopg. Бросает DSNNotConfiguredError, если пусто."""
     for candidate in (
         explicit,
         os.environ.get("COMPARE_DB_DSN"),
@@ -62,7 +62,7 @@ def resolve_dsn(explicit: str | None = None) -> str:
         if candidate and candidate.strip():
             return _strip_driver(candidate.strip())
 
-    raise DSNNotConfigured(
+    raise DSNNotConfiguredError(
         "DSN не задан. Укажите --dsn, переменную DATABASE_URL "
         "(или COMPARE_DB_DSN), либо строку DATABASE_URL в .env. "
         "Пароль в коде не хранится намеренно."

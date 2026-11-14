@@ -21,6 +21,7 @@ KRM-файл (`data/reference/krm_disciplines_<код>.json`) — метадан
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import shutil
 import sys
@@ -95,10 +96,8 @@ def main() -> int:
     args = parser.parse_args()
     args.dsn = resolve_dsn(getattr(args, 'dsn', '') or None)
 
-    try:
+    with contextlib.suppress(Exception):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
 
     path = REFERENCE / f"krm_disciplines_{args.direction}.json"
     if not path.exists():

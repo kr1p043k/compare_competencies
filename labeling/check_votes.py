@@ -73,7 +73,7 @@ def main():
     conf = Counter(zip(a, b, strict=False))
     print("confusion (e2 x e3):")
     for x in (0, 1, 2):
-        print("  e2=%d: " % x + " ".join(f"e3={y}:{conf[(x, y)]}" for y in (0, 1, 2)))
+        print(f"  e2={x}: " + " ".join(f"e3={y}:{conf[(x, y)]}" for y in (0, 1, 2)))
     print("extreme flips e2=0/e3=2:")
     for i in ids:
         if e2[i]["vote"] == 0 and e3[i]["vote"] == 2:

@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -170,10 +171,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    try:
+    with contextlib.suppress(Exception):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
 
     gold_path = ROOT / args.gold
     if not hasattr(LTRRecommendationEngine, "_build_ranking_frame"):

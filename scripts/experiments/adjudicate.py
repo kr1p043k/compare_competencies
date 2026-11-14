@@ -42,13 +42,13 @@ def fleiss(table, n_cat: int) -> float:
     n0 = sum(table[0])
     p = [sum(r[j] for r in table) / (N * n0) for j in range(n_cat)]
     pe = sum(x * x for x in p)
-    po = sum(sum(c * (c - 1) for c in r) / (ni * (ni - 1)) for r, ni in zip(table, [(sum(r)) for r in table])) / N
+    po = sum(sum(c * (c - 1) for c in r) / (ni * (ni - 1)) for r, ni in zip(table, [(sum(r)) for r in table], strict=False)) / N
     return (po - pe) / (1 - pe) if pe < 1 else 1.0
 
 
 def cohen(a: list[int], b: list[int]) -> float:
     n = len(a)
-    po = sum(1 for x, y in zip(a, b) if x == y) / n
+    po = sum(1 for x, y in zip(a, b, strict=False) if x == y) / n
     cats = (0, 1, 2)
     pe = sum((sum(1 for x in a if x == c) / n) * (sum(1 for y in b if y == c) / n) for c in cats)
     return (po - pe) / (1 - pe) if pe < 1 else 1.0
@@ -64,7 +64,8 @@ def main() -> None:
     mism = [(i,) for i in ids if (e1[i][0], e1[i][1]) != (e2[i][0], e2[i][1]) or (e1[i][0], e1[i][1]) != (e3[i][0], e3[i][1])]
     print(f"key mismatches: {len(mism)}", mism[:5])
     if len(ids) < 500 or mism:
-        print("ALIGNMENT PROBLEM - stop"); sys.exit(1)
+        print("ALIGNMENT PROBLEM - stop")
+        sys.exit(1)
 
     E = [e1, e2, e3]
     for k, e in enumerate(E, 1):
@@ -96,7 +97,7 @@ def main() -> None:
     print("wrote e3_outliers.csv")
 
     # --- votes + gold + round_2 ---
-    for k, e in zip(("e1", "e2", "e3"), E):
+    for k, e in zip(("e1", "e2", "e3"), E, strict=False):
         with open(OUT / f"votes_{k}.csv", "w", encoding="utf-8-sig", newline="") as f:
             w = csv.writer(f, delimiter=";")
             w.writerow(["role", "skill", "grade"])
