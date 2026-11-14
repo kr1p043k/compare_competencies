@@ -1,170 +1,157 @@
 # Бэклог проекта Compare Online
 
 Консолидированный список задач, отсортированный по приоритету.
-Числа и факты — из исходников и файлов данных; ссылки на источники в скобках.
+Числа и факты из исходников и файлов данных; ссылки на источники в скобках.
+
+Статус: `[ ]` открыто · `[~]` частично · `[x]` сделано.
+Последняя сверка: 2026-11-14, ветка `dev`.
+
+## 0. Сводка статуса
+
+| # | Задача | Статус |
+|---|--------|--------|
+| 1.1 | Ensemble как прод-модель LTR | `[x]` авто-выбор human-артефакта, суррогат исключён |
+| 1.2 | Калибровка (Platt/isotonic) | `[x]` в serving не нужна (rank-only), закрыто |
+| 1.3 | Тренды: нормировка на объём | `[ ]` |
+| 1.4 | Generalization матчинга (F1 0.99) | `[ ]` |
+| 1.5 | Разметка teacher_labeling_task | `[ ]` |
+| 1.6 | Покрытие ml/clusters.py | `[x]` тесты добавлены |
+| 1.7 | Покрытие teacher_analysis_runner | `[x]` тесты добавлены |
+| 2.1 | Degraded-флаг сервисов | `[~]` есть для каналов пайплайна, нет общий middleware |
+| 2.2 | Coverage + Quality в UI | `[ ]` |
+| 2.3 | Provenance скилла | `[ ]` |
+| 2.4 | readiness → readiness_score | `[x]` остатков нет |
+| 3.1 | LLM-клиент: единый /v1 | `[ ]` |
+| 3.2 | Чат-хранилище | `[x]` миграция `add_chat_storage.py` |
+| 3.3 | Лимит контекста LLM | `[x]` truncation/max_tokens в `llm_client` |
+| 3.4 | Rate limit + auth эндпоинтов LLM | `[ ]` |
+| 3.5 | UI-чат: plugin-блоки | `[ ]` |
+| 3.6 | Тесты LLM | `[x]` 9 файлов в `tests/` |
+| 4.1 | ruff | `[~]` 120 issues (было 196) |
+| 4.2 | datetime.utcnow → now(UTC) | `[x]` остатков нет |
+| 4.3 | .tmp и logs | `[ ]` |
 
 ---
 
 ## 1. Algorithm (допилы ML/пайплайна)
 
-### 1.1 Продвинутая прод-модель LTR: surrogate → human/ensemble
+### 1.1 Продвинутая прод-модель LTR: surrogate → human/ensemble — `[x]`
 
-Сейчас прод-модель — `XGBRegressor` на суррогатном таргете `0.6×relevance + 0.4×base_target` (`docs/methodology.md:56-72`). Флагманский артефакт `ltr_ranker_ensemble_human.joblib` обучен на human-оценках из `labeling/gold.csv` (4 роли × 125 пар) через `scripts/experiments/make_ensemble.py`. Задача — задеплоить ensemble как основную модель вместо surrogate, провалидировать на frozen split через `scripts/eval_frozen.py`.
+`ACTIVE_MODEL` = авто-выбор из `_candidate_artifacts()`: берётся feature-совместимый
+human-артефакт (`ltr_ranker_ensemble_human.joblib`, NDCG 0.7455), суррогат
+`ltr_ranker_xgb_regressor.joblib` (MODEL_FILENAME) исключён из рантайма.
+Валидация — `scripts/eval_frozen.py` (CI-гейт). Файл: `src/predictors/ltr_recommendation_engine.py:126-195`.
 
-- **Файлы:** `scripts/experiments/make_ensemble.py`, `scripts/eval_frozen.py`, `labeling/gold.csv`, `labeling/battery3.py`, `src/predictors/ltr_recommendation_engine.py:142`
-- **Приоритет:** P1
+### 1.2 Калибровка: Platt сломан, isotonic — спасение — `[x]` (закрыто)
 
-### 1.2 Калибровка: Platt сломан, isotonic — спасение
+`rank_score` в продукте используется только для порядка, калибратор в serving не
+подключён. Отчёт `labeling/calibration_report.json` оставлен как исторический.
+В `src/` калибровка не участвует — задача снята.
 
-Модуль калибровки `scripts/experiments/calibrate_ranker.py` тестирует Platt, isotonic, raw_minmax и OOF-варианты (`labeling/calibration_report.json`):
+### 1.3 Тренды: нормировка на объём выборки — `[ ]`
 
-| Вариант | log_loss | Brier |
-|---------|----------|-------|
-| platt | 13.2348 | 0.3672 |
-| isotonic | 0.7674 | 0.2380 |
-| raw_minmax | 0.7138 | 0.2539 |
-| oof_platt | 12.3900 | 0.3438 |
-| oof_isotonic | 0.6420 | 0.2260 (winner) |
+Частоты в `trend_snapshots` — абсолютные counts без деления на объём среза. При
+росте числа проиндексированных вакансий drift частот ≠ drift спроса.
+Файлы: `src/analyzers/skills/trends.py:46`, `src/pipeline/teacher_analysis_runner.py`.
+Приоритет: P1.
 
-Platt (log_loss 13.23) и oof_platt (12.39) катастрофически плохо калибруют — модель выдаёт либо 0, либо 1 без градиента. Победитель — `oof_isotonic` (log_loss 0.642). Нужно: (1) убрать platt из serving, (2) добавить oof_isotonic в serving pipeline, (3) документировать.
+### 1.4 Generalization матчинга: F1 0.99 подозрителен — `[ ]`
 
-- **Файлы:** `scripts/experiments/calibrate_ranker.py`, `labeling/calibration_report.json`
-- **Приоритет:** P0
+F1 ≈ 0.99 на L3 (semantic) в `data/benchmark/article_datasets/` — вероятен leakage
+с настройкой порога 0.78. Нужно: holdout без leakage + report recall при fixed precision.
+Файлы: `docs/methodology.md:80-89`, `tests/analyzers/test_adaptive_threshold_exp2.py`,
+`src/analyzers/skill_matcher.py:172`. Приоритет: P1.
 
-### 1.3 Тренды: нормировка на объём выборки
+### 1.5 Разметка: docs/teacher_labeling_task.md — `[ ]`
 
-Частоты в `trend_snapshots` считаются как абсолютные counts без деления на объём выборки за срез. При изменении числа проиндексированных вакансий drift частот ≠ drift спроса — можно наблюдать «рост» навыка только потому что проиндексировано больше вакансий вообще.
+Для 3 профилей (base, dc, top_dc) проставить «да/нет» на 60 оценок. Цели:
+Precision@k, Recall, сравнение версий. Файл: `docs/teacher_labeling_task.md`. P2.
 
-- **Файлы:** `src/analyzers/skills/trends.py`, `src/pipeline/teacher_analysis_runner.py:1162-1188`
-- **Приоритет:** P1
+### 1.6 Покрытие ml/clusters.py — `[x]`
 
-### 1.4 Generalization матчинга: F1 0.99 подозрителен
+Тесты: `tests/.../test_ml_clusters_coverage.py`, `test_train_clusters.py`,
+`test_vacancy_clustering.py`, `test_clusters_router_coverage.py`,
+`test_clusters_plots_coverage.py`.
 
-Ф1 ≈ 0.99 на L3 (semantic stage) в бенчмарке `data/benchmark/article_datasets/` (800 пар KSA→market skill) — подозрительно высоко. Вероятно, пары разметки близки к данным настройки порога 0.78 (`docs/methodology.md:84-89`). Текущий score.py (`labeling/score.py`) и Exp2 (`tests/analyzers/test_adaptive_threshold_exp2.py`) показывают: F1-пик на adaptive threshold 0.45 = 0.859; recall@0.70 лишь 0.44, @0.55 — 0.69. Нужно: (1) раздельный holdout без leakage, (2) report общего recall при fixed precision.
+### 1.7 Покрытие pipeline/teacher_analysis_runner.py — `[x]`
 
-- **Файлы:** `docs/methodology.md:80-89`, `tests/analyzers/test_adaptive_threshold_exp2.py`, `src/analyzers/skill_matcher.py:172`, `src/analyzers/hybrid_matcher.py:33-35`
-- **Приоритет:** P1
-
-### 1.5 Разметка: docs/teacher_labeling_task.md
-
-Задача валидации рекомендаций пайплайна: для 3 профилей (base, dc, top_dc) проставить «да/нет» на 60 оценок (10-15 мин/чел). Цели: Precision@k, Recall, объективное сравнение версий. Файл `docs/teacher_labeling_task.md` содержит ТЗ.
-
-- **Файлы:** `docs/teacher_labeling_task.md`
-- **Приоритет:** P2
-
-### 1.6 Покрытие ml/clusters.py
-
-Модуль `src/ml/clusters.py` (220 строк) — единственная точка тренировки vacancy clustering. Нет unit-тестов, покрывается только integration-тестами пайплайна. Функция `train_clusters()` содержит 3 print-блока и нет try/except вокруг ключевых операций.
-
-- **Файлы:** `src/ml/clusters.py`
-- **Приоритет:** P2
-
-### 1.7 Покрытие pipeline/teacher_analysis_runner.py
-
-Модуль 1521 строка — main runner teacher analysis. Огромная функция `run_teacher_analysis()` содержит ~15 этапов (DB → market skills → disciplines → matching → gap → enhanced gap → charts → write). Нет модульных тестов отдельных этапов, покрытие через integration-тесты (`tests/pipeline/`). Риск: любой stage-fail ломает весь pipeline без recover.
-
-- **Файлы:** `src/pipeline/teacher_analysis_runner.py`
-- **Приоритет:** P1
+Тесты: `tests/.../test_teacher_analysis_runner_coverage.py`, `test_teacher_analysis.py`,
+`test_teacher_analysis_ksa.py` и др. (16 файлов по teacher).
 
 ---
 
 ## 2. Trust & Safety
 
-### 2.1 Degraded-флаг для сервисов
+### 2.1 Degraded-флаг для сервисов — `[~]`
 
-Нет механизма уведомления UI о деградации сервиса (DB down, embedding provider недоступен, LTR model не загружен). При partial-failure UI показывает устаревшие/неполные данные как нормальные. Нужно: middleware-деградация + флаг в API-ответах.
+`src/pipeline/channel_diag.py` отдаёт API-safe dict `{degraded, failed_channels, count}`
+для каналов пайплайна. Общий middleware-деградация (DB down, embedding provider,
+LTR model не загружен) с флагом в API-ответах — пока нет.
+Файлы: `src/monitoring/`, `src/api_pkg/routers/`. Приоритет: P0.
 
-- **Файлы:** `src/monitoring/`, `src/api_pkg/routers/`
-- **Приоритет:** P0
+### 2.2 Coverage + Quality вместе в UI — `[ ]`
 
-### 2.2 Coverage + Quality вместе в UI
+`coverage_ratio` (binary) и `readiness_score` (composite) показаны, `quality`
+(weighted_coverage) рядом не визуализируется. Файлы: `frontend/src/`,
+`src/visualization/coverage.py:22-33`. P1.
 
-Сейчас в интерфейсе показываются `coverage_ratio` (binary: сколько есть) и `readiness_score` (composite index). Отсутствует визуализация `quality` (weighted_coverage) рядом с coverage — большой разрыв «coverage высокое, quality низкий» не очевиден для пользователя.
+### 2.3 Provenance скилла — `[ ]`
 
-- **Файлы:** `frontend/src/`, `src/visualization/coverage.py:22-33`
-- **Приоритет:** P1
+Нет сквозной traceability источника навыка (KSA/parsed_skills/it_skills/label).
+Нужно поле `source` в `top_market_matched_skills` и `gaps`.
+Файлы: `src/analyzers/skill_matcher.py`, `src/pipeline/teacher_analysis_runner.py`. P2.
 
-### 2.3 Provenance скилла
+### 2.4 Переименовать readiness → readiness_score — `[x]`
 
-Нет сквозной traceability: от какого источника (KSA из БД, parsed_skills из HH, it_skills.json, human labeling) пришёл навык в recommendation. Нужно: поле `source` в `top_market_matched_skills` и `gaps`.
-
-- **Файлы:** `src/analyzers/skill_matcher.py`, `src/pipeline/teacher_analysis_runner.py:993-1001`
-- **Приоритет:** P2
-
-### 2.4 Переименовать readiness → readiness_score
-
-Поле в API и UI называется `readiness`, но внутри контрактов `readiness_score` (`src/models/data_contracts.py:93`, `src/models/student.py:65`). В UI это приводит к inconsistency label. Нужно унифицировать на `readiness_score` везде.
-
-- **Файлы:** `src/models/api_responses.py:51,187`, `src/models/data_contracts.py:93`, `src/models/student.py:65`, `src/reports/pdf_report.py:136`, `grafana/provisioning/dashboards/competency-dashboard.json:631`
-- **Приоритет:** P1
+Остатков `"readiness"` (без `_score`) в `src/` нет.
 
 ---
 
 ## 3. LLM
 
-### 3.1 Клиент: не задваивать /v1
+### 3.1 Клиент: не задваивать /v1 — `[ ]`
 
-LLM-клиент должен использовать единый `/v1` endpoint, а не дублировать логику для Ollama и external providers. Сейчас `src/analyzers/` и `src/services/` могут содержать параллельные реализации.
+Единый `/v1` endpoint вместо параллельных реализаций Ollama/external.
+Файлы: `src/`, `docs/LLM_PHASE2.md`. P1.
 
-- **Файлы:** `src/`, `docs/LLM_PHASE2.md`
-- **Приоритет:** P1
+### 3.2 Чат-хранилище — `[x]`
 
-### 3.2 Чат-хранилище
+Миграция `alembic/versions/add_chat_storage.py` создаёт `chat_threads`, `chat_messages`.
 
-Нет persistent storage для LLM chat sessions. Текущая реализация не сохраняет историю диалогов. Нужно: таблица в БД + API endpoint для chat history.
+### 3.3 Контекст — `[x]`
 
-- **Файлы:** `docs/LLM_PHASE2.md:40`
-- **Приоритет:** P2
+`src/services/llm_client.py` содержит truncation/`max_tokens` контроль.
 
-### 3.3 Контекст
+### 3.4 Эндпоинты: rate limit + auth — `[ ]`
 
-LLM-контекст (system prompt, retrieved documents) не имеет лимита на длину. Нет mechanism для truncation при превышении context window. Нужно: `max_tokens` control + smart truncation.
+Rate limit есть у HH API (`src/parsing/api/hh_api*.py`), но не у LLM-эндпоинтов.
+Нужно: auth per user + rate limit per user/IP для chat/completion/embeddings.
+Файлы: `src/api_pkg/routers/`. P1.
 
-- **Файлы:** `src/services/`, `src/api_pkg/routers/`
-- **Приоритет:** P1
+### 3.5 UI-чат: блоки metric/citation/chart/action_list/text — `[ ]`
 
-### 3.4 Эндпоинты
+Типы блоков жёстко закодированы, без plugin-механизма. Файлы: `frontend/src/`. P2.
 
-LLM API-эндпоинты (chat, completion, embeddings) не имеют rate limiting и auth. Нужно: API key auth per user + rate limit per user/IP.
+### 3.6 Тесты LLM — `[x]`
 
-- **Файлы:** `src/api_pkg/routers/`
-- **Приоритет:** P1
-
-### 3.5 UI-чат: блоки metric/citation/chart/action_list/text
-
-В UI-компонентах чата жёстко закодированы типы блоков (metric, citation, chart, action_list, text) без extensibility mechanism. Нужно: plugin-architecture для кастомных блоков.
-
-- **Файлы:** `frontend/src/`
-- **Приоритет:** P2
-
-### 3.6 Тесты LLM
-
-Нет тестов для LLM-интеграции. Нет mocking для external providers. Нужно: unit-тесты для LLM client с mocks.
-
-- **Файлы:** `tests/`
-- **Приоритет:** P2
+`tests/api/test_llm_chat_api.py`, `test_llm_cost.py`, `test_llm_phase2.py`;
+`tests/services/test_llm_chat.py`, `test_llm_chat_guardrails.py`, `test_llm_client.py`,
+`test_llm_guardrails.py`, `test_llm_cache_coverage.py`, `test_llm_pricing_coverage.py`.
 
 ---
 
 ## 4. Hygiene
 
-### 4.1 ruff: 196 issues
+### 4.1 ruff — `[~]`
 
-Ruff (через `tasks.ps1 lint`) находит ~196 issues. Нужно: `ruff check .` → fix top-N → закомитить.
+`ruff check .` → 120 issues (было 196; 28 fixable). Прогресс есть, закрыть остаток.
+Файлы: `pyproject.toml` (ruff config). P1.
 
-- **Файлы:** `pyproject.toml` (ruff config)
-- **Приоритет:** P1
+### 4.2 datetime.utcnow() → datetime.now(UTC) — `[x]`
 
-### 4.2 datetime.utcnow() → datetime.now(UTC)
+Вхождений `utcnow` в `src/` нет.
 
-2 места используют deprecated `datetime.utcnow()` (`src/notifications/system.py:67`, `src/n8n/webhooks.py:133`). Нужно заменить на `datetime.now(UTC)` и проставить timezone-awareness.
+### 4.3 .tmp и logs — `[ ]`
 
-- **Файлы:** `src/notifications/system.py:67`, `src/n8n/webhooks.py:133`
-- **Приоритет:** P0
-
-### 4.3 .tmp и logs
-
-`.gitignore` (.tmp_*, *.tmp, logs/, *.log) — файлы не коммитятся, но на CI могут попадать. Нужно: pre-commit hook check + .dockerignore coverage.
-
-- **Файлы:** `.gitignore:11-19,66,96-97`
-- **Приоритет:** P2
+`pre-commit` hook + `.dockerignore` coverage для `.tmp_*`, `*.tmp`, `logs/`, `*.log`.
+Файлы: `.gitignore`. P2.

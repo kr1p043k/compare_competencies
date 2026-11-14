@@ -22,6 +22,7 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from src import config
 from src.api_pkg.client_ip import client_ip
+from src.monitoring.degraded import degraded_state
 from src.monitoring.metrics import get_metrics
 
 _disable_cmdstan().__enter__()
@@ -282,6 +283,12 @@ def create_app() -> FastAPI:
         process_time = time.time() - start_time
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Process-Time"] = str(process_time)
+        # Общий флаг деградации сервисов (BACKLOG 2.1) виден на каждом ответе:
+        # клиент/мониторинг замечает проблему без отдельного запроса /health.
+        _deg = degraded_state()
+        response.headers["X-Service-Degraded"] = "1" if _deg["degraded"] else "0"
+        if _deg["degraded"]:
+            response.headers["X-Degraded-Reasons"] = ",".join(_deg["reasons"])
         logger.info(
             "Request completed",
             request_id=request_id,
