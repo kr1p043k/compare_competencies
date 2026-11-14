@@ -12,13 +12,13 @@ hub-JWT, что и у старого academic-api, поэтому берём е�
 from __future__ import annotations
 
 import asyncio
+import re
 from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.academic import _get_sso_token
 from src.api_pkg.routers.auth import require_any_role
 from src.infrastructure.course_trends import CourseTrendsClient, CourseTrendsError
@@ -26,13 +26,22 @@ from src.infrastructure.course_trends_normalize import extract_articles
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["academic-trends"])
-limiter = Limiter(key_func=get_remote_address)
 
 # Статьи/рекомендации по программе считаются заранее, но ответ может быть
 # объёмным; держим таймаут выше обычного.
 TRENDS_TIMEOUT = 90.0
 
+# pid интерполируется в URL апстрима ЮФУ. Без белого списка "../" или
+# "?a=" уходили бы в чужой путь сервиса (path traversal на внешний API).
+_PID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+
 _ROLES = ["admin", "teacher", "rop"]
+
+
+def _pid_or_400(pid: str) -> str:
+    if not _PID_RE.fullmatch(pid):
+        raise HTTPException(status_code=400, detail="Некорректный идентификатор программы")
+    return pid
 
 
 async def _fetch(request: Request, path: str) -> Any:
@@ -79,6 +88,7 @@ async def glossary(request: Request) -> Any:
 @limiter.limit("60/minute")
 async def program_summary(pid: str, request: Request) -> Any:
     """Краткая сводка по программе для виджета."""
+    pid = _pid_or_400(pid)
     return await _fetch(request, f"/programs/{pid}/summary")
 
 
@@ -87,6 +97,7 @@ async def program_summary(pid: str, request: Request) -> Any:
 @limiter.limit("60/minute")
 async def course_trends(pid: str, request: Request) -> Any:
     """Тренды и статьи по курсам программы."""
+    pid = _pid_or_400(pid)
     return await _fetch(request, f"/programs/{pid}/course-trends")
 
 
@@ -95,6 +106,7 @@ async def course_trends(pid: str, request: Request) -> Any:
 @limiter.limit("60/minute")
 async def course_coverage(pid: str, request: Request) -> Any:
     """Покрытие компетенций по курсам программы."""
+    pid = _pid_or_400(pid)
     return await _fetch(request, f"/programs/{pid}/course-coverage")
 
 
@@ -103,6 +115,7 @@ async def course_coverage(pid: str, request: Request) -> Any:
 @limiter.limit("60/minute")
 async def recommendations(pid: str, request: Request) -> Any:
     """Предрассчитанные рекомендации по программе."""
+    pid = _pid_or_400(pid)
     return await _fetch(request, f"/programs/{pid}/recommendations")
 
 
@@ -110,6 +123,7 @@ async def recommendations(pid: str, request: Request) -> Any:
 @limiter.limit("60/minute")
 async def program_bundle(pid: str, request: Request) -> Any:
     """Всё по программе одним ответом (summary + тренды + покрытие + рекомендации)."""
+    pid = _pid_or_400(pid)
     return await _fetch(request, f"/programs/{pid}")
 
 
@@ -132,8 +146,11 @@ async def program_articles(
 
     `query` фильтрует по заголовку, аннотации и авторам (регистр не важен).
     """
+    pid = _pid_or_400(pid)
     raw = await _fetch(request, f"/programs/{pid}/course-trends")
-    articles = extract_articles(raw)
+    # Нормализация может пройтись по большому JSON апстрима: уводим её
+    # из event loop, чтобы тяжёлый ответ ЮФУ не морозил остальные ручки.
+    articles = await asyncio.to_thread(extract_articles, raw)
 
     if query:
         needle = query.strip().lower()

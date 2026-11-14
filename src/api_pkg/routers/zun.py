@@ -36,10 +36,9 @@ from typing import Any
 import numpy as np
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from src import config
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role
 from src.api_pkg.routers.zun_schemas import (
@@ -54,7 +53,6 @@ from src.utils import clip01
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["zun"], dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
-limiter = Limiter(key_func=get_remote_address)
 
 _DIR_CODE_RE = re.compile(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$")
 _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")

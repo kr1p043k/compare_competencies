@@ -1,14 +1,12 @@
 import structlog
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.student_actions import get_actions, log_action
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["student"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 class LogActionRequest(BaseModel):

@@ -14,12 +14,11 @@ import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, WebSocket
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import text
 
 from src import config
 from src.api_pkg import deps
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.request_logger import actor_from_request, audit_action, get_logs_by_user
 from src.api_pkg.routers.auth import (
     _hash_token,
@@ -36,7 +35,6 @@ logger = structlog.get_logger("api")
 _ADMIN_TOTP_PRESENT = False
 
 router = APIRouter(tags=["admin"], dependencies=[Depends(require_any_role("admin", "teacher"))])
-limiter = Limiter(key_func=get_remote_address)
 
 
 class WhitelistAddRequest(BaseModel):

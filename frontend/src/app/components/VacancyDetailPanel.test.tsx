@@ -44,7 +44,10 @@ describe("VacancyDetailPanel", () => {
 
     expect(screen.getByRole("status")).toBeInTheDocument();
     expect(requestMock).toHaveBeenCalledTimes(1);
-    expect(requestMock).toHaveBeenCalledWith("/api/vacancies/v-1");
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/vacancies/v-1",
+      expect.objectContaining({ signal: expect.anything() }),
+    );
 
     resolve(DETAIL);
     await waitFor(() =>
@@ -63,7 +66,10 @@ describe("VacancyDetailPanel", () => {
       name: /Старший Fullstack/,
     });
     expect(heading).toBeInTheDocument();
-    expect(requestMock).toHaveBeenCalledWith("/api/vacancies/v-1");
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/vacancies/v-1",
+      expect.objectContaining({ signal: expect.anything() }),
+    );
 
     expect(screen.getByText("Ключевые навыки (HH)")).toBeInTheDocument();
     expect(screen.getByText("Python")).toBeInTheDocument();

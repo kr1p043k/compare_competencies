@@ -79,7 +79,7 @@ export function extractChartData(block: ChatBlock): ChartData | null {
 
   let labelKey = "label";
   let seriesKeys: string[] = [];
-  let rows: Array<Record<string, string | number>> = [];
+  let rows: Array<Record<string, string | number>>;
 
   if (rawRows.every((r) => typeof r === "number" || typeof r === "string")) {
     // плоский список чисел (или строк-цифр): категории - порядковые номера

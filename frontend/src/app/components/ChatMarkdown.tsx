@@ -110,7 +110,7 @@ function parseSegments(src: string): Segment[] {
       continue;
     }
 
-    list && flushList();
+    if (list) flushList();
     paragraph.push(line.trim());
   }
 

@@ -2,11 +2,10 @@
 
 import structlog
 from fastapi import APIRouter, Depends, Query, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.api_pkg import deps
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_authenticated
 from src.models.api_responses import (
     SkillInfoResponse,
@@ -21,7 +20,6 @@ router = APIRouter(
     # гейта их мог тянуть любой внешний клиент.
     dependencies=[Depends(require_authenticated())],
 )
-limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/market/top-skills", response_model=TopSkillsResponse)

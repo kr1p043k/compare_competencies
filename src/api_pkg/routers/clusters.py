@@ -4,14 +4,13 @@ import asyncio
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from src.analyzers.clustering import vacancy_clustering as _vc
 from src.analyzers.clustering.vacancy_clustering import (
     VacancyClusterer,
     load_cached_clusterer,
 )
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_authenticated
 from src.models.api_responses import ClustersByLevelResponse, ClusterSummaryResponse
 from src.models.enums import ExperienceLevel
@@ -19,7 +18,6 @@ from src.models.enums import ExperienceLevel
 logger = structlog.get_logger("api")
 
 router = APIRouter(tags=["clusters"], dependencies=[Depends(require_authenticated())])
-limiter = Limiter(key_func=get_remote_address)
 
 
 def _load_clusterer(level) -> VacancyClusterer | None:

@@ -16,9 +16,8 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
 from pydantic import BaseModel, Field
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import get_current_user, require_authenticated, user_error_detail
 from src.infrastructure.hub_publications import (
     HubAuthRequiredError,
@@ -34,7 +33,6 @@ from src.models.api_responses import (
 )
 
 router = APIRouter(tags=["publications"])
-limiter = Limiter(key_func=get_remote_address)
 logger = structlog.get_logger(__name__)
 
 _NOT_FOUND_MSG = "Публикация не найдена в каталоге хаба"

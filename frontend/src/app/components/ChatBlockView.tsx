@@ -251,7 +251,7 @@ function FallbackBlock({
   block: ChatBlock;
   note?: string;
 }) {
-  let dump = "";
+  let dump: string;
   try {
     dump = JSON.stringify(block, null, 2);
   } catch {

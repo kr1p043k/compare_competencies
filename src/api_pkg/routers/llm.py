@@ -1,15 +1,15 @@
+import asyncio
+
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.services.llm_client import LLMClient
 
 logger = structlog.get_logger("api")
 router = APIRouter(tags=["llm"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 class ChatRequest(BaseModel):
@@ -33,7 +33,10 @@ async def llm_chat(request: Request, req: ChatRequest):
     """Чат с LLM (лимит 10/мин, до 4000 символов)."""
     client = LLMClient()
     try:
-        response = client.generate(
+        # LLMClient синхронный (OpenAI SDK), а ручка async: без to_thread
+        # один медленный запрос к модели замораживал весь event loop API.
+        response = await asyncio.to_thread(
+            client.generate,
             prompt=req.message,
             temperature=req.temperature,
             max_tokens=req.max_tokens,
