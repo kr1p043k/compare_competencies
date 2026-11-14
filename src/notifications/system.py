@@ -309,11 +309,13 @@ def start_system_error_flusher() -> None:
     global _flusher_task
     if _flusher_task is not None and not _flusher_task.done():
         return
-    loop = asyncio.get_event_loop()
-    if loop.is_running():
-        _flusher_task = asyncio.ensure_future(_periodic_flush())
-    else:
-        _flusher_task = loop.create_task(_periodic_flush())
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # Нет работающего цикла (редкий вызов вне старта) - создаём свой.
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    _flusher_task = loop.create_task(_periodic_flush())
 
 
 async def stop_system_error_flusher(*, flush: bool = True) -> None:

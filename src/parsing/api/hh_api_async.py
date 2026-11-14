@@ -20,6 +20,29 @@ from src.result import Err, Ok, Result
 logger = structlog.get_logger(__name__)
 
 
+def _run_blocking(coro, error_message: str):
+    """Выполнить корутину из sync-кода без deprecated asyncio.get_event_loop().
+
+    Если работающего цикла нет (обычный sync-вызов) - короткий asyncio.run.
+    Если цикл уже работает - нельзя блокировать его run_until_complete, берём
+    отдельный цикл. Любая ошибка превращается в Err, как и раньше.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        try:
+            return asyncio.run(coro)
+        except Exception as e:
+            return Err(ApiError(message=error_message, endpoint="vacancies", detail=str(e)))
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    except Exception as e:
+        return Err(ApiError(message=error_message, endpoint="vacancies", detail=str(e)))
+    finally:
+        loop.close()
+
+
 class HeadHunterAPIAsync:
     BASE_URL = "https://api.hh.ru/"
 
@@ -333,17 +356,10 @@ class HeadHunterAPIAsync:
     def get_vacancies_details_sync_validated(
         self, vacancy_ids: list[str]
     ) -> Result[list[VacancyDetailResponse], ApiError]:
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_closed():
-                raise RuntimeError("Event loop is closed")
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        try:
-            return loop.run_until_complete(self.get_vacancies_details_batch_validated(vacancy_ids))
-        except Exception as e:
-            return Err(ApiError(message="Sync validated batch failed", endpoint="vacancies", detail=str(e)))
+        return _run_blocking(
+            self.get_vacancies_details_batch_validated(vacancy_ids),
+            "Sync validated batch failed",
+        )
 
     async def get_vacancies_details_batch(self, vacancy_ids: list[str]) -> Result[list[dict], ApiError]:
         if not vacancy_ids:
@@ -396,14 +412,7 @@ class HeadHunterAPIAsync:
         return Ok(all_results)
 
     def get_vacancies_details_sync(self, vacancy_ids: list[str]) -> Result[list[dict], ApiError]:
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_closed():
-                raise RuntimeError("Event loop is closed")
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        try:
-            return loop.run_until_complete(self.get_vacancies_details_batch(vacancy_ids))
-        except Exception as e:
-            return Err(ApiError(message="Sync batch failed", endpoint="vacancies", detail=str(e)))
+        return _run_blocking(
+            self.get_vacancies_details_batch(vacancy_ids),
+            "Sync batch failed",
+        )
