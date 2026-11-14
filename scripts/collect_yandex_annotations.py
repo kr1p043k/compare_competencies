@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib.util
 import json
 import sys
@@ -39,10 +40,8 @@ def main() -> int:
     parser.add_argument("--year", type=int, required=True)
     args = parser.parse_args()
 
-    try:
+    with contextlib.suppress(Exception):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
 
     sfu = _load_collector()
     public_key = args.url or sfu.TARGETS.get(args.dir_code)

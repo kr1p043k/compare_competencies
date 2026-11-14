@@ -421,7 +421,7 @@ def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
                 if inter >= 2 and smaller and inter / smaller >= 0.6 and inter > best_n:
                     best, best_n = orig, inter
             if best:
-                hit, _how = best, "tokens:%d" % best_n
+                hit, _how = best, f"tokens:{best_n}"
         if not hit:
             continue
         comps = sorted({normalize_comp(c) for c in a.get("competencies", [])})
@@ -438,13 +438,10 @@ def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
         # расходилась с таксономией, и падал test_iter4_gap ("KRM codes
         # shifted"). Аннотация обогащает KSA, но не меняет состав компетенций;
         # если пересечения нет, остаёмся на прежних кодах.
-        if prev_comps:
-            # Состав компетенций НЕ меняем: аннотация обогащает KSA, но не
-            # переписывает коды. Пересечение выкидывало коды, которых нет в
-            # аннотации (ПК-18), и test_iter4_gap падал с "KRM codes shifted".
-            comps = sorted(prev_comps)
-        else:
-            comps = sorted(set(comps))
+        # Состав компетенций НЕ меняем: аннотация обогащает KSA, но не
+        # переписывает коды. Пересечение выкидывало коды, которых нет в
+        # аннотации (ПК-18), и test_iter4_gap падал с "KRM codes shifted".
+        comps = sorted(prev_comps) if prev_comps else sorted(set(comps))
         disc[hit]["competencies"] = comps
         old_ksa = disc[hit].get("ksa", {})
         ksa = build_ksa(comps, topics, old_ksa)

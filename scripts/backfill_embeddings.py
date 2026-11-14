@@ -33,6 +33,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory  # noqa: E402
+
 try:  # запуск как файла
     from _dsn import resolve_dsn  # noqa: E402
 except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)

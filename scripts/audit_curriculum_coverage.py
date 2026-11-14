@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import difflib
 import json
 import re
@@ -19,6 +20,7 @@ import sys
 from pathlib import Path
 
 import psycopg
+
 try:  # запуск как файла
     from _dsn import resolve_dsn  # noqa: E402
 except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
@@ -239,10 +241,8 @@ def main() -> int:
     args = parser.parse_args()
     args.dsn = resolve_dsn(getattr(args, 'dsn', '') or None)
 
-    try:
+    with contextlib.suppress(Exception):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
 
     official_doc = load_official(args.direction, args.year)
     official = official_doc["disciplines"]

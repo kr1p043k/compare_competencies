@@ -16,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 import unicodedata
@@ -23,6 +24,7 @@ from pathlib import Path
 
 import numpy as np
 import psycopg
+
 try:  # запуск как файла
     from _dsn import resolve_dsn  # noqa: E402
 except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
@@ -204,10 +206,8 @@ def main() -> int:
     args = parser.parse_args()
     args.dsn = resolve_dsn(getattr(args, 'dsn', '') or None)
 
-    try:
+    with contextlib.suppress(Exception):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
 
     with psycopg.connect(args.dsn, connect_timeout=15) as conn:
         if args.apply:

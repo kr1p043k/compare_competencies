@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -47,10 +48,8 @@ def main() -> int:
     args = parser.parse_args()
     args.dsn = resolve_dsn(getattr(args, 'dsn', '') or None)
 
-    try:
+    with contextlib.suppress(Exception):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
 
     with psycopg.connect(args.dsn, connect_timeout=15) as conn:
         shells = conn.execute(SELECT_SHELLS).fetchall()

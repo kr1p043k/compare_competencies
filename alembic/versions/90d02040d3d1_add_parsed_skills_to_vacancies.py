@@ -1,7 +1,7 @@
 """Добавляем parsed_skills в таблицу vacancies
 
 Revision ID: 90d02040d3d1
-Revises: 
+Revises:
 Create Date: 2026-06-15 06:10:24.346602
 """
 

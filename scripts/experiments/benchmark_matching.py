@@ -9,6 +9,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import random
@@ -24,18 +25,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # Пароль в репозитории не храним: DSN берётся из --dsn нет, здесь из
 # окружения или .env через общий резолвер.
 try:  # запуск как файла
-    from _dsn import DSNNotConfigured, resolve_dsn  # noqa: E402
+    from _dsn import DSNNotConfiguredError, resolve_dsn  # noqa: E402
 except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
-    from scripts._dsn import DSNNotConfigured, resolve_dsn  # noqa: E402
+    from scripts._dsn import DSNNotConfiguredError, resolve_dsn  # noqa: E402
 
 # Резолвим DSN при импорте, чтобы src-модули, читающие DATABASE_URL при
 # старте, получили готовое значение. Но сам импорт (в тестах чистых
 # функций) не должен требовать БД: без DSN просто оставляем окружение
 # как есть — при реальном обращении к базе будет явная ошибка.
-try:
+with contextlib.suppress(DSNNotConfiguredError):
     os.environ["DATABASE_URL"] = resolve_dsn()
-except DSNNotConfigured:
-    pass
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "benchmark"
@@ -337,10 +336,7 @@ async def run_predictions(pool, test_set: list[dict]) -> list[dict]:
         norm = normalize(q)
 
         # L1: exact
-        if norm and len(norm) >= 3:
-            l1_match = norm in matcher.market_skills
-        else:
-            l1_match = False
+        l1_match = norm in matcher.market_skills if norm and len(norm) >= 3 else False
 
         # L2: fuzzy (word boundary)
         l2_match = False
@@ -725,10 +721,10 @@ def generate_charts(metrics: dict, ablation: dict, timing: dict, results: list[d
     # Chart 1: Accuracy by level (grouped bar)
     fig, ax = plt.subplots(figsize=(10, 5))
     levels = list(metrics["levels"].keys())
-    accuracies = [metrics["levels"][l]["accuracy"] for l in levels]
-    precisions = [metrics["levels"][l]["precision"] for l in levels]
-    recalls = [metrics["levels"][l]["recall"] for l in levels]
-    f1s = [metrics["levels"][l]["f1"] for l in levels]
+    accuracies = [metrics["levels"][lvl]["accuracy"] for lvl in levels]
+    precisions = [metrics["levels"][lvl]["precision"] for lvl in levels]
+    recalls = [metrics["levels"][lvl]["recall"] for lvl in levels]
+    f1s = [metrics["levels"][lvl]["f1"] for lvl in levels]
 
     x = np.arange(len(levels))
     w = 0.2
@@ -1049,7 +1045,7 @@ async def run_threshold_sweep(pool, prov, market_skills: dict) -> list[dict]:
 
     # Fuzzy recall (L2) for comparison
     fuzz_count = 0
-    for i, r in enumerate(rows):
+    for r in rows:
         norm_q = re.sub(r"[^\w\s\-/]", "", r["original_text"].lower()).strip()
         if not norm_q:
             continue
