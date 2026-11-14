@@ -309,3 +309,44 @@ docker compose up -d backend prometheus --force-recreate
 - Статус на 2026-11 (проверено): pip-audit по `requirements.txt` - уязвимостей нет;
   `npm audit --omit=dev` - 0 уязвимостей. Прогонять перед релизом и периодически.
 - При находке: обновить пакет, прогнать тесты, зафиксировать в `requirements*.txt` / `package-lock.json`.
+
+
+## 7. Инциденты (быстрые сценарии)
+
+### 7.1 БД недоступна
+
+Симптомы: `/ready` отдаёт `status=not_ready` с `problems=["db_pool_unavailable"]`,
+запросы к API сыпят 500/503, вход не работает.
+
+1. `curl -sf http://localhost:8000/ready` - убедиться, что причина именно пул БД.
+2. Проверить сам Postgres: `pg_isready -h localhost -p 5432`.
+3. Активные соединения: `SELECT count(*), state FROM pg_stat_activity GROUP BY state;`.
+4. Перезапустить: `docker compose restart competency-postgres`, затем
+   `docker compose restart backend` (пул БД пересоздаётся на старте).
+5. Убедиться, что `/ready` снова `status=ok`.
+
+### 7.2 Внешний провайдер отдаёт 5xx/429 (HH, LLM, Hub)
+
+- HH: сбор ретраится (`urllib3 Retry`, `backoff_factor=1` в
+  `src/parsing/api/hh_api.py`), при `Retry-After` ждёт указанное время; при
+  устойчивых ошибках уменьшить объём сбора и повторить позже.
+- LLM: при недоступном провайдере фичи выключаются без редеплоя
+  (`LLM_ENABLED=false`, `LLM_ENHANCE_*`, `LLM_EXTRACT`); базовый gap-анализ без
+  LLM продолжает работать.
+- Hub/публикации: недоступность не роняет API (graceful), панель показывает
+  `reachable=false` с причиной.
+- Диагностика шторма 5xx и алертов - разделы 4 и 4.1.
+
+### 7.3 ML-анализатор не загрузился
+
+Симптомы: эндпоинты оценки профиля отвечают `503 "Анализатор ещё не загружен"`
+(`src/api_pkg/routers/profiles.py`); в `/health` и `/ready` компонент
+`evaluator=false`.
+
+1. `curl -sf http://localhost:8000/health` - проверить компонент `evaluator`.
+2. Проверить артефакты в `data/models` и лог старта `logs/backend.log`
+   (`src/api_pkg/startup.py` грузит `evaluator` в отдельном потоке).
+3. Перезапустить backend: `docker compose restart backend`, убедиться, что
+   `evaluator=true`.
+4. Если артефактов нет - восстановить модели в `data/models` (или переобучить),
+   затем перезапуск.
