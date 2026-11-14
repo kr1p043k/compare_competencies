@@ -68,6 +68,12 @@ skill_count = Gauge(
     "Number of unique skills in the system",
 )
 
+matching_latency = Histogram(
+    "skill_matching_duration_seconds",
+    "Skill matching duration per skill (seconds)",
+    buckets=(0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0),
+)
+
 shap_computation_duration = Histogram(
     "shap_computation_duration_seconds",
     "SHAP values computation duration",

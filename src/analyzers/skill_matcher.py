@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import Any
 
 import numpy as np
 import structlog
 
 from src.errors import MatchingError
+from src.monitoring.metrics import matching_latency
 from src.result import Err, Ok, Result
 from src.utils import clip01
 
@@ -552,6 +554,14 @@ class SkillMatcher:
         return (None, "no_match", 0.0)
 
     def match(self, skill_name: str) -> Result[tuple[str | None, str, float], MatchingError]:
+        """Сопоставить навык и замерить длительность для бизнес-метрики."""
+        started = time.perf_counter()
+        try:
+            return self._match_impl(skill_name)
+        finally:
+            matching_latency.observe(time.perf_counter() - started)
+
+    def _match_impl(self, skill_name: str) -> Result[tuple[str | None, str, float], MatchingError]:
         """Сопоставить навык: exact -> fuzzy -> typo? -> semantic. Возвращает (совпадение, тип, уверенность)."""
         if not isinstance(skill_name, str) or not skill_name.strip():
             return Ok((None, "no_match", 0.0))
