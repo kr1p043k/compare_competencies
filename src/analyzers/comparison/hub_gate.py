@@ -46,8 +46,12 @@ def _hub_table() -> dict[str, int]:
     return _HUBS
 
 
+#: одно предупреждение на процесс: _morph_overlap вызывается на каждую пару.
+_MORPH_WARNED = False
+
+
 def _morph_overlap(a: str, b: str) -> float:
-    global _MORPH
+    global _MORPH, _MORPH_WARNED
     try:
         if _MORPH is None:
             import pymorphy3
@@ -67,6 +71,11 @@ def _morph_overlap(a: str, b: str) -> float:
             return 0.0
         return len(ta & tb) / len(ta | tb)
     except Exception:
+        # Падение морфологии глушило условие вето молча: совпадения
+        # проходили без morph-фильтра. Раньше: без единой строки в логе.
+        if not _MORPH_WARNED:
+            _MORPH_WARNED = True
+            logger.warning("hub_morph_overlap_failed", exc_info=True)
         return 0.0
 
 

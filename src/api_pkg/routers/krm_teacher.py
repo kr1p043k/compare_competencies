@@ -57,7 +57,11 @@ def _list_all_dirs() -> list[dict]:
             continue
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as exc:
+            # Битый KRM-файл молча снимал направление с выдачи:
+            # пользователь не узнавал, что данных не показать.
+            logger.warning("krm_teacher_dir_file_failed", path=path.name,
+                           error=str(exc), exc_info=True)
             continue
         info = next(iter(data.values()), {}) if isinstance(data, dict) else {}
         dirs.append({

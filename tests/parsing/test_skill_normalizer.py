@@ -159,3 +159,42 @@ class TestSkillNormalizer:
         result = SkillNormalizer.normalize("machine learning").ok()
         assert isinstance(result, str)
         assert len(result) > 0
+
+
+class TestSynonymMapF601Regression:
+    """Backlog 5.1: duplicate dict keys (hadoop/huggingface/html/css) dropped
+    all synonyms from the first entry. After the union merge every former
+    variant must map to its canonical skill."""
+
+    def setup_method(self):
+        SkillNormalizer._canonical_map = None
+        SkillNormalizer._whitelist = None
+
+    def test_hadoop_union_keeps_all_variants(self):
+        variants = SkillNormalizer.SYNONYM_MAP["hadoop"]
+        assert variants == ["hadoop", "hadoop java", "hadoop hdfs"]
+        canon = SkillNormalizer._get_canonical_map()
+        for v in ("hadoop", "hadoop java", "hadoop hdfs"):
+            assert canon[v] == "hadoop", f"lost synonym: {v}"
+
+    def test_huggingface_union_keeps_all_variants(self):
+        variants = SkillNormalizer.SYNONYM_MAP["huggingface"]
+        assert "hugging face" in variants
+        assert "huggingface inference" in variants
+        canon = SkillNormalizer._get_canonical_map()
+        assert canon["hugging face"] == "huggingface"
+        assert canon["huggingface inference"] == "huggingface"
+
+    def test_html_css_union(self):
+        assert SkillNormalizer.SYNONYM_MAP["html"] == ["html5", "html"]
+        assert SkillNormalizer.SYNONYM_MAP["css"] == ["css3", "css"]
+        canon = SkillNormalizer._get_canonical_map()
+        # Таксономия канонизирует 'HTML'/'CSS' в верхнем регистре - сверяем без регистра.
+        assert canon["html5"].lower() == "html"
+        assert canon["css3"].lower() == "css"
+
+    def test_normalize_resolves_merged_variants(self):
+        assert SkillNormalizer.normalize("Hadoop HDFS").unwrap() == "hadoop"
+        assert SkillNormalizer.normalize("Hadoop Java").unwrap() == "hadoop"
+        assert SkillNormalizer.normalize("HuggingFace Inference").unwrap() == "huggingface"
+

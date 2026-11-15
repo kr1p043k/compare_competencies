@@ -35,8 +35,10 @@ async def list_professions(request: Request):
             if prof not in seen:
                 seen.add(prof)
                 result.append({"name": prof, "snapshot": f.name, "date": meta.get("snapshot_date", "")})
-        except Exception:
-            pass
+        except Exception as exc:
+            # Битый снапшот молча снимал профессию с выдачи.
+            logger.warning("profession_snapshot_failed", file=f.name,
+                           error=str(exc), exc_info=True)
     return {"professions": sorted(result, key=lambda x: x["name"])}
 
 
