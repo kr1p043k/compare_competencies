@@ -10,6 +10,9 @@ from pathlib import Path
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+#: Дефолтный (dev) DSN. В prod использовать его запрещено (см. _check_prod_environment).
+DEV_DEFAULT_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/compare_competencies"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -66,6 +69,9 @@ class Settings(BaseSettings):
 
     # ---------- база данных ----------
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/compare_competencies"
+    # Окружение: dev/staging/prod. В prod запрещаем дефолтные (dev) значения,
+    # иначе сервис молча подключится к localhost или стартует со слабой конфигурацией.
+    APP_ENV: str = "dev"
     DATABASE_ECHO: bool = False
 
     # ---------- n8n ----------
@@ -381,6 +387,17 @@ class Settings(BaseSettings):
                 f"без 'dev'/'change'/'insecure' и т.п.). Замените: {hint}"
             )
         return v
+
+    @model_validator(mode="after")
+    def _check_prod_environment(self) -> "Settings":
+        """Fail-fast в prod: дефолтные (dev) значения недопустимы."""
+        env = (self.APP_ENV or "dev").strip().lower()
+        if env in {"prod", "production"} and self.DATABASE_URL.strip() == DEV_DEFAULT_DATABASE_URL:
+            raise ValueError(
+                "APP_ENV=prod, но DATABASE_URL оставлен дефолтным (localhost). "
+                "Задайте реальный DATABASE_URL в .env"
+            )
+        return self
 
     def ensure_dirs(self):
         dirs = [
