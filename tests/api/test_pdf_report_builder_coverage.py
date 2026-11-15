@@ -15,7 +15,7 @@ import pytest
 pytest.importorskip("fpdf")
 pytest.importorskip("matplotlib")
 
-from src.reports import pdf_report  # noqa: E402
+from src.reports import pdf_report
 
 
 def _full_rec(*, low: bool = False) -> dict:

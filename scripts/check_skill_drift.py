@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.analyzers.skills.drift import detect_drift  # noqa: E402
+from src.analyzers.skills.drift import detect_drift
 
 HISTORY_DIR = Path(__file__).resolve().parent.parent / "data" / "history"
 

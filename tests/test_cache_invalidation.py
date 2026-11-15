@@ -10,8 +10,8 @@ import pytest
 
 # Импортируем роутеры на этапе сбора тестов: они регистрируют свои кэши в шине
 # при импорте. Иначе первый снимок состояния в фикстуре не увидит их подписки.
-import src.api_pkg.routers.forecast as _forecast_mod  # noqa: F401
-import src.api_pkg.routers.trends as _trends_mod  # noqa: F401
+import src.api_pkg.routers.forecast as _forecast_mod
+import src.api_pkg.routers.trends as _trends_mod
 from src.cache_bus import invalidate, invalidate_all, register, registered
 
 

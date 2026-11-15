@@ -35,7 +35,7 @@ for _p in (str(_ROOT), str(_ROOT / "scripts")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from scripts.ml_eval_common import ROOT, build_frames, znorm_by_query  # noqa: E402
+from scripts.ml_eval_common import ROOT, build_frames, znorm_by_query
 
 
 def reliability(y_true: np.ndarray, proba: np.ndarray, bins: int = 5) -> list[dict]:
