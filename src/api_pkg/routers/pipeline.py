@@ -722,7 +722,7 @@ async def run_pipeline_action_sync(
             output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status",
         )
 
-    elif action == PipelineAction.TRAIN_CLUSTERS:
+    if action == PipelineAction.TRAIN_CLUSTERS:
         from src.ml.clusters import train_clusters
         loop = asyncio.get_running_loop()
         ok = await loop.run_in_executor(
@@ -734,7 +734,7 @@ async def run_pipeline_action_sync(
             exit_code=0 if ok else 1,
         )
 
-    elif action == PipelineAction.TRAIN_MODEL:
+    if action == PipelineAction.TRAIN_MODEL:
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, pr.run_train_model)
         return PipelineResponse(
@@ -743,7 +743,7 @@ async def run_pipeline_action_sync(
             exit_code=0 if result.is_ok() else 1,
         )
 
-    elif action == PipelineAction.GAP_ANALYSIS:
+    if action == PipelineAction.GAP_ANALYSIS:
         from src.pipeline.background_collector import is_scheduler_busy
         if is_scheduler_busy():
             raise HTTPException(status_code=409, detail="Идёт плановый прогон планировщика - дождитесь его завершения")
@@ -775,7 +775,7 @@ async def run_pipeline_action_sync(
             output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status",
         )
 
-    elif action == PipelineAction.FULL_CYCLE:
+    if action == PipelineAction.FULL_CYCLE:
         from src.pipeline.background_collector import is_scheduler_busy
         if is_scheduler_busy():
             raise HTTPException(status_code=409, detail="Идёт плановый прогон планировщика - дождитесь его завершения")

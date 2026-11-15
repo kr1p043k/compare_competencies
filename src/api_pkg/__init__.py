@@ -20,13 +20,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.gzip import GZipMiddleware
 
 from src import config
-from src.api_pkg.rate_limit import limiter as limiter  # noqa: F401
+from src.api_pkg.rate_limit import limiter as limiter
 from src.monitoring.degraded import degraded_state
 from src.monitoring.metrics import get_metrics
 
 _disable_cmdstan().__enter__()
 
-from src.api_pkg import deps as deps  # noqa: F401,E402
+from src.api_pkg import deps as deps
 
 logger = structlog.get_logger("api")
 

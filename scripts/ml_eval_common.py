@@ -28,10 +28,10 @@ for _p in (str(ROOT), str(ROOT / "scripts")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from sklearn.model_selection import StratifiedShuffleSplit  # noqa: E402
+from sklearn.model_selection import StratifiedShuffleSplit
 
-from scripts.train_ltr_ranker import read_gold  # noqa: E402
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
+from scripts.train_ltr_ranker import read_gold
+from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 
 DEFAULT_GOLD = ROOT / "tests" / "fixtures" / "gold_frozen.csv"
 

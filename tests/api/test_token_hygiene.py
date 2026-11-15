@@ -29,7 +29,7 @@ def _req(headers=None, cookies=None, query=None):
     }
     req = Request(scope)
     if cookies is not None:
-        req._cookies = cookies  # noqa: SLF001 - тестовый шов
+        req._cookies = cookies
     return req
 
 

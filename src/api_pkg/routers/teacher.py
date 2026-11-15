@@ -474,7 +474,7 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
         WHERE c.discipline_id = $1 AND c.parent_id IS NULL
         GROUP BY c.id, c.code
         ORDER BY c.sort_order, c.code
-    """, disc["id"]))  # noqa: E501
+    """, disc["id"]))
 
     return {
         "name": disc["name"],

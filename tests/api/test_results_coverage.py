@@ -169,7 +169,7 @@ def test_summary_student_without_self_key_gets_message(monkeypatch):
 
 
 def test_summary_fallback_to_stored_file(monkeypatch):
-    monkeypatch.setattr(res, "load_recommendations_from_disk", lambda: [])
+    monkeypatch.setattr(res, "load_recommendations_from_disk", list)
     monkeypatch.setattr(res, "build_summary_payload", lambda recs: {})
     stored = {"evaluations": {"base": {"score": 1}}, "profiles": ["base"], "version": 2}
     (config.DATA_RESULT_DIR / "profiles_comparison_summary.json").write_text(json.dumps(stored), encoding="utf-8")
@@ -180,7 +180,7 @@ def test_summary_fallback_to_stored_file(monkeypatch):
 
 
 def test_summary_corrupt_stored_file_500(monkeypatch):
-    monkeypatch.setattr(res, "load_recommendations_from_disk", lambda: [])
+    monkeypatch.setattr(res, "load_recommendations_from_disk", list)
     monkeypatch.setattr(res, "build_summary_payload", lambda recs: {})
     (config.DATA_RESULT_DIR / "profiles_comparison_summary.json").write_text("{not-json", encoding="utf-8")
     client = _client(monkeypatch, role="teacher")

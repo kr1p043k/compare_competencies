@@ -14,8 +14,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src import config  # noqa: E402
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
+from src import config
+from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 
 _RUNTIME_FEATURES = [
     "level_encoded",

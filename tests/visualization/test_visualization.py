@@ -254,7 +254,7 @@ class TestCoveragePlots:
             mock_save.assert_called_once()
 
     def test_skills_heatmap_no_weights(self, sample_results, tmp_path, monkeypatch):
-        monkeypatch.setattr("src.visualization.coverage.load_skill_weights", lambda: {})
+        monkeypatch.setattr("src.visualization.coverage.load_skill_weights", dict)
         with patch("matplotlib.pyplot.savefig") as mock_save:
             fig = plot_skills_heatmap(sample_results, save_path=tmp_path / "heat.png")
             assert isinstance(fig, plt.Figure)
@@ -588,7 +588,7 @@ class TestExtendedCoverage:
 
     def test_save_all_charts_no_radar_if_no_market_top(self, sample_results, tmp_path, monkeypatch):
         """Если market_top пуст, радар не должен вызываться."""
-        monkeypatch.setattr("src.visualization.orchestration.load_skill_weights", lambda: {})
+        monkeypatch.setattr("src.visualization.orchestration.load_skill_weights", dict)
         with patch("src.visualization.orchestration.plot_skill_comparison_radar") as mock_radar, \
             patch("src.visualization.orchestration.plot_coverage_comparison"), \
             patch("src.visualization.orchestration.plot_ml_importance"), \

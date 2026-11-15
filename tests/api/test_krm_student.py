@@ -80,7 +80,7 @@ def test_merged_no_duplicates(monkeypatch):
 
 def test_unknown_profile_404():
     app = _override_auth(create_app(), "/api/krm/student/competencies")
-    app.dependency_overrides[deps.get_student_profiles] = lambda: {}
+    app.dependency_overrides[deps.get_student_profiles] = dict
     client = TestClient(app, raise_server_exceptions=False)
     try:
         r = client.get("/api/krm/student/competencies",

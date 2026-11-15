@@ -225,13 +225,12 @@ class HeadHunterAPI:
                         pass
                 logger.info("app_token_obtained", expires_in=expires_in)
                 return Ok(self._token)
-            elif resp.status_code == 403:
+            if resp.status_code == 403:
                 return Err(ApiError(message="Token refresh too early", status_code=403, endpoint="token"))
-            else:
-                return Err(ApiError(
-                    message=f"Token request failed: {resp.status_code}",
-                    status_code=resp.status_code, endpoint="token"
-                ))
+            return Err(ApiError(
+                message=f"Token request failed: {resp.status_code}",
+                status_code=resp.status_code, endpoint="token"
+            ))
         except Exception as e:
             return Err(ApiError(message=f"Token request exception: {e}", endpoint="token"))
 
@@ -365,13 +364,13 @@ class HeadHunterAPI:
 
             if response.status_code == 200:
                 return Ok(response.json())
-            elif response.status_code == 304:
+            if response.status_code == 304:
                 logger.debug("http_304_not_modified")
                 return Err(ApiError(message="Not modified", status_code=304, endpoint=url))
-            elif response.status_code == 404:
+            if response.status_code == 404:
                 logger.warning("http_404", url=url)
                 return Err(VacancyNotFoundError(message=f"Resource not found: {url}", detail=url))
-            elif response.status_code == 401:
+            if response.status_code == 401:
                 if not _is_retry_after_401:
                     logger.warning("http_401_refreshing_token")
                     match self._get_app_token():
@@ -382,7 +381,7 @@ class HeadHunterAPI:
                     return self._get_result(url, params, retry_count, _is_retry_after_401=True)
                 logger.error("http_401_after_token_refresh")
                 return Err(ApiError(message="Unauthorized after token refresh", status_code=401, endpoint=url))
-            elif response.status_code == 403:
+            if response.status_code == 403:
                 err_text = response.text[:300]
                 if "token-revoked" in err_text or "token_expired" in err_text or "bad_authorization" in err_text:
                     logger.warning("token_invalid_attempting_refresh")
@@ -403,7 +402,7 @@ class HeadHunterAPI:
                     return Err(ApiError(message="Token refresh failed", status_code=403, endpoint=url))
                 logger.error("http_403_forbidden", response=err_text)
                 return Err(ApiError(message=f"Forbidden: {err_text}", status_code=403, endpoint=url))
-            elif response.status_code == 429:
+            if response.status_code == 429:
                 retry_after = int(response.headers.get("Retry-After", 60))
                 if retry_count < 3:
                     logger.warning("http_429_rate_limited", attempt=retry_count + 1, retry_after=retry_after)
@@ -414,12 +413,11 @@ class HeadHunterAPI:
                     message="Max retries exceeded for 429", status_code=429,
                     endpoint=url, retry_after=retry_after
                 ))
-            else:
-                logger.warning("http_unexpected_status", status=response.status_code, response=response.text[:500])
-                return Err(ApiError(
-                    message=f"Unexpected status {response.status_code}",
-                    status_code=response.status_code, endpoint=url
-                ))
+            logger.warning("http_unexpected_status", status=response.status_code, response=response.text[:500])
+            return Err(ApiError(
+                message=f"Unexpected status {response.status_code}",
+                status_code=response.status_code, endpoint=url
+            ))
         except requests.exceptions.Timeout:
             logger.error("http_timeout", url=url)
             return Err(ApiError(message=f"Timeout: {url}", endpoint=url))

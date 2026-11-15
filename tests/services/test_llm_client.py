@@ -65,6 +65,20 @@ class TestLLMClientBaseUrl:
         client = _make_client(monkeypatch, base_url="http://x/k1/v1/")
         assert client._client.base_url == "http://x/k1/v1"
 
+    def test_base_with_extra_path_gets_single_v1(self, monkeypatch):
+        client = _make_client(monkeypatch, base_url="https://api.example.com/llm")
+        assert client._client.base_url == "https://api.example.com/llm/v1"
+
+    def test_already_doubled_v1_is_left_untouched(self, monkeypatch):
+        # Normalization is idempotent: a misconfigured .../v1/v1 already ends
+        # in /v1, so the client appends nothing (behavior preserved, no guess).
+        client = _make_client(monkeypatch, base_url="http://x/v1/v1")
+        assert client._client.base_url == "http://x/v1/v1"
+
+    def test_bare_host_gets_v1_without_double_slash(self, monkeypatch):
+        client = _make_client(monkeypatch, base_url="http://ollama:11434///")
+        assert client._client.base_url == "http://ollama:11434/v1"
+
     def test_llm_chat_config_defaults_exported(self):
         from src import config
 

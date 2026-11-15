@@ -109,7 +109,7 @@ def test_market_competencies_caps_top_100(app_client, monkeypatch):
 
 def test_market_competencies_without_pool(app_client, monkeypatch):
     app, client = app_client
-    app.dependency_overrides[deps.get_skill_weights] = lambda: {}
+    app.dependency_overrides[deps.get_skill_weights] = dict
     monkeypatch.setattr(src_db, "get_pool", lambda: None)
 
     r = client.get("/api/market-competencies")
@@ -168,7 +168,7 @@ def test_top_skills_limit_over_max_is_422(app_client):
     """Граница le=50: limit=51 - ошибка валидации, не тише."""
     app, client = app_client
     app.dependency_overrides[deps.get_skill_weights] = lambda: {"python": 1.0}
-    app.dependency_overrides[deps.get_skill_freq] = lambda: {}
+    app.dependency_overrides[deps.get_skill_freq] = dict
 
     r = client.get("/api/market/top-skills?limit=51")
     assert r.status_code == 422, r.text
