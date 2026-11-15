@@ -7,7 +7,7 @@
 import functools
 from pathlib import Path
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -87,6 +87,27 @@ class Settings(BaseSettings):
     # extra='ignore' значения из .env тихо отбрасывались и пул всегда был 2-10.
     DB_POOL_MIN: int = 2
     DB_POOL_MAX: int = 10
+    # Таймаут одного SQL-запроса, с (30 по умолчанию). Держим настраиваемым:
+    # тяжёлые аналитические запросы иногда легально идут десятки секунд.
+    DB_COMMAND_TIMEOUT: float = 30.0
+    # Таймаут ожидания соединения из пула, с: запрос лучше упасть быстро (503),
+    # чем висеть в очереди под нагрузкой.
+    DB_POOL_ACQUIRE_TIMEOUT: float = 10.0
+    # Соединения, простаивавшие дольше, с (5 мин), закрываются - защита от
+    # полумёртвых коннектов после сетевых сбоев/рестарта сервера БД.
+    DB_POOL_MAX_INACTIVE_LIFETIME: float = 300.0
+    @model_validator(mode="after")
+    def _check_db_pool(self) -> "Settings":
+        """Fail-fast: некорректная конфигурация пула не должна стартовать молча."""
+        if self.DB_POOL_MIN < 1:
+            raise ValueError("DB_POOL_MIN должен быть >= 1")
+        if self.DB_POOL_MAX < self.DB_POOL_MIN:
+            raise ValueError("DB_POOL_MAX должен быть >= DB_POOL_MIN")
+        for name in ("DB_COMMAND_TIMEOUT", "DB_POOL_ACQUIRE_TIMEOUT", "DB_POOL_MAX_INACTIVE_LIFETIME"):
+            if getattr(self, name) <= 0:
+                raise ValueError(f"{name} должен быть > 0")
+        return self
+
     # Токен для скрейпинга /metrics (Prometheus). Если задан, эндпоинт
     # принимает Authorization: Bearer <токен> в обход ролевой проверки:
     # у Prometheus нет пользовательской сессии, и без этого таргет падал 401.
