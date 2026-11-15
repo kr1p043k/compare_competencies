@@ -27,7 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from src.models.krm_models import COMPETENCY_CATEGORIES  # noqa: E402
+from src.models.krm_models import COMPETENCY_CATEGORIES
 
 REFERENCE_DIR = Path(__file__).resolve().parent.parent / "data" / "reference"
 _CODE_RE = re.compile(r"^([A-Za-zА-Яа-яЁё]+)[\s-]*(\d+(?:\.\d+)*)$")

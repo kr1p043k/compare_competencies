@@ -1228,7 +1228,7 @@ class TestLevelClusterRouting:
     """L1: каждый уровень - свой объект кластерера, last-wins запрещён."""
 
     def _eval(self):
-        from src.models.student import StudentProfile  # noqa
+        from src.models.student import StudentProfile
         sw = {"middle": {"python": 0.9}}
         vs = [["python", "sql"]]
         return ProfileEvaluator(

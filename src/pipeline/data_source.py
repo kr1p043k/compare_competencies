@@ -305,7 +305,7 @@ class HhDataSource(DataSourceProtocol):
         basic = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
         if detailed.exists():
             return detailed
-        elif basic.exists():
+        if basic.exists():
             return basic
         return None
 

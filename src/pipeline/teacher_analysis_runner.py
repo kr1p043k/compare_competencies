@@ -379,7 +379,7 @@ def _enhance_disciplines_with_gap_analysis(
                 match ltr_engine.predict_skill_impact_with_shap(
                     disc_skills, missing, compute_shap=True
                 ):
-                    case Ok((impacts, shap_vals, X)):  # noqa: N806 — осознанное имя
+                    case Ok((impacts, shap_vals, X)):
                         shap_per_skill = {}
                         if shap_vals is not None and X is not None and len(impacts) > 0:
                             for i, (skill, _score, _) in enumerate(impacts):
@@ -589,7 +589,7 @@ async def run_teacher_analysis(
     if _cooc is None:
         try:
             _vrows = await pool.fetch(
-                "SELECT parsed_skills FROM vacancies WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0 ORDER BY id"  # noqa: E501 - SQL string must not be split
+                "SELECT parsed_skills FROM vacancies WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0 ORDER BY id"
             )
             import json as _json
             _vocab = {s for s, _ in sorted(market_skills.items(), key=lambda x: (-x[1], x[0]))[:500]}

@@ -18,11 +18,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from sklearn.metrics import ndcg_score  # noqa: E402
-from train_ltr_ranker import load_vacancies, read_gold  # noqa: E402
+from sklearn.metrics import ndcg_score
+from train_ltr_ranker import load_vacancies, read_gold
 
-from src import Ok  # noqa: E402
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
+from src import Ok
+from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 
 
 def single_query_metrics(yt, scores):

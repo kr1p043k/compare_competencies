@@ -24,9 +24,8 @@ async def send_telegram(chat_id: str, text: str, parse_mode: str = "Markdown") -
         if resp.status_code == 200:
             logger.info("telegram_sent", chat_id=chat_id, text_len=len(text))
             return True
-        else:
-            logger.error("telegram_failed", status=resp.status_code, body=resp.text[:200])
-            return False
+        logger.error("telegram_failed", status=resp.status_code, body=resp.text[:200])
+        return False
     except Exception as e:
         logger.error("telegram_error", error=str(e))
         return False

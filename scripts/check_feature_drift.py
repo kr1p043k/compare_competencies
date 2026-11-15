@@ -38,7 +38,7 @@ for _p in (str(_ROOT), str(_ROOT / "scripts")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from scripts.ml_eval_common import ROOT, build_frames  # noqa: E402
+from scripts.ml_eval_common import ROOT, build_frames
 
 DEFAULT_BASELINE = ROOT / "data" / "reports" / "feature_drift_baseline.json"
 DEFAULT_KS = 0.25

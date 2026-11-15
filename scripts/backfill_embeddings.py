@@ -32,11 +32,11 @@ import psycopg
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory  # noqa: E402
+from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
 try:  # запуск как файла
-    from _dsn import resolve_dsn  # noqa: E402
+    from _dsn import resolve_dsn
 except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
-    from scripts._dsn import resolve_dsn  # noqa: E402
+    from scripts._dsn import resolve_dsn
 
 DEFAULT_DSN = ""  # значение берётся из --dsn / DATABASE_URL / .env
 

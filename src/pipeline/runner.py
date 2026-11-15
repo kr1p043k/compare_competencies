@@ -71,9 +71,9 @@ def convert_float32(obj):
     import numpy as np
     if isinstance(obj, np.float32):
         return float(obj)
-    elif isinstance(obj, dict):
+    if isinstance(obj, dict):
         return {k: convert_float32(v) for k, v in obj.items()}
-    elif isinstance(obj, list | tuple):
+    if isinstance(obj, list | tuple):
         return [convert_float32(item) for item in obj]
     return obj
 
@@ -596,7 +596,7 @@ def rebuild(args=None) -> Result[None, str]:
     console_header("ПОЛНАЯ ПЕРЕСБОРКА")
     logger.info("full_rebuild_started")
 
-    DATA = config.DATA_DIR  # noqa: N806 — осознанное имя
+    DATA = config.DATA_DIR
     to_remove = [
         DATA / "cache" / "parsed_skills.joblib",
         DATA / "processed" / "skill_weights.json",

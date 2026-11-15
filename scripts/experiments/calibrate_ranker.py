@@ -23,15 +23,15 @@ import numpy as np
 sys.modules.setdefault("shap", MagicMock())
 sys.modules.setdefault("cv2", MagicMock())
 
-from unittest.mock import patch  # noqa: E402
+from unittest.mock import patch
 
-from sklearn.isotonic import IsotonicRegression  # noqa: E402
-from sklearn.linear_model import LogisticRegression  # noqa: E402
-from sklearn.metrics import brier_score_loss, log_loss  # noqa: E402
-from sklearn.model_selection import StratifiedShuffleSplit  # noqa: E402
+from sklearn.isotonic import IsotonicRegression
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import brier_score_loss, log_loss
+from sklearn.model_selection import StratifiedShuffleSplit
 
-from scripts.train_ltr_ranker import read_gold  # noqa: E402
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
+from scripts.train_ltr_ranker import read_gold
+from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 
 ROOT = Path(__file__).resolve().parents[1]
 ART = ROOT / "data" / "models" / "ltr_ranker_xgb_rank_human.joblib"
@@ -181,7 +181,7 @@ def main() -> None:
                          "brier": round(float(brier_score_loss(yb_zt, p)), 4),
                          "reliability": reliability(yb_zt, p)}
             print(name, rep[name]["log_loss"], rep[name]["brier"])
-    except Exception as exc:  # noqa: BLE001 - DB optional, report and continue
+    except Exception as exc:
         rep["oof_skipped"] = f"{type(exc).__name__}: {exc}"
         print("oof_skipped", rep["oof_skipped"])
     winner = min(rep, key=lambda k: rep[k]["log_loss"] if isinstance(rep[k], dict) else float("inf"))

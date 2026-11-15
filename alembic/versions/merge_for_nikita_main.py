@@ -6,7 +6,7 @@ branches' own migrations already carry their schema changes.
 """
 from typing import Sequence, Union
 
-from alembic import op  # noqa: F401  (kept for alembic convention)
+from alembic import op
 
 revision: str = "merge_for_nikita_main"
 down_revision: Union[str, Sequence[str], None] = (
