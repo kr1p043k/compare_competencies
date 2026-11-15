@@ -70,8 +70,8 @@ def _split_phrases(text: str) -> list[str]:
     """
     parts = _re.split(r"[;:.\n\-\u2014,()]", text)
     out = []
-    for p in parts:
-        p = p.strip().lower()
+    for raw in parts:
+        p = raw.strip().lower()
         if len(p) < 6 or len(p) > 120:
             continue
         if p[0].isdigit() or p[0] in "._-,":
@@ -151,8 +151,8 @@ async def tier_substring(session, disciplines, disc_map, comp_map):
             # и длиной <=200 (иначе 500-символьные блобы шьют короткие навыки).
             phrases: list[str] = []
             for kt in ("knowledge", "abilities", "skills"):
-                for t in ksa.get(kt, []):
-                    t = (t or "").lower()
+                for raw in ksa.get(kt, []):
+                    t = (raw or "").lower()
                     if len(t) < 10:
                         continue
                     parts = _split_phrases(t)
@@ -270,8 +270,8 @@ async def tier_semantic(session, disciplines, disc_map, comp_map):
             # blobs; strict phrase filters then starve prose discs.
             # Фолбэк целым текстом - только без маркеров мусора и <=200 симв.
             for kt in ("knowledge", "abilities", "skills"):
-                for t in ksa.get(kt, []):
-                    t = (t or "").lower()
+                for raw in ksa.get(kt, []):
+                    t = (raw or "").lower()
                     if len(t) < 10:
                         continue
                     parts = _split_phrases(t)

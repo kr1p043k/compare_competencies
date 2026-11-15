@@ -54,9 +54,7 @@ def prepare_vacancies_for_clustering(raw_vacancies: list) -> list:
 
 def train_clusters(level: str = "all", save_report: bool = True, interpret: bool = True) -> bool:
     _level_requested = level
-    print("\n" + "=" * 80)
-    print("   ЗАПУСК ОБУЧЕНИЯ КЛАСТЕРОВ ВАКАНСИЙ")
-    print("=" * 80 + "\n")
+    logger.info("train_clusters_start", level=level)
 
     detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
@@ -64,7 +62,6 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
 
     if not vacancies_path.exists():
         logger.error("vacancies_file_not_found", path=str(vacancies_path))
-        print("   Файл с вакансиями не найден.")
         return False
 
     logger.info("loading_vacancies", path=str(vacancies_path))
@@ -191,21 +188,16 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report, f, ensure_ascii=False, indent=2)
         logger.info("report_saved", path=str(report_path))
-        print(f"\n   Отчёт сохранён: {report_path}")
 
     if interpret and clusters_out:
-        print("\n" + "-" * 60)
-        print("   ИНТЕРПРЕТАЦИЯ КЛАСТЕРОВ")
-        print("-" * 60)
+        logger.info("cluster_interpretation")
         for i, cl in enumerate(clusters_out, 1):
             name = cl.get("label", f"Cluster {i}")
             size = cl.get("size", 0)
             top = ", ".join(cl.get("top_skills", [])[:5])
-            print(f"  {i:2d}. {name:30s}  [{size:3d} vac]  {top}")
+            logger.info("cluster_summary", index=i, label=name, size=size, top=top)
 
-    print("\n" + "=" * 80)
-    print("   ОБУЧЕНИЕ КЛАСТЕРОВ ЗАВЕРШЕНО")
-    print("=" * 80)
+    logger.info("train_clusters_done", level=level, clusters=len(clusters_out))
     return True
 
 

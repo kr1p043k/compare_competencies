@@ -3,7 +3,7 @@
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import joblib
 import matplotlib.pyplot as plt
@@ -177,7 +177,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
     _NDCG_KEYS: tuple[str, ...] = ("human_ndcg_at_10", "ndcg@10", "ndcg_at_10")
 
     # Artifacts that expose 8 columns but are still not usable at inference.
-    INCOMPATIBLE_MODELS: dict[str, str] = {
+    INCOMPATIBLE_MODELS: ClassVar[dict[str, str]] = {
         "ltr_ranker_canon.joblib": "legacy 10-feature space",
         "ltr_ranker_ensemble_final.joblib": "legacy 10-feature space",
         "ltr_ranker_xgb_rank.joblib": "stale 272-skill corpus (KeyError at inference)",

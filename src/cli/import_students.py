@@ -61,8 +61,8 @@ async def main(csv_path: str) -> None:
             await session.flush()
 
             if skills_str:
-                for sk in skills_str.split(","):
-                    sk = sk.strip().lower()
+                for raw in skills_str.split(","):
+                    sk = raw.strip().lower()
                     if not sk:
                         continue
                     if sk not in skills_cache:

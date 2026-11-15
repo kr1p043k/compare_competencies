@@ -8,6 +8,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import ClassVar
 
 import structlog
 
@@ -236,8 +237,8 @@ def _load_canon_map() -> dict[str, str]:
     canons.extend(SOFT_SKILLS.keys())
 
     canon_map: dict[str, str] = {}
-    for c in canons:
-        c = c.strip()
+    for raw in canons:
+        c = raw.strip()
         if not c:
             continue
         canon_map.setdefault(_normalize_for_matching(c), c)
@@ -298,10 +299,10 @@ class SkillParser:
     """
 
     # populated in __init__ from it_skills.json; kept as fallback
-    TECH_SKILLS: set[str] = set()
+    TECH_SKILLS: ClassVar[set[str]] = set()
 
     # folded-ключ -> каноническое написание из белого списка (см. _load_canon_map)
-    _CANON_MAP: dict[str, str] = {}
+    _CANON_MAP: ClassVar[dict[str, str]] = {}
 
     # (frozenset_of_skills, index) - index: first-char -> skills, cached once
     _DIRECT_INDEX: tuple[frozenset, dict] | None = None
@@ -310,7 +311,7 @@ class SkillParser:
     # на каждую вакансию дорого) - пересборка при смене TECH_SKILLS.
     _MARKER_PATTERN: tuple[frozenset, re.Pattern] | None = None
 
-    SKILL_MARKERS = [
+    SKILL_MARKERS: ClassVar[list[str]] = [
         "ключевые навыки",
         "ключевые компетенции",
         "навыки",
@@ -333,7 +334,7 @@ class SkillParser:
     ]
 
     # Слова, которые указывают на отрицание
-    NEGATION_WORDS = ["не требуется", "не нужно", "не обязательно", "не критично", "не важно"]
+    NEGATION_WORDS: ClassVar[list[str]] = ["не требуется", "не нужно", "не обязательно", "не критично", "не важно"]
 
     def __init__(self):
         self.stats = ParsingStats()

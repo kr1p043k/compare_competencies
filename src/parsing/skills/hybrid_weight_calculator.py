@@ -51,7 +51,7 @@ class HybridWeightCalculator:
             n_comp = min(config.PCA_TARGET_DIM, len(embs) - 1, embs.shape[1])
             if n_comp < embs.shape[1]:
                 embs = PCA(n_components=n_comp, random_state=config.GLOBAL_RANDOM_SEED).fit_transform(embs)
-                logger.info(f"PCA: {emb_dict[skill_list[0]].shape[0]} → {n_comp}")
+                logger.info("pca_reduced", from_dim=emb_dict[skill_list[0]].shape[0], to_dim=n_comp)
 
         # torch импортируется лениво (~2 с), чтобы не удлинять старт API.
         import torch
@@ -113,7 +113,7 @@ class HybridWeightCalculator:
                 hybrid[skill] = w
                 bm25_only += 1
 
-        logger.info(f"Гибридные веса готовы: {len(hybrid)} навыков (bm25_only={bm25_only})")
+        logger.info("hybrid_weights_built", skills=len(hybrid), bm25_only=bm25_only)
         return Ok(hybrid)
 
     @staticmethod

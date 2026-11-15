@@ -6,6 +6,7 @@ import os
 import re
 import sys
 from logging.handlers import RotatingFileHandler
+from typing import ClassVar
 
 import structlog
 
@@ -15,7 +16,7 @@ from src.config import LOG_FILE
 class SecretsMasker:
     """Заменяет API-ключи, токены и пароли на *** при логировании."""
 
-    _patterns = [
+    _patterns: ClassVar[list[tuple[re.Pattern[str], str]]] = [
         (re.compile(r"(api[_-]?key[=:]\s*)[^\s,}]+", re.IGNORECASE), r"\1***"),
         (re.compile(r"(token[=:]\s*)[^\s,}]+", re.IGNORECASE), r"\1***"),
         (re.compile(r"(secret[=:]\s*)[^\s,}]+", re.IGNORECASE), r"\1***"),

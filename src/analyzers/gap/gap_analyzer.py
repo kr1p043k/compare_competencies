@@ -2,6 +2,8 @@
 Анализатор пробелов (gaps) с использованием модели SkillMetrics.
 """
 
+from typing import ClassVar
+
 import structlog
 
 from src import Ok, Result, config
@@ -18,7 +20,7 @@ class GapAnalyzer:
             skill_weights_by_level = {"all": skill_weights_by_level}
         self.skill_weights_by_level = skill_weights_by_level
 
-    _LEVEL_KEY: dict[ExperienceLevel, str] = {
+    _LEVEL_KEY: ClassVar[dict[ExperienceLevel, str]] = {
         ExperienceLevel.JUNIOR: "j",
         ExperienceLevel.MIDDLE: "m",
         ExperienceLevel.SENIOR: "s",

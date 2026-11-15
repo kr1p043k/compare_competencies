@@ -4,7 +4,7 @@ Singleton, загружается один раз при первом обращ
 """
 
 import json
-from typing import Optional
+from typing import ClassVar, Optional
 
 import structlog
 
@@ -22,8 +22,8 @@ class SkillTaxonomy:
 
     _instance: Optional["SkillTaxonomy"] = None
     _taxonomy: dict | None = None
-    _skill_to_category: dict[str, str] = {}  # python → programming_languages
-    _category_info: dict[str, dict[str, str]] = {}  # programming_languages → {label, icon}
+    _skill_to_category: ClassVar[dict[str, str]] = {}  # python → programming_languages
+    _category_info: ClassVar[dict[str, dict[str, str]]] = {}  # programming_languages → {label, icon}
 
     def __new__(cls):
         if cls._instance is None:

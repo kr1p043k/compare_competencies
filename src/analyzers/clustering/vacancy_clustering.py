@@ -352,7 +352,7 @@ class VacancyClusterer:
             "skill_weights": self.skill_weights,
         }
         joblib.dump(data, path)
-        logger.info(f"Модель кластеризации сохранена: {path}")
+        logger.info("vacancy_clustering_saved", path=str(path))
 
         manifest = ArtifactManifest(
             artifact_path=path,

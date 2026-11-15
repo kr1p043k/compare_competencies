@@ -13,6 +13,7 @@ import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
+from src.api_pkg.bg_tasks import spawn
 from src.api_pkg.rate_limit import limiter
 from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role, user_error_detail
@@ -618,7 +619,7 @@ async def refresh_cache(request: Request):
 async def reload_api(request: Request):
     """Перезагрузить данные API без рестарта."""
     try:
-        asyncio.create_task(_reload_api_data())
+        spawn(_reload_api_data())
         await audit_action(request, "pipeline.reload_api", "api data reload requested")
         return PipelineResponse(
             status="started", message="API data reload started. Check /api/status for completion.",

@@ -127,11 +127,9 @@ class CoverageAnalyzer:
             prov = EmbeddingProviderFactory.get()
             embs = prov.encode(todo, show_progress_bar=False)
             with self._skill_emb_lock:
-                for s, e in zip(todo, embs, strict=False):
-                    norm = np.linalg.norm(e)
-                    if norm > 0:
-                        e = e / norm
-                    self._skill_emb_cache[s] = e
+                for s, emb in zip(todo, embs, strict=False):
+                    norm = np.linalg.norm(emb)
+                    self._skill_emb_cache[s] = emb / norm if norm > 0 else emb
             self._save_disk_emb_cache()
         return {s: self._skill_emb_cache[s] for s in skills if s in self._skill_emb_cache}
 

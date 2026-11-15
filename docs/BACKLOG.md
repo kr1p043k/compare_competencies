@@ -530,3 +530,21 @@ P1. Подтверждает: ESLint есть в `main` (`frontend/eslint.config
 **7.1.1 УЖЕ СДЕЛАНО**: `asyncio.get_event_loop()` в `src/` отсутствует (только в
 docstring `hh_api_async.py:24`); используется хелпер с `get_running_loop`. Снять из открытых.
 `run_until_complete` (`hh_api_async.py:39`, `pipeline/runner.py:62`) - осознанный sync-bridge.
+
+
+---
+
+## 12. Сделано в батче 2 (2026-11-15)
+
+1. **9.1.1 RUF006** - fire-and-forget: src/api_pkg/bg_tasks.py:spawn() держит ссылку; 10 мест. RUF006=0.
+2. **9.3.1 G004** - f-строки в логах -> structlog kwargs (7 мест). G004(src)=0.
+3. **DTZ005** - datetime.now() -> now(UTC) в admin.py. DTZ005=0.
+4. **9.1.2 RUF012** - мутабельные class-атрибуты -> ClassVar (7 файлов). RUF012=0.
+5. **9.1.4 PLW2901** - переиспользование loop-переменной (11 мест). PLW2901(src)=0.
+6. **4.3** .dockerignore - добавлены *.tmp, .tmp_*, *.log, logs_*.txt.
+7. **5.4 (частично)** src/ml/clusters.py - print -> logger.
+8. **6.4.3** тест идемпотентности нормализации.
+9. **6.4.4** тест консистентности whitelist (замороженный дрейф).
+10. **БАГ node** - дубли канонов nodejs/node.js ломали идемпотентность; канон сведён к node.js.
+
+Проверка: ruff=0; pytest tests/parsing 432 passed (+2 xfail).

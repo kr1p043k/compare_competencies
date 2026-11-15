@@ -501,10 +501,10 @@ class RPDLoader:
                 raw_disciplines[disc_name] = parsed
 
         # Convert to final format
-        for disc_name, comp_ksa in raw_disciplines.items():
+        for disc_name, comp_ksa_raw in raw_disciplines.items():
             # Dedup ДО merge: после слияния каждый child ⊆ parent по построению
             # и dedup удалил бы все суб-компетенции (audit 2026-10-14, P1).
-            comp_ksa = dedup_children(comp_ksa)
+            comp_ksa = dedup_children(comp_ksa_raw)
 
             # Merge parents from children
             for comp in list(comp_ksa.keys()):

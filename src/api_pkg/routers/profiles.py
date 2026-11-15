@@ -869,8 +869,8 @@ async def patch_self_profile(request: Request, body: SelfProfilePatch):
     owned_lower = {s.lower() for s in owned}
     have_lower = {s.lower() for s in skills}
     added, removed, refused = [], [], []
-    for s in (body.add_skills or [])[:100]:
-        s = (s or "").strip()[:200]
+    for raw in (body.add_skills or [])[:100]:
+        s = (raw or "").strip()[:200]
         if not s:
             continue
         if s.lower() not in have_lower:
@@ -896,8 +896,8 @@ async def patch_self_profile(request: Request, body: SelfProfilePatch):
     techs = list(data.get("technologies", []))
     tech_lower = {t.lower() for t in techs}
     tech_added, tech_removed = [], []
-    for t in (body.add_technologies or [])[:100]:
-        t = (t or "").strip()[:200]
+    for raw in (body.add_technologies or [])[:100]:
+        t = (raw or "").strip()[:200]
         if not t:
             continue
         if t.lower() not in tech_lower:

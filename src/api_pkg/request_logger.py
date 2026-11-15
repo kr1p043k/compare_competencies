@@ -19,6 +19,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from src import config
+from src.api_pkg.bg_tasks import spawn
 from src.models.krm_models import RequestLog
 from src.monitoring.metrics import api_latency, api_requests_total
 
@@ -566,7 +567,7 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             source="backend",
         ))
         if len(_log_buffer) >= FLUSH_BATCH:
-            asyncio.ensure_future(_flush_to_db())
+            spawn(_flush_to_db())
         if response.status_code >= 500 and not getattr(request.state, "system_error_notified", False):
             request.state.system_error_notified = True
             from src.notifications.system import queue_system_error
@@ -583,7 +584,7 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             )
         elif response.status_code < 500:
             from src.notifications.system import maybe_resolve_api_errors
-            asyncio.ensure_future(maybe_resolve_api_errors(request.method, request.url.path))
+            spawn(maybe_resolve_api_errors(request.method, request.url.path))
         return response
 
 

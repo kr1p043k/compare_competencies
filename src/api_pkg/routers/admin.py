@@ -18,6 +18,7 @@ from sqlalchemy import text
 
 from src import config
 from src.api_pkg import deps
+from src.api_pkg.bg_tasks import spawn
 from src.api_pkg.rate_limit import limiter
 from src.api_pkg.request_logger import actor_from_request, audit_action, get_logs_by_user
 from src.api_pkg.routers.auth import (
@@ -179,7 +180,7 @@ async def whitelist_backup(request: Request):
     """Бэкап whitelist в файл."""
     backup_dir = config.DATA_DIR / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     backup_path = backup_dir / f"it_skills_backup_{ts}.json"
     shutil.copy2(IT_SKILLS_PATH, backup_path)
     skills = _load_whitelist()
@@ -263,7 +264,7 @@ async def admin_trigger_pipeline(
             status_code=400,
             detail=f"Unknown action: {body.action}. Valid: {', '.join(action_map.keys())}",
         )
-    task_id = f"{action.value}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    task_id = f"{action.value}_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}"
     background_tasks.add_task(
         run_pipeline_task,
         action,
@@ -1869,7 +1870,7 @@ async def scheduler_collect_now(request: Request):
     from src.pipeline.background_collector import _run_collect_once, is_scheduler_busy
     if is_scheduler_busy():
         raise HTTPException(status_code=409, detail="Планировщик уже выполняет задачу")
-    asyncio.create_task(_run_collect_once(force=True))
+    spawn(_run_collect_once(force=True))
     await audit_action(request, "admin.scheduler.collect")
     return {"status": "started", "job": "collect"}
 
@@ -1881,7 +1882,7 @@ async def scheduler_gap_now(request: Request):
     from src.pipeline.background_collector import _run_scheduled_gap, is_scheduler_busy
     if is_scheduler_busy():
         raise HTTPException(status_code=409, detail="Планировщик уже выполняет задачу")
-    asyncio.create_task(_run_scheduled_gap())
+    spawn(_run_scheduled_gap())
     await audit_action(request, "admin.scheduler.gap")
     return {"status": "started", "job": "gap"}
 

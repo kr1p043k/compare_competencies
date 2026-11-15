@@ -89,8 +89,9 @@ def _extend_skill_taxonomy(new_skills: list[str]) -> None:
     mapping = categorize_new_skills(new_skills)
     taxonomy = load_taxonomy()
     added = 0
-    for skill, cat_id in mapping.items():
+    for skill, raw_cat in mapping.items():
         cats = taxonomy.get("categories", {})
+        cat_id = raw_cat
         if cat_id not in cats:
             cat_id = "other"
         if cat_id not in cats:

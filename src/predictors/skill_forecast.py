@@ -75,8 +75,8 @@ def compute_observed_drops(
     if need is None:
         raise ValueError(f"months must be one of {OBSERVED_MONTHS}, got {months}")
     out = []
-    for skill, pts in (observed or {}).items():
-        pts = sorted(pts, key=lambda p: p[0])
+    for skill, points in (observed or {}).items():
+        pts = sorted(points, key=lambda p: p[0])
         if len(pts) < need:
             continue
         window = pts[-need:]

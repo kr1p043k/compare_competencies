@@ -2,6 +2,7 @@
 
 import threading
 from abc import ABC, abstractmethod
+from typing import ClassVar
 
 import numpy as np
 
@@ -85,7 +86,7 @@ class SentenceTransformerProvider(EmbeddingProvider):
 
 
 class EmbeddingProviderFactory:
-    _instances: dict[str, EmbeddingProvider] = {}
+    _instances: ClassVar[dict[str, EmbeddingProvider]] = {}
 
     @classmethod
     def get(cls, model_name: str | None = None) -> EmbeddingProvider:

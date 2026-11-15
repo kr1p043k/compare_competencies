@@ -5,6 +5,7 @@
 
 import logging
 import re
+from typing import ClassVar
 
 import structlog
 from rapidfuzz import fuzz, process
@@ -26,7 +27,7 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 
 class SkillNormalizer:
     # ================= СЛОВАРЬ СИНОНИМОВ =================
-    SYNONYM_MAP = {
+    SYNONYM_MAP: ClassVar[dict[str, list[str]]] = {
         # Языки
         "python": ["python3", "python 3", "py3", "py", "python programming", "python разработка"],
         "javascript": ["js", "java script"],
@@ -65,7 +66,7 @@ class SkillNormalizer:
         "eslint": ["eslint"],
         "prettier": ["prettier"],
         # Backend / Frameworks
-        "nodejs": ["node.js", "node js", "node"],
+        "node.js": ["nodejs", "node js", "node"],
         "fastapi": ["fast api", "fast-api"],
         "django": ["django rest", "django rest framework", "drf"],
         "flask": ["flask restful"],
@@ -231,8 +232,8 @@ class SkillNormalizer:
     _canonical_map: dict[str, str] | None = None
     # Versioned normalize cache: {input: (taxonomy_version, Result)}.
     # Invalidates automatically when skill_taxonomy.json changes (fixes stale @cache).
-    _normalize_cache: dict[str, tuple[str, object]] = {}
-    _normalize_cache_version: str | None = None
+    _normalize_cache: ClassVar[dict[str, tuple[str, object]]] = {}
+    _normalize_cache_version: ClassVar[str | None] = None
 
     @classmethod
     def _get_canonical_map(cls) -> dict[str, str]:
@@ -266,12 +267,12 @@ class SkillNormalizer:
     # Версии и варианты (удаляются полностью).
     # Якорь $ обязателен: без него съедаются цифры внутри токена
     # (utf-8 -> utf-, oauth2 -> oauth). Только хвостовая версия.
-    VERSION_PATTERNS = [
+    VERSION_PATTERNS: ClassVar[list[str]] = [
         r"\s+v?\d+(\.\d+)*\s*$",
         r"\s*\(.*?\)",
         r"\s*\[.*?\]",
     ]
-    PREFIX_REMOVALS = [
+    PREFIX_REMOVALS: ClassVar[list[str]] = [
         r"^опыт\s+(работы\s+)?(с\s+)?",
         r"^знание\s+",
         r"^владение\s+",
@@ -286,7 +287,7 @@ class SkillNormalizer:
         r"^(опыт|знание|умение|владение|навык)\s+(работы\s+)?(с\s+)?",
         r"^(разработчик|разработчика)\s+(уровня\s+)?(senior|middle|junior)?",
     ]
-    SUFFIX_REMOVALS = [
+    SUFFIX_REMOVALS: ClassVar[list[str]] = [
         "язык",
         "язык программирования",
         "фреймворк",
@@ -320,7 +321,7 @@ class SkillNormalizer:
 
     # Прецедент 1С: продукты линейки опознаём по префиксу 1с/1c + fuzzy хвоста.
     # Иначе stripping кромсает значимые формы (1С:УТ -> сут, 1С:Розница -> срозница).
-    ONEC_PRODUCTS = [
+    ONEC_PRODUCTS: ClassVar[list[str]] = [
         "ут", "розница", "предприятие", "бухгалтерия", "зуп", "erp",
         "документооборот", "зарплата и управление персоналом",
         "управление производственным предприятием", "комплексная автоматизация",
@@ -378,7 +379,7 @@ class SkillNormalizer:
             logger.info("whitelist_loaded_and_extended", count=len(cls._whitelist))
         return cls._whitelist
 
-    JOB_TITLE_PATTERNS = [
+    JOB_TITLE_PATTERNS: ClassVar[list[str]] = [
         r"^(project|product|delivery|program|engineering|engineering) manager",
         r"^(tech|team|scrum|product|engineering|development) lead",
         r"^(senior|junior|middle|lead|principal|chief|head of).*(engineer|developer|manager|architect)$",

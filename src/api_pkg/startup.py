@@ -16,6 +16,7 @@ from src.analyzers.skills.skill_filter import SkillFilter
 from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.analyzers.skills.trends import TrendAnalyzer
+from src.api_pkg.bg_tasks import spawn
 from src.cache_manager import CacheManager
 from src.models.enums import ExperienceLevel
 from src.models.student import StudentProfile, merge_skills_hierarchically
@@ -246,7 +247,7 @@ async def run_startup(app):
     # только после возврата run_startup - то есть после ~9-секундного чтения
     # файла вакансий; это окно клиенты видели как ConnectionRefused. Теперь порт
     # слушается сразу, а данные/движки догружаются в фоне (режим ожидания).
-    asyncio.create_task(_run_bootstrap_safely())
+    spawn(_run_bootstrap_safely())
 
 
 async def _run_bootstrap_safely() -> None:
@@ -311,9 +312,9 @@ async def _bootstrap():
 
     await _finalize_stale_pipeline_runs()
     await _purge_expired_sessions()
-    asyncio.ensure_future(_periodic_housekeeping())
+    spawn(_periodic_housekeeping())
 
-    asyncio.ensure_future(_resolve_pipeline_errors_if_ready())
+    spawn(_resolve_pipeline_errors_if_ready())
 
     detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
@@ -358,7 +359,7 @@ async def _bootstrap():
     logger.info("API готов к работе (фоновая инициализация продолжается)")
 
     # 5. фоновая инициализация - навыки + тяжёлые движки
-    asyncio.create_task(_warmup_background(basic_vacancies, raw_file))
+    spawn(_warmup_background(basic_vacancies, raw_file))
 
     # 6. фоновый сбор вакансий (инкрементально, каждые 6 часов)
     # планировщик фоновых задач: сбор каждые N часов + ночной gap цепочкой.

@@ -33,6 +33,12 @@ htmlcov/
 *.sqlite
 *.db
 
+# Временные/лог-файлы: не тащим в контекст сборки
+*.tmp
+.tmp_*
+*.log
+logs_*.txt
+
 # Фронтенд-сборка (backend-образ её не содержит)
 node_modules/
 frontend/node_modules/
