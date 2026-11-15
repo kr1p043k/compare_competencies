@@ -137,9 +137,8 @@ def run_notebook(notebook_name: str, output_dir: Path | None = None) -> bool:
         if result.returncode == 0:
             logger.info("notebook_completed", name=notebook_name, output=str(output_path))
             return True
-        else:
-            logger.error("notebook_failed", name=notebook_name, error=result.stderr[:200])
-            return False
+        logger.error("notebook_failed", name=notebook_name, error=result.stderr[:200])
+        return False
     except Exception as e:
         logger.exception("notebook_exception", error=str(e))
         return False
