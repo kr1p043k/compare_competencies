@@ -1,7 +1,7 @@
 # tests/predictors/test_recommendation_engine.py
 import json
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -82,7 +82,7 @@ def sample_student_profile():
         competencies=[],
         skills=["python", "sql", "git"],
         target_level="middle",
-        created_at=datetime.now(),
+        created_at=datetime.now(UTC),
     )
 
 
@@ -197,7 +197,7 @@ class TestFit:
 class TestGenerateRecommendations:
     def test_generate_without_profile_evaluator(self):
         engine = RecommendationEngine()
-        student = StudentProfile(profile_name="t", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now())
+        student = StudentProfile(profile_name="t", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now(UTC))
         result = engine.generate_recommendations(student)
         assert result.is_err()
 
@@ -315,13 +315,13 @@ class TestTimeframes:
 class TestLearningPaths:
     def test_get_learning_path_junior(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        profile = StudentProfile(profile_name="j", competencies=[], skills=["python"], target_level="junior", created_at=datetime.now())
+        profile = StudentProfile(profile_name="j", competencies=[], skills=["python"], target_level="junior", created_at=datetime.now(UTC))
         path = engine._get_learning_path("python", False, profile)
         assert "Сфокусируйтесь на основах" in path
 
     def test_get_learning_path_senior(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        profile = StudentProfile(profile_name="s", competencies=[], skills=["python"], target_level="senior", created_at=datetime.now())
+        profile = StudentProfile(profile_name="s", competencies=[], skills=["python"], target_level="senior", created_at=datetime.now(UTC))
         path = engine._get_learning_path("docker", False, profile)
         assert path == ""
 

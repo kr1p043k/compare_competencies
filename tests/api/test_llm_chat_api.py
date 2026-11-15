@@ -13,7 +13,7 @@ primitives, so no database and no live model are touched:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from fastapi import FastAPI
@@ -357,7 +357,7 @@ def _msg_stub(role, seq, text):
         role=role,
         seq=seq,
         blocks_json={"text": text},
-        created_at=datetime(2024, 1, 1, 12, 0, seq),
+        created_at=datetime(2024, 1, 1, 12, 0, seq, tzinfo=UTC),
     )
 
 
@@ -372,7 +372,7 @@ async def test_get_thread_history_assembles_messages():
     assert out["thread_id"] == "thread-9"
     assert [m["role"] for m in out["messages"]] == ["user", "assistant"]
     assert out["messages"][0]["blocks"] == {"text": "hi"}
-    assert out["messages"][0]["ts"] == "2024-01-01T12:00:01"
+    assert out["messages"][0]["ts"] == "2024-01-01T12:00:01+00:00"
     # Второй запрос обязан быть ORDER BY seq DESC + LIMIT.
     assert session.messages_sql is not None
     assert "ORDER BY" in session.messages_sql

@@ -140,18 +140,18 @@ class TrendAnalyzer:
             meta = json.loads(filepath.read_text(encoding="utf-8")).get("_meta")
         if meta and meta.get("snapshot_date"):
             try:
-                d = datetime.strptime(str(meta["snapshot_date"]), "%Y-%m-%d")
+                d = datetime.strptime(str(meta["snapshot_date"]), "%Y-%m-%d").replace(tzinfo=UTC)
                 return d
             except ValueError:
                 try:
-                    d = datetime.strptime(str(meta["snapshot_date"]), "%Y-%m")
+                    d = datetime.strptime(str(meta["snapshot_date"]), "%Y-%m").replace(tzinfo=UTC)
                     return d
                 except ValueError:
                     pass
         d = extract_date_from_filename(filepath)
         if d is not None:
             return d
-        return datetime.fromtimestamp(filepath.stat().st_mtime)
+        return datetime.fromtimestamp(filepath.stat().st_mtime, tz=UTC)
 
     @staticmethod
     def load_file(filepath: Path) -> Result[dict[str, float], DomainError]:

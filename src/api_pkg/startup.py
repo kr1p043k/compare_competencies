@@ -23,7 +23,7 @@ from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.parsing.skills.vacancy_parser import VacancyParser
 from src.parsing.utils import filter_skills_by_whitelist, load_it_skills
 from src.predictors.recommendation_engine import RecommendationEngine
-from src.utils import load_competency_mapping
+from src.utils import keep_task_ref, load_competency_mapping
 
 logger = structlog.get_logger("api")
 
@@ -246,7 +246,7 @@ async def run_startup(app):
     # только после возврата run_startup - то есть после ~9-секундного чтения
     # файла вакансий; это окно клиенты видели как ConnectionRefused. Теперь порт
     # слушается сразу, а данные/движки догружаются в фоне (режим ожидания).
-    asyncio.create_task(_run_bootstrap_safely())
+    keep_task_ref(asyncio.create_task(_run_bootstrap_safely()))
 
 
 async def _run_bootstrap_safely() -> None:
@@ -311,9 +311,9 @@ async def _bootstrap():
 
     await _finalize_stale_pipeline_runs()
     await _purge_expired_sessions()
-    asyncio.ensure_future(_periodic_housekeeping())
+    keep_task_ref(asyncio.ensure_future(_periodic_housekeeping()))
 
-    asyncio.ensure_future(_resolve_pipeline_errors_if_ready())
+    keep_task_ref(asyncio.ensure_future(_resolve_pipeline_errors_if_ready()))
 
     detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
@@ -358,7 +358,7 @@ async def _bootstrap():
     logger.info("API готов к работе (фоновая инициализация продолжается)")
 
     # 5. фоновая инициализация - навыки + тяжёлые движки
-    asyncio.create_task(_warmup_background(basic_vacancies, raw_file))
+    keep_task_ref(asyncio.create_task(_warmup_background(basic_vacancies, raw_file)))
 
     # 6. фоновый сбор вакансий (инкрементально, каждые 6 часов)
     # планировщик фоновых задач: сбор каждые N часов + ночной gap цепочкой.

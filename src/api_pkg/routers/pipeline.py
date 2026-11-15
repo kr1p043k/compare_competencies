@@ -22,6 +22,7 @@ from src.models.api_responses import (
     PipelineTaskListResponse,
     PipelineTaskStatus,
 )
+from src.utils import keep_task_ref
 
 logger = structlog.get_logger("api")
 
@@ -618,7 +619,7 @@ async def refresh_cache(request: Request):
 async def reload_api(request: Request):
     """Перезагрузить данные API без рестарта."""
     try:
-        asyncio.create_task(_reload_api_data())
+        keep_task_ref(asyncio.create_task(_reload_api_data()))
         await audit_action(request, "pipeline.reload_api", "api data reload requested")
         return PipelineResponse(
             status="started", message="API data reload started. Check /api/status for completion.",

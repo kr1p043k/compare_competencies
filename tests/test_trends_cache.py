@@ -30,8 +30,8 @@ def _snap(date: datetime, freq: dict) -> SimpleNamespace:
 
 
 SNAPS = [
-    _snap(datetime(2026, 11, 8), {"python": 100}),
-    _snap(datetime(2026, 11, 1), {"python": 50}),
+    _snap(datetime(2026, 11, 8, tzinfo=UTC), {"python": 100}),
+    _snap(datetime(2026, 11, 1, tzinfo=UTC), {"python": 50}),
 ]
 
 COMP_ROWS = [

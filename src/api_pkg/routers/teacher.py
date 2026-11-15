@@ -9,7 +9,7 @@ import contextlib
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
@@ -1239,7 +1239,7 @@ async def admin_student_skills(request: Request, email: str = ""):
         }
     data = _load_self_profile(name, fpath)
     try:
-        updated = datetime.fromtimestamp(probe.stat().st_mtime).isoformat()
+        updated = datetime.fromtimestamp(probe.stat().st_mtime, tz=UTC).isoformat()
     except Exception:
         logger.debug("profile_mtime_failed", exc_info=True)
         updated = None

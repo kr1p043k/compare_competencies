@@ -7,7 +7,7 @@ import contextlib
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 import pandas as pd
 import structlog
@@ -285,10 +285,10 @@ async def load_time_series(session: AsyncSession) -> Result[list[Snapshot], Doma
             data = {k: float(v) for k, v in raw.items() if isinstance(v, (int, float))}
             sd = meta.get("snapshot_date", "")
             try:
-                dt = datetime.strptime(sd, "%Y-%m-%d").date()
+                dt = datetime.strptime(sd, "%Y-%m-%d").replace(tzinfo=UTC).date()
             except ValueError:
                 try:
-                    dt = datetime.strptime(sd, "%Y-%m").date()
+                    dt = datetime.strptime(sd, "%Y-%m").replace(tzinfo=UTC).date()
                 except ValueError:
                     continue
             file_snapshots.append((dt, data))

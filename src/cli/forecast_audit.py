@@ -10,7 +10,7 @@ Usage:
 import argparse
 import json
 import sys
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -32,10 +32,10 @@ def _load_snapshots() -> list[tuple[date, dict[str, float]]]:
             data = {k: float(v) for k, v in raw.items() if isinstance(v, (int, float))}
             sd = meta.get("snapshot_date", "")
             try:
-                dt = datetime.strptime(sd, "%Y-%m-%d").date()
+                dt = datetime.strptime(sd, "%Y-%m-%d").replace(tzinfo=UTC).date()
             except ValueError:
                 try:
-                    dt = datetime.strptime(sd, "%Y-%m").date()
+                    dt = datetime.strptime(sd, "%Y-%m").replace(tzinfo=UTC).date()
                 except ValueError:
                     continue
             snaps.append((dt, data))

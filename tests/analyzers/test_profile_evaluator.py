@@ -1,6 +1,6 @@
 # tests/analyzers/test_profile_evaluator.py
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -21,7 +21,7 @@ class TestProfileEvaluatorExtended:
             competencies=[],
             skills=["python", "sql", "git", "fastapi", "docker"],
             target_level="middle",
-            created_at=datetime.now(),
+            created_at=datetime.now(UTC),
         )
 
     @pytest.fixture
@@ -245,7 +245,7 @@ class TestProfileEvaluatorFull:
             competencies=[],
             skills=["python", "sql"],
             target_level="middle",
-            created_at=datetime.now(),
+            created_at=datetime.now(UTC),
         )
 
         hash1 = evaluator._get_student_hash(student, "middle")
@@ -476,7 +476,7 @@ class TestProfileEvaluatorFull:
             competencies=[],
             skills=["python", "sql"],
             target_level="middle",
-            created_at=datetime.now(),
+            created_at=datetime.now(UTC),
         )
         context = evaluator._get_cluster_context(student, "middle")
         assert context.is_err()  # use_clustering=False
@@ -491,7 +491,7 @@ class TestProfileEvaluatorFull:
             use_clustering=True,
         )
         student = StudentProfile(
-            profile_name="test", competencies=[], skills=[], target_level="middle", created_at=datetime.now()
+            profile_name="test", competencies=[], skills=[], target_level="middle", created_at=datetime.now(UTC)
         )
         evaluator.cluster_models_loaded = {"middle": False}
         context = evaluator._get_cluster_context(student, "middle")
@@ -520,7 +520,7 @@ class TestProfileEvaluatorFull:
             competencies=[],
             skills=list(skill_weights_by_level["middle"].keys()),
             target_level="middle",
-            created_at=datetime.now(),
+            created_at=datetime.now(UTC),
         )
 
         result = evaluator.evaluate_profile(student).unwrap()
@@ -545,7 +545,7 @@ class TestProfileEvaluatorFull:
             competencies=[],
             skills=list(skill_weights_by_level["middle"].keys()),
             target_level="middle",
-            created_at=datetime.now(),
+            created_at=datetime.now(UTC),
         )
 
         result = evaluator.evaluate_profile(student).unwrap()
@@ -608,7 +608,7 @@ class TestProfileEvaluatorFull:
             competencies=[],
             skills=["python", "sql", "git"],
             target_level="middle",
-            created_at=datetime.now(),
+            created_at=datetime.now(UTC),
         )
 
     @pytest.fixture
@@ -720,7 +720,7 @@ class TestProfileEvaluatorFull:
 
         # _get_student_hash (строки 275-277)
         student = StudentProfile(
-            profile_name="test", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
+            profile_name="test", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now(UTC)
         )
         h1 = evaluator._get_student_hash(student, "middle")
         h2 = evaluator._get_student_hash(student, "middle")
@@ -737,7 +737,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
         )
         student = StudentProfile(
-            profile_name="john", competencies=[], skills=["python", "sql"], target_level="middle", created_at=datetime.now()
+            profile_name="john", competencies=[], skills=["python", "sql"], target_level="middle", created_at=datetime.now(UTC)
         )
         hash_val = evaluator._compute_student_hash(student)
         assert isinstance(hash_val, str)
@@ -756,7 +756,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
         )
         student = StudentProfile(
-            profile_name="jane", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
+            profile_name="jane", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now(UTC)
         )
         hash_val = evaluator._compute_student_hash(student)
         emb = np.array([1.0, 2.0, 3.0])
@@ -778,7 +778,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
         )
         student = StudentProfile(
-            profile_name="jane", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
+            profile_name="jane", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now(UTC)
         )
         cache_path = evaluator._get_student_cache_path(student)
         cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -797,7 +797,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
         )
         student = StudentProfile(
-            profile_name="nobody", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
+            profile_name="nobody", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now(UTC)
         )
         assert evaluator._load_cached_embedding(student).is_err()
 
@@ -811,7 +811,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
         )
         student = StudentProfile(
-            profile_name="savvy", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
+            profile_name="savvy", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now(UTC)
         )
         emb = np.array([0.1, 0.2, 0.3])
         with patch("src.analyzers.gap.profile_evaluator.ArtifactManifest") as MockManifest:
@@ -840,7 +840,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
         )
         student = StudentProfile(
-            profile_name="cached_user", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
+            profile_name="cached_user", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now(UTC)
         )
         emb_cached = np.array([7.0, 8.0])
         # Сохраняем кэш, мокая ArtifactManifest, чтобы избежать импорта sentence_transformers
@@ -862,7 +862,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
         )
         student = StudentProfile(
-            profile_name="new_user", competencies=[], skills=["python", "sql"], target_level="middle", created_at=datetime.now()
+            profile_name="new_user", competencies=[], skills=["python", "sql"], target_level="middle", created_at=datetime.now(UTC)
         )
         fake_model = MagicMock()
         fake_model.get_sentence_embedding_dimension.return_value = 128
@@ -884,7 +884,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
         )
         student = StudentProfile(
-            profile_name="empty_skills", competencies=[], skills=[], target_level="middle", created_at=datetime.now()
+            profile_name="empty_skills", competencies=[], skills=[], target_level="middle", created_at=datetime.now(UTC)
         )
         fake_model = MagicMock()
         fake_model.get_sentence_embedding_dimension.return_value = 256
@@ -1029,7 +1029,7 @@ class TestProfileEvaluatorKrm:
             competencies=[],
             skills=["python", "sql", "docker", "git"],
             target_level="middle",
-            created_at=datetime.now(),
+            created_at=datetime.now(UTC),
         )
         object.__setattr__(student, "target_profession", "Python Developer")
         return student
@@ -1135,7 +1135,7 @@ class TestProfileEvaluatorKrm:
             competencies=[],
             skills=["python", "sql"],
             target_level="middle",
-            created_at=datetime.now(),
+            created_at=datetime.now(UTC),
         )
         evaluator = ProfileEvaluator(
             skill_weights={"python": 0.9, "sql": 0.7},
@@ -1171,7 +1171,7 @@ class TestReadinessFormulaV2:
         vs = [["python", "sql", "git"], ["python", "docker", "fastapi"],
               ["python", "docker", "k8s"]]
         st = StudentProfile(profile_name="t", competencies=[], skills=skills,
-                            target_level="middle", created_at=datetime.now())
+                            target_level="middle", created_at=datetime.now(UTC))
         e = ProfileEvaluator(skill_weights={"python": 0.9, "sql": 0.7},
                              vacancies_skills=vs,
                              vacancies_skills_dict=[{"skills": s} for s in vs],
@@ -1204,7 +1204,7 @@ class TestCoverageStrictWeightedPair:
         sw = {"middle": {"python": 0.9, "docker": 0.7, "sql": 0.5}}
         vs = [["python", "sql"], ["python", "docker"]]
         st = StudentProfile(profile_name="t", competencies=[], skills=["python", "sql"],
-                            target_level="middle", created_at=datetime.now())
+                            target_level="middle", created_at=datetime.now(UTC))
         e = ProfileEvaluator(skill_weights={"python": 0.9},
                              vacancies_skills=vs,
                              vacancies_skills_dict=[{"skills": s} for s in vs],
@@ -1268,7 +1268,7 @@ class TestLevelClusterRouting:
         vs = [["python", "sql"], ["python", "docker"]]
         st = StudentProfile(profile_name="t", competencies=[],
                             skills=["python", "sql"],
-                            target_level="middle", created_at=datetime.now())
+                            target_level="middle", created_at=datetime.now(UTC))
         e = ProfileEvaluator(
             skill_weights={"python": 0.9}, vacancies_skills=vs,
             vacancies_skills_dict=[{"skills": s} for s in vs],
@@ -1293,7 +1293,7 @@ class TestLevelClusterRouting:
         vs = [["python", "sql"]]
         st = StudentProfile(profile_name="t", competencies=[],
                             skills=["python", "sql"],
-                            target_level="middle", created_at=datetime.now())
+                            target_level="middle", created_at=datetime.now(UTC))
         e = ProfileEvaluator(
             skill_weights={"python": 0.9}, vacancies_skills=vs,
             vacancies_skills_dict=[{"skills": s} for s in vs],
@@ -1321,7 +1321,7 @@ class TestStage4ApiParity:
         vs = [["python", "sql"], ["python", "docker"]]
         st = StudentProfile(profile_name="t", competencies=[], skills=skills,
                             target_level="middle", target_profession=prof,
-                            created_at=datetime.now())
+                            created_at=datetime.now(UTC))
         e = ProfileEvaluator(
             skill_weights={"python": 0.9}, vacancies_skills=vs,
             vacancies_skills_dict=[{"skills": s} for s in vs],

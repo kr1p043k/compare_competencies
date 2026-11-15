@@ -12,7 +12,7 @@ Covers the read-heavy gaps left by existing IDOR/write tests:
 
 import json
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -205,7 +205,7 @@ def test_stats_shape_and_empty_direction_404():
                     ],
                 ),
                 ("FROM competency_skills cs", [{"n": 4}]),
-                ("FROM coverage_analyses", [{"avg": 0.75, "covered": 3, "latest": datetime.now()}]),
+                ("FROM coverage_analyses", [{"avg": 0.75, "covered": 3, "latest": datetime.now(UTC)}]),
             ],
         }
     )
@@ -259,7 +259,7 @@ def test_disciplines_list_and_not_found():
                             "market_matched_skills": 5,
                             "coverage_ratio": 0.5,
                             "weighted_coverage": 0.3,
-                            "analysis_date": datetime.now(),
+                            "analysis_date": datetime.now(UTC),
                         }
                     ],
                 ),
@@ -543,7 +543,7 @@ def test_competency_coverage_with_and_without():
                         "total_skills": 10,
                         "market_matched_skills": 5,
                         "coverage_ratio": 0.5,
-                        "analysis_date": datetime.now(),
+                        "analysis_date": datetime.now(UTC),
                     },
                 ),
             ],
@@ -612,8 +612,8 @@ def test_analyze_status():
                         "id": uuid.UUID(RUN_ID),
                         "action": "teacher-analysis",
                         "status": "completed",
-                        "started_at": datetime.now(),
-                        "completed_at": datetime.now(),
+                        "started_at": datetime.now(UTC),
+                        "completed_at": datetime.now(UTC),
                         "error_message": None,
                         "stats": {"x": 1},
                     },

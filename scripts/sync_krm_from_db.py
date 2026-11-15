@@ -24,7 +24,7 @@ import argparse
 import json
 import shutil
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import psycopg
@@ -143,7 +143,7 @@ def main() -> int:
         return 0
 
     backup = path.with_suffix(
-        path.suffix + f".bak-{datetime.now():%Y%m%d-%H%M%S}"
+        path.suffix + f".bak-{datetime.now(UTC):%Y%m%d-%H%M%S}"
     )
     shutil.copy2(path, backup)
     node["disciplines"] = dict(sorted(discs.items()))

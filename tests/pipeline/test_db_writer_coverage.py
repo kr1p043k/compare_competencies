@@ -9,7 +9,7 @@ import json
 import sys
 import types
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 
@@ -170,11 +170,11 @@ async def test_save_trend_snapshot_replaces_snapshot_and_invalidates_caches(fake
     invalidated: list[str] = []
     monkeypatch.setattr(db_writer, "_invalidate", lambda name: invalidated.append(name))
 
-    await save_trend_snapshot(datetime(2026, 1, 1), {"python": 5}, source="hh_vacancies")
+    await save_trend_snapshot(datetime(2026, 1, 1, tzinfo=UTC), {"python": 5}, source="hh_vacancies")
 
     (delete_query, delete_args), (insert_query, insert_args) = fake_db.executed
     assert "DELETE FROM trend_snapshots" in delete_query
-    assert delete_args == (datetime(2026, 1, 1), "hh_vacancies")
+    assert delete_args == (datetime(2026, 1, 1, tzinfo=UTC), "hh_vacancies")
     assert "INSERT INTO trend_snapshots" in insert_query
     assert json.loads(insert_args[2]) == {"python": 5}
     # Trend caches are stale after a new snapshot - invalidation is contractual.

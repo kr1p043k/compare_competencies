@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 import numpy as np
 import structlog
@@ -164,10 +164,10 @@ class SkillForecastEngine(BasePredictor):
                     data = raw
                     sd = meta.get("snapshot_date", "")
                     try:
-                        dt = datetime.strptime(sd, "%Y-%m-%d").date()
+                        dt = datetime.strptime(sd, "%Y-%m-%d").replace(tzinfo=UTC).date()
                     except ValueError:
                         try:
-                            dt = datetime.strptime(sd, "%Y-%m").date()
+                            dt = datetime.strptime(sd, "%Y-%m").replace(tzinfo=UTC).date()
                         except ValueError:
                             continue
                     snapshots.append((dt, data))

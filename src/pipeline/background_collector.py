@@ -168,8 +168,8 @@ def is_gap_overdue(today: str, last_gap_date, max_days: int = SCHEDULER_GAP_STAL
     if not last_gap_date:
         return True
     try:
-        d0 = datetime.strptime(str(last_gap_date), "%Y-%m-%d").date()
-        d1 = datetime.strptime(str(today), "%Y-%m-%d").date()
+        d0 = datetime.strptime(str(last_gap_date), "%Y-%m-%d").replace(tzinfo=UTC).date()
+        d1 = datetime.strptime(str(today), "%Y-%m-%d").replace(tzinfo=UTC).date()
         return (d1 - d0).days >= max_days
     except (ValueError, TypeError):
         return True

@@ -1,6 +1,6 @@
 import asyncio
 import re
-from datetime import date
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
@@ -178,7 +178,7 @@ async def _get_vacancy_meta() -> dict:
 
 
 async def _compute_vacancy_meta() -> dict:
-    meta = {"vacancies_count": 0, "data_from": None, "data_to": date.today().isoformat(),
+    meta = {"vacancies_count": 0, "data_from": None, "data_to": datetime.now(UTC).date().isoformat(),
             "snapshots_count": 0}
     try:
         from src.database import async_session_factory

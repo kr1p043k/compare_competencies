@@ -35,7 +35,7 @@ import re
 import shutil
 import sys
 from collections.abc import Collection
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import psycopg
@@ -425,7 +425,7 @@ def main() -> int:
     report: dict = {
         "direction": args.direction,
         "year": args.year,
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "db_operations": [],
         "krm_operations": [],
     }
@@ -491,7 +491,7 @@ def main() -> int:
     krm_node["disciplines"] = dict(sorted(krm_disciplines.items()))
     krm_path.write_text(json.dumps(krm_doc, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     dump_path = RESULT_DIR / f"{args.direction}_{args.year}_{stamp}.json"
     dump_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 

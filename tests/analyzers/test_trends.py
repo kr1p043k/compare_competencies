@@ -1,6 +1,6 @@
 # tests/analyzers/test_trends.py
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -150,8 +150,8 @@ class TestTrendAnalyzer:
 
     def test_get_skill_timeline(self, sample_current_freq, sample_prev_freq, tmp_path):
         analyzer = TrendAnalyzer(sample_current_freq, historical_dir=tmp_path)
-        dt1 = datetime(2024, 1, 1)
-        dt2 = datetime(2024, 2, 1)
+        dt1 = datetime(2024, 1, 1, tzinfo=UTC)
+        dt2 = datetime(2024, 2, 1, tzinfo=UTC)
         snapshots = [
             (dt1, Path("freq_2024-01-01.json"), sample_prev_freq),
             (dt2, Path("freq_2024-02-01.json"), sample_current_freq),
@@ -228,8 +228,8 @@ class TestTrendAnalyzerFull:
 
     def test_get_skill_timeline_empty_skills(self, sample_freq, sample_prev, tmp_path):
         analyzer = TrendAnalyzer(sample_freq, historical_dir=tmp_path)
-        dt1 = datetime(2024, 1, 1)
-        dt2 = datetime(2024, 2, 1)
+        dt1 = datetime(2024, 1, 1, tzinfo=UTC)
+        dt2 = datetime(2024, 2, 1, tzinfo=UTC)
         snapshots = [
             (dt1, Path("f1.json"), sample_prev),
             (dt2, Path("f2.json"), sample_freq),
@@ -240,7 +240,7 @@ class TestTrendAnalyzerFull:
 
     def test_get_skill_timeline_missing_skill(self, sample_freq, sample_prev, tmp_path):
         analyzer = TrendAnalyzer(sample_freq, historical_dir=tmp_path)
-        dt1 = datetime(2024, 1, 1)
+        dt1 = datetime(2024, 1, 1, tzinfo=UTC)
         snapshots = [(dt1, Path("f1.json"), sample_prev)]
         timeline = analyzer.get_skill_timeline(["nonexistent"], snapshots)
         assert timeline.ok()["nonexistent"][0][1] == 0
@@ -250,12 +250,12 @@ class TestTrendAnalyzerFull:
         path1 = tmp_path / "freq_2024-01-01-120000.json"
         path1.write_text("{}")
         dt1 = analyzer._extract_date(path1)
-        assert dt1 == datetime(2024, 1, 1, 12, 0, 0)
+        assert dt1 == datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
 
         path2 = tmp_path / "freq_2024-06-15.json"
         path2.write_text("{}")
         dt2 = analyzer._extract_date(path2)
-        assert dt2 == datetime(2024, 6, 15)
+        assert dt2 == datetime(2024, 6, 15, tzinfo=UTC)
 
     def test_get_trending_skills_new_skill_zero_division(self, sample_freq, tmp_path):
         prev = {"python": 100}
@@ -292,8 +292,8 @@ class TestTrendAnalyzerPlots:
     def test_plot_timeline(self, tmp_path, freq, prev):
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         save_path = tmp_path / "timeline.png"
-        dt1 = datetime(2024, 1, 1)
-        dt2 = datetime(2024, 2, 1)
+        dt1 = datetime(2024, 1, 1, tzinfo=UTC)
+        dt2 = datetime(2024, 2, 1, tzinfo=UTC)
         snapshots = [(dt1, Path("f1.json"), prev), (dt2, Path("f2.json"), freq)]
         with patch("matplotlib.pyplot.savefig") as mock_save:
             analyzer.plot_timeline(["python", "sql"], snapshots=snapshots, save_path=save_path, title="Test Timeline")
@@ -301,7 +301,7 @@ class TestTrendAnalyzerPlots:
 
     def test_plot_timeline_insufficient_snapshots(self, tmp_path, freq):
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
-        dt1 = datetime(2024, 1, 1)
+        dt1 = datetime(2024, 1, 1, tzinfo=UTC)
         snapshots = [(dt1, Path("f1.json"), freq)]
         result = analyzer.plot_timeline(["python"], snapshots=snapshots)
         assert result.ok() is None
@@ -332,8 +332,8 @@ class TestTrendAnalyzerPlots:
         prev = {"python": 0}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         save_path = tmp_path / "timeline.png"
-        dt1 = datetime(2024, 1, 1)
-        dt2 = datetime(2024, 2, 1)
+        dt1 = datetime(2024, 1, 1, tzinfo=UTC)
+        dt2 = datetime(2024, 2, 1, tzinfo=UTC)
         snapshots = [(dt1, Path("f1.json"), prev), (dt2, Path("f2.json"), freq)]
         with patch("matplotlib.pyplot.savefig"):
             result = analyzer.plot_timeline(["python"], snapshots=snapshots, save_path=save_path)
@@ -361,9 +361,9 @@ class TestTrendAnalyzerPlots:
     def test_plot_timeline_with_custom_formatting(self, tmp_path, freq, prev):
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         save_path = tmp_path / "timeline_format.png"
-        dt1 = datetime(2024, 1, 15)
-        dt2 = datetime(2024, 3, 20)
-        dt3 = datetime(2024, 6, 10)
+        dt1 = datetime(2024, 1, 15, tzinfo=UTC)
+        dt2 = datetime(2024, 3, 20, tzinfo=UTC)
+        dt3 = datetime(2024, 6, 10, tzinfo=UTC)
         snapshots = [
             (dt1, Path("f1.json"), prev),
             (dt2, Path("f2.json"), {"python": 110, "sql": 92}),
@@ -384,8 +384,8 @@ class TestTrendAnalyzerPlots:
         prev = {s: np.random.randint(10, 200) for s in skills}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         save_path = tmp_path / "timeline_large.png"
-        dt1 = datetime(2024, 1, 1)
-        dt2 = datetime(2024, 2, 1)
+        dt1 = datetime(2024, 1, 1, tzinfo=UTC)
+        dt2 = datetime(2024, 2, 1, tzinfo=UTC)
         snapshots = [(dt1, Path("f1.json"), prev), (dt2, Path("f2.json"), freq)]
         with patch("matplotlib.pyplot.savefig") as mock_save:
             analyzer.plot_timeline(skills[:10], snapshots=snapshots, save_path=save_path)
@@ -449,7 +449,7 @@ class TestTrendAnalyzerPlots:
     def test_plot_timeline_mdates_formatting(self, tmp_path, freq, prev):
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         save_path = tmp_path / "timeline_dates.png"
-        dates = [datetime(2024, i, 1) for i in range(1, 7)]
+        dates = [datetime(2024, i, 1, tzinfo=UTC) for i in range(1, 7)]
         snapshots = [(d, Path(f"freq_{d.strftime('%Y%m%d')}.json"), freq) for d in dates]
         with patch("matplotlib.pyplot.savefig") as mock_save:
             analyzer.plot_timeline(["python", "sql"], snapshots=snapshots, save_path=save_path)
@@ -457,8 +457,8 @@ class TestTrendAnalyzerPlots:
 
     def test_plot_timeline_without_save_path(self, freq, prev, tmp_path):
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
-        dt1 = datetime(2024, 1, 1)
-        dt2 = datetime(2024, 2, 1)
+        dt1 = datetime(2024, 1, 1, tzinfo=UTC)
+        dt2 = datetime(2024, 2, 1, tzinfo=UTC)
         snapshots = [(dt1, Path("f1.json"), prev), (dt2, Path("f2.json"), freq)]
         with patch("matplotlib.pyplot.savefig") as mock_save:
             result = analyzer.plot_timeline(["python"], snapshots=snapshots, save_path=None)
@@ -564,8 +564,8 @@ class TestTrendAnalyzerPlots:
 
     def test_plot_timeline_returns_figure(self, freq, prev, tmp_path):
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
-        dt1 = datetime(2024, 1, 1)
-        dt2 = datetime(2024, 2, 1)
+        dt1 = datetime(2024, 1, 1, tzinfo=UTC)
+        dt2 = datetime(2024, 2, 1, tzinfo=UTC)
         snapshots = [(dt1, Path("f1.json"), prev), (dt2, Path("f2.json"), freq)]
         with patch("matplotlib.pyplot.savefig"):
             result = analyzer.plot_timeline(["python"], snapshots=snapshots)
@@ -645,8 +645,8 @@ class TestTrendAnalyzerPlots:
 
     def test_plot_timeline_empty_skills(self, freq, prev, tmp_path):
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
-        dt1 = datetime(2024, 1, 1)
-        dt2 = datetime(2024, 2, 1)
+        dt1 = datetime(2024, 1, 1, tzinfo=UTC)
+        dt2 = datetime(2024, 2, 1, tzinfo=UTC)
         snapshots = [(dt1, Path("f1.json"), prev), (dt2, Path("f2.json"), freq)]
         with patch("matplotlib.pyplot.savefig"):
             result = analyzer.plot_timeline([], snapshots=snapshots)
@@ -680,10 +680,10 @@ class TestTrendAnalyzerCLI:
         analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
         path1 = tmp_path / "freq_2024-01-01-120000.json"
         path1.write_text("{}")
-        assert analyzer._extract_date(path1) == datetime(2024, 1, 1, 12, 0, 0)
+        assert analyzer._extract_date(path1) == datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
         path2 = tmp_path / "freq_2024-06-15.json"
         path2.write_text("{}")
-        assert analyzer._extract_date(path2) == datetime(2024, 6, 15)
+        assert analyzer._extract_date(path2) == datetime(2024, 6, 15, tzinfo=UTC)
         path3 = tmp_path / "freq_2024-03-20 120000.json"
         path3.write_text("{}")
         assert isinstance(analyzer._extract_date(path3), datetime)
@@ -708,8 +708,8 @@ class TestTrendAnalyzerCLI:
 
     def test_plot_timeline_without_save(self, tmp_path, sample_current_freq, sample_prev_freq):
         analyzer = TrendAnalyzer(sample_current_freq, historical_dir=tmp_path)
-        dt1 = datetime(2024, 1, 1)
-        dt2 = datetime(2024, 2, 1)
+        dt1 = datetime(2024, 1, 1, tzinfo=UTC)
+        dt2 = datetime(2024, 2, 1, tzinfo=UTC)
         snapshots = [(dt1, Path("f1.json"), sample_prev_freq), (dt2, Path("f2.json"), sample_current_freq)]
         with patch("matplotlib.pyplot.savefig") as mock_save:
             result = analyzer.plot_timeline(["python"], snapshots=snapshots, save_path=None)
@@ -777,8 +777,8 @@ class TestTrendAnalyzerExtended:
     def test_plot_timeline_empty_points_skip(self, tmp_path):
         freq = {"python": 120}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
-        dt1 = datetime(2024, 1, 1)
-        dt2 = datetime(2024, 2, 1)
+        dt1 = datetime(2024, 1, 1, tzinfo=UTC)
+        dt2 = datetime(2024, 2, 1, tzinfo=UTC)
         snapshots = [(dt1, Path("f1.json"), {}), (dt2, Path("f2.json"), freq)]
         from unittest.mock import patch
         with patch("matplotlib.pyplot.savefig"), patch("matplotlib.pyplot.close"):

@@ -100,11 +100,11 @@ def run(direction: str, year: int, dsn: str, apply: bool, only_orphan: bool = Fa
         conn.commit()
     if dumped:
         import json
-        from datetime import datetime
+        from datetime import UTC, datetime
         from pathlib import Path
         out_dir = Path(__file__).resolve().parent.parent / "data" / "result" / "cleanup"
         out_dir.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         dump_path = out_dir / f"backfill_{direction}_{year}_{stamp}.json"
         dump_path.write_text(json.dumps(dumped, ensure_ascii=False, indent=2),
                              encoding="utf-8")
