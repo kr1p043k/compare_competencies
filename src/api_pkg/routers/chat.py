@@ -24,9 +24,10 @@ import json
 from collections.abc import AsyncGenerator
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
+from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_any_role, require_role
 from src.api_pkg.user_keys import self_profile_name
 from src.services import llm_chat
@@ -119,7 +120,9 @@ async def _stream(
 
 
 @router.get("/teacher/chat/stream")
+@limiter.limit("10/minute")
 async def teacher_chat_stream(
+    request: Request,
     discipline: str = Query(..., min_length=1, max_length=255),
     message: str = Query(..., min_length=1, max_length=_MAX_MESSAGE_LEN),
     user: dict = Depends(require_any_role(*_TEACHER_ROLES)),
@@ -133,7 +136,9 @@ async def teacher_chat_stream(
 
 
 @router.get("/teacher/chat/history")
+@limiter.limit("30/minute")
 async def teacher_chat_history(
+    request: Request,
     discipline: str = Query(..., min_length=1, max_length=255),
     user: dict = Depends(require_any_role(*_TEACHER_ROLES)),
 ):
@@ -148,7 +153,9 @@ async def teacher_chat_history(
 
 
 @router.get("/student/chat/stream")
+@limiter.limit("10/minute")
 async def student_chat_stream(
+    request: Request,
     message: str = Query(..., min_length=1, max_length=_MAX_MESSAGE_LEN),
     user: dict = Depends(require_role("student")),
 ):
@@ -162,7 +169,9 @@ async def student_chat_stream(
 
 
 @router.get("/student/chat/history")
+@limiter.limit("30/minute")
 async def student_chat_history(
+    request: Request,
     user: dict = Depends(require_role("student")),
 ):
     """История собственного треда студента (профиль из auth)."""

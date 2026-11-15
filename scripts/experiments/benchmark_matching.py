@@ -9,6 +9,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import random
@@ -32,10 +33,8 @@ except ImportError:  # импорт из тестов (пакета scripts в s
 # старте, получили готовое значение. Но сам импорт (в тестах чистых
 # функций) не должен требовать БД: без DSN просто оставляем окружение
 # как есть — при реальном обращении к базе будет явная ошибка.
-try:
+with contextlib.suppress(DSNNotConfigured):
     os.environ["DATABASE_URL"] = resolve_dsn()
-except DSNNotConfigured:
-    pass
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "benchmark"

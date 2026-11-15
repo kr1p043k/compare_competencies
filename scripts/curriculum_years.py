@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib.util
 import json
 import sys
@@ -50,10 +51,8 @@ def main() -> int:
     parser.add_argument("--out", default=None)
     args = parser.parse_args()
 
-    try:
+    with contextlib.suppress(Exception):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
 
     audit = _load_audit()
     files = official_files(args.direction)
