@@ -333,7 +333,7 @@ async def _bootstrap():
             lambda: json.loads(raw_file.read_bytes())
         )
     except Exception as exc:
-        logger.error("Файл вакансий повреждён", error=str(exc))
+        logger.exception("Файл вакансий повреждён")
         deps.vacancy_load_error = f"corrupted: {exc}"
         basic_vacancies = []
     else:

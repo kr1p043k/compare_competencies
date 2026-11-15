@@ -99,7 +99,7 @@ class TestCompetencyComparatorExtended:
 def test_comparator_tfidf_mode(use_embeddings, level):
     """Тест TF-IDF и Embeddings режимов (embeddings через глобальный мок)"""
     logger.info("=" * 80)
-    logger.info(f">>>>> Запуск теста | embeddings={use_embeddings} | level={level}")
+    logger.info(">>>>> Запуск теста | embeddings=%s | level=%s", use_embeddings, level)
     logger.info("=" * 80)
 
     try:
@@ -125,21 +125,21 @@ def test_comparator_tfidf_mode(use_embeddings, level):
         if use_embeddings:
             comparator.skill_weights = {s: 1.0 for s in student_skills}
         score, confidence = comparator.compare(student_skills).unwrap()
-        logger.info(f"Результат: score={score:.4f} | confidence={confidence:.4f}")
+        logger.info("Результат: score=%.4f | confidence=%.4f", score, confidence)
 
         assert 0.0 <= score <= 1.0, f"Некорректный score: {score}"
         assert 0.0 <= confidence <= 1.0, f"Некорректный confidence: {confidence}"
 
         stats = comparator.get_stats().unwrap()
-        logger.info(f"Статистика: {stats}")
+        logger.info("Статистика: %s", stats)
 
         logger.info("✅ ТЕСТ ПРОШЁЛ УСПЕШНО")
         logger.info("=" * 80)
 
     except Exception as e:
-        logger.error("❌ ОШИБКА В ТЕСТЕ")
-        logger.error(f"Тип: {type(e).__name__}")
-        logger.error(f"Сообщение: {e}")
+        logger.exception("❌ ОШИБКА В ТЕСТЕ")
+        logger.exception("Тип: %s", type(e).__name__)
+        logger.exception("Сообщение: %s", e)
         traceback.print_exc(file=sys.stderr)
         raise
 

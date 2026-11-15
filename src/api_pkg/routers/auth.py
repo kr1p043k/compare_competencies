@@ -240,8 +240,8 @@ async def _register_failed_login(pool, email: str, ip: str) -> None:
              RETURNING failed_login_count""",
             email,
         )
-    except Exception as exc:
-        logger.error("login_failure_counter_error", email=email, error=str(exc))
+    except Exception:
+        logger.exception("login_failure_counter_error", email=email)
         return
 
     if count is None:
@@ -260,8 +260,8 @@ async def _register_failed_login(pool, email: str, ip: str) -> None:
                  WHERE lower(email) = $1""",
             email,
         )
-    except Exception as exc:
-        logger.error("login_lockout_error", email=email, error=str(exc))
+    except Exception:
+        logger.exception("login_lockout_error", email=email)
         return
 
     logger.warning(
@@ -581,7 +581,7 @@ async def login(body: LoginRequest, request: Request, response: Response):
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error("login_db_error", error=str(exc))
+        logger.exception("login_db_error")
         raise HTTPException(
             status_code=503, detail="Service temporarily unavailable"
         ) from exc

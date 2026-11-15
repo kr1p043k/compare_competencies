@@ -1242,7 +1242,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         try:
             data = joblib.load(model_path)
         except Exception as e:
-            logger.error("model_load_failed", error=str(e))
+            logger.exception("model_load_failed")
             return Err(ModelError(
                 message=f"Ошибка загрузки LTR-модели: {e}",
                 model_name="ltr_ranker_xgb_regressor",

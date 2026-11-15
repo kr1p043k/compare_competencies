@@ -95,6 +95,6 @@ async def _live_profession_query(profession: str, limit: int = 50) -> dict:
         )
         skills = [{"skill": r["skill"], "frequency": r["cnt"]} for r in rows if r["cnt"] > 0]
         return {"profession": profession, "source": "live", "skills": skills}
-    except Exception as e:
-        logger.error("live_profession_query_failed", profession=profession, error=str(e))
+    except Exception:
+        logger.exception("live_profession_query_failed", profession=profession)
         raise HTTPException(status_code=503, detail="Trend data unavailable") from None

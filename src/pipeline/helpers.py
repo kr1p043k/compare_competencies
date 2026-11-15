@@ -155,11 +155,10 @@ def save_detailed_vacancies(vacancies, log) -> Result[None, DomainError]:
                         backup=str(backup),
                         error=str(exc),
                     )
-                except OSError as move_exc:
-                    log.error(
+                except OSError:
+                    log.exception(
                         "detailed_vacancies_corrupt_move_failed",
                         path=str(file),
-                        error=str(move_exc),
                     )
         with open(file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)

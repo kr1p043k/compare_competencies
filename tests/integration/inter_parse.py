@@ -50,7 +50,7 @@ def run_search(args: argparse.Namespace = None, interactive: bool = False):
         hh_api = HeadHunterAPI()
         parser = VacancyParser()
 
-        logger.info(f"Запрос(ы): {queries} | Регионы: {area_ids}")
+        logger.info("Запрос(ы): %s | Регионы: %s", queries, area_ids)
 
         basic_vacancies = collect_vacancies_multiple(
             hh_api=hh_api,
@@ -67,11 +67,11 @@ def run_search(args: argparse.Namespace = None, interactive: bool = False):
             return
 
         # Загружаем детальную информацию
-        logger.info(f"Загружаем детальную информацию для {len(basic_vacancies)} вакансий...")
+        logger.info("Загружаем детальную информацию для %s вакансий...", len(basic_vacancies))
         vacancies_to_process = []
         for i, vac in enumerate(basic_vacancies, 1):
             if i % 50 == 0:
-                logger.info(f"Прогресс деталей: {i}/{len(basic_vacancies)}")
+                logger.info("Прогресс деталей: %s/%s", i, len(basic_vacancies))
             match hh_api.get_vacancy_details(vac["id"]):
                 case Ok(det):
                     vacancies_to_process.append(det)
@@ -120,9 +120,9 @@ def run_search(args: argparse.Namespace = None, interactive: bool = False):
             df = parser.aggregate_to_dataframe(vacancies_to_process)
             excel_name = f"vacancies{sector_suffix}_{query_part}.xlsx"
             parser.save_to_excel(df, excel_name)
-            logger.info(f"Excel сохранён: {excel_name}")
+            logger.info("Excel сохранён: %s", excel_name)
 
-        logger.info(f"Все файлы сохранены в: {TEST_OUTPUT_DIR}")
+        logger.info("Все файлы сохранены в: %s", TEST_OUTPUT_DIR)
 
     finally:
         config.DATA_RAW_DIR = original_raw

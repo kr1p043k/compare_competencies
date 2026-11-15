@@ -26,6 +26,6 @@ async def send_telegram(chat_id: str, text: str, parse_mode: str = "Markdown") -
             return True
         logger.error("telegram_failed", status=resp.status_code, body=resp.text[:200])
         return False
-    except Exception as e:
-        logger.error("telegram_error", error=str(e))
+    except Exception:
+        logger.exception("telegram_error")
         return False

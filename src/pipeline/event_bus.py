@@ -46,8 +46,8 @@ class EventBus:
         for handler in self._handlers.get(event.status, []) + self._handlers.get("*", []):
             try:
                 handler(event)
-            except Exception as e:
-                logger.error("event_handler_failed", status=event.status, stage=event.stage, error=str(e))
+            except Exception:
+                logger.exception("event_handler_failed", status=event.status, stage=event.stage)
         return Ok(None)
 
     @property

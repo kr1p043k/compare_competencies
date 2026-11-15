@@ -146,8 +146,8 @@ async def teacher_chat_history(
     try:
         return await llm_chat.get_thread_history(user.get("uid"), "teacher", discipline)
     except Exception as exc:
-        logger.error(
-            "chat_history_failed", context_type="teacher", context_key=discipline, error=str(exc)
+        logger.exception(
+            "chat_history_failed", context_type="teacher", context_key=discipline
         )
         raise HTTPException(status_code=503, detail="Не удалось загрузить историю чата") from exc
 
@@ -179,7 +179,7 @@ async def student_chat_history(
     try:
         return await llm_chat.get_thread_history(user.get("uid"), "student", context_key)
     except Exception as exc:
-        logger.error(
-            "chat_history_failed", context_type="student", context_key=context_key, error=str(exc)
+        logger.exception(
+            "chat_history_failed", context_type="student", context_key=context_key
         )
         raise HTTPException(status_code=503, detail="Не удалось загрузить историю чата") from exc
