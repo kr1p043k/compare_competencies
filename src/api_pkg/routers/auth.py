@@ -240,7 +240,7 @@ async def _register_failed_login(pool, email: str, ip: str) -> None:
              RETURNING failed_login_count""",
             email,
         )
-    except Exception as exc:  # noqa: BLE001 — сбой учёта не должен ломать ответ
+    except Exception as exc:
         logger.error("login_failure_counter_error", email=email, error=str(exc))
         return
 
@@ -260,7 +260,7 @@ async def _register_failed_login(pool, email: str, ip: str) -> None:
                  WHERE lower(email) = $1""",
             email,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.error("login_lockout_error", email=email, error=str(exc))
         return
 
@@ -502,7 +502,7 @@ async def login(body: LoginRequest, request: Request, response: Response):
                       password_hash = crypt($2, password_hash) AS pw_match,
                       COALESCE(split_part(password_hash, '$', 3)::int, 0) AS pw_cost
                  FROM users
-                WHERE lower(email) = $1 AND is_active = true""",  # noqa: E501 — SQL string must not be split
+                WHERE lower(email) = $1 AND is_active = true""",
             email, body.password,
         )
 

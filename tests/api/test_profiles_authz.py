@@ -31,10 +31,10 @@ class _StubModule(types.ModuleType):
 sys.modules.setdefault("shap", _StubModule("shap"))
 sys.modules.setdefault("cv2", _StubModule("cv2"))
 
-import src.analyzers.skills.profession_taxonomy as prof_tax_mod  # noqa: E402
-from src import Ok  # noqa: E402
-from src.api_pkg import create_app, deps  # noqa: E402
-from src.models.student import StudentProfile  # noqa: E402
+import src.analyzers.skills.profession_taxonomy as prof_tax_mod
+from src import Ok
+from src.api_pkg import create_app, deps
+from src.models.student import StudentProfile
 
 SELF_EMAIL = "test.student@example.com"
 SELF_NAME = "self_test_student_example_com"

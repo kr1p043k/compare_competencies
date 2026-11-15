@@ -213,7 +213,7 @@ def test_get_skill_forecast_not_found(monkeypatch):
 
 def test_get_popular_forecasts_empty_data_returns_503(monkeypatch):
     # If _get_forecast_data returns {} and no engine is cached, _get_forecast_engine errors.
-    monkeypatch.setattr(forecast_mod, "_get_forecast_data", lambda: {})
+    monkeypatch.setattr(forecast_mod, "_get_forecast_data", dict)
     monkeypatch.setattr(forecast_mod.deps, "prophet_engine", None)
     monkeypatch.setattr(forecast_mod.deps, "skill_engine", None)
     client = _make_client(monkeypatch)

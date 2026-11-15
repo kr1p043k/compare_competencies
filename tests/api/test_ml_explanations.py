@@ -37,11 +37,11 @@ class _StubModule(types.ModuleType):
 sys.modules.setdefault("shap", _StubModule("shap"))
 sys.modules.setdefault("cv2", _StubModule("cv2"))
 
-from src import Err, Ok  # noqa: E402
-from src.api_pkg import create_app, deps  # noqa: E402
-from src.api_pkg.routers import results  # noqa: E402
-from src.models.student import StudentProfile  # noqa: E402
-from tests.conftest import route_gate_roles  # noqa: E402
+from src import Err, Ok
+from src.api_pkg import create_app, deps
+from src.api_pkg.routers import results
+from src.models.student import StudentProfile
+from tests.conftest import route_gate_roles
 
 PROFILE = "base"
 URL = f"/api/results/ml-explanations/{PROFILE}"

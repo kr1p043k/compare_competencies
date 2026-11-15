@@ -146,11 +146,10 @@ class SkillFilter:
                     norm_val = 0.1 + 0.9 * (weight - min_w) / (max_w - min_w)
                     normalized[skill] = round(norm_val, 4)
                 return Ok(normalized)
-            else:
-                # Все веса одинаковые
-                return Ok({skill: 1.0 for skill in skill_weights})
+            # Все веса одинаковые
+            return Ok({skill: 1.0 for skill in skill_weights})
 
-        elif method == "log":
+        if method == "log":
             # Логарифмическая нормализация (для больших разбросов)
             log_weights = {skill: np.log1p(weight) for skill, weight in skill_weights.items()}
             max_log = max(log_weights.values())
@@ -158,7 +157,7 @@ class SkillFilter:
                 return Ok({skill: round(w / max_log, 4) for skill, w in log_weights.items()})
             return Ok(skill_weights)
 
-        elif method == "softmax":
+        if method == "softmax":
             # Softmax нормализация
             exp_weights = {skill: np.exp(weight) for skill, weight in skill_weights.items()}
             total = sum(exp_weights.values())
@@ -166,9 +165,8 @@ class SkillFilter:
                 return Ok({skill: round(w / total, 4) for skill, w in exp_weights.items()})
             return Ok(skill_weights)
 
-        else:
-            logger.warning("unknown_normalization_method", method=method)
-            return Ok(skill_weights)
+        logger.warning("unknown_normalization_method", method=method)
+        return Ok(skill_weights)
 
     def merge_with_reference(
         self, skill_weights: dict[str, float], competency_freq: dict[str, int]

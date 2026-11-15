@@ -11,7 +11,7 @@ from __future__ import annotations
 
 def test_models_registered_in_base_metadata():
     # импорт моделей регистрирует таблицы (как это делает alembic/env.py)
-    import src.models.krm_models  # noqa: F401
+    import src.models.krm_models
     from src.database import Base
 
     assert len(Base.metadata.tables) >= 20, (

@@ -169,7 +169,7 @@ async def _worker(
         start = time.perf_counter()
         try:
             resp = await client.request(method, url, headers=headers)
-        except Exception:  # noqa: BLE001 - transport errors are part of the metric
+        except Exception:
             out.exceptions += 1
             out.latencies_ms.append((time.perf_counter() - start) * 1000)
             continue
@@ -271,7 +271,7 @@ async def amain(args: argparse.Namespace) -> int:
         # readiness probe
         try:
             await client.get(f"{args.base_url}/health")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise SystemExit(f"cannot reach {args.base_url}/health: {exc}") from exc
 
         results: list[EndpointResult] = []

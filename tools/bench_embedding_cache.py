@@ -34,10 +34,10 @@ sys.path.insert(0, str(ROOT))
 if not os.environ.get("SECRET_KEY"):
     os.environ["SECRET_KEY"] = secrets.token_hex(32)
 
-import numpy as np  # noqa: E402
+import numpy as np
 
-from src import config  # noqa: E402
-from src.analyzers.comparison import embedding_provider as ep  # noqa: E402
+from src import config
+from src.analyzers.comparison import embedding_provider as ep
 
 _DIM = 768
 

@@ -36,7 +36,7 @@ def call(base: str, path: str, token: str | None = None, body: dict | None = Non
                 return resp.status, raw
     except urllib.error.HTTPError as exc:
         return exc.code, exc.read().decode("utf-8", "replace")[:200]
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return None, f"{type(exc).__name__}: {exc}"
 
 

@@ -1104,7 +1104,7 @@ async def _grafana_status() -> dict[str, Any]:
     public = (config.settings.GRAFANA_PUBLIC_URL or base).rstrip("/")
     try:
         items = await _grafana_search(base, user, password)
-    except Exception as exc:  # noqa: BLE001 - недоступность Grafana не должна ронять админку
+    except Exception as exc:
         logger.warning("grafana_unreachable", error=str(exc))
         return {"enabled": True, "reachable": False,
                 "reason": f"Grafana недоступен: {exc}", "dashboards": []}
@@ -1163,7 +1163,7 @@ async def _llm_cost_summary(days: int, pool: Any = None) -> dict[str, Any]:
             """,
             days,
         )
-    except Exception as exc:  # noqa: BLE001 - схема может отставать; панель не должна падать
+    except Exception as exc:
         logger.warning("llm_cost_query_failed", error=str(exc))
         empty["reason"] = f"Не удалось прочитать llm_interactions: {exc}"
         return empty
