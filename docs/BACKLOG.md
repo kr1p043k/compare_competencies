@@ -27,12 +27,12 @@
 | 3.4 | Rate limit + auth эндпоинтов LLM | `[ ]` |
 | 3.5 | UI-чат: plugin-блоки | `[ ]` |
 | 3.6 | Тесты LLM | `[x]` 9 файлов в `tests/` |
-| 4.1 | ruff | `[~]` 120 issues (было 196) |
+| 4.1 | ruff | `[x]` 120 → 0 (конфиг проекта) |
 | 4.2 | datetime.utcnow → now(UTC) | `[x]` остатков нет |
 | 4.3 | .tmp и logs | `[ ]` |
-| 5.1 | F601: задвоенный ключ `hadoop` (баг в synonym map) | `[ ]` |
-| 5.2 | ruff: разбивка остатка (E501/N806/SIM105/...) | `[ ]` |
-| 5.3 | E402: импорты не в начале файла (scripts/seed_all_directions.py и др.) | `[ ]` |
+| 5.1 | F601: задвоенный ключ `hadoop` (баг в synonym map) | `[x]` + huggingface/html/css → F601=0 |
+| 5.2 | ruff: разбивка остатка (E501/N806/SIM105/...) | `[x]` остаток 0 |
+| 5.3 | E402: импорты не в начале файла (scripts/seed_all_directions.py и др.) | `[x]` |
 | 5.4 | `print()` в prod-коде → structured logging (~340) | `[ ]` |
 | 5.5 | Крупные модули: разбить router-файлы | `[ ]` |
 | 5.6 | Frontend: `any`-типы (101 место) | `[ ]` |
@@ -501,3 +501,32 @@ P1. Подтверждает: ESLint есть в `main` (`frontend/eslint.config
 
 
 
+
+
+---
+
+## 11. Сделано в батче 1 (2026-11-15)
+
+Ветка `chore/backlog-batch1` -> merge в `dev` (локально, push под хуком).
+
+1. **5.1** F601 задвоенные ключи: слиты `hadoop`, `huggingface`, `html`, `css`; `F601 = 0`.
+2. **4.1 / 5.2** ruff: **120 -> 0** (проектный конфиг) - автофиксы + ручные + per-file-ignores.
+3. **5.3** E402 (scripts) - убраны (`# noqa` / перенос импортов).
+4. **E741** неоднозначные `l` -> `lvl` (`benchmark_matching.py`).
+5. **UP031** %-формат -> f-строки (`merge_annotations_to_krm.py`, `check_votes.py`).
+6. **B007** неиспользуемая переменная цикла (`benchmark_matching.py`).
+7. **E702** точка с запятой -> две строки (`adjudicate.py`).
+8. **N818** исключение `DSNNotConfigured` -> `DSNNotConfiguredError` (+ ссылки).
+9. **SIM105** `try/except/pass` -> `contextlib.suppress` (`clean_intake_data.py`).
+10. **SIM108** `if/else` -> тернарник (`merge_annotations_to_krm.py`).
+11. **SIM115** контекст-менеджер/`noqa` (`calibrate_ensemble.py`).
+12. **E501 (core)** длинная строка `skill_normalizer.py:116` разбита.
+13. **N806/E501 (скрипты)** per-file-ignores для `scripts/**`, `alembic/**`.
+
+Проверка: `ruff check .` = 0; `pytest tests/parsing tests/analyzers` = 1100 passed;
+`pytest tests/pipeline tests/services` = 631 passed.
+
+### Поправка к §7.1
+**7.1.1 УЖЕ СДЕЛАНО**: `asyncio.get_event_loop()` в `src/` отсутствует (только в
+docstring `hh_api_async.py:24`); используется хелпер с `get_running_loop`. Снять из открытых.
+`run_until_complete` (`hh_api_async.py:39`, `pipeline/runner.py:62`) - осознанный sync-bridge.
