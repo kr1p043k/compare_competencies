@@ -57,9 +57,8 @@ class ValidationResult:
     def __repr__(self):
         if self.is_valid:
             return f"✓ '{self.skill}' (confidence: {self.confidence:.2f})"
-        else:
-            reasons_str = "; ".join(r.value for r in self.reasons)
-            return f"✗ '{self.skill}': {reasons_str}"
+        reasons_str = "; ".join(r.value for r in self.reasons)
+        return f"✗ '{self.skill}': {reasons_str}"
 
 
 class SkillValidator:

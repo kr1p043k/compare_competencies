@@ -99,9 +99,9 @@ class Salary:
     def __repr__(self):
         if self.from_amount and self.to_amount:
             return f"{self.from_amount}-{self.to_amount} {self.currency}"
-        elif self.from_amount:
+        if self.from_amount:
             return f"от {self.from_amount} {self.currency}"
-        elif self.to_amount:
+        if self.to_amount:
             return f"до {self.to_amount} {self.currency}"
         return "Не указана"
 
@@ -180,11 +180,11 @@ class Experience:
             return "junior"
 
         # middle: 1-6 лет
-        elif any(x in exp_id for x in ["between1and3", "between3and6", "middle"]):
+        if any(x in exp_id for x in ["between1and3", "between3and6", "middle"]):
             return "middle"
 
         # senior: 6+ лет
-        elif any(x in exp_id for x in ["between6and10", "morethan10", "morethan6", "senior"]):
+        if any(x in exp_id for x in ["between6and10", "morethan10", "morethan6", "senior"]):
             return "senior"
 
         return "middle"  # default

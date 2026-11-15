@@ -83,30 +83,28 @@ class CompetencyComparator:
             # Engines live on in engines.py as lab/sweep tooling only.
             return Err(DomainError(message="Embeddings compare needs skill_weights; call set_skill_weights() first"))
 
-        else:
-            if not student_skills:
-                return Ok((0.0, 0.0))
+        if not student_skills:
+            return Ok((0.0, 0.0))
 
-            student_text = " ".join(student_skills)
-            student_vec = self.tfidf.transform([student_text])
+        student_text = " ".join(student_skills)
+        student_vec = self.tfidf.transform([student_text])
 
-            if not hasattr(self, "_market_tfidf_matrix"):
-                corpus = [" ".join(skills) for skills in self._vacancies_skills]
-                self._market_tfidf_matrix = self.tfidf.transform(corpus)
+        if not hasattr(self, "_market_tfidf_matrix"):
+            corpus = [" ".join(skills) for skills in self._vacancies_skills]
+            self._market_tfidf_matrix = self.tfidf.transform(corpus)
 
-            similarities = cosine_similarity(student_vec, self._market_tfidf_matrix)[0]
-            score = float(np.mean(similarities)) if len(similarities) > 0 else 0.0
-            confidence = float(np.max(similarities)) if len(similarities) > 0 else 0.0
+        similarities = cosine_similarity(student_vec, self._market_tfidf_matrix)[0]
+        score = float(np.mean(similarities)) if len(similarities) > 0 else 0.0
+        confidence = float(np.max(similarities)) if len(similarities) > 0 else 0.0
 
-            return Ok((round(score, 4), round(confidence, 4)))
+        return Ok((round(score, 4), round(confidence, 4)))
 
     def get_skill_weights(self) -> dict[str, float]:
         if self.use_embeddings:
             logger.info("get_skill_weights_not_needed", mode="embeddings")
             return {}
-        else:
-            logger.warning("get_skill_weights_not_implemented", mode="tfidf")
-            return {}
+        logger.warning("get_skill_weights_not_implemented", mode="tfidf")
+        return {}
 
     def get_stats(self) -> Result[dict, DomainError]:
         return Ok({
