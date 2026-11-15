@@ -116,7 +116,7 @@ async def _resolve_area_ids(regions_str: str) -> str:
             except HTTPException:
                 raise
             except Exception as e:
-                logger.error("region_resolve_failed", region=p, error=str(e))
+                logger.exception("region_resolve_failed", region=p)
                 raise HTTPException(
                     status_code=503, detail="Справочник регионов hh.ru недоступен"
                 ) from e
@@ -457,8 +457,8 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
             if gap:
                 try:
                     await _run_bootstrap_guarded()
-                except Exception as reload_err:
-                    logger.error("reload_after_pipeline_failed", error=str(reload_err))
+                except Exception:
+                    logger.exception("reload_after_pipeline_failed")
 
         elif action == PipelineAction.TRAIN_CLUSTERS:
             pipeline_tasks[task_id].message = "Кластеризация вакансий..."
@@ -625,7 +625,7 @@ async def reload_api(request: Request):
             status="started", message="API data reload started. Check /api/status for completion.",
         )
     except Exception as e:
-        logger.error("api_reload_failed", error=str(e))
+        logger.exception("api_reload_failed")
         raise HTTPException(
             status_code=500,
             detail=await user_error_detail(
@@ -670,8 +670,8 @@ async def _reload_api_data():
             # run_startup(None) пересоздал бы пул и сбросил живые running-задачи.
             await asyncio.to_thread(_reload_tasks_preserving_running)
         logger.info("API data reloaded successfully")
-    except Exception as e:
-        logger.error("Ошибка перезагрузки API", error=str(e))
+    except Exception:
+        logger.exception("Ошибка перезагрузки API")
 
 
 async def reload_api_data():

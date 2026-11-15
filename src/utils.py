@@ -100,8 +100,8 @@ def load_competency_mapping() -> dict[str, list[str]]:
     try:
         with open(COMPETENCY_MAPPING_FILE, encoding="utf-8") as f:
             return json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError) as e:
-        logger.error("competency_mapping_load_failed", path=str(COMPETENCY_MAPPING_FILE), error=str(e))
+    except (json.JSONDecodeError, FileNotFoundError):
+        logger.exception("competency_mapping_load_failed", path=str(COMPETENCY_MAPPING_FILE))
         return {}
 
 
@@ -159,11 +159,11 @@ def safe_read_json(filepath: Path):
             logger.error("invalid_json_structure", path=str(filepath), type=type(data).__name__)
             return None
         return data
-    except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        logger.error("json_read_error", path=str(filepath), error=str(e))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        logger.exception("json_read_error", path=str(filepath))
         return None
-    except Exception as e:
-        logger.error("json_read_unexpected_error", path=str(filepath), error=str(e))
+    except Exception:
+        logger.exception("json_read_unexpected_error", path=str(filepath))
         return None
 
 
@@ -206,11 +206,11 @@ def safe_read_competency_json(filepath: Path) -> list[str]:
             logger.error("invalid_competency_structure", path=str(filepath))
             return []
         return codes
-    except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        logger.error("competency_json_read_error", path=str(filepath), error=str(e))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        logger.exception("competency_json_read_error", path=str(filepath))
         return []
-    except Exception as e:
-        logger.error("competency_read_unexpected_error", path=str(filepath), error=str(e))
+    except Exception:
+        logger.exception("competency_read_unexpected_error", path=str(filepath))
         return []
 
 

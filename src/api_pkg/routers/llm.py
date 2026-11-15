@@ -43,7 +43,7 @@ async def llm_chat(request: Request, req: ChatRequest):
         )
         return ChatResponse(response=response, model=client.model)
     except Exception as e:
-        logger.error("llm_chat_failed", error=str(e))
+        logger.exception("llm_chat_failed")
         raise HTTPException(
             status_code=502,
             detail=await user_error_detail(request, str(e), "Запрос к языковой модели не удался. Попробуйте позже."),

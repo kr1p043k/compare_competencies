@@ -131,7 +131,7 @@ class CrossEncoderReranker(BaseReranker):
                 ranked_indices=ranked,
             ))
         except Exception as e:
-            logger.error("cross_encoder_rerank_failed", error=str(e))
+            logger.exception("cross_encoder_rerank_failed")
             return Err(DomainError(
                 message="reranking failed",
                 detail=str(e),

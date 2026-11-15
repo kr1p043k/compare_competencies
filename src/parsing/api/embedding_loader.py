@@ -61,7 +61,7 @@ def get_embedding_model(model_name: str = None):
                 return _embedding_model
             except Exception as e:
                 if endpoint:
-                    logger.error("embedding_model_failed_mirror", model=model_name, error=str(e))
+                    logger.exception("embedding_model_failed_mirror", model=model_name)
                     raise
                 logger.warning("embedding_model_failed_try_mirror", model=model_name, error=str(e))
                 os.environ.pop("HF_HUB_OFFLINE", None)

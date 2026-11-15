@@ -232,8 +232,8 @@ async def krm_teacher_gap(request: Request, dir_code: str, payload: GapRequest =
         result = await asyncio.to_thread(
             AcademicGapAnalyzer(dir_code=dir_code).analyze, payload.topic
         )
-    except Exception as exc:
-        logger.error("krm_teacher_gap_failed", dir_code=dir_code, error=str(exc))
+    except Exception:
+        logger.exception("krm_teacher_gap_failed", dir_code=dir_code)
         raise HTTPException(
             status_code=503,
             detail="Не удалось выполнить анализ разрыва",

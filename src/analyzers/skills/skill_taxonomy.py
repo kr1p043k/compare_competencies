@@ -54,8 +54,8 @@ class SkillTaxonomy:
                 categories_count=len(categories),
                 skills_count=len(self._skill_to_category),
             )
-        except Exception as e:
-            logger.error("taxonomy_load_error", error=str(e))
+        except Exception:
+            logger.exception("taxonomy_load_error")
 
     def get_category(self, skill: str) -> str:
         """

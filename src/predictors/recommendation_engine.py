@@ -439,8 +439,8 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                     if skill.lower() in domain_skills:
                         explanation += f" 🔗 Ключевой навык для домена «{dominant_domain}»."
                     is_soft = not self._is_hard_skill(skill)
-                except Exception as e:
-                    logger.error("explanation_failed", skill=skill, error=str(e))
+                except Exception:
+                    logger.exception("explanation_failed", skill=skill)
                     explanation = f"Навык '{skill}' востребован на рынке."
                     is_soft = False
 
@@ -536,7 +536,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             return Ok(result)
 
         except Exception as e:
-            logger.exception("generate_recommendations_crashed", profile=profile_name, error=str(e))
+            logger.exception("generate_recommendations_crashed", profile=profile_name)
             return Err(RecommendationError(message=str(e), profile=profile_name))
 
     # ------------------------------------------------------------------

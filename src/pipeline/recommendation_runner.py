@@ -37,7 +37,7 @@ class RecommendationRunner:
                     return Err(RecommendationError(message=f"Ошибка обучения движка: {e}", profile="all"))
             return Ok(None)
         except Exception as e:
-            logger.error("engine_initialization_failed", error=str(e))
+            logger.exception("engine_initialization_failed")
             return Err(RecommendationError(message=f"Ошибка инициализации движка: {e}", profile="all"))
 
     def run(self, evaluations: dict) -> Result[dict, RecommendationError]:

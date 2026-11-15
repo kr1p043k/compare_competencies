@@ -419,13 +419,13 @@ class HeadHunterAPI:
                 status_code=response.status_code, endpoint=url
             ))
         except requests.exceptions.Timeout:
-            logger.error("http_timeout", url=url)
+            logger.exception("http_timeout", url=url)
             return Err(ApiError(message=f"Timeout: {url}", endpoint=url))
         except requests.exceptions.ConnectionError:
-            logger.error("http_connection_error", url=url)
+            logger.exception("http_connection_error", url=url)
             return Err(ApiError(message=f"Connection error: {url}", endpoint=url))
         except Exception as e:
-            logger.error("http_request_exception", error=str(e))
+            logger.exception("http_request_exception")
             return Err(ApiError(message=str(e), endpoint=url))
 
     def _get(self, url, params=None, retry_count=0, _is_retry_after_401=False):

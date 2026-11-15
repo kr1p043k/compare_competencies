@@ -447,15 +447,15 @@ async def _persist_audit_log(request: Request, action: str, target: str, email: 
     except Exception as exc:
         if not _is_missing_audit_table(exc):
             # Security-события не должны теряться тихо: ERROR, а не WARNING.
-            logger.error("audit_db_write_failed", action=action, error=str(exc))
+            logger.exception("audit_db_write_failed", action=action)
             return
         # Таблицы нет: создаём и пробуем ещё раз (страховка к миграции).
         try:
             await _ensure_audit_table(pool)
             await _insert()
-        except Exception as exc2:
+        except Exception:
             _audit_table_missing = True
-            logger.error("audit_db_table_missing", action=action, error=str(exc2))
+            logger.exception("audit_db_table_missing", action=action)
 
 
 def _split_target(target: str) -> tuple[str | None, str | None]:

@@ -951,7 +951,7 @@ async def run_teacher_analysis_endpoint(
                 stats={"stage": "done", "status": "completed", "dir_code": dir_code},
             )
         except Exception as exc:
-            logger.error("teacher_analysis_cli_error", run_id=run_id,
+            logger.exception("teacher_analysis_cli_error", run_id=run_id,
                          exc_type=type(exc).__name__, exc_repr=repr(exc))
             with contextlib.suppress(Exception):
                 await complete_pipeline_run(run_id, status="failed", error=str(exc),
