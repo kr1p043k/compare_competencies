@@ -70,14 +70,25 @@ def _is_strict_prefix_trap(query: str, candidate: str) -> bool:
     return False
 
 
+#: одно предупреждение на процесс: _word_contained вызывается на каждую пару.
+_CONTAINED_WARNED = False
+
+
 def _word_contained(a: str, b: str) -> bool:
     """Вхождение целым словом в любую сторону (семантика legacy fuzzy)."""
+    global _CONTAINED_WARNED
     try:
         return bool(
             re.search(r"(?<!\w)" + re.escape(a) + r"(?!\w)", b)
             or re.search(r"(?<!\w)" + re.escape(b) + r"(?!\w)", a)
         )
     except Exception:
+        # Падение regex молча превращало совпадение в "нет": матчинг
+        # тихо деградировал без следа в логе.
+        if not _CONTAINED_WARNED:
+            _CONTAINED_WARNED = True
+            logger.warning("hybrid_word_contained_failed",
+                           a=str(a)[:80], b=str(b)[:80], exc_info=True)
         return False
 
 

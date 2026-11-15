@@ -175,11 +175,21 @@ def is_gap_overdue(today: str, last_gap_date, max_days: int = SCHEDULER_GAP_STAL
         return True
 
 
+#: одно предупреждение на процесс: проверка идёт каждый тик планировщика.
+_PIPELINE_CHECK_WARNED = False
+
+
 def _pipeline_running() -> bool:
+    global _PIPELINE_CHECK_WARNED
     try:
         from src.api_pkg.routers.pipeline import pipeline_tasks
         return any(getattr(t, "status", "") == "running" for t in pipeline_tasks.values())
     except Exception:
+        # Без ответа планировщик считал, что пайплайн не запущен, и мог
+        # начать сбор поверх живого прогона. Раньше - молча.
+        if not _PIPELINE_CHECK_WARNED:
+            _PIPELINE_CHECK_WARNED = True
+            logger.warning("pipeline_running_check_failed", exc_info=True)
         return False
 
 

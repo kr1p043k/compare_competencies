@@ -256,7 +256,10 @@ async def _finish_cancelled(run_id: str) -> None:
         await complete_pipeline_run(run_id, status="cancelled", error="Отменено пользователем",
                                     stats={"stage": "cancelled", "status": "cancelled"})
     except Exception:
-        pass
+        # Запись статуса в БД не прошла: run остаётся "running" в
+        # pipeline_runs, хотя процесс убит. Раньше это пропадало молча.
+        logger.warning("rpd_finish_cancelled_db_write_failed", run_id=run_id,
+                       exc_info=True)
     finally:
         with _rpd_lock:
             _rpd_cancel.pop(run_id, None)

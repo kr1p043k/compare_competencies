@@ -28,13 +28,22 @@ router = APIRouter(tags=["krm_student"])
 _STUDENT_ROLES = ("admin", "teacher", "rop", "student")
 
 
+#: одно предупреждение на процесс: _norm вызывается на каждый навык.
+_NORM_WARNED = False
+
+
 def _norm(text: str) -> str:
+    global _NORM_WARNED
     try:
         r = SkillNormalizer.normalize(text or "")
         if r.is_ok() and r.ok():
             return str(r.ok()).lower().strip()
     except Exception:
-        pass
+        # Отказ нормализатора молча ронял сопоставление до сырого lower();
+        # совпадения KRM/студент деградировали без следа в логе.
+        if not _NORM_WARNED:
+            _NORM_WARNED = True
+            logger.warning("student_normalize_failed_fallback_lower", exc_info=True)
     return (text or "").lower().strip()
 
 

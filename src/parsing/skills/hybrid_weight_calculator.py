@@ -94,7 +94,9 @@ class HybridWeightCalculator:
                 idf_bonus = idf_bonus / max(idf_bonus.max(), 1.0)
                 sem_raw = sem_raw * (0.5 + 0.5 * idf_bonus)
         except Exception:
-            pass
+            # IDF-бонус молча пропадал: веса становились чисто семантическими,
+            # редкие навыки теряли надбавку без единой строки в логе.
+            logger.warning("hybrid_idf_bonus_failed", exc_info=True)
 
         sem_norm = (sem_raw - sem_raw.min()) / (sem_raw.max() - sem_raw.min() + 1e-8)
 
