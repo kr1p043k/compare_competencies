@@ -1,8 +1,7 @@
 """Integration: save_vacancies_batch persists extracted_skills (fake hh_id, cleaned up)."""
-import asyncpg
-
 import socket
 
+import asyncpg
 import pytest
 
 

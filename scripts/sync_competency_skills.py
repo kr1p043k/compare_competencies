@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 import psycopg
+
 try:  # запуск как файла
     from _dsn import resolve_dsn
 except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)

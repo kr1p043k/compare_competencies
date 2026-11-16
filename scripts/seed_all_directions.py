@@ -227,7 +227,10 @@ async def seed_direction(
             )
             comp = existing_comp.scalar_one_or_none()
             if not comp:
-                comp = Competency(discipline_id=disc.id, code=comp_code, category=category, number=number, parse_version_id=pv.id)
+                comp = Competency(
+                    discipline_id=disc.id, code=comp_code, category=category,
+                    number=number, parse_version_id=pv.id,
+                )
                 session.add(comp)
                 await session.flush()
                 comp_count += 1
@@ -254,7 +257,10 @@ async def seed_direction(
                         seen_ksa.add(key)
                         continue
                     seen_ksa.add(key)
-                    session.add(KSAEntry(competency_id=comp.id, ksa_type=kt, original_text=ksa_text, sort_order=idx, parse_version_id=pv.id))
+                    session.add(KSAEntry(
+                        competency_id=comp.id, ksa_type=kt, original_text=ksa_text,
+                        sort_order=idx, parse_version_id=pv.id,
+                    ))
                     ksa_count += 1
 
             for skill_name in skills_data.get(comp_code, []):
@@ -270,7 +276,10 @@ async def seed_direction(
                     )
                 )
                 if not existing_cs.scalar_one_or_none():
-                    session.add(CompetencySkill(competency_id=comp.id, skill_id=skill_id, ksa_type="flat", source_text=skill_name, match_type="fuzzy", parse_version_id=pv.id))
+                    session.add(CompetencySkill(
+                        competency_id=comp.id, skill_id=skill_id, ksa_type="flat",
+                        source_text=skill_name, match_type="fuzzy", parse_version_id=pv.id,
+                    ))
                     cs_count += 1
 
     pv.total_competencies = comp_count

@@ -31,11 +31,8 @@ def get_load_mode(total_vacancies: int, args, log) -> tuple:
     if not args.use_async:
         return False, 0, "async_disabled_by_user"
     if total_vacancies > threshold:
-        msg = f"⚠️  Ожидается {total_vacancies} вакансий - переключение на синхронную загрузку"
-        print(f"  {msg}")
         log.warning("rate_limit_protection_activated", expected=total_vacancies, threshold=threshold)
         return False, 0, "sync_mode_large_volume"
-    print(f"  ✓ Асинхронная загрузка ({args.async_workers} воркеров)")
     log.info("async_mode_activated", workers=args.async_workers)
     return True, args.async_workers, "async_mode"
 
@@ -49,7 +46,6 @@ def _load_details_progress(current: int, total: int, phase: str):
 def load_vacancies_details(
     basic_vacancies: list, hh_api, use_async: bool, async_workers: int, parser, log
 ) -> Result[list, DomainError]:
-    print("  Загрузка детальной информации по вакансиям...")
     log.info("loading_vacancy_details_started")
     _load_details_progress(0, len(basic_vacancies), "старт")
 
@@ -82,11 +78,9 @@ def load_vacancies_details(
                         return Err(DomainError(message=f"Async loading failed: {e}", detail=str(e)))
             elapsed = time.time() - start
             _load_details_progress(len(detailed), len(vacancy_ids), "готово")
-            print(f"  ✓ Загружено {len(detailed)}/{len(vacancy_ids)} вакансий за {elapsed:.1f} сек")
             log.info("async_loading_completed", elapsed=round(elapsed, 1), loaded=len(detailed), total=len(vacancy_ids))
             return Ok(detailed)
         except Exception as e:
-            print(f"  ⚠️  Ошибка асинхронной загрузки: {e}")
             log.warning("async_loading_failed_fallback_to_sync", error=str(e))
 
     # Синхронная загрузка
@@ -116,7 +110,6 @@ def load_vacancies_details(
         time.sleep(config.REQUEST_DELAY)
     elapsed = time.time() - start
     _load_details_progress(len(detailed), total, "готово")
-    print(f"  ✓ Загружено {len(detailed)}/{total} вакансий за {elapsed / 60:.1f} мин")
     log.info("sync_loading_completed", elapsed=round(elapsed / 60, 1), loaded=len(detailed), total=total)
     return Ok(detailed)
 

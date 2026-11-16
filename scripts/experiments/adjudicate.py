@@ -61,7 +61,12 @@ def main() -> None:
     print(f"n: e1={len(e1)} e2={len(e2)} e3={len(e3)}")
     ids = sorted(set(e1) & set(e2) & set(e3))
     print(f"common ids: {len(ids)} (missing: {sorted(set(range(500)) - set(ids))})")
-    mism = [(i,) for i in ids if (e1[i][0], e1[i][1]) != (e2[i][0], e2[i][1]) or (e1[i][0], e1[i][1]) != (e3[i][0], e3[i][1])]
+    mism = [
+        (i,)
+        for i in ids
+        if (e1[i][0], e1[i][1]) != (e2[i][0], e2[i][1])
+        or (e1[i][0], e1[i][1]) != (e3[i][0], e3[i][1])
+    ]
     print(f"key mismatches: {len(mism)}", mism[:5])
     if len(ids) < 500 or mism:
         print("ALIGNMENT PROBLEM - stop"); sys.exit(1)
@@ -78,10 +83,18 @@ def main() -> None:
     g = [[e[i][2] for i in ids] for e in E]
     print(f"cohen e1-e2={cohen(g[0], g[1]):.3f} e1-e3={cohen(g[0], g[2]):.3f} e2-e3={cohen(g[1], g[2]):.3f}")
     bg = [[1 if x >= 1 else 0 for x in gg] for gg in g]
-    print(f"cohen-binary e1-e2={cohen(bg[0], bg[1]):.3f} e1-e3={cohen(bg[0], bg[2]):.3f} e2-e3={cohen(bg[1], bg[2]):.3f}")
+    print(
+        f"cohen-binary e1-e2={cohen(bg[0], bg[1]):.3f} "
+        f"e1-e3={cohen(bg[0], bg[2]):.3f} e2-e3={cohen(bg[1], bg[2]):.3f}"
+    )
 
     # --- expert-3 focus ---
-    e3_alone = [i for i in ids if g[2][ids.index(i)] not in (g[0][ids.index(i)], g[1][ids.index(i)]) and g[0][ids.index(i)] == g[1][ids.index(i)]]
+    e3_alone = [
+        i
+        for i in ids
+        if g[2][ids.index(i)] not in (g[0][ids.index(i)], g[1][ids.index(i)])
+        and g[0][ids.index(i)] == g[1][ids.index(i)]
+    ]
     print(f"e3-alone-vs-unanimous-pair: {len(e3_alone)}")
     o2 = [i for i in ids if set([e1[i][2], e2[i][2], e3[i][2]]) == {0, 1, 2}]
     print(f"all-differ 0/1/2: {len(o2)}")
