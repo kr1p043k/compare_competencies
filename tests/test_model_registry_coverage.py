@@ -125,7 +125,7 @@ def test_prune_tolerates_already_deleted_file(tmp_path: Path):
 
 
 def test_register_helpers_return_err_when_artifact_absent(tmp_path, monkeypatch):
-    import src.config as config
+    from src import config
 
     monkeypatch.setattr(config, "MODELS_DIR", tmp_path / "models", raising=False)
     monkeypatch.setattr(config, "EMBEDDINGS_CACHE_DIR", tmp_path / "emb", raising=False)
@@ -138,7 +138,7 @@ def test_register_helpers_return_err_when_artifact_absent(tmp_path, monkeypatch)
 
 
 def test_register_embeddings_ok(tmp_path, monkeypatch):
-    import src.config as config
+    from src import config
 
     cache = tmp_path / "emb"
     cache.mkdir()
@@ -152,7 +152,7 @@ def test_register_embeddings_ok(tmp_path, monkeypatch):
 
 
 def test_register_clusters_ok(tmp_path, monkeypatch):
-    import src.config as config
+    from src import config
 
     cache = tmp_path / "cl"
     cache.mkdir()

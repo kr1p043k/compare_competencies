@@ -63,7 +63,6 @@ class FakePool:
 def reset_limiter():
     with contextlib.suppress(Exception):
         t.limiter._storage.reset()
-    yield
 
 
 def _client(monkeypatch, pool: FakePool) -> TestClient:

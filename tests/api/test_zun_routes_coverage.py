@@ -84,7 +84,6 @@ class FakePool:
 
     async def executemany(self, sql, rows):
         self.exec_log.append(sql)
-        return None
 
     def acquire(self):
         pool = self

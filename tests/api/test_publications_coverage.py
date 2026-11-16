@@ -27,7 +27,7 @@ def _clean_jobs():
 
 async def _noop_scan(job_id, query, type_id, creator_id, max_pages):
     """Фоновый скан не ходит в сеть и не меняет статус задания."""
-    return None
+    return
 
 
 def _client(monkeypatch, *, role="teacher") -> TestClient:

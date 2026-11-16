@@ -109,7 +109,6 @@ KRM_DATA = {
 def reset_limiter():
     with contextlib.suppress(Exception):
         krm_student_mod.limiter._storage.reset()
-    yield
 
 
 # Ключ своего профиля студента s@example.com: self_s_example_com.

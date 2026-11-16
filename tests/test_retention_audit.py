@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import src.cli.retention as retention
+from src.cli import retention
 
 
 class _UndefinedTableError(Exception):

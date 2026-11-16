@@ -18,7 +18,7 @@ import {
   type DiscFilter,
   type DiscSort,
 } from "./teacherFilters";
-import { reportError } from "./../../lib/errors";
+import { errMessage, reportError } from "./../../lib/errors";
 import { ApiError, request } from "../../lib/api";
 
 function plural(n: number, one: string, few: string, many: string): string {
@@ -171,8 +171,8 @@ export function TeacherDashboard() {
       });
       setDisciplines((prev) => prev.map((d) => ({ ...d, in_scope: included, scope_source: "custom" })));
       setScopeMsg("Scope обновлён для всех. Перезапустите teacher-анализ, чтобы средние пересчитались.");
-    } catch (e: any) {
-      setScopeMsg("Ошибка scope: " + (e.message || "неизвестная ошибка"));
+    } catch (e) {
+      setScopeMsg("Ошибка scope: " + (errMessage(e) || "неизвестная ошибка"));
     } finally {
       setScopeSaving(null);
     }
@@ -188,8 +188,8 @@ export function TeacherDashboard() {
       setDisciplines((prev) => prev.map((d) =>
         d.name === name ? { ...d, in_scope: included, scope_source: "custom" } : d));
       setScopeMsg("Scope обновлён. Перезапустите teacher-анализ, чтобы средние пересчитались.");
-    } catch (e: any) {
-      let msg = e.message || "неизвестная ошибка";
+    } catch (e) {
+      let msg = errMessage(e) || "неизвестная ошибка";
       try { const j = JSON.parse(msg); msg = j.detail || msg; } catch (err) { reportError("app/components/TeacherDashboard.tsx:145", err); }
       setScopeMsg("Ошибка scope: " + msg);
     } finally {
@@ -278,8 +278,8 @@ export function TeacherDashboard() {
       });
       setCompForm(false); setCompCode(""); setCompName(""); setCompErr({});
       await loadDiscipline(selected.name);
-    } catch (e: any) {
-      let msg = e.message || "неизвестная ошибка";
+    } catch (e) {
+      let msg = errMessage(e) || "неизвестная ошибка";
       try { const j = JSON.parse(msg); msg = j.detail || msg; } catch (err) { reportError("app/components/TeacherDashboard.tsx:220", err); }
       if (/code|формат/i.test(msg)) setCompErr({ code: msg });
       else setCompErr({ msg });
@@ -442,8 +442,8 @@ export function TeacherDashboard() {
       setRpdRun({ run_id: data.run_id });
       setRpdMsg("Обработка запущена...");
       setRpdFile(null);
-    } catch (e: any) {
-      setRpdMsg("Ошибка: " + e.message);
+    } catch (e) {
+      setRpdMsg("Ошибка: " + errMessage(e));
       setRpdUploading(false);
     }
   }
@@ -487,8 +487,8 @@ export function TeacherDashboard() {
       try { sessionStorage.setItem("rpdRunId", data.run_id); } catch (err) { reportError("app/components/TeacherDashboard.tsx:417", err); }
       setRpdRun({ run_id: data.run_id });
       setRpdMsg("Сбор и обработка запущены...");
-    } catch (e: any) {
-      setRpdMsg("Ошибка: " + e.message);
+    } catch (e) {
+      setRpdMsg("Ошибка: " + errMessage(e));
       setRpdCollecting(false);
     }
   }
@@ -505,8 +505,8 @@ export function TeacherDashboard() {
       setZunForm(null);
       setZunMsg("ЗУН добавлен. Учтётся при следующем пересчёте анализа.");
       await loadDiscipline(selected.name);
-    } catch (e: any) {
-      setZunMsg("Ошибка: " + (e.message || "не удалось сохранить"));
+    } catch (e) {
+      setZunMsg("Ошибка: " + (errMessage(e) || "не удалось сохранить"));
     } finally {
       setZunSaving(false);
     }
@@ -524,8 +524,8 @@ export function TeacherDashboard() {
       setKsaEditing(null);
       setZunMsg("Пункт обновлён. Учтётся при следующем пересчёте анализа.");
       await loadDiscipline(selected.name);
-    } catch (e: any) {
-      setZunMsg("Ошибка: " + (e.message || "не удалось сохранить"));
+    } catch (e) {
+      setZunMsg("Ошибка: " + (errMessage(e) || "не удалось сохранить"));
     } finally {
       setZunSaving(false);
     }
@@ -540,8 +540,8 @@ export function TeacherDashboard() {
       await api(`/teacher/zun/entries/${id}`, { method: "DELETE" });
       setZunMsg("Пункт удалён. Учтётся при следующем пересчёте анализа.");
       await loadDiscipline(selected.name);
-    } catch (e: any) {
-      setZunMsg("Ошибка: " + (e.message || "не удалось удалить"));
+    } catch (e) {
+      setZunMsg("Ошибка: " + (errMessage(e) || "не удалось удалить"));
     } finally {
       setZunSaving(false);
     }
@@ -555,8 +555,8 @@ export function TeacherDashboard() {
       const data = await api<Recommendation[]>("/teacher/krm/recommendations");
       setRecs(data);
       setSeedMsg(`Добавлено ${r.seeded} авторекомендаций (ручные не тронуты).`);
-    } catch (e: any) {
-      setSeedMsg("Ошибка: " + (e.message || "не удалось заполнить"));
+    } catch (e) {
+      setSeedMsg("Ошибка: " + (errMessage(e) || "не удалось заполнить"));
     } finally {
       setSeedLoading(false);
     }
@@ -797,8 +797,8 @@ export function TeacherDashboard() {
                   setRunMsg(`Этап: пересчёт анализа (60 дисциплин)… ${spent} c`);
                   if (i === 359) setRunMsg("Превышено ожидание - проверьте результат позже");
                 }
-              } catch (e: any) {
-                setRunMsg(`Ошибка запуска: ${e?.message || e}`);
+              } catch (e) {
+                setRunMsg(`Ошибка запуска: ${errMessage(e) || String(e)}`);
               } finally {
                 setRunLoading(false);
               }

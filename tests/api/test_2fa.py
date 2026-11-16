@@ -69,7 +69,7 @@ async def _make_admin(pool: asyncpg.Pool) -> None:
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
     import src.db as dbmod
 
@@ -84,7 +84,7 @@ async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
     # Флаг 2FA - одна глобальная строка в app_settings общей БД. Параллельные
     # воркеры переключали бы её друг у друга (roundtrip падал на чужом False).
     # Даём этому процессу собственный ключ: поведение то же, гонки нет.
-    import src.api_pkg.security_settings as security_settings
+    from src.api_pkg import security_settings
 
     monkeypatch.setattr(
         security_settings, "TWO_FACTOR_KEY", f"security.two_factor.{os.getpid()}"

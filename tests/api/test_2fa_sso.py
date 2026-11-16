@@ -87,7 +87,7 @@ class _FakeAsyncClient:
         return _FakeResponse()
 
 
-@pytest.fixture()
+@pytest.fixture
 def fake_sso(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(academic_mod.httpx, "AsyncClient", _FakeAsyncClient)
 
@@ -109,7 +109,7 @@ async def _make_user(pool: asyncpg.Pool, role: str = "admin") -> None:
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 async def env() -> AsyncIterator[dict[str, Any]]:
     import src.db as dbmod
 

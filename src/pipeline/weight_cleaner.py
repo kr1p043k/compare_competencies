@@ -24,7 +24,7 @@ class WeightCleaner:
                 hybrid_weights_raw, competency_freq=competency_freq, use_reference=True
             ):
                 case Ok(hybrid_weights):
-                    print(f"  📊 После фильтрации: {len(hybrid_weights)} навыков")
+                    logger.info("weights_filtered", skills=len(hybrid_weights))
                     return Ok(hybrid_weights)
                 case Err(e):
                     return Err(WeightCleanError(message=f"Ошибка очистки весов: {e}"))

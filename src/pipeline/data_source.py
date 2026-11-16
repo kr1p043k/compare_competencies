@@ -311,7 +311,7 @@ class HhDataSource(DataSourceProtocol):
 
     @staticmethod
     def _console_info(msg):
-        print(f"  {msg}")
+        logger.info("data_source_console", message=msg)
 
 
 

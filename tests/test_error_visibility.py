@@ -40,7 +40,6 @@ class SpyLogger:
 
         def record(event=None, *args, **kwargs):
             self.calls.append((name, event, kwargs))
-            return None
 
         return record
 

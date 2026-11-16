@@ -14,6 +14,8 @@ if __name__ == "__main__" and sys.platform == "win32":
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+import contextlib
+
 from src import Err, Ok, Result, config
 from src.logging_config import setup_structlog
 from src.pipeline.runner import (
@@ -22,7 +24,6 @@ from src.pipeline.runner import (
     run_train_model,
 )
 from src.pipeline.teacher_analysis_runner import run_teacher_analysis
-import contextlib
 
 
 def parse_arguments():

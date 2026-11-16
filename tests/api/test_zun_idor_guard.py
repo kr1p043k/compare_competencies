@@ -50,7 +50,7 @@ class Pool:
         return self.dir_code
 
 
-@pytest.fixture()
+@pytest.fixture
 def as_user(monkeypatch):
     """Подменяет слой аутентификации, повторяя семантику продакшена."""
 

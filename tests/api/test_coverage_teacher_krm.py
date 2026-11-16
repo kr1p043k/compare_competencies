@@ -122,7 +122,6 @@ class _AnalysisRow:
 def _reset_limiter():
     with contextlib.suppress(Exception):
         teacher_mod.limiter._storage.reset()
-    yield
 
 
 def _client(monkeypatch, role="teacher", *, pool=None, session=None):

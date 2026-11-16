@@ -39,6 +39,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import psycopg
+
 try:  # запуск как файла
     from _dsn import resolve_dsn
 except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
@@ -431,42 +432,41 @@ def main() -> int:
     }
 
     # DB в одной транзакции.
-    with psycopg.connect(args.dsn, connect_timeout=15) as conn:
-        with conn.transaction():
-            for entry in plan["db"]:
-                if entry["action"] == PLAN_MERGE and entry["target_id"]:
-                    op = db_merge(conn, entry["junk_id"], entry["target_id"],
-                                  entry["junk_name"], entry["inner"])
-                    report["db_operations"].append(op)
-                    print(
-                        f"DB  merge  {entry['junk_name']!r} -> {entry['inner']!r}  "
-                        f"(перенесено компетенций: {len(op['moved_competencies'])})"
-                    )
-                    for mc in op["moved_competencies"]:
-                        if mc["reassigned"]:
-                            print(f"     компетенция {mc['code']!r} перенесена целиком (смена discipline_id)")
-                        else:
-                            print(
-                                f"     компетенция {mc['code']!r}: "
-                                f"{mc['moved_competency_skills']} competency_skills, "
-                                f"{mc['moved_ksa_entries']} ksa перепривязаны"
-                            )
-                    if op["cascade_deleted_coverage_analyses"]:
-                        print(f"     каскадно удалено coverage_analyses: {op['cascade_deleted_coverage_analyses']}")
-                    print(f"     удалена дисциплина {entry['junk_id']} {entry['junk_name']!r}")
-                elif entry["action"] == PLAN_RENAME:
-                    db_rename(conn, entry["junk_id"], entry["inner"])
-                    report["db_operations"].append(
-                        {
-                            "store": "db",
-                            "action": PLAN_RENAME,
-                            "renamed": {"discipline_id": entry["junk_id"],
-                                        "from": entry["junk_name"], "to": entry["inner"]},
-                        }
-                    )
-                    print(f"DB  rename {entry['junk_name']!r} -> {entry['inner']!r}")
-                else:
-                    print(f"DB  skip   {entry['junk_name']!r} (столкновение/нет цели)")
+    with psycopg.connect(args.dsn, connect_timeout=15) as conn, conn.transaction():
+        for entry in plan["db"]:
+            if entry["action"] == PLAN_MERGE and entry["target_id"]:
+                op = db_merge(conn, entry["junk_id"], entry["target_id"],
+                              entry["junk_name"], entry["inner"])
+                report["db_operations"].append(op)
+                print(
+                    f"DB  merge  {entry['junk_name']!r} -> {entry['inner']!r}  "
+                    f"(перенесено компетенций: {len(op['moved_competencies'])})"
+                )
+                for mc in op["moved_competencies"]:
+                    if mc["reassigned"]:
+                        print(f"     компетенция {mc['code']!r} перенесена целиком (смена discipline_id)")
+                    else:
+                        print(
+                            f"     компетенция {mc['code']!r}: "
+                            f"{mc['moved_competency_skills']} competency_skills, "
+                            f"{mc['moved_ksa_entries']} ksa перепривязаны"
+                        )
+                if op["cascade_deleted_coverage_analyses"]:
+                    print(f"     каскадно удалено coverage_analyses: {op['cascade_deleted_coverage_analyses']}")
+                print(f"     удалена дисциплина {entry['junk_id']} {entry['junk_name']!r}")
+            elif entry["action"] == PLAN_RENAME:
+                db_rename(conn, entry["junk_id"], entry["inner"])
+                report["db_operations"].append(
+                    {
+                        "store": "db",
+                        "action": PLAN_RENAME,
+                        "renamed": {"discipline_id": entry["junk_id"],
+                                    "from": entry["junk_name"], "to": entry["inner"]},
+                    }
+                )
+                print(f"DB  rename {entry['junk_name']!r} -> {entry['inner']!r}")
+            else:
+                print(f"DB  skip   {entry['junk_name']!r} (столкновение/нет цели)")
 
     # KRM после DB.
     for entry in plan["krm"]:

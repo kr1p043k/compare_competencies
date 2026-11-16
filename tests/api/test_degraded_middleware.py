@@ -6,8 +6,8 @@
 
 from __future__ import annotations
 
-import src.api_pkg.deps as deps
-import src.db as db
+from src.api_pkg import deps
+from src import db
 from src.monitoring.degraded import degraded_reasons, degraded_state
 
 

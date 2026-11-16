@@ -31,7 +31,7 @@ def _request() -> Request:
     return Request(scope)
 
 
-@pytest.fixture()
+@pytest.fixture
 def as_user(monkeypatch):
     def _set(user, dirs=(OWN_DIR,)):
         async def fake_current(_request):

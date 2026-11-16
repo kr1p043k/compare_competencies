@@ -26,7 +26,7 @@ from src import Err, Ok
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def tmp_sched(tmp_path, monkeypatch):
     """Изолированные настройки планировщика + чистые глобальные кэши."""
     monkeypatch.setattr(sched.config, "DATA_DIR", tmp_path)

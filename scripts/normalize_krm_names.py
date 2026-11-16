@@ -71,9 +71,8 @@ def _outside_groups(s: str) -> str:
             depth += 1
         elif ch == ")":
             depth -= 1
-        else:
-            if depth == 0:
-                buf.append(ch)
+        elif depth == 0:
+            buf.append(ch)
     parts.append("".join(buf))
     return " ".join(p for p in parts if p.strip())
 

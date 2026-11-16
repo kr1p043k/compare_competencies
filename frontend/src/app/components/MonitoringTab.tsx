@@ -6,7 +6,7 @@ import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { BarChart3, Activity, TrendingUp, AlertCircle, RefreshCw, Server, Cpu, Bell, Newspaper, Trash2, Plus, CheckCheck, ExternalLink, Mail } from "lucide-react";
 import { request } from "../../lib/api";
-import { reportError } from "./../../lib/errors";
+import { errMessage, reportError } from "./../../lib/errors";
 import { PageHeader } from "./PageHeader";
 import { Skeleton } from "../../design";
 
@@ -93,8 +93,8 @@ function MonitoringTabBase() {
       const data = await request<Record<string, MetricFamily>>("/api/admin/monitoring");
       setMetrics(data);
       setError(null);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(errMessage(e) ?? null);
     } finally {
       setLoading(false);
     }
@@ -112,8 +112,8 @@ function MonitoringTabBase() {
     try {
       const data = await request<{ subscriptions?: Subscription[] }>("/api/subscriptions");
       setSubscriptions(data.subscriptions ?? []);
-    } catch (e: any) {
-      setSubError(e.message ?? "Ошибка сети");
+    } catch (e) {
+      setSubError(errMessage(e) ?? "Ошибка сети");
     } finally {
       setSubsLoading(false);
     }
@@ -126,8 +126,8 @@ function MonitoringTabBase() {
       const query = notifFilter === "unread" ? "/api/notifications?limit=50&unread_only=true" : "/api/notifications?limit=50";
       const data = await request<{ notifications?: NotificationItem[] }>(query);
       setNotifications(data.notifications ?? []);
-    } catch (e: any) {
-      setNotifError(e.message ?? "Ошибка сети");
+    } catch (e) {
+      setNotifError(errMessage(e) ?? "Ошибка сети");
     } finally {
       setNotifsLoading(false);
     }
@@ -190,8 +190,8 @@ function MonitoringTabBase() {
       setNewTopic("");
       setNewTelegramChatId("");
       await loadSubscriptions();
-    } catch (e: any) {
-      setCreateError(e.message ?? "Ошибка сети");
+    } catch (e) {
+      setCreateError(errMessage(e) ?? "Ошибка сети");
     } finally {
       setCreating(false);
     }
@@ -201,8 +201,8 @@ function MonitoringTabBase() {
     try {
       await request<void>(`/api/subscriptions/${id}`, { method: "DELETE" });
       setSubscriptions((prev) => prev.filter((s) => s.id !== id));
-    } catch (e: any) {
-      setSubError(e.message ?? "Ошибка сети");
+    } catch (e) {
+      setSubError(errMessage(e) ?? "Ошибка сети");
     }
   };
 

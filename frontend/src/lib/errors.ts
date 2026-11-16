@@ -27,6 +27,20 @@ function notify(message: string): void {
 }
 
 /**
+ * Сообщение из Error/объекта со строковым полем message, иначе undefined.
+ * Безопасная замена доступа `e.message` в обработчиках ошибок: вызывающий
+ * код сохраняет свои `|| fallback` / `?? fallback` без смены семантики.
+ */
+export function errMessage(error: unknown): string | undefined {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const m = (error as { message?: unknown }).message;
+    if (typeof m === "string") return m;
+  }
+  return undefined;
+}
+
+/**
  * Логирует ошибку с контекстом и уведомляет подписчиков.
  * Возвращает текст, пригодный для показа пользователю.
  */
