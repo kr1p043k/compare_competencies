@@ -9,7 +9,7 @@ from typing import Any
 
 import structlog
 
-import src.api_pkg.deps as deps
+from src.api_pkg import deps
 from src import Err, Ok, config
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.analyzers.skills.skill_filter import SkillFilter

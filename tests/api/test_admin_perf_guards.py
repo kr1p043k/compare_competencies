@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 
 import src.api_pkg.routers.admin as admin_mod
 import src.api_pkg.routers.auth as auth_mod
-import src.config as config
+from src import config
 import src.database as database_mod
 
 

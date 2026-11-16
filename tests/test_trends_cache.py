@@ -93,7 +93,6 @@ class _FakePool:
         self.execute_calls.append((sql, args))
         if self.execute_error:
             raise self.execute_error
-        return None
 
     async def fetchrow(self, sql, *args):
         self.fetchrow_calls.append((sql, args))

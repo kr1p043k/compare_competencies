@@ -50,7 +50,7 @@ async def _drop(pool: asyncpg.Pool) -> None:
     await pool.execute("DELETE FROM users WHERE lower(email) = $1", EMAIL)
 
 
-@pytest.fixture()
+@pytest.fixture
 async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
     import src.db as dbmod
 

@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-import src.ml.clusters as clusters
+from src.ml import clusters
 
 
 class _Ok:

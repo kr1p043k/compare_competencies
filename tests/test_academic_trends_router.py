@@ -57,7 +57,7 @@ class _FakeTrendsClient:
 state: dict = {"outcomes": [], "instances": []}
 
 
-@pytest.fixture()
+@pytest.fixture
 def trends(monkeypatch) -> SimpleNamespace:
     """TestClient с реальным create_app; sso-токен и клиент сервиса подменены."""
     state["outcomes"] = []

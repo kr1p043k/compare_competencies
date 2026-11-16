@@ -59,7 +59,6 @@ def _reset_limiter():
     for mod in (pl, student_mod):
         with contextlib.suppress(Exception):
             mod.limiter._storage.reset()
-    yield
 
 
 def _client(monkeypatch, role="teacher"):
@@ -259,4 +258,3 @@ def _restore_buffer():
 def _no_db_pool(monkeypatch):
     """История炫действий обязана выше без БД: пул подменён на None."""
     monkeypatch.setattr(actions_mod, "_get_pool", AsyncMock(return_value=None))
-    yield

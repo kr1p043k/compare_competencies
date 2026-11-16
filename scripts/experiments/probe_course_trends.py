@@ -26,6 +26,7 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.par
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from src.infrastructure.course_trends import CourseTrendsClient, CourseTrendsError
+
 try:  # запуск как файла
     from _dsn import resolve_dsn
 except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)

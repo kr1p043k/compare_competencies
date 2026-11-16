@@ -20,10 +20,10 @@ ADMIN = {"uid": "00000000-0000-0000-0000-000000000001", "u": "admin@t.local", "r
 TEACHER = {"uid": "00000000-0000-0000-0000-000000000002", "u": "teacher@t.local", "r": "teacher"}
 
 
-@pytest.fixture()
+@pytest.fixture
 def iso(tmp_path, monkeypatch):
     """Isolate every JSON store the mutations touch (never real data/)."""
-    import src.api_pkg.deps as deps
+    from src.api_pkg import deps
     import src.api_pkg.routers.admin as adm
     import src.cli.taxonomy_audit as ta
 
@@ -47,7 +47,7 @@ def iso(tmp_path, monkeypatch):
     deps.current_skills_set = saved_set
 
 
-@pytest.fixture()
+@pytest.fixture
 def actor():
     """Mock session-checked user; switch roles via actor.return_value."""
     m = AsyncMock(return_value=dict(ADMIN))

@@ -42,7 +42,7 @@ class _MetaPool:
         return self._row
 
 
-@pytest.fixture()
+@pytest.fixture
 def app_client():
     """(app, client): свежее приложение с открытыми гейтами.
 

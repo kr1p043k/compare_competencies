@@ -24,7 +24,6 @@ class VacancyError(DomainError):
 @dataclass(frozen=True)
 class VacancyNotFoundError(VacancyError):
     """Вакансия не найдена."""
-    pass
 
 
 @dataclass(frozen=True)
@@ -79,7 +78,6 @@ class ModelTrainingError(ModelError):
 @dataclass(frozen=True)
 class ScorerError(DomainError):
     """Ошибка скорера."""
-    pass
 
 
 @dataclass(frozen=True)
@@ -151,7 +149,6 @@ class NormalizerError(DomainError):
 @dataclass(frozen=True)
 class TeacherAnalysisError(DomainError):
     """Ошибка teacher analysis."""
-    pass
 
 
 @dataclass(frozen=True)

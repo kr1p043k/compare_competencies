@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-import src.api_pkg.routers.auth as auth
+from src.api_pkg.routers import auth
 from src import config
 from src.api_pkg import create_app
 
@@ -23,7 +23,7 @@ def _receive_until_close(ws):
 class TestAdminLogsWsRevalidation:
     @staticmethod
     def _client(monkeypatch, tmp_path, resolve, *, loop=0.05, recheck=0.0, lifetime=1e9):
-        import src.api_pkg.routers.admin as admin
+        from src.api_pkg.routers import admin
 
         monkeypatch.setattr(auth, "resolve_session", resolve)
         monkeypatch.setattr(admin, "_tail_backend_log", _noop_tail)
@@ -83,7 +83,7 @@ class TestAdminLogsWsRevalidation:
 class TestPipelineWsRevalidation:
     @staticmethod
     def _client(monkeypatch, resolve, *, recheck=0.0, lifetime=1e9):
-        import src.api_pkg.routers.pipeline as pipeline
+        from src.api_pkg.routers import pipeline
 
         monkeypatch.setattr(auth, "resolve_session", resolve)
         monkeypatch.setattr(pipeline, "_WS_SESSION_RECHECK_SEC", recheck)
@@ -123,7 +123,7 @@ class TestWsOriginAllowlist:
     """Origin-allowlist: чужие Origin отклоняются до accept кодом 4003."""
 
     def test_disallowed_origin_rejected_4003(self, monkeypatch):
-        import src.api_pkg.routers.auth as auth
+        from src.api_pkg.routers import auth
 
         async def _resolve(_token):
             return {"uid": "u1", "u": "a@b", "r": "admin", "t": None}
@@ -169,4 +169,4 @@ async def _noop_tail(websocket, stop):
     В суите asyncio.sleep замокан, и реальный _tail_backend_log превратился бы в
     занятый цикл без точек уступки event loop - завешивая тест.
     """
-    return None
+    return

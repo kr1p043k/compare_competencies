@@ -114,7 +114,6 @@ def _notif(**kw) -> SimpleNamespace:
 def reset_limiter():
     with contextlib.suppress(Exception):
         subs_mod.limiter._storage.reset()
-    yield
 
 
 def _make_client(monkeypatch, *, session=None, user=USER) -> TestClient:

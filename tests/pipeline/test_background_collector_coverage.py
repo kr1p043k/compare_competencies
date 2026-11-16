@@ -13,7 +13,7 @@ import pytest
 import src.pipeline.background_collector as sched
 
 
-@pytest.fixture()
+@pytest.fixture
 def tmp_data(tmp_path, monkeypatch):
     monkeypatch.setattr(sched.config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(sched.config.settings, "BACKGROUND_COLLECTOR_ENABLED", False)

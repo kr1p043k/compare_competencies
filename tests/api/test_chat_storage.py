@@ -253,7 +253,7 @@ def _engine(_chat_env) -> Iterator[Any]:
     engine.dispose()
 
 
-@pytest.fixture()
+@pytest.fixture
 def sess(_chat_env, _engine) -> Iterator[Session]:
     """Per-test ORM session inside a savepoint of an outer transaction.
 

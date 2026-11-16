@@ -105,7 +105,7 @@ def live():
     client.portal = None  # type: ignore[attr-defined]
 
 
-@pytest.fixture()
+@pytest.fixture
 def auth(live):
     s, t = live["student_login"], live["teacher_login"]
     assert s.status_code == 200, s.text

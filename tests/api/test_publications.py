@@ -103,7 +103,6 @@ def _item(item_id: int, title: str) -> dict:
 def reset_limiter():
     with contextlib.suppress(Exception):
         publications_router.limiter._storage.reset()
-    yield
 
 
 def test_normalize_publication_flattens_payload():

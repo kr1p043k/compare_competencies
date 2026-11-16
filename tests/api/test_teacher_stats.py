@@ -58,7 +58,6 @@ def _reset_limiter():
     """Shared module-level limiter: keep this file self-contained (tests/api convention)."""
     with contextlib.suppress(Exception):
         teacher_mod.limiter._storage.reset()
-    yield
 
 
 def _client(monkeypatch, pool):
