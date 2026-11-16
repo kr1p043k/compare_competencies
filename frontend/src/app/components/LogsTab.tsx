@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { FileText, RefreshCw, AlertCircle, Search, Radio } from "lucide-react";
 import { request } from "../../lib/api";
+import { errMessage } from "../../lib/errors";
 import {
   Badge,
   Button,
@@ -51,8 +52,8 @@ function LogsTabBase() {
       const q = level === "all" ? "?lines=400" : `?lines=400&level=${level}`;
       const data = await request<{ lines?: string[] }>(`/api/admin/logs/file${q}`);
       setLines(data.lines ?? []);
-    } catch (e: any) {
-      setError(e.message ?? "Ошибка сети");
+    } catch (e) {
+      setError(errMessage(e) ?? "Ошибка сети");
     } finally {
       setLoading(false);
     }
