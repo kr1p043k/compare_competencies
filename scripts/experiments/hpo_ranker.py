@@ -13,12 +13,12 @@ import numpy as np
 sys.modules.setdefault("shap", MagicMock())
 sys.modules.setdefault("cv2", MagicMock())
 
-from unittest.mock import patch  # noqa: E402
+from unittest.mock import patch
 
-from scripts.train_ltr_ranker import load_vacancies, read_gold  # noqa: E402
-from src import Ok  # noqa: E402
-from src.parsing.api.embedding_loader import get_embedding_model  # noqa: E402
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
+from scripts.train_ltr_ranker import load_vacancies, read_gold
+from src import Ok
+from src.parsing.api.embedding_loader import get_embedding_model
+from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 
 ROOT = Path(__file__).resolve().parents[1]
 GRID = [

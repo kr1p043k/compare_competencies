@@ -19,9 +19,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from src import config
-from src.api_pkg.bg_tasks import spawn
 from src.models.krm_models import RequestLog
 from src.monitoring.metrics import api_latency, api_requests_total
+from src.utils import keep_task_ref
 
 logger = structlog.get_logger(__name__)
 
@@ -447,15 +447,15 @@ async def _persist_audit_log(request: Request, action: str, target: str, email: 
     except Exception as exc:
         if not _is_missing_audit_table(exc):
             # Security-события не должны теряться тихо: ERROR, а не WARNING.
-            logger.error("audit_db_write_failed", action=action, error=str(exc))
+            logger.exception("audit_db_write_failed", action=action)
             return
         # Таблицы нет: создаём и пробуем ещё раз (страховка к миграции).
         try:
             await _ensure_audit_table(pool)
             await _insert()
-        except Exception as exc2:
+        except Exception:
             _audit_table_missing = True
-            logger.error("audit_db_table_missing", action=action, error=str(exc2))
+            logger.exception("audit_db_table_missing", action=action)
 
 
 def _split_target(target: str) -> tuple[str | None, str | None]:
@@ -567,7 +567,7 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             source="backend",
         ))
         if len(_log_buffer) >= FLUSH_BATCH:
-            spawn(_flush_to_db())
+            keep_task_ref(asyncio.ensure_future(_flush_to_db()))
         if response.status_code >= 500 and not getattr(request.state, "system_error_notified", False):
             request.state.system_error_notified = True
             from src.notifications.system import queue_system_error
@@ -584,7 +584,7 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             )
         elif response.status_code < 500:
             from src.notifications.system import maybe_resolve_api_errors
-            spawn(maybe_resolve_api_errors(request.method, request.url.path))
+            keep_task_ref(asyncio.ensure_future(maybe_resolve_api_errors(request.method, request.url.path)))
         return response
 
 

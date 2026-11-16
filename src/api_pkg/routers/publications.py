@@ -244,7 +244,7 @@ async def _run_deep_search(
             job.error = _FORBIDDEN_MSG
             job.updated_at = _now()
         return
-    except Exception:  # noqa: BLE001 - фоновая задача не должна умирать молча
+    except Exception:
         logger.exception("deep_search_job_failed", job_id=job_id)
         job = _jobs.get(job_id)
         if job is not None and job.status == "running":

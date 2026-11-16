@@ -5,7 +5,7 @@ import asyncio
 import json
 import uuid
 import weakref
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import asyncpg
@@ -347,9 +347,9 @@ async def export_history_trends_to_db() -> int:
             d = extract_date_from_filename(f)
             if d is None and meta.get("snapshot_date"):
                 try:
-                    d = datetime.strptime(str(meta["snapshot_date"]), "%Y-%m-%d")
+                    d = datetime.strptime(str(meta["snapshot_date"]), "%Y-%m-%d").replace(tzinfo=UTC)
                 except ValueError:
-                    d = datetime.strptime(str(meta["snapshot_date"]), "%Y-%m")
+                    d = datetime.strptime(str(meta["snapshot_date"]), "%Y-%m").replace(tzinfo=UTC)
             if d is None:
                 logger.warning("trend_import_skipped_unparsable_date", file=f.name)
                 continue

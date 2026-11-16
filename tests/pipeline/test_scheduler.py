@@ -2,10 +2,10 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import pytest  # noqa: E402
+import pytest
 
-import src.pipeline.background_collector as sched  # noqa: E402
-from src.pipeline.background_collector import (  # noqa: E402
+import src.pipeline.background_collector as sched
+from src.pipeline.background_collector import (
     is_collect_due,
     is_gap_due,
     is_gap_overdue,

@@ -6,8 +6,6 @@ branches' own migrations already carry their schema changes.
 """
 from collections.abc import Sequence
 
-from alembic import op  # noqa: F401  (kept for alembic convention)
-
 revision: str = "merge_for_nikita_main"
 down_revision: str | Sequence[str] | None = (
     "fix_pipeline_cancelled",

@@ -47,10 +47,10 @@ class SafeStreamHandler(logging.StreamHandler):
             super().emit(record)
         except RecursionError:
             raise
-        except Exception:  # noqa: BLE001 — защитный слой логирования
+        except Exception:
             pass
 
-    def handleError(self, record):  # noqa: N802 — имя задано API logging.Handler
+    def handleError(self, record):
         # Никогда не печатаем в stderr: он и есть источник проблемы с кодировкой.
         pass
 

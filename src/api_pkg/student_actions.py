@@ -3,7 +3,7 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
-from src.api_pkg.bg_tasks import spawn
+from src.utils import keep_task_ref
 
 MAX_ACTIONS = 500
 
@@ -56,7 +56,7 @@ def _schedule_flush() -> None:
         asyncio.get_running_loop()
     except RuntimeError:
         return
-    spawn(_flush_buffer())
+    keep_task_ref(asyncio.ensure_future(_flush_buffer()))
 
 
 async def _flush_buffer():

@@ -9,11 +9,14 @@ primitives, so no database and no live model are touched:
   (d) LLM_ASSESS_ENABLED=False -> deterministic text block, LLM never called
   (e) history endpoints return thread messages (mocked DB primitive)
   (f) get_thread_history assembles messages from a fake session
+  (g) rate limiting + auth gates for chat.py and llm.py (backlog #3.4):
+      burst past the slowapi limit -> 429, unauthenticated -> 401
 """
 
 from __future__ import annotations
 
-from datetime import datetime
+import contextlib
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from fastapi import FastAPI
@@ -357,7 +360,7 @@ def _msg_stub(role, seq, text):
         role=role,
         seq=seq,
         blocks_json={"text": text},
-        created_at=datetime(2024, 1, 1, 12, 0, seq),
+        created_at=datetime(2024, 1, 1, 12, 0, seq, tzinfo=UTC),
     )
 
 
@@ -372,7 +375,7 @@ async def test_get_thread_history_assembles_messages():
     assert out["thread_id"] == "thread-9"
     assert [m["role"] for m in out["messages"]] == ["user", "assistant"]
     assert out["messages"][0]["blocks"] == {"text": "hi"}
-    assert out["messages"][0]["ts"] == "2024-01-01T12:00:01"
+    assert out["messages"][0]["ts"] == "2024-01-01T12:00:01+00:00"
     # Второй запрос обязан быть ORDER BY seq DESC + LIMIT.
     assert session.messages_sql is not None
     assert "ORDER BY" in session.messages_sql
@@ -406,3 +409,107 @@ async def test_get_thread_history_limit_cuts_old_and_orders_by_seq():
 
     assert out["thread_id"] == "thread-9"
     assert [m["blocks"]["text"] for m in out["messages"]] == ["m3", "m4", "m5"]
+
+
+# ── (g) rate limit + auth на LLM-эндпоинтах (backlog #3.4) ───────────────────
+#
+# Медленный и дорогой ресурс (LLM) обязан быть под slowapi и под гейтом:
+# burst выше лимита -> 429, анонимный вызов -> 401. Чистое приложение без
+# lifespan и без БД (паттерн tests/api/test_subscriptions.py): лимитер
+# общий (src.api_pkg.rate_limit), ключ без middleware аудита - ip:testclient.
+
+from unittest.mock import MagicMock  # noqa: E402
+
+from src.api_pkg.routers import llm as llm_mod  # noqa: E402
+
+
+def _reset_limiter():
+    with contextlib.suppress(Exception):
+        chat_mod.limiter._storage.reset()
+
+
+def _make_chat_app() -> FastAPI:
+    app = FastAPI()
+    app.state.limiter = chat_mod.limiter
+    app.include_router(chat_mod.router, prefix="/api")
+    return app
+
+
+def _make_llm_app() -> FastAPI:
+    app = FastAPI()
+    app.state.limiter = llm_mod.limiter
+    app.include_router(llm_mod.router, prefix="/api")
+    return app
+
+
+def test_teacher_stream_burst_gets_429(monkeypatch):
+    """11-й запрос stream за минуту -> 429 (лимит 10/minute)."""
+    monkeypatch.setattr(auth_mod, "get_current_user", _make_user("teacher", uid="u-t"))
+    monkeypatch.setattr(llm_chat, "get_or_create_thread", _fake_get_or_create_thread)
+    monkeypatch.setattr(llm_chat, "append_turn", _fake_append_turn)
+    monkeypatch.setattr(llm_chat, "get_thread_history", _fake_get_thread_history)
+    monkeypatch.setattr(llm_chat, "assess", _fake_assess)
+    _reset_limiter()
+
+    client = TestClient(_make_chat_app(), raise_server_exceptions=False)
+    for _ in range(10):
+        resp = client.get(
+            "/api/teacher/chat/stream",
+            params={"discipline": "09.03.02", "message": "hi"},
+        )
+        assert resp.status_code == 200, resp.text
+    blocked = client.get(
+        "/api/teacher/chat/stream",
+        params={"discipline": "09.03.02", "message": "hi"},
+    )
+    assert blocked.status_code == 429, blocked.text
+
+
+def test_student_history_burst_gets_429(monkeypatch):
+    """31-й запрос истории за минуту -> 429 (лимит 30/minute)."""
+    monkeypatch.setattr(auth_mod, "get_current_user", _make_user("student", uid="u-s"))
+    monkeypatch.setattr(llm_chat, "get_thread_history", _fake_get_thread_history)
+    _reset_limiter()
+
+    client = TestClient(_make_chat_app(), raise_server_exceptions=False)
+    for _ in range(30):
+        assert client.get("/api/student/chat/history").status_code == 200
+    assert client.get("/api/student/chat/history").status_code == 429
+
+
+def test_chat_stream_requires_auth():
+    """Без токена get_current_user -> None -> гейт отдаёт 401 (без обращения к БД:
+    пустой заголовок не доходит до resolve_session)."""
+    _reset_limiter()
+    client = TestClient(_make_chat_app(), raise_server_exceptions=False)
+    resp = client.get(
+        "/api/teacher/chat/stream",
+        params={"discipline": "09.03.02", "message": "hi"},
+    )
+    assert resp.status_code == 401, resp.text
+
+
+def test_llm_chat_post_burst_gets_429(monkeypatch):
+    """11-й POST /llm/chat за минуту -> 429 (лимит 10/minute уже стоит, llm.py:31)."""
+    monkeypatch.setattr(auth_mod, "get_current_user", _make_user("teacher", uid="u-t"))
+    fake_client = MagicMock()
+    fake_client.generate.return_value = "ok"
+    fake_client.model = "stub-model"
+    monkeypatch.setattr(llm_mod, "LLMClient", MagicMock(return_value=fake_client))
+    _reset_limiter()
+
+    client = TestClient(_make_llm_app(), raise_server_exceptions=False)
+    for _ in range(10):
+        resp = client.post("/api/llm/chat", json={"message": "hi"})
+        assert resp.status_code == 200, resp.text
+    blocked = client.post("/api/llm/chat", json={"message": "hi"})
+    assert blocked.status_code == 429, blocked.text
+
+
+def test_llm_chat_post_requires_auth():
+    """Анонимный POST /llm/chat -> 401 через dependencies=[Depends(require_any_role)]
+    (llm.py:29), до входа в тело хэндлера (лимитер не тратится)."""
+    _reset_limiter()
+    client = TestClient(_make_llm_app(), raise_server_exceptions=False)
+    resp = client.post("/api/llm/chat", json={"message": "hi"})
+    assert resp.status_code == 401, resp.text

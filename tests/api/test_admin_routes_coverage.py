@@ -122,7 +122,7 @@ def _admin_client(monkeypatch, tmp_path, *, users=None, directions=None, user_by
     monkeypatch.setattr(request_logger_mod, "audit_action", AsyncMock(return_value={}))
     monkeypatch.setattr(request_logger_mod, "actor_from_request", _fake_actor)
     monkeypatch.setattr(request_logger_mod, "get_logs_merged", _fake_logs_merged)
-    monkeypatch.setattr(request_logger_mod, "get_logs_by_user", lambda: {})
+    monkeypatch.setattr(request_logger_mod, "get_logs_by_user", dict)
     monkeypatch.setattr(student_actions_mod, "get_actions", _fake_actions)
     monkeypatch.setattr(db_mod, "get_pool", lambda: None)
     monkeypatch.setattr(metrics_mod, "get_metrics", lambda: (b"", "text/plain"))

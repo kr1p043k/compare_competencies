@@ -50,13 +50,13 @@ class SkillEmbeddingCache:
                         if skill in data["embeddings"]:
                             cached[skill] = np.array(data["embeddings"][skill])
                     if cached:
-                        logger.info("skill_embedding_cache_hit", cached=len(cached))
+                        logger.info("Загружено из кэша", count=len(cached))
             except Exception as e:
-                logger.warning("skill_embedding_cache_read_error", error=str(e))
+                logger.warning("Ошибка загрузки кэша", error=str(e))
 
         missing = [s for s in skills if s not in cached]
         if missing:
-            logger.info("skill_embedding_compute", missing=len(missing))
+            logger.info("Вычисление эмбеддингов", missing=len(missing))
             # torch импортируется лениво: на старте API он не нужен (~2 с импорта),
             # а uvicorn принимает соединения только после загрузки приложения.
             import torch
@@ -71,5 +71,5 @@ class SkillEmbeddingCache:
                 "embeddings": {s: emb.tolist() for s, emb in cached.items()},
             }
             atomic_write_json(data_to_save, cache_file)
-            logger.info("skill_embedding_cache_saved", cached=len(cached))
+            logger.info("Кэш обновлён", count=len(cached))
         return cached

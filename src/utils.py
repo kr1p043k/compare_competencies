@@ -1,8 +1,9 @@
+import asyncio
 import json
 import os
 import tempfile
 from collections import defaultdict
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,21 @@ from src.config import (
 from src.errors import DomainError
 
 logger = structlog.get_logger(__name__)
+
+_BG_TASKS: set[asyncio.Future[Any]] = set()
+
+
+def keep_task_ref(task: object) -> object:
+    """RUF006: держит сильную ссылку на asyncio-задачу до её завершения.
+
+    create_task/ensure_future без переменной позволяют GC собрать задачу до
+    завершения. Не-задачи (короутины из-под тестовых monkeypatch, None из
+    фейков) пропускаем без изменений.
+    """
+    if isinstance(task, asyncio.Future):
+        _BG_TASKS.add(task)
+        task.add_done_callback(_BG_TASKS.discard)
+    return task
 
 
 def skill_words(name: str) -> set[str]:
@@ -84,8 +100,8 @@ def load_competency_mapping() -> dict[str, list[str]]:
     try:
         with open(COMPETENCY_MAPPING_FILE, encoding="utf-8") as f:
             return json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError) as e:
-        logger.error("competency_mapping_load_failed", path=str(COMPETENCY_MAPPING_FILE), error=str(e))
+    except (json.JSONDecodeError, FileNotFoundError):
+        logger.exception("competency_mapping_load_failed", path=str(COMPETENCY_MAPPING_FILE))
         return {}
 
 
@@ -143,11 +159,11 @@ def safe_read_json(filepath: Path):
             logger.error("invalid_json_structure", path=str(filepath), type=type(data).__name__)
             return None
         return data
-    except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        logger.error("json_read_error", path=str(filepath), error=str(e))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        logger.exception("json_read_error", path=str(filepath))
         return None
-    except Exception as e:
-        logger.error("json_read_unexpected_error", path=str(filepath), error=str(e))
+    except Exception:
+        logger.exception("json_read_unexpected_error", path=str(filepath))
         return None
 
 
@@ -190,11 +206,11 @@ def safe_read_competency_json(filepath: Path) -> list[str]:
             logger.error("invalid_competency_structure", path=str(filepath))
             return []
         return codes
-    except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        logger.error("competency_json_read_error", path=str(filepath), error=str(e))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        logger.exception("competency_json_read_error", path=str(filepath))
         return []
-    except Exception as e:
-        logger.error("competency_read_unexpected_error", path=str(filepath), error=str(e))
+    except Exception:
+        logger.exception("competency_read_unexpected_error", path=str(filepath))
         return []
 
 
@@ -244,13 +260,14 @@ def extract_date_from_filename(filepath: Path) -> datetime | None:
       freq_2026-04-15.json         -> 2026-04-15
       freq_2026-04-15-120000.json  -> 2026-04-15 12:00:00
       freq_2026-04-15 120000.json  -> 2026-04-15 12:00:00
+    Дату из имени считаем UTC-моментом (DTZ007: naive-время сравнивать нельзя).
     Возвращает None если дату не удалось распарсить.
     """
     stem = filepath.stem.replace("freq_", "")
     formats = ["%Y-%m-%d-%H%M%S", "%Y-%m-%d", "%Y-%m-%d %H%M%S"]
     for fmt in formats:
         try:
-            return datetime.strptime(stem, fmt)
+            return datetime.strptime(stem, fmt).replace(tzinfo=UTC)
         except ValueError:
             continue
     return None

@@ -25,12 +25,12 @@ from typing import Any
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from src.infrastructure.course_trends import CourseTrendsClient, CourseTrendsError  # noqa: E402
+from src.infrastructure.course_trends import CourseTrendsClient, CourseTrendsError
 
 try:  # запуск как файла
-    from _dsn import resolve_dsn  # noqa: E402
+    from _dsn import resolve_dsn
 except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
-    from scripts._dsn import resolve_dsn  # noqa: E402
+    from scripts._dsn import resolve_dsn
 
 DEFAULT_DSN = ""  # значение берётся из --dsn / DATABASE_URL / .env
 

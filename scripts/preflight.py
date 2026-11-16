@@ -67,7 +67,7 @@ def check_secret() -> None:
 
         secret = getattr(config.settings, "SECRET_KEY", None)
         key = secret.get_secret_value() if secret is not None else ""
-    except Exception as exc:  # noqa: BLE001 — проверка не должна падать сама
+    except Exception as exc:
         check(WARN, "SECRET_KEY", f"не удалось прочитать конфиг: {type(exc).__name__}")
         return
 
@@ -95,7 +95,7 @@ def check_cors() -> None:
         from src import config
 
         origins = config.ALLOWED_ORIGINS
-    except Exception:  # noqa: BLE001
+    except Exception:
         check(WARN, "ALLOWED_ORIGINS", "не удалось прочитать конфиг")
         return
     if origins.strip() == "*":
@@ -138,7 +138,7 @@ def check_migrations() -> None:
         cfg = Config(str(ROOT / "alembic.ini")) if (ROOT / "alembic.ini").exists() else Config()
         cfg.set_main_option("script_location", str(ROOT / "alembic"))
         heads = list(ScriptDirectory.from_config(cfg).get_heads())
-    except Exception as exc:  # noqa: BLE001 — проверка не должна падать сама
+    except Exception as exc:
         check(WARN, "alembic heads", f"не удалось разобрать миграции: {type(exc).__name__}")
     else:
         if len(heads) == 1:
@@ -195,7 +195,7 @@ def check_git_dirty() -> None:
             ["git", "status", "--porcelain"], cwd=ROOT,
             capture_output=True, text=True, timeout=30,
         ).stdout
-    except Exception:  # noqa: BLE001
+    except Exception:
         check(WARN, "git", "не удалось проверить состояние")
         return
     changed = [line for line in out.splitlines() if line.strip()]

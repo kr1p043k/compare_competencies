@@ -1,5 +1,4 @@
 # tests/parsing/test_api.py
-import asyncio
 import time
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -667,31 +666,24 @@ class TestHeadHunterAPIAsyncRequest:
 class TestHeadHunterAPIAsyncSyncWrapper:
     """Тесты синхронной обёртки (строки 250-253)"""
 
-    def test_get_vacancies_details_sync_closed_loop(self):
-        """Строки 250-253: закрытый event loop → создаётся новый"""
+    def test_get_vacancies_details_sync_without_running_loop(self):
+        """Sync-вызов без работающего loop: корутина идёт через отдельный loop."""
         api = HeadHunterAPIAsync()
 
-        with patch.object(asyncio, "get_event_loop", side_effect=RuntimeError("No event loop")):
-            with patch.object(api, "get_vacancies_details_batch", new_callable=AsyncMock) as mock_batch:
-                mock_batch.return_value = Ok([{"id": "1"}])
-                results = api.get_vacancies_details_sync(["1"])
-                assert len(results.ok()) == 1
+        with patch.object(api, "get_vacancies_details_batch", new_callable=AsyncMock) as mock_batch:
+            mock_batch.return_value = Ok([{"id": "1"}])
+            results = api.get_vacancies_details_sync(["1"])
+            assert len(results.ok()) == 1
 
-    def test_get_vacancies_details_sync_existing_loop(self):
-        """Строки 250-253: существующий event loop"""
-        api = HeadHunterAPIAsync()
+    def test_run_blocking_returns_err_on_failure(self):
+        """Сбой корутины превращается в Err, как и у прежней sync-обёртки."""
+        from src.parsing.api.hh_api_async import _run_blocking
 
-        # Создаём новый loop для теста
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        async def boom():
+            raise ValueError("kaboom")
 
-        try:
-            with patch.object(api, "get_vacancies_details_batch", new_callable=AsyncMock) as mock_batch:
-                mock_batch.return_value = Ok([{"id": "1"}, {"id": "2"}])
-                results = api.get_vacancies_details_sync(["1", "2"])
-                assert len(results.ok()) == 2
-        finally:
-            loop.close()
+        result = _run_blocking(boom(), "Sync failed")
+        assert result.is_err()
 
 
 class TestHeadHunterAPIAsyncBatch:
@@ -773,18 +765,11 @@ class TestHeadHunterAPIAsyncBatch:
         results = await api.get_vacancies_details_batch([])
         assert results.ok() == []
 
-    def test_get_vacancies_details_sync_new_loop(self):
-        """Строка 250: создание нового event loop"""
+    def test_get_vacancies_details_sync_no_loop_side_effects(self):
+        """Sync-обёртка не трогает глобальный event loop (не закрывает его)."""
         api = HeadHunterAPIAsync()
         mock_batch = AsyncMock()
         mock_batch.return_value = Ok([{"id": "1"}, {"id": "2"}])
-
-        # Закрываем текущий loop
-        try:
-            loop = asyncio.get_event_loop()
-            loop.close()
-        except RuntimeError:
-            pass
 
         with patch.object(api, "get_vacancies_details_batch", mock_batch):
             results = api.get_vacancies_details_sync(["1", "2"])

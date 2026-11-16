@@ -5,7 +5,6 @@
 
 import logging
 import re
-from typing import ClassVar
 
 import structlog
 from rapidfuzz import fuzz, process
@@ -27,7 +26,7 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 
 class SkillNormalizer:
     # ================= СЛОВАРЬ СИНОНИМОВ =================
-    SYNONYM_MAP: ClassVar[dict[str, list[str]]] = {
+    SYNONYM_MAP = {
         # Языки
         "python": ["python3", "python 3", "py3", "py", "python programming", "python разработка"],
         "javascript": ["js", "java script"],
@@ -115,11 +114,8 @@ class SkillNormalizer:
         # ML / AI / LLM
         "machine learning": ["ml", "машинное обучение"],
         "deep learning": [
-            "dl",
-            "глубокое обучение",
-            "deep learning basics",
-            "deep learning research",
-            "deep neural networks",
+            "dl", "глубокое обучение", "deep learning basics",
+            "deep learning research", "deep neural networks",
         ],
         "mlops": ["ml ops"],
         "llm": ["large language model", "large language models", "llms"],
@@ -140,6 +136,8 @@ class SkillNormalizer:
         "lightgbm": ["lightgbm"],
         "catboost": ["catboost"],
         "spark": ["apache spark"],
+        # F601 fix (backlog 5.1): union of former duplicate entries; second
+        # 'hadoop' key silently overrode the first, losing 'hadoop java/hdfs'.
         "hadoop": ["hadoop", "hadoop java", "hadoop hdfs"],
         "dvc": ["dvc"],
         "fine-tuning": ["fine tuning", "finetuning"],
@@ -164,8 +162,6 @@ class SkillNormalizer:
         ".net core": ["net core"],
         "ros": ["ros2", "ros 2"],
         "service desk": ["servicedesk"],
-        "css": ["css3", "css"],
-        "html": ["html5", "html"],
         "qt": ["qt5", "qt6"],
         "unreal engine": ["unreal engine 5"],
         "arm": ["arm64"],
@@ -201,6 +197,8 @@ class SkillNormalizer:
         "junit": ["junit"],
         "testng": ["testng"],
         # Frontend basics
+        "html": ["html5", "html"],
+        "css": ["css3", "css"],
         "sass": ["scss"],
         "less": ["less"],
         "rest api": ["rest", "restful", "restful api", "restapi"],
@@ -232,8 +230,8 @@ class SkillNormalizer:
     _canonical_map: dict[str, str] | None = None
     # Versioned normalize cache: {input: (taxonomy_version, Result)}.
     # Invalidates automatically when skill_taxonomy.json changes (fixes stale @cache).
-    _normalize_cache: ClassVar[dict[str, tuple[str, object]]] = {}
-    _normalize_cache_version: ClassVar[str | None] = None
+    _normalize_cache: dict[str, tuple[str, object]] = {}
+    _normalize_cache_version: str | None = None
 
     @classmethod
     def _get_canonical_map(cls) -> dict[str, str]:
@@ -267,12 +265,12 @@ class SkillNormalizer:
     # Версии и варианты (удаляются полностью).
     # Якорь $ обязателен: без него съедаются цифры внутри токена
     # (utf-8 -> utf-, oauth2 -> oauth). Только хвостовая версия.
-    VERSION_PATTERNS: ClassVar[list[str]] = [
+    VERSION_PATTERNS = [
         r"\s+v?\d+(\.\d+)*\s*$",
         r"\s*\(.*?\)",
         r"\s*\[.*?\]",
     ]
-    PREFIX_REMOVALS: ClassVar[list[str]] = [
+    PREFIX_REMOVALS = [
         r"^опыт\s+(работы\s+)?(с\s+)?",
         r"^знание\s+",
         r"^владение\s+",
@@ -287,7 +285,7 @@ class SkillNormalizer:
         r"^(опыт|знание|умение|владение|навык)\s+(работы\s+)?(с\s+)?",
         r"^(разработчик|разработчика)\s+(уровня\s+)?(senior|middle|junior)?",
     ]
-    SUFFIX_REMOVALS: ClassVar[list[str]] = [
+    SUFFIX_REMOVALS = [
         "язык",
         "язык программирования",
         "фреймворк",
@@ -321,7 +319,7 @@ class SkillNormalizer:
 
     # Прецедент 1С: продукты линейки опознаём по префиксу 1с/1c + fuzzy хвоста.
     # Иначе stripping кромсает значимые формы (1С:УТ -> сут, 1С:Розница -> срозница).
-    ONEC_PRODUCTS: ClassVar[list[str]] = [
+    ONEC_PRODUCTS = [
         "ут", "розница", "предприятие", "бухгалтерия", "зуп", "erp",
         "документооборот", "зарплата и управление персоналом",
         "управление производственным предприятием", "комплексная автоматизация",
@@ -379,7 +377,7 @@ class SkillNormalizer:
             logger.info("whitelist_loaded_and_extended", count=len(cls._whitelist))
         return cls._whitelist
 
-    JOB_TITLE_PATTERNS: ClassVar[list[str]] = [
+    JOB_TITLE_PATTERNS = [
         r"^(project|product|delivery|program|engineering|engineering) manager",
         r"^(tech|team|scrum|product|engineering|development) lead",
         r"^(senior|junior|middle|lead|principal|chief|head of).*(engineer|developer|manager|architect)$",

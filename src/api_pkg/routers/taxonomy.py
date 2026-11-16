@@ -128,7 +128,7 @@ async def get_professions(request: Request):
             )
         return {"professions": professions, "total": len(professions)}
     except Exception as e:
-        logger.error("get_professions_failed", error=str(e))
+        logger.exception("get_professions_failed")
         raise HTTPException(
             status_code=500,
             detail=await user_error_detail(request, str(e), "Не удалось загрузить список профессий. Попробуйте позже."),
@@ -172,7 +172,7 @@ async def get_profession_detail(request: Request, profession_name: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("get_profession_detail_failed", error=str(e))
+        logger.exception("get_profession_detail_failed")
         raise HTTPException(
             status_code=500,
             detail=await user_error_detail(request, str(e), "Не удалось загрузить профессию. Попробуйте позже."),
@@ -216,7 +216,7 @@ async def get_profession_krm_coverage(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("get_krm_coverage_failed", error=str(e))
+        logger.exception("get_krm_coverage_failed")
         raise HTTPException(
             status_code=500,
             detail=await user_error_detail(request, str(e), "Не удалось загрузить KRM-покрытие. Попробуйте позже."),

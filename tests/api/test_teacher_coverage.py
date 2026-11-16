@@ -126,8 +126,8 @@ def test_coverage_returns_latest_analysis_rows(monkeypatch):
     session = FakeSession(results=[
         FakeResult(scalar=datetime(2026, 10, 5, 12, 0, tzinfo=UTC)),
         FakeResult(rows=[
-            (_coverage_row(10, 4, 0.4, datetime(2026, 10, 5, 12, 0)), "Databases"),
-            (_coverage_row(50, 5, 0.1, datetime(2026, 10, 5, 12, 0)), "Informatics"),
+            (_coverage_row(10, 4, 0.4, datetime(2026, 10, 5, 12, 0, tzinfo=UTC)), "Databases"),
+            (_coverage_row(50, 5, 0.1, datetime(2026, 10, 5, 12, 0, tzinfo=UTC)), "Informatics"),
         ]),
     ])
     r = _client(monkeypatch, session).get(COVERAGE_ENDPOINT)
@@ -159,8 +159,8 @@ def test_coverage_ignores_unknown_dir_code_query_param(monkeypatch):
     """The route reads the whole table (no direction input): a stray dir_code
     argument must be ignored with the usual 200 response, not 4xx/5xx."""
     session = FakeSession(results=[
-        FakeResult(scalar=datetime(2026, 10, 5, 12, 0)),
-        FakeResult(rows=[(_coverage_row(8, 2, 0.25, datetime(2026, 10, 5, 12, 0)), "Databases")]),
+        FakeResult(scalar=datetime(2026, 10, 5, 12, 0, tzinfo=UTC)),
+        FakeResult(rows=[(_coverage_row(8, 2, 0.25, datetime(2026, 10, 5, 12, 0, tzinfo=UTC)), "Databases")]),
     ])
     r = _client(monkeypatch, session).get(COVERAGE_ENDPOINT, params={"dir_code": "00.00.00"})
     assert r.status_code == 200, r.text
@@ -174,8 +174,8 @@ def test_coverage_ignores_unknown_dir_code_query_param(monkeypatch):
 def test_history_returns_rows_with_iso_dates(monkeypatch):
     session = FakeSession(results=[
         FakeResult(rows=[
-            (_coverage_row(20, 8, 0.4, datetime(2026, 10, 5, 12, 0)), "Databases"),
-            (_coverage_row(30, 9, 0.3, datetime(2026, 9, 1, 9, 30)), "Informatics"),
+            (_coverage_row(20, 8, 0.4, datetime(2026, 10, 5, 12, 0, tzinfo=UTC)), "Databases"),
+            (_coverage_row(30, 9, 0.3, datetime(2026, 9, 1, 9, 30, tzinfo=UTC)), "Informatics"),
         ]),
     ])
     r = _client(monkeypatch, session).get(HISTORY_ENDPOINT)
@@ -189,7 +189,7 @@ def test_history_returns_rows_with_iso_dates(monkeypatch):
         "coverage_ratio": 0.4,
         "total_skills": 20,
         "matched_skills": 8,
-        "analysis_date": "2026-10-05T12:00:00",
+        "analysis_date": "2026-10-05T12:00:00+00:00",
     }
 
 

@@ -18,7 +18,6 @@ from sqlalchemy import text
 
 from src import config
 from src.api_pkg import deps
-from src.api_pkg.bg_tasks import spawn
 from src.api_pkg.rate_limit import limiter
 from src.api_pkg.request_logger import actor_from_request, audit_action, get_logs_by_user
 from src.api_pkg.routers.auth import (
@@ -29,6 +28,7 @@ from src.api_pkg.routers.auth import (
 )
 from src.db import get_pool
 from src.parsing.utils import load_it_skills
+from src.utils import keep_task_ref
 
 logger = structlog.get_logger("api")
 
@@ -214,7 +214,7 @@ def _scan_students_dir(students_dir: Path) -> list[dict[str, Any]]:
                 {
                     "filename": f.name,
                     "skills_count": len(skills) if isinstance(skills, list) else 0,
-                    "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+                    "modified": datetime.fromtimestamp(f.stat().st_mtime, tz=UTC).isoformat(),
                 }
             )
         except Exception:
@@ -1105,7 +1105,7 @@ async def _grafana_status() -> dict[str, Any]:
     public = (config.settings.GRAFANA_PUBLIC_URL or base).rstrip("/")
     try:
         items = await _grafana_search(base, user, password)
-    except Exception as exc:  # noqa: BLE001 - недоступность Grafana не должна ронять админку
+    except Exception as exc:
         logger.warning("grafana_unreachable", error=str(exc))
         return {"enabled": True, "reachable": False,
                 "reason": f"Grafana недоступен: {exc}", "dashboards": []}
@@ -1164,7 +1164,7 @@ async def _llm_cost_summary(days: int, pool: Any = None) -> dict[str, Any]:
             """,
             days,
         )
-    except Exception as exc:  # noqa: BLE001 - схема может отставать; панель не должна падать
+    except Exception as exc:
         logger.warning("llm_cost_query_failed", error=str(exc))
         empty["reason"] = f"Не удалось прочитать llm_interactions: {exc}"
         return empty
@@ -1870,7 +1870,7 @@ async def scheduler_collect_now(request: Request):
     from src.pipeline.background_collector import _run_collect_once, is_scheduler_busy
     if is_scheduler_busy():
         raise HTTPException(status_code=409, detail="Планировщик уже выполняет задачу")
-    spawn(_run_collect_once(force=True))
+    keep_task_ref(asyncio.create_task(_run_collect_once(force=True)))
     await audit_action(request, "admin.scheduler.collect")
     return {"status": "started", "job": "collect"}
 
@@ -1882,7 +1882,7 @@ async def scheduler_gap_now(request: Request):
     from src.pipeline.background_collector import _run_scheduled_gap, is_scheduler_busy
     if is_scheduler_busy():
         raise HTTPException(status_code=409, detail="Планировщик уже выполняет задачу")
-    spawn(_run_scheduled_gap())
+    keep_task_ref(asyncio.create_task(_run_scheduled_gap()))
     await audit_action(request, "admin.scheduler.gap")
     return {"status": "started", "job": "gap"}
 

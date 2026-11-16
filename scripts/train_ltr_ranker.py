@@ -20,9 +20,9 @@ import asyncpg
 sys.modules.setdefault("shap", __import__("unittest.mock", fromlist=["x"]).MagicMock())
 sys.modules.setdefault("cv2", __import__("unittest.mock", fromlist=["x"]).MagicMock())
 
-from src import Ok  # noqa: E402
-from src.config import settings  # noqa: E402
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
+from src import Ok
+from src.config import settings
+from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 
 ROOT = Path(__file__).resolve().parents[1]
 

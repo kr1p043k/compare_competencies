@@ -168,18 +168,28 @@ def is_gap_overdue(today: str, last_gap_date, max_days: int = SCHEDULER_GAP_STAL
     if not last_gap_date:
         return True
     try:
-        d0 = datetime.strptime(str(last_gap_date), "%Y-%m-%d").date()
-        d1 = datetime.strptime(str(today), "%Y-%m-%d").date()
+        d0 = datetime.strptime(str(last_gap_date), "%Y-%m-%d").replace(tzinfo=UTC).date()
+        d1 = datetime.strptime(str(today), "%Y-%m-%d").replace(tzinfo=UTC).date()
         return (d1 - d0).days >= max_days
     except (ValueError, TypeError):
         return True
 
 
+#: одно предупреждение на процесс: проверка идёт каждый тик планировщика.
+_PIPELINE_CHECK_WARNED = False
+
+
 def _pipeline_running() -> bool:
+    global _PIPELINE_CHECK_WARNED
     try:
         from src.api_pkg.routers.pipeline import pipeline_tasks
         return any(getattr(t, "status", "") == "running" for t in pipeline_tasks.values())
     except Exception:
+        # Без ответа планировщик считал, что пайплайн не запущен, и мог
+        # начать сбор поверх живого прогона. Раньше - молча.
+        if not _PIPELINE_CHECK_WARNED:
+            _PIPELINE_CHECK_WARNED = True
+            logger.warning("pipeline_running_check_failed", exc_info=True)
         return False
 
 
@@ -374,7 +384,7 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
     try:
         pool = get_pool()
         last_run = await pool.fetchval(
-            "SELECT MAX(started_at) FROM pipeline_runs WHERE action IN ('full-cycle','data-collection') AND status='completed'"  # noqa: E501 - SQL string must not be split
+            "SELECT MAX(started_at) FROM pipeline_runs WHERE action IN ('full-cycle','data-collection') AND status='completed'"
         )
         before = await pool.fetchval("SELECT COUNT(*) FROM vacancies") or 0
         after = before

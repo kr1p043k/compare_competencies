@@ -21,7 +21,7 @@ async def _fake_current_user(_request):
 
 def _client(monkeypatch) -> TestClient:
     monkeypatch.setattr(auth_mod, "get_current_user", _fake_current_user)
-    monkeypatch.setattr(admin_mod, "get_logs_by_user", lambda: {})
+    monkeypatch.setattr(admin_mod, "get_logs_by_user", dict)
     with contextlib.suppress(Exception):
         admin_mod.limiter._storage.reset()
     app = FastAPI()

@@ -25,15 +25,15 @@ import contextlib
 import json
 import shutil
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import psycopg
 
 try:  # запуск как файла
-    from _dsn import resolve_dsn  # noqa: E402
+    from _dsn import resolve_dsn
 except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
-    from scripts._dsn import resolve_dsn  # noqa: E402
+    from scripts._dsn import resolve_dsn
 
 ROOT = Path(__file__).resolve().parent.parent
 REFERENCE = ROOT / "data" / "reference"
@@ -142,7 +142,7 @@ def main() -> int:
         return 0
 
     backup = path.with_suffix(
-        path.suffix + f".bak-{datetime.now():%Y%m%d-%H%M%S}"
+        path.suffix + f".bak-{datetime.now(UTC):%Y%m%d-%H%M%S}"
     )
     shutil.copy2(path, backup)
     node["disciplines"] = dict(sorted(discs.items()))

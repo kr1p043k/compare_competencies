@@ -120,7 +120,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
     unique_labels = sorted(set(label for label in labels_list if label >= 0))
     logger.info("clustering_completed", clusters=len(unique_labels))
 
-    _CLUSTER_STOP = frozenset({  # noqa: N806 — осознанное имя
+    _CLUSTER_STOP = frozenset({
         "для", "от", "по", "на", "c", "о", "об", "из", "без", "в", "и",
         "не", "а", "но", "за", "до", "при", "про", "как", "еще", "уже",
         "na", "ot", "po", "пo", "oт",

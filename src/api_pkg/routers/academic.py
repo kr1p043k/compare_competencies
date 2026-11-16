@@ -475,8 +475,8 @@ async def academic_analyze_gap_local(
 
     try:
         result = await asyncio.to_thread(AcademicGapAnalyzer().analyze, body.topic)
-    except Exception as exc:
-        logger.error("analyze_gap_local_failed", error=str(exc))
+    except Exception:
+        logger.exception("analyze_gap_local_failed")
         raise HTTPException(
             status_code=503,
             detail="Не удалось выполнить локальный анализ разрыва",

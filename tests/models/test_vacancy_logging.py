@@ -13,8 +13,6 @@ vacancy_parsing_failed (error) остаются слышны — приглуш�
 
 import logging
 
-import src.models.vacancy  # noqa: F401  # импорт и есть проверка сетАпа
-
 
 def test_vacancy_debug_is_muted():
     logger = logging.getLogger("src.models.vacancy")

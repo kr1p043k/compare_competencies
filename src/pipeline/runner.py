@@ -9,7 +9,7 @@ import structlog
 
 matplotlib.use("Agg")
 
-from datetime import date
+from datetime import UTC, datetime
 
 from src import Err, Ok, Result, config, timed_block
 from src.loaders_student.student_loader import generate_profiles_from_csv
@@ -71,9 +71,9 @@ def convert_float32(obj):
     import numpy as np
     if isinstance(obj, np.float32):
         return float(obj)
-    elif isinstance(obj, dict):
+    if isinstance(obj, dict):
         return {k: convert_float32(v) for k, v in obj.items()}
-    elif isinstance(obj, list | tuple):
+    if isinstance(obj, list | tuple):
         return [convert_float32(item) for item in obj]
     return obj
 
@@ -511,7 +511,7 @@ def run_full_pipeline(args) -> Result[None, str]:
                         "vacancy_count": total or 0,
                         "new_vacancies": new_vacs,
                         "date_from": str(args._date_from) if args._date_from else None,
-                        "date_to": str(date.today()),
+                        "date_to": str(datetime.now(UTC).date()),
                     },
                 )
                 return rid, total, new_vacs
@@ -596,7 +596,7 @@ def rebuild(args=None) -> Result[None, str]:
     console_header("ПОЛНАЯ ПЕРЕСБОРКА")
     logger.info("full_rebuild_started")
 
-    DATA = config.DATA_DIR  # noqa: N806 — осознанное имя
+    DATA = config.DATA_DIR
     to_remove = [
         DATA / "cache" / "parsed_skills.joblib",
         DATA / "processed" / "skill_weights.json",

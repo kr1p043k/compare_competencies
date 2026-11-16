@@ -1,6 +1,6 @@
 import asyncio
 import re
-from datetime import date
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
@@ -101,7 +101,7 @@ def _clear_forecast_caches() -> None:
 
 # После записи нового снимка/пересчёта пайплайна кэш обязан сброситься, иначе
 # до 5 минут отдаются старые прогнозы. Шина без импортов - см. src/cache_bus.py.
-from src.cache_bus import register as _register_cache  # noqa: E402
+from src.cache_bus import register as _register_cache
 
 _register_cache("forecast", _clear_forecast_caches)
 def _compute_top(engine, direction: str, months: int, want: int, sort: str):
@@ -178,7 +178,7 @@ async def _get_vacancy_meta() -> dict:
 
 
 async def _compute_vacancy_meta() -> dict:
-    meta = {"vacancies_count": 0, "data_from": None, "data_to": date.today().isoformat(),
+    meta = {"vacancies_count": 0, "data_from": None, "data_to": datetime.now(UTC).date().isoformat(),
             "snapshots_count": 0}
     try:
         from src.database import async_session_factory

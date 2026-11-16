@@ -14,11 +14,11 @@ import numpy as np
 sys.modules.setdefault("shap", MagicMock())
 sys.modules.setdefault("cv2", MagicMock())
 
-from sklearn.metrics import ndcg_score  # noqa: E402
-from sklearn.model_selection import StratifiedShuffleSplit  # noqa: E402
+from sklearn.metrics import ndcg_score
+from sklearn.model_selection import StratifiedShuffleSplit
 
-from scripts.train_ltr_ranker import read_gold  # noqa: E402
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
+from scripts.train_ltr_ranker import read_gold
+from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 
 ROOT = Path(__file__).resolve().parents[1]
 SEEDS = (42, 43, 44)

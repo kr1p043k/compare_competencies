@@ -8,7 +8,7 @@ import random
 import sys
 import types
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -334,7 +334,7 @@ def sample_student() -> StudentProfile:
         competencies=["SS1.1", "DL-1.3"],
         skills=["Python", "SQL", "Git", "Pandas", "Docker"],
         target_level="middle",
-        created_at=datetime.now(),
+        created_at=datetime.now(UTC),
     )
 
 

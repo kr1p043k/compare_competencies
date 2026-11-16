@@ -17,13 +17,11 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+from sqlalchemy import select, text
 
-from sqlalchemy import select, text  # noqa: E402
-
-from src.database import Base, async_session_factory, get_engine  # noqa: E402
-from src.loaders.rpd_loader import normalize_disc_name  # noqa: E402
-from src.models.krm_models import (  # noqa: E402
+from src.database import Base, async_session_factory, get_engine
+from src.loaders.rpd_loader import normalize_disc_name
+from src.models.krm_models import (
     COMPETENCY_CATEGORIES,
     Competency,
     CompetencySkill,
@@ -33,6 +31,8 @@ from src.models.krm_models import (  # noqa: E402
     ParseVersion,
     Skill,
 )
+
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 if not DATA_DIR.exists():

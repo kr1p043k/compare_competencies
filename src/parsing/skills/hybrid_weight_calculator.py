@@ -51,7 +51,11 @@ class HybridWeightCalculator:
             n_comp = min(config.PCA_TARGET_DIM, len(embs) - 1, embs.shape[1])
             if n_comp < embs.shape[1]:
                 embs = PCA(n_components=n_comp, random_state=config.GLOBAL_RANDOM_SEED).fit_transform(embs)
-                logger.info("pca_reduced", from_dim=emb_dict[skill_list[0]].shape[0], to_dim=n_comp)
+                logger.info(
+                    "PCA: снижение размерности эмбеддингов",
+                    from_dim=emb_dict[skill_list[0]].shape[0],
+                    to=n_comp,
+                )
 
         # torch импортируется лениво (~2 с), чтобы не удлинять старт API.
         import torch
@@ -94,7 +98,9 @@ class HybridWeightCalculator:
                 idf_bonus = idf_bonus / max(idf_bonus.max(), 1.0)
                 sem_raw = sem_raw * (0.5 + 0.5 * idf_bonus)
         except Exception:
-            pass
+            # IDF-бонус молча пропадал: веса становились чисто семантическими,
+            # редкие навыки теряли надбавку без единой строки в логе.
+            logger.warning("hybrid_idf_bonus_failed", exc_info=True)
 
         sem_norm = (sem_raw - sem_raw.min()) / (sem_raw.max() - sem_raw.min() + 1e-8)
 
@@ -113,7 +119,7 @@ class HybridWeightCalculator:
                 hybrid[skill] = w
                 bm25_only += 1
 
-        logger.info("hybrid_weights_built", skills=len(hybrid), bm25_only=bm25_only)
+        logger.info("Гибридные веса готовы", count=len(hybrid), bm25_only=bm25_only)
         return Ok(hybrid)
 
     @staticmethod

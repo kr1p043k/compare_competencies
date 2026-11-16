@@ -17,10 +17,10 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from sklearn.metrics import ndcg_score  # noqa: E402
-from sklearn.model_selection import StratifiedShuffleSplit  # noqa: E402
+from sklearn.metrics import ndcg_score
+from sklearn.model_selection import StratifiedShuffleSplit
 
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
+from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 
 ROOT = Path(__file__).resolve().parents[2]
 # The gate must run in CI, so the frozen split lives in the repo as a fixture

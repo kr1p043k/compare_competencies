@@ -83,8 +83,10 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
 # ML: матрица признаков традиционно называется X.
 "src/predictors/ltr_recommendation_engine.py" = ["N806", "N803"]
 # Одноразовые скрипты/миграции: ML-конвенция (X, Y, Xtr), длинные метки, ASCII-выкладки.
-"scripts/**/*.py" = ["N806", "N803", "E501", "SIM102"]
-"alembic/**/*.py" = ["N806", "E501"]
+"scripts/*.py" = ["E402", "E501", "N801", "N802", "N803", "N806", "E741", "B005", "B007", "SIM102", "SIM108"]
+"scripts/**/*.py" = ["E402", "E501", "N801", "N802", "N803", "N806", "E741", "B005", "B007", "SIM102", "SIM108"]
+"alembic/*.py" = ["E402", "E501", "N801", "N806"]
+"alembic/**/*.py" = ["E402", "E501", "N801", "N806"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

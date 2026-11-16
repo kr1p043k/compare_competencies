@@ -9,16 +9,8 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from tests.predictors.test_ltr_recommendation_engine import (  # noqa: E402,F811
-    engine_with_mocks,  # noqa: F401,F811  (re-export fixture)
-    mock_embedding_model,  # noqa: F401
-    mock_level_analyzer,  # noqa: F401
-    mock_skill_filter,  # noqa: F401
-    mock_vacancy_parser,  # noqa: F401
-)
 
-
-def test_shap_rows_align_with_returned_impacts(engine_with_mocks):  # noqa: F811
+def test_shap_rows_align_with_returned_impacts(engine_with_mocks):
     engine = engine_with_mocks
     engine.is_fitted = True
     engine.model = MagicMock()
@@ -47,7 +39,7 @@ def test_shap_rows_align_with_returned_impacts(engine_with_mocks):  # noqa: F811
     assert len(xout) == 2 and list(xout.index) == [1, 0]
 
 
-def test_shap_topk_limits_rows(engine_with_mocks):  # noqa: F811
+def test_shap_topk_limits_rows(engine_with_mocks):
     engine = engine_with_mocks
     engine.is_fitted = True
     engine.model = MagicMock()

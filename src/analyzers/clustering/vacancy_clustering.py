@@ -352,7 +352,7 @@ class VacancyClusterer:
             "skill_weights": self.skill_weights,
         }
         joblib.dump(data, path)
-        logger.info("vacancy_clustering_saved", path=str(path))
+        logger.info("Модель кластеризации сохранена", path=str(path))
 
         manifest = ArtifactManifest(
             artifact_path=path,
@@ -369,8 +369,8 @@ class VacancyClusterer:
             joblib.dump(data, path_joblib)
             path_pkl.unlink()
             logger.info("migrated_pkl_to_joblib", level=level, path=str(path_joblib))
-        except Exception as e:
-            logger.error("pkl_migration_failed", level=level, error=str(e))
+        except Exception:
+            logger.exception("pkl_migration_failed", level=level)
 
     def _apply_loaded_data(self, data: dict[str, Any]) -> None:
         """Наполнить инстанс из десериализованного словаря модели."""

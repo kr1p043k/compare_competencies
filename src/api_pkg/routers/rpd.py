@@ -256,7 +256,10 @@ async def _finish_cancelled(run_id: str) -> None:
         await complete_pipeline_run(run_id, status="cancelled", error="Отменено пользователем",
                                     stats={"stage": "cancelled", "status": "cancelled"})
     except Exception:
-        pass
+        # Запись статуса в БД не прошла: run остаётся "running" в
+        # pipeline_runs, хотя процесс убит. Раньше это пропадало молча.
+        logger.warning("rpd_finish_cancelled_db_write_failed", run_id=run_id,
+                       exc_info=True)
     finally:
         with _rpd_lock:
             _rpd_cancel.pop(run_id, None)
@@ -336,7 +339,7 @@ async def _upload_pipeline(
         await _finish_cancelled(run_id)
         return
     except Exception as exc:
-        logger.error("rpd_upload_pipeline_failed", run_id=run_id, dir_code=dir_code,
+        logger.exception("rpd_upload_pipeline_failed", run_id=run_id, dir_code=dir_code,
                      exc_type=type(exc).__name__, exc_repr=repr(exc))
         with contextlib.suppress(Exception):
             await complete_pipeline_run(run_id, status="failed", error=str(exc),
@@ -452,7 +455,7 @@ async def _collect_pipeline(run_id: str, dir_code: str, public_url: str | None =
         await _finish_cancelled(run_id)
         return
     except Exception as exc:
-        logger.error("rpd_collect_pipeline_failed", run_id=run_id, dir_code=dir_code,
+        logger.exception("rpd_collect_pipeline_failed", run_id=run_id, dir_code=dir_code,
                      exc_type=type(exc).__name__, exc_repr=repr(exc))
         with contextlib.suppress(Exception):
             await complete_pipeline_run(run_id, status="failed", error=str(exc),

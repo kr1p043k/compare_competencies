@@ -33,7 +33,7 @@ def load_env(path: Path) -> int:
 
 print(f"env vars loaded: {load_env(ENV_SOURCE)}", file=sys.stderr)
 
-import uvicorn  # noqa: E402
+import uvicorn
 
 uvicorn.run(
     "src.api_pkg:app",

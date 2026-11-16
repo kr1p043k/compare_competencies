@@ -13,7 +13,6 @@ import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from src.api_pkg.bg_tasks import spawn
 from src.api_pkg.rate_limit import limiter
 from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role, user_error_detail
@@ -23,6 +22,7 @@ from src.models.api_responses import (
     PipelineTaskListResponse,
     PipelineTaskStatus,
 )
+from src.utils import keep_task_ref
 
 logger = structlog.get_logger("api")
 
@@ -116,7 +116,7 @@ async def _resolve_area_ids(regions_str: str) -> str:
             except HTTPException:
                 raise
             except Exception as e:
-                logger.error("region_resolve_failed", region=p, error=str(e))
+                logger.exception("region_resolve_failed", region=p)
                 raise HTTPException(
                     status_code=503, detail="Справочник регионов hh.ru недоступен"
                 ) from e
@@ -457,8 +457,8 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
             if gap:
                 try:
                     await _run_bootstrap_guarded()
-                except Exception as reload_err:
-                    logger.error("reload_after_pipeline_failed", error=str(reload_err))
+                except Exception:
+                    logger.exception("reload_after_pipeline_failed")
 
         elif action == PipelineAction.TRAIN_CLUSTERS:
             pipeline_tasks[task_id].message = "Кластеризация вакансий..."
@@ -619,13 +619,13 @@ async def refresh_cache(request: Request):
 async def reload_api(request: Request):
     """Перезагрузить данные API без рестарта."""
     try:
-        spawn(_reload_api_data())
+        keep_task_ref(asyncio.create_task(_reload_api_data()))
         await audit_action(request, "pipeline.reload_api", "api data reload requested")
         return PipelineResponse(
             status="started", message="API data reload started. Check /api/status for completion.",
         )
     except Exception as e:
-        logger.error("api_reload_failed", error=str(e))
+        logger.exception("api_reload_failed")
         raise HTTPException(
             status_code=500,
             detail=await user_error_detail(
@@ -670,8 +670,8 @@ async def _reload_api_data():
             # run_startup(None) пересоздал бы пул и сбросил живые running-задачи.
             await asyncio.to_thread(_reload_tasks_preserving_running)
         logger.info("API data reloaded successfully")
-    except Exception as e:
-        logger.error("Ошибка перезагрузки API", error=str(e))
+    except Exception:
+        logger.exception("Ошибка перезагрузки API")
 
 
 async def reload_api_data():
@@ -723,7 +723,7 @@ async def run_pipeline_action_sync(
             output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status",
         )
 
-    elif action == PipelineAction.TRAIN_CLUSTERS:
+    if action == PipelineAction.TRAIN_CLUSTERS:
         from src.ml.clusters import train_clusters
         loop = asyncio.get_running_loop()
         ok = await loop.run_in_executor(
@@ -735,7 +735,7 @@ async def run_pipeline_action_sync(
             exit_code=0 if ok else 1,
         )
 
-    elif action == PipelineAction.TRAIN_MODEL:
+    if action == PipelineAction.TRAIN_MODEL:
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, pr.run_train_model)
         return PipelineResponse(
@@ -744,7 +744,7 @@ async def run_pipeline_action_sync(
             exit_code=0 if result.is_ok() else 1,
         )
 
-    elif action == PipelineAction.GAP_ANALYSIS:
+    if action == PipelineAction.GAP_ANALYSIS:
         from src.pipeline.background_collector import is_scheduler_busy
         if is_scheduler_busy():
             raise HTTPException(status_code=409, detail="Идёт плановый прогон планировщика - дождитесь его завершения")
@@ -776,7 +776,7 @@ async def run_pipeline_action_sync(
             output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status",
         )
 
-    elif action == PipelineAction.FULL_CYCLE:
+    if action == PipelineAction.FULL_CYCLE:
         from src.pipeline.background_collector import is_scheduler_busy
         if is_scheduler_busy():
             raise HTTPException(status_code=409, detail="Идёт плановый прогон планировщика - дождитесь его завершения")

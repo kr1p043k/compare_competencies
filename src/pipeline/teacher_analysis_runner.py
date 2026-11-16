@@ -379,7 +379,7 @@ def _enhance_disciplines_with_gap_analysis(
                 match ltr_engine.predict_skill_impact_with_shap(
                     disc_skills, missing, compute_shap=True
                 ):
-                    case Ok((impacts, shap_vals, X)):  # noqa: N806 — осознанное имя
+                    case Ok((impacts, shap_vals, X)):
                         shap_per_skill = {}
                         if shap_vals is not None and X is not None and len(impacts) > 0:
                             for i, (skill, _score, _) in enumerate(impacts):
@@ -589,7 +589,7 @@ async def run_teacher_analysis(
     if _cooc is None:
         try:
             _vrows = await pool.fetch(
-                "SELECT parsed_skills FROM vacancies WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0 ORDER BY id"  # noqa: E501 - SQL string must not be split
+                "SELECT parsed_skills FROM vacancies WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0 ORDER BY id"
             )
             import json as _json
             _vocab = {s for s, _ in sorted(market_skills.items(), key=lambda x: (-x[1], x[0]))[:500]}
@@ -645,7 +645,7 @@ async def run_teacher_analysis(
             *params,
         )
     except Exception as exc:
-        logger.error("discipline_query_failed", error=str(exc))
+        logger.exception("discipline_query_failed")
         await _fail_pipeline_run(run_id, f"disciplines: {exc}")
         await close_pool()
         return Err(AnalysisRunnerError(stage="disciplines", message=str(exc)))
@@ -720,7 +720,7 @@ async def run_teacher_analysis(
                 "SELECT id, code, name, profile FROM directions ORDER BY id LIMIT 1"
             )
     except Exception as exc:
-        logger.error("direction_query_failed", error=str(exc))
+        logger.exception("direction_query_failed")
         await _fail_pipeline_run(run_id, f"direction: {exc}")
         await close_pool()
         return Err(AnalysisRunnerError(stage="direction", message=str(exc)))
@@ -740,7 +740,7 @@ async def run_teacher_analysis(
             "SELECT snapshot_date, skill_freq FROM trend_snapshots ORDER BY snapshot_date ASC"
         )
     except Exception as exc:
-        logger.error("snapshots_query_failed", error=str(exc))
+        logger.exception("snapshots_query_failed")
         await _fail_pipeline_run(run_id, f"snapshots: {exc}")
         await close_pool()
         return Err(AnalysisRunnerError(stage="snapshots", message=str(exc)))
@@ -1059,8 +1059,8 @@ async def run_teacher_analysis(
             (disc_out / fname).write_text(
                 json.dumps(disc_data_out, ensure_ascii=False, indent=1), encoding="utf-8"
             )
-        except Exception as exc:
-            logger.error("discipline_file_write_failed", discipline=dname, error=str(exc))
+        except Exception:
+            logger.exception("discipline_file_write_failed", discipline=dname)
             return None
         logger.info("discipline_done", discipline=dname,
                      coverage=f"{coverage.coverage_ratio * 100:.1f}%",
@@ -1097,7 +1097,7 @@ async def run_teacher_analysis(
                 if res is not None:
                     discipline_reports.append(res)
             except Exception as e:
-                logger.error("discipline_parallel_failed", discipline=dname, error=str(e))
+                logger.exception("discipline_parallel_failed", discipline=dname)
                 print(
                     f"TEACHER-ANALYSIS DISCIPLINE-FAILED (stale file kept): {dname}: {e}",
                     file=sys.stderr, flush=True
@@ -1393,7 +1393,7 @@ async def run_teacher_analysis(
             json.dumps(dir_summary, ensure_ascii=False, indent=1), encoding="utf-8"
         )
     except Exception as exc:
-        logger.error("summary_write_failed", error=str(exc))
+        logger.exception("summary_write_failed")
         await _fail_pipeline_run(run_id, f"write_summary: {exc}")
         return Err(AnalysisRunnerError(stage="write_summary", message=str(exc)))
 

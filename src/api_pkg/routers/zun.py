@@ -1354,11 +1354,11 @@ async def zun_analyze(request: Request, background_tasks: BackgroundTasks, dir_c
                 stderr=stderr.decode("utf-8", errors="ignore")[-500:],
             )
         except TimeoutError:
-            logger.error("zun_teacher_analysis_timeout", dir_code=dir_code)
+            logger.exception("zun_teacher_analysis_timeout", dir_code=dir_code)
             if proc and proc.returncode is None:
                 proc.kill()
-        except Exception as exc:
-            logger.error("zun_teacher_analysis_error", error=str(exc))
+        except Exception:
+            logger.exception("zun_teacher_analysis_error")
 
     background_tasks.add_task(_run)
     return {"status": "started", "dir_code": dir_code}

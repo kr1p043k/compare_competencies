@@ -125,7 +125,7 @@ class GapRunner:
             return Ok((evaluations_new, all_recommendations))
         except Exception as e:
             self._write_progress(0, "GAP-анализ не выполнен", "error")
-            logger.exception("gap_analysis_failed", error=str(e))
+            logger.exception("gap_analysis_failed")
             return Err(GapAnalysisError(message=f"Gap-анализ не выполнен: {e}"))
 
     def _update_progress(self, delta: int = 1):
@@ -199,7 +199,7 @@ class GapRunner:
                 try:
                     pname, result = future.result(timeout=300)
                 except TimeoutError:
-                    logger.error("profile_evaluation_timeout")
+                    logger.exception("profile_evaluation_timeout")
                     raise
                 if result is not None:
                     evals[pname] = result

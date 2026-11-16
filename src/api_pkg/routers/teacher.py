@@ -9,7 +9,7 @@ import contextlib
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
@@ -474,7 +474,7 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
         WHERE c.discipline_id = $1 AND c.parent_id IS NULL
         GROUP BY c.id, c.code
         ORDER BY c.sort_order, c.code
-    """, disc["id"]))  # noqa: E501
+    """, disc["id"]))
 
     return {
         "name": disc["name"],
@@ -951,7 +951,7 @@ async def run_teacher_analysis_endpoint(
                 stats={"stage": "done", "status": "completed", "dir_code": dir_code},
             )
         except Exception as exc:
-            logger.error("teacher_analysis_cli_error", run_id=run_id,
+            logger.exception("teacher_analysis_cli_error", run_id=run_id,
                          exc_type=type(exc).__name__, exc_repr=repr(exc))
             with contextlib.suppress(Exception):
                 await complete_pipeline_run(run_id, status="failed", error=str(exc),
@@ -1239,7 +1239,7 @@ async def admin_student_skills(request: Request, email: str = ""):
         }
     data = _load_self_profile(name, fpath)
     try:
-        updated = datetime.fromtimestamp(probe.stat().st_mtime).isoformat()
+        updated = datetime.fromtimestamp(probe.stat().st_mtime, tz=UTC).isoformat()
     except Exception:
         logger.debug("profile_mtime_failed", exc_info=True)
         updated = None

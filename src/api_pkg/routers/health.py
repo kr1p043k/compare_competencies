@@ -106,8 +106,8 @@ async def write_log(request: Request, entry: LogEntry):
     """Запись клиентского лога."""
     try:
         await asyncio.to_thread(_write_log_sync, entry)
-    except Exception as e:
-        logger.error("log_write_failed", error=str(e))
+    except Exception:
+        logger.exception("log_write_failed")
     return {"ok": True}
 
 

@@ -288,15 +288,15 @@ class HeadHunterAPIAsync:
                     logger.warning("http_timeout_async", url=url, attempt=retries + 1, wait=round(wait_time, 2))
                     await asyncio.sleep(wait_time)
                     return await self._request_result(session, url, params, retries + 1, max_retries)
-                logger.error("max_timeout_retries_exceeded", url=url)
+                logger.exception("max_timeout_retries_exceeded", url=url)
                 return Err(ApiError(message=f"Timeout max retries: {url}", endpoint=url))
             except aiohttp.ClientError as e:
                 self.stats["other_errors"] += 1
-                logger.error("http_client_error_async", error=str(e))
+                logger.exception("http_client_error_async")
                 return Err(ApiError(message=str(e), endpoint=url))
             except Exception as e:
                 self.stats["other_errors"] += 1
-                logger.error("http_unexpected_exception_async", error=str(e))
+                logger.exception("http_unexpected_exception_async")
                 return Err(ApiError(message=str(e), endpoint=url))
 
     async def _request(

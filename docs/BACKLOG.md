@@ -21,7 +21,7 @@
 | 2.2 | Coverage + Quality в UI | `[ ]` |
 | 2.3 | Provenance скилла | `[ ]` |
 | 2.4 | readiness → readiness_score | `[x]` остатков нет |
-| 3.1 | LLM-клиент: единый /v1 | `[ ]` |
+| 3.1 | LLM-клиент: единый /v1 | `[x]` реализовано в 7a7b690a, тесты нормализации расширены |
 | 3.2 | Чат-хранилище | `[x]` миграция `add_chat_storage.py` |
 | 3.3 | Лимит контекста LLM | `[x]` truncation/max_tokens в `llm_client` |
 | 3.4 | Rate limit + auth эндпоинтов LLM | `[ ]` |
@@ -121,10 +121,12 @@ LTR model не загружен) с флагом в API-ответах — по�
 
 ## 3. LLM
 
-### 3.1 Клиент: не задваивать /v1 — `[ ]`
+### 3.1 Клиент: не задваивать /v1 — `[x]`
 
 Единый `/v1` endpoint вместо параллельных реализаций Ollama/external.
-Файлы: `src/`, `docs/LLM_PHASE2.md`. P1.
+Готово: `LLMClient` нормализует base_url (rstrip + проверка `endswith("/v1")`),
+`/v1` добавляется ровно один раз; тесты в `tests/services/test_llm_client.py`.
+Файлы: `src/services/llm_client.py`. P1.
 
 ### 3.2 Чат-хранилище — `[x]`
 
