@@ -69,7 +69,6 @@ class _FakeSession:
 def _reset_limiter():
     with contextlib.suppress(Exception):
         admin_mod.limiter._storage.reset()
-    yield
 
 
 async def _fake_current_user(_request):

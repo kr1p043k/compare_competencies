@@ -70,7 +70,6 @@ class PipelineContext(RecommendationContext):
     """Legacy-обёртка - унаследована от RecommendationContext.
     Используется в GapRunner / RecommendationRunner для обратной совместимости.
     """
-    pass
 
 
 class SkillExtractionResult(BaseModel):

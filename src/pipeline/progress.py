@@ -30,9 +30,8 @@ def _write(pct: int, message: str, logs: list[str] | None = None) -> None:
     entry = f"[{ts}] {message}"
     if logs is not None:
         existing_logs = logs
-    else:
-        if not existing_logs or existing_logs[-1] != entry:
-            existing_logs.append(entry)
+    elif not existing_logs or existing_logs[-1] != entry:
+        existing_logs.append(entry)
     data["logs"] = existing_logs[-MAX_LOGS:]
     with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)

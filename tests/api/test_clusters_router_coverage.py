@@ -25,7 +25,7 @@ class _FakeClusterer:
         return ["python", "sql"][:top_n]
 
 
-@pytest.fixture()
+@pytest.fixture
 def client():
     from src.api_pkg import create_app
 

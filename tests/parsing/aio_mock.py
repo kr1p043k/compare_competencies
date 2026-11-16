@@ -345,11 +345,10 @@ class aioresponses:
             if isinstance(match.repeat, bool):
                 if not match.repeat:
                     del self._matches[index]
+            elif match.repeat <= 1:
+                del self._matches[index]
             else:
-                if match.repeat <= 1:
-                    del self._matches[index]
-                else:
-                    match.repeat -= 1
+                match.repeat -= 1
             return match
         return None
 

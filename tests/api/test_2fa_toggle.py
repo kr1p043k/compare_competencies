@@ -31,7 +31,7 @@ def _app_client():
     return AsyncClient(transport=ASGITransport(app=create_app()), base_url="http://t")
 
 
-@pytest.fixture()
+@pytest.fixture
 def flag_off(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _disabled(_pool: Any) -> bool:
         return False
@@ -42,7 +42,7 @@ def flag_off(monkeypatch: pytest.MonkeyPatch) -> None:
         auth_mod.limiter._storage.reset()
 
 
-@pytest.fixture()
+@pytest.fixture
 def flag_on(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _enabled(_pool: Any) -> bool:
         return True

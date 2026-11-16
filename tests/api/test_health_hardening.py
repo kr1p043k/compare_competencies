@@ -9,7 +9,7 @@ TestClient(create_app()) без запуска lifespan + monkeypatch.
 
 from fastapi.testclient import TestClient
 
-import src.db as db
+from src import db
 from src import config
 from src.api_pkg import create_app, deps
 
@@ -105,7 +105,7 @@ class TestMetricsToken:
         assert resp.status_code in (401, 403)
 
     def test_metrics_200_for_admin_override(self, monkeypatch):
-        import src.api_pkg.routers.auth as auth
+        from src.api_pkg.routers import auth
 
         async def _admin(_request):
             return {"uid": "u-a", "u": "admin@example.com", "r": "admin", "t": None}

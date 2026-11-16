@@ -12,7 +12,7 @@ from src.analyzers.clustering.vacancy_clustering import (
 )
 
 
-@pytest.fixture()
+@pytest.fixture
 def model_dir(tmp_path, monkeypatch):
     d = tmp_path / "clusters"
     d.mkdir(parents=True, exist_ok=True)

@@ -101,7 +101,7 @@ async def _reset_counters(pool: asyncpg.Pool, email: str) -> None:
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 async def env() -> AsyncIterator[dict[str, Any]]:
     """Живой пул + ASGI-клиент; пользователь и счётчики чисты до и после теста."""
     import src.db as dbmod

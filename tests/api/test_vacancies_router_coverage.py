@@ -53,7 +53,7 @@ class FakePool:
         return self._rows
 
 
-@pytest.fixture()
+@pytest.fixture
 def client():
     from src.api_pkg import create_app
     from tests.conftest import open_all_gates

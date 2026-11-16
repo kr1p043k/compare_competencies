@@ -96,7 +96,7 @@ async def _restore_admins(pool: asyncpg.Pool, rows: list[asyncpg.Record]) -> Non
         await pool.execute("UPDATE users SET is_active = $1 WHERE id = $2", r["is_active"], r["id"])
 
 
-@pytest.fixture()
+@pytest.fixture
 async def env() -> AsyncIterator[dict[str, Any]]:
     tag = _unique_tag()
     admin_email = f"ac-admin-{tag}@example.test"

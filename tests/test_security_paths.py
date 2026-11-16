@@ -67,26 +67,26 @@ class TestResolveSession:
         return pool
 
     async def test_pool_none_returns_none(self, monkeypatch):
-        import src.api_pkg.routers.auth as auth
+        from src.api_pkg.routers import auth
 
         monkeypatch.setattr(auth, "get_pool", lambda: None)
         assert await auth.resolve_session(self._token()) is None
 
     async def test_row_none_returns_none(self, monkeypatch):
-        import src.api_pkg.routers.auth as auth
+        from src.api_pkg.routers import auth
 
         monkeypatch.setattr(auth, "get_pool", lambda: self._pool(None))
         assert await auth.resolve_session(self._token()) is None
 
     async def test_inactive_user_returns_none(self, monkeypatch):
-        import src.api_pkg.routers.auth as auth
+        from src.api_pkg.routers import auth
 
         row = {"id": "u1", "email": "x@y.z", "role": "admin", "is_active": False}
         monkeypatch.setattr(auth, "get_pool", lambda: self._pool(row))
         assert await auth.resolve_session(self._token()) is None
 
     async def test_active_row_returns_user_dict(self, monkeypatch):
-        import src.api_pkg.routers.auth as auth
+        from src.api_pkg.routers import auth
 
         row = {"id": 42, "email": "x@y.z", "role": "admin", "is_active": True}
         monkeypatch.setattr(auth, "get_pool", lambda: self._pool(row))
@@ -97,7 +97,7 @@ class TestResolveSession:
         assert user["r"] == "admin"
 
     async def test_empty_token_returns_none_without_pool(self, monkeypatch):
-        import src.api_pkg.routers.auth as auth
+        from src.api_pkg.routers import auth
 
         monkeypatch.setattr(
             auth,
@@ -107,7 +107,7 @@ class TestResolveSession:
         assert await auth.resolve_session("") is None
 
     async def test_db_error_returns_none(self, monkeypatch):
-        import src.api_pkg.routers.auth as auth
+        from src.api_pkg.routers import auth
 
         pool = MagicMock()
         pool.fetchrow = AsyncMock(side_effect=RuntimeError("db down"))
@@ -131,7 +131,7 @@ class TestMetricsRequiresAdmin:
         Аноним даёт 401 на get_current_user; здесь подменяем его на teacher,
         чтобы проверить именно проверку роли в require_any_role.
         """
-        import src.api_pkg.routers.auth as auth
+        from src.api_pkg.routers import auth
         from src.api_pkg import create_app
 
         async def _teacher(_request):
@@ -143,7 +143,7 @@ class TestMetricsRequiresAdmin:
 
     def test_metrics_admin_200(self, monkeypatch):
         """Админ проходит гейт (проверяем, что 403 не «всем подряд»)."""
-        import src.api_pkg.routers.auth as auth
+        from src.api_pkg.routers import auth
         from src.api_pkg import create_app
 
         async def _admin(_request):
@@ -171,7 +171,7 @@ class TestPipelineWsAuth:
         Это регресс на дыру: раньше WS проверял только подпись токена, и logout
         не действовал на открытый сокет до истечения TTL.
         """
-        import src.api_pkg.routers.auth as auth
+        from src.api_pkg.routers import auth
         from src.api_pkg import create_app
 
         async def _revoked(_token):
@@ -187,7 +187,7 @@ class TestPipelineWsAuth:
 
     def test_ws_valid_session_accepted(self, monkeypatch):
         """Валидная активная сессия - соединение принимается."""
-        import src.api_pkg.routers.auth as auth
+        from src.api_pkg.routers import auth
         from src.api_pkg import create_app
 
         async def _ok(_token):
@@ -202,7 +202,7 @@ class TestPipelineWsAuth:
 
     def test_ws_query_token_not_accepted(self, monkeypatch):
         """?token= больше не аутентифицирует сокет: адрес утекает в логи."""
-        import src.api_pkg.routers.auth as auth
+        from src.api_pkg.routers import auth
         from src.api_pkg import create_app
 
         async def _ok(_token):
@@ -222,8 +222,8 @@ class TestDisciplineScopeIdor:
     @staticmethod
     def _client(monkeypatch, tmp_path, dir_code: str | None, role="teacher", allow=("09.03.02",)):
         import src.analyzers.discipline_scope as scope_mod
-        import src.api_pkg.routers.auth as auth
-        import src.api_pkg.routers.teacher as teacher
+        from src.api_pkg.routers import auth
+        from src.api_pkg.routers import teacher
         from src.api_pkg import create_app
 
         # Не писать в реальный data/reference/discipline_market_scope.json:
@@ -279,7 +279,7 @@ class TestAdminLogsWs:
 
     @staticmethod
     def _client(monkeypatch, user=None):
-        import src.api_pkg.routers.auth as auth
+        from src.api_pkg.routers import auth
         from src.api_pkg import create_app
 
         async def _resolve(_token):

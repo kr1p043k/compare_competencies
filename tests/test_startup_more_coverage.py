@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, mock_open
 
 import pytest
 
-import src.api_pkg.deps as deps
-import src.api_pkg.startup as startup
+from src.api_pkg import deps
+from src.api_pkg import startup
 from src import Ok
 
 
@@ -54,7 +54,6 @@ def _clean_deps():
     deps.prophet_engine = None
     deps.skill_engine = None
     deps.is_ready = False
-    yield
 
 
 # --------------------------------------------------------------------------- helpers

@@ -73,7 +73,7 @@ async def _enrolled(client: AsyncClient) -> tuple[str, str]:
     return confirm.json()["token"], secret
 
 
-@pytest.fixture()
+@pytest.fixture
 async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
     import src.db as dbmod
 

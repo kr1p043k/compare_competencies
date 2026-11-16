@@ -114,7 +114,6 @@ async def _fake_coroutine(*_args, **_kwargs):
 def _reset_limiter():
     with contextlib.suppress(Exception):
         admin_mod.limiter._storage.reset()
-    yield
 
 
 def _admin_client(monkeypatch, tmp_path, *, users=None, directions=None, user_by_id=None, user_return=None):
@@ -670,7 +669,6 @@ def test_scheduler_collect_now(monkeypatch, tmp_path):
 
     def fake_create_task(coro, *, name=None):
         real_create_task(_fake_coroutine())
-        return None
 
     monkeypatch.setattr(asyncio, "create_task", fake_create_task)
     client = _admin_client(monkeypatch, tmp_path)
@@ -693,7 +691,6 @@ def test_scheduler_gap_now(monkeypatch, tmp_path):
 
     def fake_create_task(coro, *, name=None):
         real_create_task(_fake_coroutine())
-        return None
 
     monkeypatch.setattr(asyncio, "create_task", fake_create_task)
     client = _admin_client(monkeypatch, tmp_path)

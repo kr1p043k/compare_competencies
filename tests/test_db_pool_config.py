@@ -39,7 +39,7 @@ def test_invalid_pool_config_fails_fast(over):
 
 
 async def test_create_pool_passes_configured_values(monkeypatch):
-    import src.db as db
+    from src import db
 
     captured = {}
 

@@ -32,7 +32,7 @@ def _allow_all_dirs(monkeypatch):
 from src.models.student import StudentProfile
 
 
-@pytest.fixture()
+@pytest.fixture
 def isolated(tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     (data_dir / "students").mkdir(parents=True, exist_ok=True)
@@ -51,7 +51,7 @@ def isolated(tmp_path, monkeypatch):
         _pr.limiter._storage.reset()
     except Exception:
         pass
-    yield data_dir
+    return data_dir
 
 
 def _open_auth(app):
