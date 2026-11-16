@@ -183,4 +183,5 @@ class SkillExtractor:
                 logger.warning("parsed_skills_manifest_check_failed", error=str(err))
 
     def _console_info(self, msg):
+        # Console UI (capsys-tested), same contract as helpers.console_info: not a log call.
         print(f"  {msg}")

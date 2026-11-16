@@ -7,7 +7,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import sys
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
@@ -258,7 +257,6 @@ def _enhance_disciplines_with_gap_analysis(
     logger.info("gap_enhance_start", disciplines=len(disciplines), market_skills=len(market_skill_names))
     if not market_skill_names:
         logger.warning("gap_enhance_skipped_no_market_skills")
-        print("TEACHER-ANALYSIS STAGE-SKIP: gap_enhance (no market skills)", file=sys.stderr, flush=True)
         dir_summary["diag"] = diag.as_dict()
         return dir_summary
 
@@ -273,7 +271,6 @@ def _enhance_disciplines_with_gap_analysis(
     except Exception as exc:
         diag.fail("gap_enhance.embeddings")
         logger.warning("gap_enhance_skip_embedding", error=str(exc))
-        print(f"TEACHER-ANALYSIS STAGE-SKIP: gap_enhance build failed: {exc}", file=sys.stderr, flush=True)
         dir_summary["diag"] = diag.as_dict()
         return dir_summary
 
@@ -544,10 +541,6 @@ async def run_teacher_analysis(
         market_skills.pop(k, None)
     if _dirty:
         logger.info("market_skills_sanitized", dropped=len(_dirty))
-        print(
-            f"TEACHER-ANALYSIS SANITIZED market skills: dropped {len(_dirty)} empty keys",
-            file=sys.stderr, flush=True
-        )
     # Track B (v32, flag-gated): fold version-split aliases into canonical keys.
     from src.feature_flags import market_synonyms_enabled as _syn_on
     if _syn_on() and market_skills:
@@ -1097,11 +1090,7 @@ async def run_teacher_analysis(
                 if res is not None:
                     discipline_reports.append(res)
             except Exception as e:
-                logger.exception("discipline_parallel_failed", discipline=dname)
-                print(
-                    f"TEACHER-ANALYSIS DISCIPLINE-FAILED (stale file kept): {dname}: {e}",
-                    file=sys.stderr, flush=True
-                )
+                logger.exception("discipline_parallel_failed", discipline=dname, error=str(e))
 
     # - enhanced gap analysis (embedding + LTR/SHAP) -
     _enhance_diag: dict | None = None
@@ -1122,7 +1111,6 @@ async def run_teacher_analysis(
             _enhance_diag = _enhance_result.get("diag") or None
     except Exception as exc:
         logger.warning("enhanced_gap_analysis_skipped", error=str(exc))
-        print(f"TEACHER-ANALYSIS STAGE-SKIP: enhanced gap analysis: {exc}", file=sys.stderr, flush=True)
         _enhance_diag = {"degraded": True, "failed_channels": ["gap_enhance"], "count": 1}
 
     # Completion order varies across runs: sort for deterministic summary (v18).

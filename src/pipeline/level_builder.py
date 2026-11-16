@@ -87,7 +87,7 @@ class LevelBuilder:
                             {"skills": vac_skills, "description": vac.get("description", ""), "experience": experience}
                         )
                         skills.append(vac_skills)
-            print(f"  Подготовлено {len(levels)} вакансий для анализа уровней")
+            logger.info("level_analysis_prepared", vacancies=len(levels))
             return Ok((levels, skills))
         except Exception as e:
             logger.exception("level_building_failed", error=str(e))

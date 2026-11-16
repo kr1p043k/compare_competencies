@@ -24,6 +24,7 @@ from pathlib import Path
 
 import numpy as np
 import psycopg
+
 try:  # запуск как файла
     from _dsn import resolve_dsn
 except ImportError:  # импорт из тестов (пакета scripts в sys.path нет)
