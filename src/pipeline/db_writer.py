@@ -257,6 +257,12 @@ async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None)
         snippet = v.get("snippet") or {}
         skills = [s.get("name", "") for s in v.get("key_skills", []) if s.get("name")]
         parsed = v.get("extracted_skills") or v.get("raw_data", {}).get("extracted_skills")
+        # Бэкфилл для HH basic: в базовой выдаче нет key_skills, но навыки уже
+        # посчитаны из описания (_ensure_extracted_skills выше). Без этого
+        # колонка key_skills оставалась пуст "молча". Реальные key_skills
+        # не перетираем: только когда список пуст и parsed непустой.
+        if not skills and parsed:
+            skills = list(parsed)
         logos = (employer.get("logo_urls") or {}) if isinstance(employer, dict) else {}
         employer_logo = logos.get("240") or logos.get("90") or logos.get("original")
         pub = v.get("published_at")
