@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 from src.config import settings
 from src.database import Base
+from src.models import krm_models  # noqa: F401  регистрирует ORM-таблицы в Base.metadata
 
 config = context.config
 if config.config_file_name:
