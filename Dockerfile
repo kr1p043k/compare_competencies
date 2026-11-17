@@ -2,6 +2,17 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Непривилегированный пользователь (BACKLOG 6.7.2)
+RUN groupadd --system app && useradd --system --gid app --home-dir /app app
+
+# Кэш HuggingFace внутри /app, чтобы он был доступен непривилегированному
+# пользователю (раньше был /root/.cache, недоступный для non-root).
+ENV HF_HOME=/app/.cache/huggingface \
+    HF_HUB_CACHE=/app/.cache/huggingface/hub \
+    TRANSFORMERS_CACHE=/app/.cache/huggingface/hub \
+    HF_ENDPOINT=https://hf-mirror.com
+RUN mkdir -p /app/.cache/huggingface/hub
+
 # Устанавливаем системные зависимости
 RUN apt-get update && apt-get install -y \
     gcc \
@@ -37,18 +48,17 @@ RUN mkdir -p /app/data/cache \
     /app/data/history \
     /app/logs \
     /app/uploads \
-    /root/.cache/huggingface
+    && chown -R app:app /app
 
-# Настройки окружения для Hugging Face
+# Настройки окружения для Hugging Face (пути заданы выше)
 ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    HF_HOME=/root/.cache/huggingface \
-    HF_HUB_CACHE=/root/.cache/huggingface/hub \
-    TRANSFORMERS_CACHE=/root/.cache/huggingface/hub \
     HF_HUB_OFFLINE=1 \
-    TRANSFORMERS_OFFLINE=1 \
-    HF_ENDPOINT=https://hf-mirror.com
+    TRANSFORMERS_OFFLINE=1
+
+# Запуск от непривилегированного пользователя (6.7.2)
+USER app
 
 # Healthcheck для Docker
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
