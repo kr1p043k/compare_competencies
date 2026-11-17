@@ -42,14 +42,14 @@ class Vacancy(Base):
     snippet_requirement: Mapped[str | None] = mapped_column(Text)
     snippet_responsibility: Mapped[str | None] = mapped_column(Text)
     description: Mapped[str | None] = mapped_column(Text)
-    key_skills: Mapped[list[str] | None] = mapped_column(sa.JSON())
-    parsed_skills: Mapped[list[str] | None] = mapped_column(sa.JSON())
+    key_skills: Mapped[list[str] | None] = mapped_column(JSONB)
+    parsed_skills: Mapped[list[str] | None] = mapped_column(JSONB)
     published_at: Mapped[datetime | None]
     alternate_url: Mapped[str | None] = mapped_column(Text)
     pipeline_run_id: Mapped[str | None]= mapped_column(
         UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True,
     )
-    raw: Mapped[dict | None] = mapped_column(sa.JSON())
+    raw: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     __table_args__ = (
@@ -584,7 +584,7 @@ class PipelineRun(Base):
     started_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
     completed_at: Mapped[datetime | None]
     error_message: Mapped[str | None] = mapped_column(Text)
-    stats: Mapped[dict | None] = mapped_column(sa.JSON())
+    stats: Mapped[dict | None] = mapped_column(JSONB)
     direction_code: Mapped[str | None] = mapped_column(String(30), nullable=True)
     owner_id: Mapped[str | None] = mapped_column(UUID, nullable=True)
 
@@ -626,7 +626,7 @@ class AnalysisResult(Base):
     competency_id: Mapped[str | None]= mapped_column(
         UUID, ForeignKey("competencies.id", ondelete="CASCADE"), index=True,
     )
-    data: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
+    data: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     __table_args__ = (
@@ -648,7 +648,7 @@ class TrendSnapshot(Base):
         UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True,
     )
     snapshot_date: Mapped[datetime] = mapped_column()
-    skill_freq: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
+    skill_freq: Mapped[dict] = mapped_column(JSONB, default=dict)
     source: Mapped[str] = mapped_column(String(50), default="hh_vacancies")
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
@@ -683,7 +683,7 @@ class LLMRecommendation(Base):
     request_hash: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     prompt_text: Mapped[str] = mapped_column(Text, nullable=False)
     model_used: Mapped[str] = mapped_column(String(20), nullable=False)
-    response_json: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
+    response_json: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     __table_args__ = (
@@ -706,8 +706,8 @@ class ProfileEvaluation(Base):
         UUID, ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False, index=True,
     )
     evaluation_type: Mapped[str] = mapped_column(String(20), nullable=False)
-    input_summary: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
-    result_summary: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
+    input_summary: Mapped[dict] = mapped_column(JSONB, default=dict)
+    result_summary: Mapped[dict] = mapped_column(JSONB, default=dict)
     llm_request_id: Mapped[str | None]= mapped_column(
         UUID, ForeignKey("llm_recommendations.id", ondelete="SET NULL"), index=True,
     )
@@ -871,7 +871,7 @@ class ChatMessage(Base):
         nullable=False,
     )
     seq: Mapped[int] = mapped_column(Integer, nullable=False)
-    blocks_json: Mapped[dict | None] = mapped_column(sa.JSON())
+    blocks_json: Mapped[dict | None] = mapped_column(JSONB)
     model_used: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True),
