@@ -44,7 +44,7 @@ class Vacancy(Base):
     description: Mapped[str | None] = mapped_column(Text)
     key_skills: Mapped[list[str] | None] = mapped_column(JSONB)
     parsed_skills: Mapped[list[str] | None] = mapped_column(JSONB)
-    published_at: Mapped[datetime | None]
+    published_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     alternate_url: Mapped[str | None] = mapped_column(Text)
     pipeline_run_id: Mapped[str | None]= mapped_column(
         UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True,
@@ -158,7 +158,7 @@ class PDFSource(Base):
     ocr_used: Mapped[bool] = mapped_column(default=False)
     parse_status: Mapped[str] = mapped_column(String(20), default="pending")
     error_message: Mapped[str | None] = mapped_column(Text)
-    parsed_at: Mapped[datetime | None]
+    parsed_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     discipline: Mapped["Discipline"] = relationship(back_populates="pdf_sources")
@@ -484,7 +484,7 @@ class StudentSkill(Base):
     )
     skill_id: Mapped[str] = mapped_column(UUID, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True)
     source: Mapped[str] = mapped_column(String(30), default="self_assessment")
-    proficiency: Mapped[float] = mapped_column(Float, default=0.0)
+    proficiency: Mapped[float] = mapped_column(sa.REAL, default=0.0)
     achieved_level: Mapped[str | None] = mapped_column(String(10))
     direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="SET NULL"), index=True)
     competency_id: Mapped[str | None]= mapped_column(
@@ -517,7 +517,7 @@ class Session(Base):
     user_agent: Mapped[str | None] = mapped_column(Text)
     logged_in_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
     last_activity: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
-    logged_out_at: Mapped[datetime | None]
+    logged_out_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     sso_token: Mapped[str | None] = mapped_column(Text)
 
     user: Mapped["User"] = relationship(back_populates="sessions")
@@ -582,10 +582,10 @@ class PipelineRun(Base):
     action: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="started")
     started_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
-    completed_at: Mapped[datetime | None]
+    completed_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     error_message: Mapped[str | None] = mapped_column(Text)
     stats: Mapped[dict | None] = mapped_column(JSONB)
-    direction_code: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    direction_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
     owner_id: Mapped[str | None] = mapped_column(UUID, nullable=True)
 
     __table_args__ = (
@@ -647,7 +647,7 @@ class TrendSnapshot(Base):
     pipeline_run_id: Mapped[str | None]= mapped_column(
         UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True,
     )
-    snapshot_date: Mapped[datetime] = mapped_column()
+    snapshot_date: Mapped[datetime] = mapped_column(sa.Date)
     skill_freq: Mapped[dict] = mapped_column(JSONB, default=dict)
     source: Mapped[str] = mapped_column(String(50), default="hh_vacancies")
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
@@ -682,7 +682,7 @@ class LLMRecommendation(Base):
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     request_hash: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     prompt_text: Mapped[str] = mapped_column(Text, nullable=False)
-    model_used: Mapped[str] = mapped_column(String(20), nullable=False)
+    model_used: Mapped[str] = mapped_column(Text, nullable=False)
     response_json: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
