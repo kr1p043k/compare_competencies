@@ -24,5 +24,20 @@ export default defineConfig({
       forks: { singleFork: true },
     },
     maxWorkers: 1,
+    // Пороги равны текущему измеренному покрытию (округление вниз до целого),
+    // чтобы гейт ловил деградацию, но не падал на зелёной базе.
+    // Замер 2026-11-16 (vitest --coverage, v8):
+    //   stmts 44.98 | branch 73.07 | funcs 52.84 | lines 44.98.
+    // Поднимать числа можно только вместе с ростом реального покрытия.
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html"],
+      thresholds: {
+        statements: 44,
+        branches: 73,
+        functions: 52,
+        lines: 44,
+      },
+    },
   },
 });
