@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -95,6 +96,7 @@ def mock_pool():
     p.fetch = AsyncMock(side_effect=_fetch)
     p.fetchrow = AsyncMock(side_effect=_fetchrow)
     p.execute = AsyncMock(side_effect=_execute)
+    p.executemany = AsyncMock()
     return p
 
 
@@ -721,4 +723,78 @@ class TestRunTeacherAnalysisErrorPaths:
         result = await run_teacher_analysis("09.03.02", force=True)
         assert result.is_ok()
         assert "skipped" not in result.unwrap()
+
+
+class TestCoverageAnalysesBatched:
+    """N+1 audit 6.3.3: coverage_analyses writes must be ONE batched call."""
+
+    @staticmethod
+    def _multi_drows(n: int) -> list[dict]:
+        rows: list[dict] = []
+        for i in range(1, n + 1):
+            rows.append({
+                "disc_id": i, "disc_name": f"Дисциплина {i}", "comp_id": i,
+                "comp_code": "ОПК-2", "skill_name": "sql",
+                "ksa_text": None, "ksa_type": None,
+            })
+        return rows
+
+    @pytest.mark.asyncio
+    async def test_single_executemany_for_n_disciplines(
+        self, base_monkeypatch, reference_dir, mock_pool, mock_coverage, monkeypatch
+    ):
+        _write_krm(reference_dir, body=_krm_body())
+        n = 4
+        direction_rows = [{"id": 1, "code": "09.03.02", "name": "Информатика", "profile": "base"}]
+        mock_pool.fetch.side_effect = _build_pool_fetcher(
+            self._multi_drows(n), direction_rows
+        )
+
+        # Каждый вызов анализатора - своя копия coverage с id дисциплины,
+        # иначе все N дисциплин дают один и тот же discipline_id.
+        def _analyze(disc_id, dname, *args, **kwargs):
+            return Ok(replace(mock_coverage, discipline_id=str(disc_id), discipline_name=dname))
+
+        analyzer = MagicMock()
+        analyzer.analyze_discipline.side_effect = _analyze
+        monkeypatch.setattr(runner, "CoverageAnalyzer", lambda *a, **k: analyzer)
+
+        from src.pipeline.teacher_analysis_runner import run_teacher_analysis
+        result = await run_teacher_analysis("09.03.02")
+        assert result.is_ok(), result
+
+        inserts = [
+            c for c in mock_pool.executemany.await_args_list
+            if "INSERT INTO coverage_analyses" in c.args[0]
+        ]
+        assert len(inserts) == 1, "ожидался ровно один batched вызов"
+        args_list = inserts[0].args[1]
+        assert len(args_list) == n, f"ожидалось {n} кортежей в одном батче"
+        # Порядок сохранён: discipline_reports отсортирован по имени.
+        assert [t[0] for t in args_list] == ["1", "2", "3", "4"]
+        # Прежний N+1 путь (по одному execute на дисциплину) ушёл полностью.
+        per_row_inserts = [
+            c for c in mock_pool.execute.await_args_list
+            if "INSERT INTO coverage_analyses" in c.args[0]
+        ]
+        assert per_row_inserts == []
+
+    @pytest.mark.asyncio
+    async def test_no_executemany_when_nothing_to_insert(
+        self, base_monkeypatch, reference_dir, mock_pool, mock_coverage, monkeypatch
+    ):
+        """Ни одной валидной discipline_id -> ни одного запроса (как раньше)."""
+        _write_krm(reference_dir, body=_krm_body())
+        direction_rows = [{"id": 1, "code": "09.03.02", "name": "Информатика", "profile": "base"}]
+        mock_pool.fetch.side_effect = _build_pool_fetcher(
+            self._multi_drows(2), direction_rows
+        )
+        analyzer = MagicMock()
+        analyzer.analyze_discipline.return_value = Ok(replace(mock_coverage, discipline_id=""))
+        monkeypatch.setattr(runner, "CoverageAnalyzer", lambda *a, **k: analyzer)
+
+        from src.pipeline.teacher_analysis_runner import run_teacher_analysis
+        result = await run_teacher_analysis("09.03.02")
+        assert result.is_ok(), result
+        assert mock_pool.executemany.await_count == 0
 

@@ -1502,22 +1502,30 @@ async def run_teacher_analysis(
 
     # - save to coverage_analyses -
     try:
+        dir_id = direction.get("id") if direction else None
+        cov_rows: list[tuple[str, object, int, int, float, float]] = []
         for _, result in discipline_reports:
             dc = result.discipline
             if dc and dc.discipline_id:
-                dir_id = direction.get("id") if direction else None
-                cov_ratio = round(dc.coverage_ratio, 4)
-                cov_weighted = round(dc.weighted_coverage or 0.0, 4)
-                await pool.execute(
-                    """INSERT INTO coverage_analyses
-                       (discipline_id, direction_id, total_skills,
-                        market_matched_skills, coverage_ratio,
-                        weighted_coverage, analysis_date)
-                       VALUES ($1, $2, $3, $4, $5, $6, NOW())""",
+                cov_rows.append((
                     dc.discipline_id, dir_id,
-                    dc.total_skills, dc.market_matched, cov_ratio,
-                    cov_weighted,
-                )
+                    dc.total_skills, dc.market_matched,
+                    round(dc.coverage_ratio, 4),
+                    round(dc.weighted_coverage or 0.0, 4),
+                ))
+        # N+1 fix (6.3.3): один batched executemany вместо N отдельных INSERT
+        # (по одному на дисциплину). Порядок строк сохранён: discipline_reports
+        # отсортирован по имени выше; NOW() вычисляется сервером на каждую
+        # кортеж-параметру, как и в прежнем цикле.
+        if cov_rows:
+            await pool.executemany(
+                """INSERT INTO coverage_analyses
+                   (discipline_id, direction_id, total_skills,
+                    market_matched_skills, coverage_ratio,
+                    weighted_coverage, analysis_date)
+                   VALUES ($1, $2, $3, $4, $5, $6, NOW())""",
+                cov_rows,
+            )
         logger.info("coverage_analyses_saved", count=len(discipline_reports))
     except Exception as exc:
         logger.warning("coverage_analyses_save_failed", error=str(exc))
