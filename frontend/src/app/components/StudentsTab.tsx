@@ -3,7 +3,7 @@ import { api } from "../api";
 import { errMessage } from "../../lib/errors";
 import { GraduationCap } from "lucide-react";
 import { PageHeader } from "./PageHeader";
-import { Badge, Button, Card, tableHeadClass, tableRowClass } from "../../design";
+import { Badge, Button, Card, EmptyState, ErrorState, Skeleton, tableHeadClass, tableRowClass } from "../../design";
 import { cn } from "./ui/utils";
 
 type StudentRow = {
@@ -103,24 +103,21 @@ export function StudentsTab() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="p-4">
           {state === "loading" && (
-            <p className="text-sm text-muted-foreground">Загрузка списка студентов…</p>
-          )}
-          {state === "error" && (
-            <div role="alert" className="text-sm text-destructive">
-              Ошибка: {err}
-              <button
-                onClick={loadList}
-                className="ml-2 cursor-pointer rounded-sm underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                Повторить
-              </button>
+            <div className="space-y-2" role="status" aria-label="Загрузка списка студентов">
+              <span className="sr-only">Загрузка списка студентов…</span>
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-8 w-full" />
+              ))}
             </div>
           )}
+          {state === "error" && (
+            <ErrorState description={err} onRetry={loadList} />
+          )}
           {state === "empty" && (
-            <p className="text-sm text-muted-foreground">
-              Студентов с ролью student пока нет. Учётная запись появится здесь после создания пользователя с
-              ролью student.
-            </p>
+            <EmptyState
+              title="Студентов с ролью student пока нет"
+              description="Учётная запись появится здесь после создания пользователя с ролью student."
+            />
           )}
           {state === "ready" && (
             <div className="overflow-x-auto">
@@ -179,12 +176,18 @@ export function StudentsTab() {
             </p>
           )}
           {detailState === "loading" && (
-            <p className="text-sm text-muted-foreground">Загрузка профиля…</p>
+            <div className="space-y-2" role="status" aria-label="Загрузка профиля студента">
+              <span className="sr-only">Загрузка профиля…</span>
+              <Skeleton className="h-6 w-1/2" />
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-16 w-full" />
+            </div>
           )}
           {detailState === "error" && (
-            <p role="alert" className="text-sm text-destructive">
-              Ошибка: {detailErr}
-            </p>
+            <ErrorState
+              description={detailErr}
+              onRetry={() => selected && selectStudent(selected)}
+            />
           )}
           {detailState === "ready" && detail && (
             <div className="space-y-4">
@@ -207,7 +210,7 @@ export function StudentsTab() {
                   Навыки ({detail.skills.length})
                 </div>
                 {detail.skills.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Навыков пока нет.</p>
+                  <EmptyState title="Навыков пока нет" className="px-4 py-6" />
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
                     {detail.skills.map((s) => {
@@ -232,7 +235,7 @@ export function StudentsTab() {
                   Компетенции ({detail.competencies.length})
                 </div>
                 {detail.competencies.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Компетенций пока нет.</p>
+                  <EmptyState title="Компетенций пока нет" className="px-4 py-6" />
                 ) : (
                   <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">
                     {detail.competencies.map((c) => (
