@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import ProgrammingError
 
-import src.api_pkg.routers.audit as audit
+from src.api_pkg.routers import audit
 
 
 class FakeResult:

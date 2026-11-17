@@ -9,6 +9,7 @@ import {
 } from "./ui/select";
 import { Loader2, Plus, User, X } from "lucide-react";
 import { request } from "../../lib/api";
+import { errMessage } from "../../lib/errors";
 
 interface SelfData {
   profile: string;
@@ -37,8 +38,8 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
     setError(null);
     try {
       setData(await request<SelfData>("/api/profiles/self"));
-    } catch (e: any) {
-      setError(e?.message || "Ошибка загрузки");
+    } catch (e) {
+      setError(errMessage(e) || "Ошибка загрузки");
     } finally {
       setLoading(false);
     }
@@ -53,8 +54,8 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
     setError(null);
     try {
       setData(await request<SelfData>("/api/profiles/self", { method: "PATCH", body }));
-    } catch (e: any) {
-      setError(e?.message || "Ошибка сохранения");
+    } catch (e) {
+      setError(errMessage(e) || "Ошибка сохранения");
     } finally {
       setSaving(false);
     }

@@ -8,7 +8,7 @@ from src import config
 from src.api_pkg import create_app, deps
 
 
-@pytest.fixture()
+@pytest.fixture
 def isolated(tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     (data_dir / "students").mkdir(parents=True, exist_ok=True)
@@ -17,7 +17,7 @@ def isolated(tmp_path, monkeypatch):
         json.dumps({"UK-1": ["python", "sql"]}), encoding="utf-8")
     monkeypatch.setattr(config, "DATA_DIR", str(data_dir))
     monkeypatch.setattr(deps, "student_profiles", {})
-    yield data_dir
+    return data_dir
 
 
 def _open_auth(app):

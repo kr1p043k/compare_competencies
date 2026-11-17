@@ -20,7 +20,7 @@ import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { request } from "../../lib/api";
-import { reportError } from "../../lib/errors";
+import { errMessage, reportError } from "../../lib/errors";
 import {
   Badge,
   Button,
@@ -196,7 +196,7 @@ export function TeacherProfilePage({ displayName, email, onNavigate }: AccountPr
     let cancelled = false;
     request<DisciplineRow[]>("/api/teacher/krm/disciplines?dir_code=09.03.02")
       .then((d) => { if (!cancelled) setDiscs(Array.isArray(d) ? d : []); })
-      .catch((e: any) => { if (!cancelled) setError(e?.message || "Не удалось загрузить дисциплины"); });
+      .catch((e: unknown) => { if (!cancelled) setError(errMessage(e) || "Не удалось загрузить дисциплины"); });
     return () => { cancelled = true; };
   }, []);
 
@@ -440,8 +440,8 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
           competencies: Array.isArray(d.competencies) ? d.competencies : [],
           technologies_suggest: Array.isArray(d.technologies_suggest) ? d.technologies_suggest : [],
         });
-      } catch (e: any) {
-        if (!cancelled) setOptionsError("Не удалось загрузить опции своих профилей (" + (e?.message || "Не удалось загрузить опции своих профилей") + ")");
+      } catch (e) {
+        if (!cancelled) setOptionsError("Не удалось загрузить опции своих профилей (" + (errMessage(e) || "Не удалось загрузить опции своих профилей") + ")");
       } finally {
         if (!cancelled) setOptionsLoading(false);
       }
@@ -482,10 +482,10 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
     try {
       const server = await patchTechnologies({ add_technologies: [text] });
       if (server !== null) setSelf((prev) => (prev ? { ...prev, technologies: server } : prev));
-    } catch (e: any) {
+    } catch (e) {
       setSelf((prev) => (prev ? { ...prev, technologies: backup } : prev));
       if (!rawTech) setTechInput(text);
-      setTechError(e?.message || "Не удалось добавить технологию");
+      setTechError(errMessage(e) || "Не удалось добавить технологию");
     } finally {
       setTechSaving(false);
     }
@@ -500,9 +500,9 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
     try {
       const server = await patchTechnologies({ remove_technologies: [text] });
       if (server !== null) setSelf((prev) => (prev ? { ...prev, technologies: server } : prev));
-    } catch (e: any) {
+    } catch (e) {
       setSelf((prev) => (prev ? { ...prev, technologies: backup } : prev));
-      setTechError(e?.message || "Не удалось убрать технологию");
+      setTechError(errMessage(e) || "Не удалось убрать технологию");
     } finally {
       setTechSaving(false);
     }
@@ -573,11 +573,11 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       setCreatedProfiles((prev) => [
         ...prev,
         {
-          name: (d as any).profile ?? (d as any).name ?? cpNameNorm,
-          target_level: (d as any).target_level ?? cpLevel,
-          competencies: (d as any).competencies_count ?? compCodes.length,
-          created_new: (d as any).new_competencies_count ?? newComps.length,
-          technologies: (d as any).technologies_count ?? cpTechList.length,
+          name: d.profile ?? d.name ?? cpNameNorm,
+          target_level: d.target_level ?? cpLevel,
+          competencies: d.competencies_count ?? compCodes.length,
+          created_new: d.new_competencies_count ?? newComps.length,
+          technologies: d.technologies_count ?? cpTechList.length,
         },
       ]);
       setCpName("");
@@ -588,8 +588,8 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       setNewComps([]);
       setCpTech("");
       setTriedCreate(false);
-    } catch (e: any) {
-      setCreateError(e?.message || "Не удалось создать профиль");
+    } catch (e) {
+      setCreateError(errMessage(e) || "Не удалось создать профиль");
     } finally {
       setCreating(false);
     }
@@ -603,8 +603,8 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
         `/api/krm/student/competencies?direction=${encodeURIComponent(dir)}&profile=${encodeURIComponent(profileName)}`,
       );
       setKrm(d);
-    } catch (e: any) {
-      setKrmError(e?.message || "Ошибка загрузки компетенций");
+    } catch (e) {
+      setKrmError(errMessage(e) || "Ошибка загрузки компетенций");
       setKrm(null);
     } finally {
       setKrmLoading(false);
@@ -630,8 +630,8 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       }
       setDirCode(dir);
       await loadKrm(profileName, dir);
-    } catch (e: any) {
-      setSelfError(e?.message || "Ошибка загрузки профиля");
+    } catch (e) {
+      setSelfError(errMessage(e) || "Ошибка загрузки профиля");
       setKrmLoading(false);
     } finally {
       setSelfLoading(false);
@@ -667,10 +667,10 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       const updated = await patchSelf({ add_skills: [text] });
       setSelf(updated);
       await loadKrm(updated.profile || backup.profile || "base", dirCode);
-    } catch (e: any) {
+    } catch (e) {
       setSelf(backup);
       if (!raw) setNewSkill(text);
-      setOpError(e?.message || "Не удалось добавить навык");
+      setOpError(errMessage(e) || "Не удалось добавить навык");
     } finally {
       setSaving(false);
     }
@@ -690,9 +690,9 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       const updated = await patchSelf({ remove_skills: [text] });
       setSelf(updated);
       await loadKrm(updated.profile || backup.profile || "base", dirCode);
-    } catch (e: any) {
+    } catch (e) {
       setSelf(backup);
-      setOpError(e?.message || "Не удалось удалить навык");
+      setOpError(errMessage(e) || "Не удалось удалить навык");
     } finally {
       setSaving(false);
     }

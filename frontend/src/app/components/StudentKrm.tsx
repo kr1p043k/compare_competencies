@@ -27,7 +27,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { reportError } from "./../../lib/errors";
+import { errMessage, reportError } from "./../../lib/errors";
 import { request } from "../../lib/api";
 
 interface KrmSkill {
@@ -151,8 +151,8 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
           `/api/krm/student/competencies?direction=${encodeURIComponent(dir)}&profile=${encodeURIComponent(prof)}`,
         ),
       );
-    } catch (e: any) {
-      setError(e?.message || "Ошибка загрузки");
+    } catch (e) {
+      setError(errMessage(e) || "Ошибка загрузки");
     } finally {
       setLoading(false);
     }
@@ -219,10 +219,10 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
       rememberMine(text);
       setAddMsg(`«${text}» - добавлено в ваши навыки`);
       await load();
-    } catch (e: any) {
+    } catch (e) {
       if (backup) setData(backup);
       setNewSkill(text);
-      setAddErr(e?.message || "Не удалось добавить навык");
+      setAddErr(errMessage(e) || "Не удалось добавить навык");
     } finally {
       setSavingSkill(false);
     }
@@ -242,9 +242,9 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
       setCompPick("");
       setAddMsg(`«${text}» - добавлено в ваши навыки`);
       await load();
-    } catch (e: any) {
+    } catch (e) {
       if (backup) setData(backup);
-      setAddErr(e?.message || "Не удалось добавить компетенцию");
+      setAddErr(errMessage(e) || "Не удалось добавить компетенцию");
     } finally {
       setSavingComp(false);
     }

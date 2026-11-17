@@ -399,9 +399,15 @@ async def run_predictions(pool, test_set: list[dict]) -> list[dict]:
             **pair,
             "L1": {"match": l1_match, "confidence": 1.0 if l1_match else 0.0},
             "L2": {"match": l1_match or l2_match, "confidence": 0.5 if l2_match else (1.0 if l1_match else 0.0)},
-            "L3": {"match": l1_match or l2_match or l3_match, "confidence": l3_score if l3_match else (0.5 if l2_match else (1.0 if l1_match else 0.0))},
+            "L3": {
+                "match": l1_match or l2_match or l3_match,
+                "confidence": l3_score if l3_match else (0.5 if l2_match else (1.0 if l1_match else 0.0)),
+            },
             "L3_raw": {"match": l3_match, "confidence": l3_score},
-            "L4": {"match": l1_match or l2_match or l3_match, "confidence": l3_score if l3_match else (0.5 if l2_match else (1.0 if l1_match else 0.0))},
+            "L4": {
+                "match": l1_match or l2_match or l3_match,
+                "confidence": l3_score if l3_match else (0.5 if l2_match else (1.0 if l1_match else 0.0)),
+            },
             "BM25": {"match": bm25_match, "confidence": bm25_score},
             "Jaccard": {"match": jaccard_match, "confidence": jaccard_score},
         })
@@ -457,12 +463,26 @@ def compute_metrics(results: list[dict]) -> dict:
     retrieval = {}
     if relevant_sets:
         for k in [1, 3, 5]:
-            p = np.mean([RetrievalMetrics.precision_at_k(rel, ret, k) for rel, ret in zip(relevant_sets, retrieved_lists, strict=False)])
-            r = np.mean([RetrievalMetrics.recall_at_k(rel, ret, k) for rel, ret in zip(relevant_sets, retrieved_lists, strict=False)])
+            p = np.mean(
+                [
+                    RetrievalMetrics.precision_at_k(rel, ret, k)
+                    for rel, ret in zip(relevant_sets, retrieved_lists, strict=False)
+                ]
+            )
+            r = np.mean(
+                [
+                    RetrievalMetrics.recall_at_k(rel, ret, k)
+                    for rel, ret in zip(relevant_sets, retrieved_lists, strict=False)
+                ]
+            )
             retrieval[f"P@{k}"] = round(float(p), 4)
             retrieval[f"R@{k}"] = round(float(r), 4)
-        retrieval["MAP"] = round(float(RetrievalMetrics.mean_average_precision(list(zip(relevant_sets, retrieved_lists, strict=False)))), 4)
-        retrieval["MRR"] = round(float(RetrievalMetrics.mean_reciprocal_rank(list(zip(relevant_sets, retrieved_lists, strict=False)))), 4)
+        retrieval["MAP"] = round(
+            float(RetrievalMetrics.mean_average_precision(list(zip(relevant_sets, retrieved_lists, strict=False)))), 4
+        )
+        retrieval["MRR"] = round(
+            float(RetrievalMetrics.mean_reciprocal_rank(list(zip(relevant_sets, retrieved_lists, strict=False)))), 4
+        )
 
     return {"levels": metrics, "retrieval": retrieval, "total_pairs": len(results)}
 
@@ -795,7 +815,9 @@ def generate_charts(metrics: dict, ablation: dict, timing: dict, results: list[d
                 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     ax.hist(cov_data, bins=10, color="#3498db", edgecolor="white", alpha=0.8)
     ax.axvline(x=np.mean(cov_data), color="#e74c3c", linestyle="--", linewidth=2, label=f"mean={np.mean(cov_data):.3f}")
-    ax.axvline(x=np.median(cov_data), color="#2ecc71", linestyle="--", linewidth=2, label=f"median={np.median(cov_data):.3f}")
+    ax.axvline(
+        x=np.median(cov_data), color="#2ecc71", linestyle="--", linewidth=2, label=f"median={np.median(cov_data):.3f}"
+    )
     ax.set_xlabel("Coverage Ratio")
     ax.set_ylabel("Число дисциплин")
     ax.set_title("Распределение Coverage по дисциплинам (09.03.02)", fontsize=12, fontweight="bold")
@@ -823,7 +845,10 @@ def generate_charts(metrics: dict, ablation: dict, timing: dict, results: list[d
     ax.set_title("Confusion Matrix (L4: ensemble)", fontsize=12, fontweight="bold")
     for i in range(2):
         for j in range(2):
-            ax.text(j, i, str(cm[i, j]), ha="center", va="center", fontsize=16, fontweight="bold", color="white" if cm[i, j] > cm.max()/2 else "black")
+            ax.text(
+                j, i, str(cm[i, j]), ha="center", va="center", fontsize=16, fontweight="bold",
+                color="white" if cm[i, j] > cm.max() / 2 else "black",
+            )
     ax.set_xlabel("Предсказание")
     ax.set_ylabel("Реальность")
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
@@ -843,7 +868,10 @@ def generate_charts(metrics: dict, ablation: dict, timing: dict, results: list[d
     vals = [s[1] for s in speed_items]
     bars = ax.bar(names, vals, color=["#9b59b6", "#3498db", "#2ecc71"], edgecolor="white", width=0.6)
     for bar, v in zip(bars, vals, strict=False):
-        ax.text(bar.get_x() + bar.get_width()/2, v + 0.01, f"{v:.2f}s", ha="center", va="bottom", fontsize=11, fontweight="bold")
+        ax.text(
+            bar.get_x() + bar.get_width() / 2, v + 0.01, f"{v:.2f}s",
+            ha="center", va="bottom", fontsize=11, fontweight="bold",
+        )
     ax.set_ylabel("Время (сек)")
     ax.set_title("Производительность компонентов (4618 market skills)", fontsize=12, fontweight="bold")
     ax.set_ylim(0, max(vals) * 1.25)
@@ -941,8 +969,12 @@ def generate_report(metrics: dict, ablation: dict, timing: dict, results: list[d
     lines.append("## 6. Производительность")
     lines.append(f"- Init market index ({4618} skills): **{timing['init_market_index_s']:.2f}с**")
     lines.append(f"- Encode 1 query: **{timing['encode_1_query_ms']:.1f}мс**")
-    lines.append(f"- Compare 100 queries: **{timing['compare_100_s']:.2f}с** ({timing['ms_per_query_100']:.1f}мс/query)")
-    lines.append(f"- Compare 1000 queries: **{timing['compare_1000_s']:.2f}с** ({timing['ms_per_query_1000']:.1f}мс/query)")
+    lines.append(
+        f"- Compare 100 queries: **{timing['compare_100_s']:.2f}с** ({timing['ms_per_query_100']:.1f}мс/query)"
+    )
+    lines.append(
+        f"- Compare 1000 queries: **{timing['compare_1000_s']:.2f}с** ({timing['ms_per_query_1000']:.1f}мс/query)"
+    )
     lines.append("")
 
     lines.append("## 7a. Нечёткие вычисления: F1 по категориям")
@@ -953,7 +985,9 @@ def generate_report(metrics: dict, ablation: dict, timing: dict, results: list[d
             f1_l1 = _m.get("L1", {}).get("f1", 0)
             f1_l2 = _m.get("L1+L2", {}).get("f1", 0)
             f1_l3 = _m.get("L1+L2+L3", {}).get("f1", 0)
-            lines.append(f"| {_cat} | {_m.get('n',0)} | {_m.get('positive',0)} | {f1_l1:.3f} | {f1_l2:.3f} | {f1_l3:.3f} |")
+            lines.append(
+                f"| {_cat} | {_m.get('n', 0)} | {_m.get('positive', 0)} | {f1_l1:.3f} | {f1_l2:.3f} | {f1_l3:.3f} |"
+            )
     lines.append("")
     lines.append("## 7b. Вклад нечёткого matching (прирост F1 по этапам)")
     lines.append("| Этап | F1 | Delta к пред. |")
@@ -968,7 +1002,10 @@ def generate_report(metrics: dict, ablation: dict, timing: dict, results: list[d
     if mcnemar_cat:
         for _cat, _s in sorted(mcnemar_cat.items()):
             _flag = "*" if _s.get("sig") else ""
-            lines.append(f"| {_cat} {_flag} | {_s.get('n',0)} | {_s.get('b',0)} | {_s.get('c',0)} | {_s.get('chi2',0):.2f} | {_s.get('p',1):.4f} | {_flag} |")
+            lines.append(
+                f"| {_cat} {_flag} | {_s.get('n', 0)} | {_s.get('b', 0)} | {_s.get('c', 0)} "
+                f"| {_s.get('chi2', 0):.2f} | {_s.get('p', 1):.4f} | {_flag} |"
+            )
     lines.append("")
     lines.append("## 7d. Ошибки fuzzy: FP/FN по категориям")
     if fuzzy_errors:
@@ -1239,7 +1276,11 @@ async def main():
 
     # Save all metrics as JSON
     all_data = {
-        "dataset": {"total": len(dataset), "positive": sum(1 for t in dataset if t["label"] == 1), "negative": sum(1 for t in dataset if t["label"] == 0)},
+        "dataset": {
+            "total": len(dataset),
+            "positive": sum(1 for t in dataset if t["label"] == 1),
+            "negative": sum(1 for t in dataset if t["label"] == 0),
+        },
         "levels": metrics["levels"],
         "retrieval": metrics.get("retrieval", {}),
         "ablation": ablation,

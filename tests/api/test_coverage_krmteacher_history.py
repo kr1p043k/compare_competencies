@@ -44,7 +44,6 @@ DIRECTION_DATA = {
 def _reset_limiter():
     with contextlib.suppress(Exception):
         krm_mod.limiter._storage.reset()
-    yield
 
 
 class _EmptyPool:

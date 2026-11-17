@@ -131,10 +131,10 @@ def put_cached(
                     "cto": completion_tokens,
                 },
             )
-        return None
+        return
     except Exception as exc:
         logger.warning("llm_cache.put_cached_failed", error=str(exc), task=task, model=model)
-        return None
+        return
 
 
 def get_embedding(skill_key: str, model: str) -> list[float] | None:
@@ -160,7 +160,7 @@ def get_embedding(skill_key: str, model: str) -> list[float] | None:
 def put_embedding(skill_key: str, model: str, vector: list[float]) -> None:
     try:
         if not vector:
-            return None
+            return
         emb = _format_vector(vector)
         with _engine().begin() as conn:
             conn.execute(
@@ -175,9 +175,9 @@ def put_embedding(skill_key: str, model: str, vector: list[float]) -> None:
                 ),
                 {"k": skill_key, "m": model, "emb": emb},
             )
-        return None
+        return
     except Exception as exc:
         logger.warning(
             "llm_cache.put_embedding_failed", error=str(exc), skill_key=skill_key, model=model
         )
-        return None
+        return

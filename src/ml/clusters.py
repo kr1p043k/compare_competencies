@@ -54,7 +54,7 @@ def prepare_vacancies_for_clustering(raw_vacancies: list) -> list:
 
 def train_clusters(level: str = "all", save_report: bool = True, interpret: bool = True) -> bool:
     _level_requested = level
-    logger.info("train_clusters_start", level=level)
+    logger.info("cluster_training_started", level=_level_requested)
 
     detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
@@ -120,7 +120,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
     unique_labels = sorted(set(label for label in labels_list if label >= 0))
     logger.info("clustering_completed", clusters=len(unique_labels))
 
-    _CLUSTER_STOP = frozenset({  # noqa: N806
+    _CLUSTER_STOP = frozenset({
         "для", "от", "по", "на", "c", "о", "об", "из", "без", "в", "и",
         "не", "а", "но", "за", "до", "при", "про", "как", "еще", "уже",
         "na", "ot", "po", "пo", "oт",
@@ -190,14 +190,14 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
         logger.info("report_saved", path=str(report_path))
 
     if interpret and clusters_out:
-        logger.info("cluster_interpretation")
+        logger.info("cluster_interpretation_started", clusters=len(clusters_out))
         for i, cl in enumerate(clusters_out, 1):
             name = cl.get("label", f"Cluster {i}")
             size = cl.get("size", 0)
             top = ", ".join(cl.get("top_skills", [])[:5])
-            logger.info("cluster_summary", index=i, label=name, size=size, top=top)
+            logger.info("cluster_interpretation", index=i, name=name, size=size, top_skills=top)
 
-    logger.info("train_clusters_done", level=level, clusters=len(clusters_out))
+    logger.info("cluster_training_finished")
     return True
 
 

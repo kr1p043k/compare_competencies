@@ -45,7 +45,7 @@ def _clean_buffer():
     rl._log_buffer.clear()
 
 
-@pytest.fixture()
+@pytest.fixture
 def actor():
     m = AsyncMock(return_value=dict(ADMIN))
     with patch("src.api_pkg.routers.auth.get_current_user", new=m):

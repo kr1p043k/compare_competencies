@@ -12,7 +12,10 @@ import re
 import sys
 import unicodedata
 
+import structlog
 from pypdf import PdfReader
+
+logger = structlog.get_logger(__name__)
 
 HAS_EASYOCR = False
 try:
@@ -467,7 +470,7 @@ class RPDLoader:
             disc_name = self._discipline_name(fname)
             normalize_disc_name(disc_name)
 
-            print(f"  {fname} -> {disc_name}")
+            logger.info("rpd_pdf_loaded", file=fname, discipline=disc_name)
 
             # Extract text
             text = self.extract_text(fpath)
@@ -577,7 +580,7 @@ class RPDLoader:
         """
         text = extract_text_pypdf(fpath)
         if not text:
-            print("    pypdf failed")
+            logger.warning("pypdf_extraction_failed", file=fpath)
             return None
 
         ratio = cyrillic_ratio(text)
@@ -586,7 +589,7 @@ class RPDLoader:
 
         # Low Cyrillic - try OCR only for English-named PDFs with content
         if use_ocr and any(c.isascii() and c.isalpha() for c in text[:200]):
-            print(f"    Low Cyrillic ({ratio:.1%}), trying OCR...")
+            logger.info("low_cyrillic_ratio_ocr_fallback", file=fpath, cyrillic_ratio=round(ratio, 3))
             ocr_text = extract_text_ocr(fpath)
             if ocr_text:
                 return ocr_text

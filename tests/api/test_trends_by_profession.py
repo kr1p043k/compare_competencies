@@ -25,7 +25,6 @@ from src.api_pkg.routers import trends_by_profession as trends_prof
 def reset_limiter():
     with contextlib.suppress(Exception):
         trends_prof.limiter._storage.reset()
-    yield
 
 
 async def _fake_user(request):

@@ -10,8 +10,8 @@
 
 import pytest
 
-import src.api_pkg.deps as deps
-import src.api_pkg.startup as startup
+from src.api_pkg import deps
+from src.api_pkg import startup
 
 
 class _StubClusterer:
@@ -21,7 +21,7 @@ class _StubClusterer:
         return True
 
 
-@pytest.fixture()
+@pytest.fixture
 def isolated_deps(monkeypatch):
     monkeypatch.setattr(deps, "get_clusterer", lambda: _StubClusterer(), raising=False)
     saved = {

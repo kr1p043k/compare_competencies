@@ -136,7 +136,7 @@ def _seed_random_session():
     """Anchor the global PRNGs once per session; per-test fixture resets them."""
     random.seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
-    yield RANDOM_SEED
+    return RANDOM_SEED
 
 
 @pytest.fixture(autouse=True)
@@ -144,7 +144,6 @@ def _seed_random_per_test(_seed_random_session):
     """Re-seed global PRNGs before every test prevents order-dependent failures."""
     random.seed(_seed_random_session)
     np.random.seed(_seed_random_session)
-    yield
 
 
 @pytest.fixture(autouse=True)
@@ -211,7 +210,6 @@ def isolate_skill_taxonomy_singleton():
         # dict (общие словари навыков) - персональная копия каждому тесту;
         # функции и прочие атрибуты - восстановление ссылки.
         setattr(SkillTaxonomy, name, value.copy() if isinstance(value, dict) else value)
-    yield
 
 
 def pytest_configure(config):
@@ -258,7 +256,6 @@ def mock_all_data_dirs(tmp_path, monkeypatch):
             path.mkdir(parents=True, exist_ok=True)
             monkeypatch.setattr(config, attr, path)
 
-    yield
 
 
 @pytest.fixture(autouse=True)
@@ -269,7 +266,6 @@ def suppress_http_logging():
             root.removeHandler(handler)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
-    yield
 
 
 @pytest.fixture(autouse=True)
@@ -280,7 +276,6 @@ def clean_logging_handlers():
             root.removeHandler(handler)
     if not any(isinstance(h, logging.StreamHandler) for h in root.handlers):
         root.addHandler(logging.NullHandler())
-    yield
 
 
 @pytest.fixture(autouse=True)

@@ -124,10 +124,8 @@ class QualityScoringStage(PipelineStage):
                     clean_pct=round(clean_pct, 1),
                     spam_count=spam_count,
                     total=total,
+                    hint="Возможно, HH.ru вернул похожие запросы: попробуйте другой регион или уточните запрос",
                 )
-                print(f"\n  ⚠️  Обнаружено {spam_count}/{total} нерелевантных вакансий ({clean_pct:.0f}% качественных).")
-                print("     Возможно, HH.ru вернул «похожие запросы» вместо точных результатов.")
-                print("     Попробуйте другой регион или уточните запрос.\n")
 
             return Ok({"quality_report": quality_report})
         return _run()

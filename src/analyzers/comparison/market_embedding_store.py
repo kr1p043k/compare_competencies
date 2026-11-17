@@ -30,7 +30,7 @@ def split_cached(cached_skills, cached_embs, names):
     row_by_skill = {s: i for i, s in enumerate(cached_skills)}
     have_idx = [row_by_skill[n] for n in names if n in row_by_skill]
     missing = [n for n in names if n not in row_by_skill]
-    have_names = [names[i] for i, n in enumerate(names) if n in row_by_skill]
+    have_names = [n for i, n in enumerate(names) if n in row_by_skill]
     mat = np.asarray(cached_embs)[np.fromiter(have_idx, dtype=np.int64, count=len(have_idx))] \
         if have_idx else None
     return have_names, mat, missing

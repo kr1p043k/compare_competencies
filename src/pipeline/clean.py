@@ -4,10 +4,13 @@ import json
 import os
 import re
 
+import structlog
 from rapidfuzz import fuzz
 
 from src.parsing.skills.skill_validator import SkillValidator
 from src.parsing.utils import load_it_skills
+
+logger = structlog.get_logger(__name__)
 
 it_skills = load_it_skills()
 it_set = {s.strip().lower() for s in it_skills if s.strip()}
@@ -18,7 +21,7 @@ if os.path.exists(rpd_skills_path):
     with open(rpd_skills_path, encoding="utf-8") as f:
         rpd_skills = json.load(f)
     rpd_set = {s.strip().lower() for s in rpd_skills if s.strip()}
-    print(f"it_skills: {len(it_set)}, rpd_skills: {len(rpd_set)}")
+    logger.info("clean_skill_sets_loaded", it_skills=len(it_set), rpd_skills=len(rpd_set))
 
 combined_set = it_set | rpd_set
 combined_list = sorted(combined_set, key=len, reverse=True)

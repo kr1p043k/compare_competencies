@@ -90,7 +90,7 @@ async def _second_session(client: AsyncClient, secret: str) -> str:
     return verify.json()["token"]
 
 
-@pytest.fixture()
+@pytest.fixture
 async def env(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[dict[str, Any]]:
     import src.db as dbmod
 

@@ -7,7 +7,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import text
 
-import src.api_pkg.deps as deps
+from src.api_pkg import deps
 from src import DomainError, Err, Ok, Result, config
 from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_authenticated, user_error_detail

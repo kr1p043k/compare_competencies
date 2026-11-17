@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { errMessage } from "../../lib/errors";
 import { GraduationCap } from "lucide-react";
 import { PageHeader } from "./PageHeader";
 import { Badge, Button, Card, tableHeadClass, tableRowClass } from "../../design";
@@ -27,8 +28,8 @@ type StudentDetail = {
   has_profile?: boolean;
 };
 
-function errText(e: any): string {
-  const raw = e?.message || "неизвестная ошибка";
+function errText(e: unknown): string {
+  const raw = errMessage(e) || "неизвестная ошибка";
   try {
     const j = JSON.parse(raw);
     const d = String(j.detail || raw);
@@ -58,7 +59,7 @@ export function StudentsTab() {
       const list = (d?.students || []) as StudentRow[];
       setRows(list);
       setState(list.length === 0 ? "empty" : "ready");
-    } catch (e: any) {
+    } catch (e) {
       setErr(errText(e));
       setState("error");
     }
@@ -79,7 +80,7 @@ export function StudentsTab() {
       const d = await api<StudentDetail>(`/admin/students/skills?email=${encodeURIComponent(email)}`);
       setDetail(d as StudentDetail);
       setDetailState("ready");
-    } catch (e: any) {
+    } catch (e) {
       setDetailErr(errText(e));
       setDetailState("error");
     }

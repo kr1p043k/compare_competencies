@@ -235,7 +235,6 @@ def base_monkeypatch(
     monkeypatch.setattr("src.teacher_scope.load_scope_overrides", AsyncMock(return_value={}))
     monkeypatch.setattr("src.teacher_scope.effective_in_scope", lambda name, overrides: True)
 
-    yield
 
     # cleanup: remove any files written to tmp path (tmp_path handles itself)
 

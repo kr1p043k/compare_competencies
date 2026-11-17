@@ -153,7 +153,7 @@ class TestVacancyClusterer:
 
     def test_save_and_load_model(self, tmp_path, sample_vacancies, monkeypatch):
         """Проверяем сохранение и загрузку модели"""
-        import src.config as config
+        from src import config
 
         monkeypatch.setattr(config, "VACANCY_CLUSTERS_CACHE_DIR", tmp_path)
 
@@ -243,7 +243,7 @@ class TestVacancyClusteringFull:
 
     def test_save_model_creates_file(self, tmp_path, vacancies):
         """Строки 226-230: сохранение модели"""
-        import src.config as config
+        from src import config
 
         monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(config, "VACANCY_CLUSTERS_CACHE_DIR", tmp_path)
@@ -344,7 +344,7 @@ class TestVacancyClusteringFull:
 
     def test_hdbscan_low_silhouette_fallback_to_kmeans(self, tmp_path):
         """Строка 206: HDBSCAN находит только 1 кластер → KMeans"""
-        import src.config as config
+        from src import config
 
         monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(config, "VACANCY_CLUSTERS_CACHE_DIR", tmp_path)
@@ -396,7 +396,7 @@ class TestVacancyClusteringFull:
 
     def test_save_model_hdbscan_type(self, tmp_path):
         """Строки 226-230: сохранение модели HDBSCAN"""
-        import src.config as config
+        from src import config
 
         monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(config, "VACANCY_CLUSTERS_CACHE_DIR", tmp_path)
@@ -459,7 +459,7 @@ class TestVacancyClusteringFull:
 
     def test_hdbscan_single_cluster_edge(self, tmp_path):
         """Строка 206: HDBSCAN возвращает 1 кластер (n_clusters < 2)"""
-        import src.config as config
+        from src import config
 
         monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(config, "VACANCY_CLUSTERS_CACHE_DIR", tmp_path)

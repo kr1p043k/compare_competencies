@@ -206,7 +206,7 @@ class TestProfileEvaluatorFull:
 
     def test_cache_save_and_load(self, tmp_path, sample_skill_weights):
         """Строки 264-277: кэширование результатов"""
-        import src.config as config
+        from src import config
 
         monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(config, "DATA_PROCESSED_DIR", tmp_path)
@@ -258,7 +258,7 @@ class TestProfileEvaluatorFull:
 
     def test_load_cache_exception(self, tmp_path, sample_skill_weights):
         """Строка 275-277: обработка ошибки загрузки кэша"""
-        import src.config as config
+        from src import config
 
         monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(config, "DATA_PROCESSED_DIR", tmp_path)

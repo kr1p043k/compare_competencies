@@ -2,7 +2,7 @@
 import { request } from "../../lib/api";
 import { useApi, errorText } from "../../lib/useApi";
 import { AlertCircle, TrendingDown, Target, ChevronDown, ChevronRight, Undo2 } from "lucide-react";
-import { Badge, Button, Card, StatCard, type BadgeTone } from "../../design";
+import { Badge, Button, Card, MetricPair, StatCard, type BadgeTone } from "../../design";
 import { CompetencyTree } from "./CompetencyTree";
 import { ShowMore } from "./ui/show-more";
 
@@ -133,7 +133,24 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
             {scov !== undefined && (
               <StatCard label="Сильное покрытие" value={`${(scov * 100).toFixed(1)}%`} tone="success" />
             )}
-            <StatCard label="Покрытие с учётом смежных" value={`${(cov * 100).toFixed(1)}%`} />
+            {/* Пара у покрытия: бинарный процент без качества рядом
+                читается как единственная оценка. Качество =
+                weighted_coverage (сумма уверенности матчера), поле может
+                отсутствовать в payload - тогда пара не рисуется. */}
+            <StatCard
+              label="Покрытие с учётом смежных"
+              value={
+                <MetricPair
+                  primaryValue={`${(cov * 100).toFixed(1)}%`}
+                  primaryTitle="Покрытие: доля навыков РПД, подтверждённых рынком (бинарно)"
+                  secondaryValue={
+                    wcov !== undefined ? `${(wcov * 100).toFixed(1)}%` : undefined
+                  }
+                  secondaryLabel="кач."
+                  secondaryTitle="Качество совпадений: покрытие с учётом уверенности матчера, всегда не выше бинарного. Поля нет в payload - не выводится"
+                />
+              }
+            />
             {wcov !== undefined && (
               <StatCard label="Взвешенное покрытие" value={`${(wcov * 100).toFixed(1)}%`} />
             )}

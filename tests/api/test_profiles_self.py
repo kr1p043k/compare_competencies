@@ -9,14 +9,14 @@ from src.api_pkg import create_app, deps
 STUDENT = {"uid": "00000000-0000-0000-0000-000000000009", "u": "stud@t.local", "r": "student"}
 
 
-@pytest.fixture()
+@pytest.fixture
 def actor():
     m = AsyncMock(return_value=dict(STUDENT))
     with patch("src.api_pkg.routers.auth.get_current_user", new=m):
         yield m
 
 
-@pytest.fixture()
+@pytest.fixture
 def iso(tmp_path, monkeypatch):
     from src import config
 
