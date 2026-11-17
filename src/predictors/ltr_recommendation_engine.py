@@ -28,6 +28,7 @@ from src import (
 from src.analyzers.skills.skill_filter import SkillFilter
 from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
 from src.artifacts import ArtifactManifest
+from src.model_registry import record_loaded
 from src.parsing.api.embedding_loader import get_embedding_model
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.parsing.skills.vacancy_parser import VacancyParser
@@ -289,6 +290,8 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         self.category_avg_weight: dict[str, float] = {}
         self.total_vacancies = 0
         self.is_fitted = False
+        #: Артефакт, реально открытый load_model(): {artifact, version, sha256_12, loaded_at}.
+        self.loaded_artifact: dict[str, Any] | None = None
 
         # SkillTaxonomy - синглтон, кешируем ссылку один раз, не создаём на каждый навык
         self._taxonomy = None
@@ -1223,9 +1226,11 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             ))
 
         manifest_path = model_path.with_suffix(".manifest.json")
+        manifest_version: str | None = None
         if manifest_path.exists():
             match ArtifactManifest.load(model_path):
                 case Ok(manifest):
+                    manifest_version = manifest.model_version
                     match manifest.is_compatible():
                         case Ok(False):
                             logger.warning("ltr_model_incompatible_manifest",
@@ -1262,6 +1267,10 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         self.vacancy_skills_corpus = data.get("vacancy_skills_corpus", [])
         self.category_avg_weight = data.get("category_avg_weight", {})
         self.is_fitted = True
+        # Serving-отпечаток: ЧТО именно открыто (имя файла, манифест-версия,
+        # короткий sha256). Идёт в /health и /api/status, чтобы кривой деплой
+        # был трассируем без пересборки. Семантику загрузки не меняет.
+        self.loaded_artifact = record_loaded("ltr", model_path, version=manifest_version)
         logger.info(
             "model_loaded",
             path=str(model_path),

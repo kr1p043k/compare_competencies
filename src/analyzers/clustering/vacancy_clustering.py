@@ -20,6 +20,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from src import Ok, Result, config
 from src.artifacts import ArtifactManifest
 from src.errors import DomainError
+from src.model_registry import record_loaded
 from src.models.enums import ExperienceLevel
 from src.parsing.api.embedding_loader import get_embedding_model
 from src.parsing.skills.skill_normalizer import SkillNormalizer
@@ -108,6 +109,8 @@ class VacancyClusterer:
         self.vacancy_ids: list[str] = []
         self.vacancy_skills: list[list[str]] = []
         self.is_fitted = False
+        #: Артефакт, реально открытый load_model(): {artifact, version, sha256_12, loaded_at}.
+        self.loaded_artifact: dict[str, Any] | None = None
         self.label_to_center_idx: dict[int, int] = {}
 
     def _compute_embeddings(self, vacancies: list[dict]) -> np.ndarray:
@@ -403,6 +406,12 @@ class VacancyClusterer:
         if data is None:
             return False
         self._apply_loaded_data(data)
+        # Serving-отпечаток загруженного артефакта (имя + короткий sha256),
+        # компонент ключуется уровнем: clusters_junior / clusters_middle / ...
+        version = data.get("version")
+        self.loaded_artifact = record_loaded(
+            f"clusters_{level_key}", path, version=str(version) if version is not None else None
+        )
         logger.info(
             "cluster_model_loaded",
             path=str(path),

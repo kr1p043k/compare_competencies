@@ -1,6 +1,8 @@
 """Model Registry - version tracking for LTR, embeddings, clusters."""
 
+import hashlib
 import json
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -11,6 +13,60 @@ from src import Err, Ok, Result
 from src.errors import DomainError
 
 logger = structlog.get_logger(__name__)
+
+
+def content_hash(path: Path, length: int = 12) -> str | None:
+    """Первые `length` hex-символов sha256 файла; None, если файл не читается.
+
+    Это «отпечаток» артефакта: два разных файла с одной версией различимы,
+    а битый деплой виден по смене хеша в serving-ответах.
+    """
+    try:
+        sha = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                sha.update(chunk)
+    except OSError:
+        return None
+    return sha.hexdigest()[:length]
+
+
+# Что serving ФАКТИЧЕСКИ загрузил: component -> {artifact, version, sha256_12, loaded_at}.
+# Пишется в момент загрузки (record_loaded), читается health/status. Локальный
+# процесс, поэтому lock только против гонок потоков стартапа (asyncio.to_thread).
+_LOADED_LOCK = threading.Lock()
+_LOADED: dict[str, dict[str, Any]] = {}
+
+
+def record_loaded(
+    component: str,
+    artifact_path: str | Path,
+    version: str | None = None,
+) -> dict[str, Any]:
+    """Записать при загрузке, какой артефакт реально открыт (имя, версия, короткий хеш)."""
+    path = Path(artifact_path)
+    info: dict[str, Any] = {
+        "artifact": path.name,
+        "version": version,
+        "sha256_12": content_hash(path),
+        "loaded_at": datetime.now(UTC).isoformat(),
+    }
+    with _LOADED_LOCK:
+        _LOADED[component] = info
+    logger.info("serving_artifact_loaded", component=component, **info)
+    return info
+
+
+def loaded_artifacts() -> dict[str, dict[str, Any]]:
+    """Снимок того, что загружено в этом процессе (копия, для внешних ответов)."""
+    with _LOADED_LOCK:
+        return {k: dict(v) for k, v in _LOADED.items()}
+
+
+def reset_loaded_artifacts() -> None:
+    """Очистить записи загрузки (только для тестов)."""
+    with _LOADED_LOCK:
+        _LOADED.clear()
 
 
 class ModelRegistry:
@@ -55,6 +111,7 @@ class ModelRegistry:
                 "version": str(len(self._index.get(model_type, [])) + 1),
                 "path": str(path.resolve()),
                 "size_bytes": path.stat().st_size,
+                "sha256_12": content_hash(path),
                 "metrics": metrics or {},
                 "tags": tags or {},
                 "registered_at": datetime.now(UTC).isoformat(),

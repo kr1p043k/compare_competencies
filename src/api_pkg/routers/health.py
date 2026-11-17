@@ -4,7 +4,7 @@ import asyncio
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import structlog
 from fastapi import APIRouter, Request, Response
@@ -14,7 +14,7 @@ import src.db as _db
 from src import config
 from src.api_pkg import deps
 from src.api_pkg.rate_limit import limiter
-from src.model_registry import ModelRegistry
+from src.model_registry import ModelRegistry, loaded_artifacts
 from src.models.api_responses import HealthResponse
 
 logger = structlog.get_logger("api")
@@ -114,13 +114,31 @@ async def write_log(request: Request, entry: LogEntry):
 @router.get("/health", response_model=HealthResponse)
 @router.get("/api/health", response_model=HealthResponse)
 async def health_check():
-    """Готовность сервиса и зависимостей."""
+    """Готовность сервиса и зависимостей.
+
+    HealthResponse раньше описывал только status/version/evaluator/
+    recommendation_engine и молча отсекал остальные ключи словаря
+    (ltr_model_version, clusters_versions) - контракт расширен опциональными
+    полями, а не отключён (схема OpenAPI остаётся честной).
+    """
     registry = _get_registry()
     ltr_model = registry.latest("ltr")
     clusters = {
         lvl: registry.latest(f"clusters_{lvl}")
         for lvl in ["junior", "middle", "senior"]
     }
+    # Что serving реально загрузил: путь + sha256_12 артефакта на момент load.
+    # Кривой деплой трассируется по смене хеша, даже если реестр молчит.
+    loaded = loaded_artifacts()
+    ltr_loaded: dict[str, Any] | None = None
+    eng = deps.recommendation_engine
+    ltr_eng = getattr(eng, "ltr_engine", None) if eng is not None else None
+    if ltr_eng is not None and getattr(ltr_eng, "loaded_artifact", None) is not None:
+        # Серверный движок важнее глобального last-write: ленивый explanation-
+        # движок (results.py) мог открыть другой артефакт поверх него.
+        ltr_loaded = ltr_eng.loaded_artifact
+    elif "ltr" in loaded:
+        ltr_loaded = loaded["ltr"]
     return {
         "status": "ok",
         "version": getattr(config, "VERSION", "2.0"),
@@ -130,6 +148,8 @@ async def health_check():
         "clusters_versions": {
             lvl: (reg or {}).get("version") for lvl, reg in clusters.items()
         },
+        "ltr_artifact": ltr_loaded,
+        "loaded_artifacts": loaded,
         "api_ready": deps.is_ready,
     }
 

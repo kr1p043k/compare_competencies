@@ -1,14 +1,24 @@
-"""Покрытие src/model_registry.py: версии артефактов, регистрация, prune.
+"""Покрытие src/model_registry.py: версии артефактов, регистрация, prune,
+хеш загруженного артефакта (serving-трассировка).
 
 Реальные модели не нужны: артефакты - обычные файлы в tmp_path.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
-from src.model_registry import ModelRegistry
+import pytest
+
+from src.model_registry import (
+    ModelRegistry,
+    content_hash,
+    loaded_artifacts,
+    record_loaded,
+    reset_loaded_artifacts,
+)
 
 
 def _artifact(tmp_path: Path, name: str = "model.joblib", size: int = 16) -> Path:
@@ -36,6 +46,9 @@ def test_index_persists_between_instances(tmp_path: Path):
     assert len(versions) == 1
     assert versions[0]["metrics"] == {"ndcg": 0.9}
     assert versions[0]["size_bytes"] == 16
+    # Хеш считается при регистрации и переживает перезагрузку индекса.
+    expected = hashlib.sha256(b"x" * 16).hexdigest()[:12]
+    assert versions[0]["sha256_12"] == expected
 
 
 def test_broken_index_is_ignored(tmp_path: Path):
@@ -173,3 +186,45 @@ def test_registry_creates_directory(tmp_path: Path):
     assert reg.list_versions("ltr") == []
     reg.register("ltr", _artifact(tmp_path, "a.joblib"))
     assert json.loads((target / "registry_index.json").read_text(encoding="utf-8"))["ltr"]
+
+
+# ---------- serving: хеш того, что реально загружено ----------
+
+
+@pytest.fixture(autouse=True)
+def _clean_loaded_registry():
+    """Глобальный реестр загрузок живёт в процессе: тесты не должны видеть
+    записи друг друга и побочных импортов app."""
+    reset_loaded_artifacts()
+    yield
+    reset_loaded_artifacts()
+
+
+def test_content_hash_matches_sha256(tmp_path: Path):
+    p = _artifact(tmp_path, "h.joblib", size=32)
+    assert content_hash(p) == hashlib.sha256(p.read_bytes()).hexdigest()[:12]
+
+
+def test_content_hash_none_for_missing_file(tmp_path: Path):
+    assert content_hash(tmp_path / "nope.joblib") is None
+
+
+def test_record_loaded_captures_name_version_hash(tmp_path: Path):
+    art = _artifact(tmp_path, "ltr_ranker_xgb_regressor.joblib")
+    info = record_loaded("ltr", art, version="42")
+    assert info["artifact"] == "ltr_ranker_xgb_regressor.joblib"
+    assert info["version"] == "42"
+    assert info["sha256_12"] == hashlib.sha256(art.read_bytes()).hexdigest()[:12]
+    assert info == loaded_artifacts()["ltr"]
+    # version может отсутствовать (манифеста нет) - поле остаётся в схеме.
+    info2 = record_loaded("clusters_middle", art)
+    assert info2["version"] is None
+    assert "clusters_middle" in loaded_artifacts()
+
+
+def test_record_loaded_missing_file_hash_is_none_but_key_present(tmp_path: Path):
+    # Битый деплой: артефакт пропал после записи индекса - в serving-ответе
+    # это видно как sha256_12=None, а не как отсутствие ключа.
+    info = record_loaded("ltr", tmp_path / "gone.joblib", version="1")
+    assert info["sha256_12"] is None
+    assert loaded_artifacts()["ltr"]["sha256_12"] is None

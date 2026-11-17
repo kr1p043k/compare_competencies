@@ -8,11 +8,23 @@ from pydantic import BaseModel, Field, RootModel
 
 
 class HealthResponse(BaseModel):
-    """Ответ health-check."""
+    """Ответ health-check.
+
+    Поля versions/artifacts опциональны: /health отдаёт их, когда реестр или
+    serving что-то знает о загруженных артефактах. Раньше Extra fields
+    молча отбрасывались FastAPI - ltr_model_version/clusters_versions были в
+    словаре хендлера, но не в ответе.
+    """
     status: str
     version: str
     evaluator: bool
     recommendation_engine: bool
+    ltr_model_version: str | None = None
+    clusters_versions: dict[str, str | None] = Field(default_factory=dict)
+    #: {artifact, version, sha256_12, loaded_at} - что serving реально открыл.
+    ltr_artifact: dict[str, Any] | None = None
+    loaded_artifacts: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    api_ready: bool = False
 
 
 class ReadyResponse(BaseModel):
