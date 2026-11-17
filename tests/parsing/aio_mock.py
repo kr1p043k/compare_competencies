@@ -241,7 +241,7 @@ class _Match:
         return f"_Match({self.method} {self.url!r})"
 
 
-class aioresponses:
+class aioresponses:  # noqa: N801
     """Drop-in mock for the subset of ``aioresponses.aioresponses`` we use."""
 
     def __init__(self, **_kwargs: Any):

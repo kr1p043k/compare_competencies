@@ -50,7 +50,7 @@ class SafeStreamHandler(logging.StreamHandler):
         except Exception:
             pass
 
-    def handleError(self, record):
+    def handleError(self, record):  # noqa: N802
         # Никогда не печатаем в stderr: он и есть источник проблемы с кодировкой.
         pass
 

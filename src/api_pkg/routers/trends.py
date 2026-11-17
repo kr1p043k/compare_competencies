@@ -208,7 +208,7 @@ def _clear_trend_caches() -> None:
     _schedule_db_cache_clear()
 
 
-from src.cache_bus import register as _register_cache
+from src.cache_bus import register as _register_cache  # noqa: E402
 
 _register_cache("trends", _clear_trend_caches)
 

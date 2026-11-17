@@ -77,7 +77,7 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
 # CLI и загрузчики: окружение (dotenv, кодировка консоли, sys.path) обязано
 # быть настроено до импорта src — E402 здесь ожидаем.
 "src/cli/*.py" = ["E402"]
-"src/pipeline/teacher_analysis_runner.py" = ["E402"]
+"src/pipeline/teacher_analysis_runner.py" = ["E402", "E501", "N806"]
 "src/pipeline/helpers.py" = ["E402"]
 "src/loaders_student/student_loader.py" = ["E402"]
 # ML: матрица признаков традиционно называется X.
@@ -87,6 +87,16 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
 "scripts/**/*.py" = ["E402", "E501", "N801", "N802", "N803", "N806", "E741", "B005", "B007", "SIM102", "SIM108"]
 "alembic/*.py" = ["E402", "E501", "N801", "N806"]
 "alembic/**/*.py" = ["E402", "E501", "N801", "N806"]
+# Длинные SQL/регексп-строки (E501 не ставится на строки внутри литералов).
+"src/api_pkg/routers/teacher.py" = ["E501"]
+"src/api_pkg/routers/vacancies.py" = ["E501"]
+"src/cli/fix_rpd_data.py" = ["E501"]
+"src/loaders/rpd_skill_cleaner.py" = ["E501"]
+"src/pipeline/background_collector.py" = ["E501"]
+# Инструменты/бенчмарки: sys.path до импортов (E402).
+"tools/*.py" = ["E402"]
+"src/analyzers/trend_analyzer.py" = ["N806"]
+"src/loaders/rpd_loader.py" = ["B005"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

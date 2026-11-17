@@ -26,7 +26,7 @@ from src.monitoring.metrics import get_metrics
 
 _disable_cmdstan().__enter__()
 
-from src.api_pkg import deps as deps
+from src.api_pkg import deps as deps  # noqa: E402
 
 logger = structlog.get_logger("api")
 
