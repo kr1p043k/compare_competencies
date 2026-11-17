@@ -121,6 +121,35 @@ Exp7 — серия бенчмарков матчинга (Exp1-Exp8, `docs/meth
 | Exp2 | Парафразный adaptive threshold (163 пары canonical-vs-raw, mpnet) | 0.859@0.45 | 0.91 | 0.44@0.70 | `tests/analyzers/test_adaptive_threshold_exp2.py:3` |
 | Exp7/F1-cascade | 800 пар KSA→market skill, L1+L2+L3 | 0.47→0.53→0.99 | 1.00 | 0.31→0.36→0.99 | `docs/methodology.md:80-84` |
 
+### Уточнение 1.4: leakage в F1=0.99 (BACKLOG 1.4)
+
+**Verdict: F1=0.99 на L3 не является честной обобщающей метрикой.** Порог
+сравнивался in-sample: `scripts/experiments/benchmark_matching.py:367`
+(`l3_match = best_score >= 0.78`) скорит то же множество, на котором этот порог
+подбирался сеткой `[..., 0.75, 0.78, 0.85]` (`:1117`) и отмечен на графике
+«текущий порог» (`:1143`); позитивные пары категории exact_clean/duplicates
+(`:87-124`) тривиально проходят любой низкий порог, раздувая recall и precision
+одновременно. Классический optimism from selection: метрика на set подбора
+завышена. Прод-пороги (`adaptive_semantic_threshold`, base 0.55,
+`src/analyzers/skill_matcher.py:173-193`; `SEM_BASE=0.70` в
+`src/analyzers/hybrid_matcher.py:33`) оставлены без изменения: под рукой нет
+размеченного корпуса для их перестройки, а менять число без evidence - тот же
+leakage наоборот.
+
+Честная процедура добавлена: `src/evaluation/threshold_holdout.py` - детерминированный
+стратфицированный сплит (seed 42), выбор порога по max-F1 **только на train**,
+метрики (F1, precision, recall) **только на test**, плюс recall при фиксированном
+precision (target 0.9). Прогон по реальным предсказкам:
+`python scripts/eval_matcher_holdout.py` (читает `data/benchmark/article_datasets/predictions.jsonl`;
+датасет локально отсутствует, regenerate - `python -m scripts.experiments.benchmark_matching`,
+нужна БД). Регресс-гейт без данных: `tests/analyzers/test_threshold_holdout_no_leakage.py`
+(12 тестов на синтетическом корпусе доказывают train/test-разделение и то, что
+in-sample F1 >= honest holdout F1). На синтетике иллюстрация сдвига: in-sample
+F1=0.851 против honest test F1=0.778, recall@precision≥0.9 = 0.500 - порядок
+«просадки», который следовало ожидать от 0.99. Числа на реальном корпусе будут
+зафиксированы здесь после первого прогона скрипта; до него строка 0.99 в таблице
+выше помечена как in-sample и не должна цитироваться как качество матчинга.
+
 ### Чувствительность semantic-порога
 
 Semantic-слой (L3) использует **адаптивный** порог, а не фиксированный 0.78:
