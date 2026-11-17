@@ -12,9 +12,9 @@ backend читает секрет из заголовка `X-Metrics-Token` (к�
 
 from fastapi.testclient import TestClient
 
-from src.api_pkg.routers import auth
 from src import config
 from src.api_pkg import create_app
+from src.api_pkg.routers import auth
 
 TOKEN = "correct-metrics-token"
 

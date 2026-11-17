@@ -10,9 +10,8 @@ from unittest.mock import MagicMock, mock_open
 
 import pytest
 
-from src.api_pkg import deps
-from src.api_pkg import startup
 from src import Ok
+from src.api_pkg import deps, startup
 
 
 class _Ok:

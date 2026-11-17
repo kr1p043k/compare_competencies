@@ -17,8 +17,8 @@ from fastapi.testclient import TestClient
 
 import src.api_pkg.routers.admin as admin_mod
 import src.api_pkg.routers.auth as auth_mod
-from src import config
 import src.database as database_mod
+from src import config
 
 
 def _user(i: int) -> SimpleNamespace:

@@ -131,8 +131,8 @@ class TestMetricsRequiresAdmin:
         Аноним даёт 401 на get_current_user; здесь подменяем его на teacher,
         чтобы проверить именно проверку роли в require_any_role.
         """
-        from src.api_pkg.routers import auth
         from src.api_pkg import create_app
+        from src.api_pkg.routers import auth
 
         async def _teacher(_request):
             return {"uid": "u-1", "u": "teacher@example.com", "r": "teacher", "t": None}
@@ -143,8 +143,8 @@ class TestMetricsRequiresAdmin:
 
     def test_metrics_admin_200(self, monkeypatch):
         """Админ проходит гейт (проверяем, что 403 не «всем подряд»)."""
-        from src.api_pkg.routers import auth
         from src.api_pkg import create_app
+        from src.api_pkg.routers import auth
 
         async def _admin(_request):
             return {"uid": "u-2", "u": "admin@example.com", "r": "admin", "t": None}
@@ -171,8 +171,8 @@ class TestPipelineWsAuth:
         Это регресс на дыру: раньше WS проверял только подпись токена, и logout
         не действовал на открытый сокет до истечения TTL.
         """
-        from src.api_pkg.routers import auth
         from src.api_pkg import create_app
+        from src.api_pkg.routers import auth
 
         async def _revoked(_token):
             return None
@@ -187,8 +187,8 @@ class TestPipelineWsAuth:
 
     def test_ws_valid_session_accepted(self, monkeypatch):
         """Валидная активная сессия - соединение принимается."""
-        from src.api_pkg.routers import auth
         from src.api_pkg import create_app
+        from src.api_pkg.routers import auth
 
         async def _ok(_token):
             return {"uid": "u-3", "u": "admin@example.com", "r": "admin", "t": None}
@@ -202,8 +202,8 @@ class TestPipelineWsAuth:
 
     def test_ws_query_token_not_accepted(self, monkeypatch):
         """?token= больше не аутентифицирует сокет: адрес утекает в логи."""
-        from src.api_pkg.routers import auth
         from src.api_pkg import create_app
+        from src.api_pkg.routers import auth
 
         async def _ok(_token):
             return {"uid": "u-3", "u": "admin@example.com", "r": "admin", "t": None}
@@ -222,9 +222,8 @@ class TestDisciplineScopeIdor:
     @staticmethod
     def _client(monkeypatch, tmp_path, dir_code: str | None, role="teacher", allow=("09.03.02",)):
         import src.analyzers.discipline_scope as scope_mod
-        from src.api_pkg.routers import auth
-        from src.api_pkg.routers import teacher
         from src.api_pkg import create_app
+        from src.api_pkg.routers import auth, teacher
 
         # Не писать в реальный data/reference/discipline_market_scope.json:
         # без подмены тест менял файл репозитория.
@@ -279,8 +278,8 @@ class TestAdminLogsWs:
 
     @staticmethod
     def _client(monkeypatch, user=None):
-        from src.api_pkg.routers import auth
         from src.api_pkg import create_app
+        from src.api_pkg.routers import auth
 
         async def _resolve(_token):
             return user

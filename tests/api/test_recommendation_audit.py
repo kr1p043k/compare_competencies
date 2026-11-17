@@ -23,9 +23,9 @@ TEACHER = {"uid": "00000000-0000-0000-0000-000000000002", "u": "teacher@t.local"
 @pytest.fixture
 def iso(tmp_path, monkeypatch):
     """Isolate every JSON store the mutations touch (never real data/)."""
-    from src.api_pkg import deps
     import src.api_pkg.routers.admin as adm
     import src.cli.taxonomy_audit as ta
+    from src.api_pkg import deps
 
     recs = tmp_path / "teacher_recommendations.json"
     recs.write_text("[]", encoding="utf-8")

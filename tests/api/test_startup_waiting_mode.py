@@ -10,8 +10,7 @@
 
 import pytest
 
-from src.api_pkg import deps
-from src.api_pkg import startup
+from src.api_pkg import deps, startup
 
 
 class _StubClusterer:

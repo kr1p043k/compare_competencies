@@ -9,9 +9,9 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from src.api_pkg.routers import auth
 from src import config
 from src.api_pkg import create_app
+from src.api_pkg.routers import auth
 
 
 def _receive_until_close(ws):

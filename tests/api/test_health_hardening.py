@@ -9,8 +9,7 @@ TestClient(create_app()) без запуска lifespan + monkeypatch.
 
 from fastapi.testclient import TestClient
 
-from src import db
-from src import config
+from src import config, db
 from src.api_pkg import create_app, deps
 
 TOKEN = "correct-metrics-token"

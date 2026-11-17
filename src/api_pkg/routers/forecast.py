@@ -7,8 +7,8 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import text
 
-from src.api_pkg import deps
 from src import DomainError, Err, Ok, Result, config
+from src.api_pkg import deps
 from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_authenticated, user_error_detail
 from src.predictors.prophet_forecast import ProphetForecastEngine
