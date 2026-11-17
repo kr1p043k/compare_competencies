@@ -29,6 +29,9 @@
 ## Правила
 
 1. Цвета — только из токенов. Никаких `text-gray-500` / `bg-slate-900` в новом коде.
+   Inline-стили (`style={{...}}`) в новых компонентах запрещены: только Tailwind-классы
+   поверх токенов; исключения — динамические значения (ширина `Meter`, `Sparkbars`),
+   которые задает сам примитив из `src/design`.
 2. Отступы — сетка 4 px: `p-4`, `gap-3`, `space-y-2`.
 3. Одна метрика — один `StatCard`. Заголовок экрана — `PageHeader`.
 4. Любая загрузка — `Skeleton`, любая ошибка — `ErrorState` с «Повторить»,
@@ -77,6 +80,6 @@ import { PageHeader, Card, StatCard, Badge, EmptyState } from "../../design";
 | `primitives.tsx` | Button, Card, CardHeader, CardBody, PageHeader, Badge, StatCard, MetricPair, EmptyState, ErrorState, Skeleton, TableFrame, Field, Toolbar, SectionTitle, Meter, Sparkbars, tableHeadClass, tableRowClass, inputClass |
 | `feedback.tsx` | Progress, Callout |
 | `ErrorBoundary.tsx` | ErrorBoundary (обёртка вкладки) |
-| `chartTheme.ts` | axisProps, gridProps, tooltipProps, legendProps |
-| `tokens.ts` | токены статусов, уровней, текста, кнопок |
-| `index.ts` | реэкспорт всего выше |
+| `chartTheme.ts` | axisProps, gridProps, tooltipProps, legendProps, chartSize |
+| `tokens.ts` | chartColor, chartSeries (chart-1…5), trendColor(value), confidenceTone(percent) |
+| `index.ts` | реэкспорт `primitives`, `tokens`, `chartTheme`, `feedback` (ErrorBoundary импортируется напрямую) |
