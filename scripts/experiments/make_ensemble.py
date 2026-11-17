@@ -4,8 +4,10 @@ Reuses b2_base_s{42,43,44}.joblib (current pipeline). Verifies bundle NDCG
 on the main test split, then saves data/models/ltr_ranker_ensemble_human.joblib
 Serving: z-score each model's raw scores per query, average, rank.
 """
+import argparse
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import joblib
@@ -17,23 +19,47 @@ sys.modules.setdefault("cv2", MagicMock())
 from sklearn.metrics import ndcg_score
 from sklearn.model_selection import StratifiedShuffleSplit
 
-from scripts.train_ltr_ranker import read_gold
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
-
 ROOT = Path(__file__).resolve().parents[1]
 SEEDS = (42, 43, 44)
 
 
-def main() -> None:
-    rows = read_gold(ROOT / "labeling" / "gold.csv")
+def per_role_split(rows: list[dict[str, Any]], seed: int) -> tuple[list[int], list[int]]:
+    """Deterministic per-role stratified holdout (test_size=0.25).
+
+    Pure helper: only depends on ``seed`` so the same rows+seed always yield
+    the same train/test index split (sklearn ``StratifiedShuffleSplit`` is
+    deterministic given ``random_state``). No engine/DB imports here.
+    """
     roles = sorted({r["role"] for r in rows})
-    train_idx, test_idx = [], []
+    train_idx: list[int] = []
+    test_idx: list[int] = []
     for role in roles:
         idx = [i for i, r in enumerate(rows) if r["role"] == role]
         grades = [rows[i]["grade"] for i in idx]
-        tr, te = next(StratifiedShuffleSplit(n_splits=1, test_size=0.25, random_state=42).split(idx, grades))
+        tr, te = next(
+            StratifiedShuffleSplit(n_splits=1, test_size=0.25, random_state=seed).split(idx, grades)
+        )
         train_idx.extend(idx[i] for i in tr)
         test_idx.extend(idx[i] for i in te)
+    return train_idx, test_idx
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    ap = argparse.ArgumentParser(
+        description="Build the 3-seed LTR ensemble bundle (deterministic under --seed).")
+    ap.add_argument("--seed", type=int, default=42,
+                    help="fixed RNG seed for the train/test split and numpy global RNG (default 42)")
+    return ap.parse_args(argv)
+
+
+def main(seed: int = 42) -> None:
+    from scripts.train_ltr_ranker import read_gold
+    from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
+
+    np.random.seed(seed)  # pin global numpy RNG for reproducibility
+    rows = read_gold(ROOT / "labeling" / "gold.csv")
+    roles = sorted({r["role"] for r in rows})
+    train_idx, test_idx = per_role_split(rows, seed)
 
     with patch("src.predictors.ltr_recommendation_engine.get_embedding_model", return_value=MagicMock()):
         eng = LTRRecommendationEngine()
@@ -60,7 +86,7 @@ def main() -> None:
         zte = np.mean([(p - p.mean()) / (p.std() or 1.0) for p in Pte], axis=0)
         ztr = np.mean([(p - p.mean()) / (p.std() or 1.0) for p in Ptr], axis=0)
 
-        def qndcg(yt, sc, rl):
+        def qndcg(yt: Any, sc: Any, rl: list[str]) -> float:
             ns = []
             for r in sorted(set(rl)):
                 m = np.array([t == r for t in rl])
@@ -97,4 +123,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main(seed=parse_args().seed)
