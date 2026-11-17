@@ -1,66 +1,34 @@
-# Ретеншн данных (политика чистки)
+# Retention policy
 
-Единая точка чистки устаревших данных - CLI `python -m src.cli retention`
-(`src/cli/retention.py`). По умолчанию работает в **dry-run**: считает
-кандидатов и ничего не удаляет; удаление только с флагом `--apply`.
+Что и как долго хранится, и чем это чистится. Реализация: `src/cli/retention.py`
+(CLI-команда `retention`), dry-run по умолчанию.
 
-## Что и по какому критерию чистится
+## Политика
 
-| Таблица | Критерий | Дней по умолчанию |
-|---|---|---|
-| `vacancies` | `COALESCE(published_at, created_at)` старше N дней | 730 |
-| `request_logs` | `created_at` старше N дней | 90 |
-| `sessions` | **только закрытые** (`logged_out_at IS NOT NULL`) старше N дней | 30 |
-| `pipeline_runs` | завершённые (`completed`/`failed`/`cancelled`) старше N дней | 365 |
-| `audit_logs` | `created_at` старше N дней | 730 |
+| Сущность | Срок | Условие удаления | Флаг |
+|---|---|---|---|
+| `vacancies` (снапшоты) | 730 дней | старше срока | `--vacancies-days` |
+| логи (`request_logs`) | 90 дней | старше срока | `--logs-days` |
+| `sessions` (закрытые) | 30 дней | `logged_out_at IS NOT NULL` | `--session-days` |
+| `pipeline_runs` (завершённые) | 365 дней | `status in (completed, failed, cancelled)` | `--run-days` |
+| `audit_logs` | 730 дней | старше срока | `--audit-days` |
 
-Важно:
-- **Открытые сессии** (`logged_out_at IS NULL`) не удаляются никогда - иначе
-  придётся логиниться заново; чистятся только закрытые.
-- **Незавершённые прогоны** (`started`) не удаляются: шаг берёт только
-  финальные статусы.
-- **Аудит живёт дольше логов** (730 против 90 дней): он нужен для разбора
-  инцидентов и проверок.
-- Если таблицы нет (миграция не применена, напр. `audit_logs` на старой базе),
-  шаг **пропускается** (`UndefinedTable`), а не роняет всю чистку.
+Активные сессии (`logged_out_at IS NULL`) и запущенные прогоны (`status='started'`)
+**не удаляются** никогда: их защищает тот же слой, что и InProgress-кеш.
 
-## Запуск
+## Как запускать
 
 ```bash
-# dry-run (по умолчанию) - только показать кандидатов
-python -m src.cli retention
-
-# реальная чистка по умолчанию
-python -m src.cli retention --apply
-
-# точечно: почистить только лог-запросы за 90 дней, остальное не трогать
-python -m src.cli retention --logs-days 90 --vacancies-days 36500 \
-    --run-days 36500 --session-days 36500 --audit-days 36500 --apply
+python -m src.cli retention                 # dry-run: только печатает план
+python -m src.cli retention --apply         # выполнить удаление
+python -m src.cli retention --vacancies-days 730 --logs-days 90 --apply
+python -m src.cli retention --session-days 30 --run-days 365 --apply
 ```
 
-Параметры: `--vacancies-days`, `--logs-days`, `--session-days`, `--run-days`,
-`--audit-days`, `--apply`. Все значения - целые 1..36500 (`positive_days`),
-иначе аргумент отклоняется с сообщением.
+## Заметки
 
-## Эксплуатация
-
-- Все удаления идут в одной транзакции; при `--apply` - один `commit`,
-  иначе `rollback`.
-- Драй-ран печатает «к таблице: N», при `--apply` дополнительно «удалено: M».
-- Рекомендуемая периодичность: раз в сутки/неделю по расписанию (cron/планировщик)
-  в режиме `--apply`; перед первым прогоном на базе с историей - сначала dry-run.
-- После крупных удалений полезно `VACUUM (ANALYZE)` (локально так и делали;
-  на проде учитывать нагрузку).
-
-## Проверено локально (2026-11-09)
-
-- `--logs-days 90` dry-run: кандидатов 49; после `--apply` таблица
-  `request_logs` = 246747 строк, 54 MB; выполнен `VACUUM (ANALYZE)`.
-  Вывод: почти весь объём логов свежий (в пределах 90 дней), ретеншн их не
-  трогает - это ожидаемо для активной локальной базы.
-- Шаг `audit_logs` устойчив к отсутствию таблицы (пропуск без падения).
-
-## Связанное
-
-- `/admin/audit` и буфер request_logs - см. `docs/ADMIN-CONSOLE.md`.
-- Миграции схемы и legacy-объекты - `docs/DB-SCHEMA-LEGACY.md`.
+- По умолчанию режим dry-run: ничего не удаляется без явного `--apply`.
+- Доменные кэши (`sessions`, `pipeline_runs`) чистятся здесь; рабочие данные
+  (`competencies`, `skills`, KRM) retention не трогает.
+- Владение: Зона D (infra/DB). Изменения политики - через ревью (этот документ
+  и `src/cli/retention.py` держать синхронными).
