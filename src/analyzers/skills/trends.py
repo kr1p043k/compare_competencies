@@ -1,6 +1,14 @@
 """
 Анализ трендов: какие навыки растут/падают в спросе.
 Поддерживает сравнение с предыдущими снимками рынка и построение графиков.
+
+Нормализация по объёму выборки (BACKLOG 1.3): снимки хранят абсолютные
+count'ы упоминаний, и рост каталога вакансий выглядел бы ростом спроса.
+Если при сохранении известен vacancy_count > 0, в _meta кладётся
+normalized = {skill: count / vacancy_count} (упоминаний на вакансию).
+Сравнение роста/падения берёт нормализованные доли, когда они доступны
+у обоих снимков; иначе - прежняя методика (доля от итога снимка).
+Старые файлы без _meta.vacancy_count грузятся и сравниваются по-прежнему.
 """
 
 import argparse
@@ -9,6 +17,7 @@ import json
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
@@ -50,6 +59,10 @@ class TrendAnalyzer:
         source_type: 'full_market' (ит-рынок) или 'targeted_query' (по профессии/запросу).
         vacancy_count: объём выборки (None = неизвестен, как раньше).
         synthetic: True = досинтезированный/восполненный снимок (бейдж в API).
+
+        При vacancy_count > 0 дополнительно пишется _meta.normalized - доли
+        (share = count / vacancy_count) для честного сравнения месяцев
+        разного объёма (BACKLOG 1.3). vacancy_count <= 0/None - не пишется.
         """
         try:
             if apply_whitelist:
@@ -67,7 +80,7 @@ class TrendAnalyzer:
             month = ref.strftime("%Y-%m")
             day = ref.strftime("%Y-%m-%d")
 
-            meta = {
+            meta: dict[str, Any] = {
                 "_meta": {
                     "type": source_type,
                     "snapshot_date": day,
@@ -79,6 +92,14 @@ class TrendAnalyzer:
             }
             if profession:
                 meta["_meta"]["profession"] = profession
+
+            # Нормализация по объёму выборки (BACKLOG 1.3): share = count / vacancy_count.
+            # Пишем только при известном vacancy_count > 0; при 0/None - молча
+            # пропускаем (fallback к прежней методике, деления на ноль нет).
+            if vacancy_count is not None and vacancy_count > 0:
+                meta["_meta"]["normalized"] = {
+                    skill: round(freq / vacancy_count, 6) for skill, freq in frequencies.items()
+                }
 
             out = dict(meta)
             for k, v in frequencies.items():
@@ -100,13 +121,13 @@ class TrendAnalyzer:
         except Exception as e:
             return Err(DomainError(f"Failed to save snapshot: {e}"))
 
-    def load_all_snapshots(
+    def load_all_snapshots_detailed(
         self, filter_type: str | None = "full_market"
-    ) -> Result[list[tuple[datetime, Path, dict[str, float]]], DomainError]:
-        """
-        Загружает снимки из history_dir.
-        filter_type: 'full_market' (только рыночные), 'profession' (только по профессиям), None (все).
-        Возвращает список (datetime, путь, данные), отсортированный по дате.
+    ) -> Result[list[tuple[datetime, Path, dict[str, float], dict[str, Any]]], DomainError]:
+        """Как load_all_snapshots, но 4-м элементом несёт _meta снимка.
+
+        Нужен для нормализации сравнения по объёму выборки (vacancy_count,
+        BACKLOG 1.3); наружный контракт (dt, path, data) не меняется.
         """
         try:
             files = sorted(self.history_dir.glob("freq_*.json"))
@@ -123,12 +144,30 @@ class TrendAnalyzer:
                     continue
                 data = {k: v for k, v in raw.items() if k != "_meta"}
                 dt = self._extract_date(fpath)
-                snapshots.append((dt, fpath, data))
+                snapshots.append((dt, fpath, data, meta))
             except Exception as e:
                 logger.warning("snapshot_load_failed", filename=fpath.name, error=str(e))
 
         snapshots.sort(key=lambda x: x[0])
         return Ok(snapshots)
+
+    def load_all_snapshots(
+        self, filter_type: str | None = "full_market"
+    ) -> Result[list[tuple[datetime, Path, dict[str, float]]], DomainError]:
+        """
+        Загружает снимки из history_dir.
+        filter_type: 'full_market' (только рыночные), 'profession' (только по профессиям), None (все).
+        Возвращает список (datetime, путь, данные), отсортированный по дате.
+        Старые файлы без _meta грузятся как раньше (meta = {}).
+        """
+        detailed = self.load_all_snapshots_detailed(filter_type)
+        match detailed:
+            case Ok(items):
+                return Ok([(dt, path, data) for dt, path, data, _meta in items])
+            case Err(err):
+                return Err(err)
+        # Result принимает только Ok/Err; до сюда не доходит.
+        return Err(DomainError("unreachable Result state"))
 
     @staticmethod
     def _extract_date(filepath: Path) -> datetime:
@@ -184,6 +223,72 @@ class TrendAnalyzer:
     # ------------------------------------------------------------------
     # Анализ трендов
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Нормализация по объёму выборки (BACKLOG 1.3)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _volume_normalized_series(
+        freqs: dict[str, float], meta: dict[str, Any] | None
+    ) -> dict[str, float] | None:
+        """Ряд вида share = count / vacancy_count (упоминаний на вакансию).
+
+        Приоритет: готовый _meta.normalized (пишет save_snapshot). Fallback:
+        count / vacancy_count на лету - покрывает backfilled-файлы без
+        normalized. None, если объём неизвестен или <= 0 (старые снимки без
+        _meta.vacancy_count, vacancy_count=0) - вызывающий падает на прежнюю
+        методику; деления на ноль нет.
+        """
+        if not isinstance(meta, dict):
+            return None
+        norm = meta.get("normalized")
+        if isinstance(norm, dict) and norm:
+            return {k: float(v) for k, v in norm.items() if isinstance(v, (int, float))}
+        vc = meta.get("vacancy_count")
+        if not isinstance(vc, (int, float)) or vc <= 0:
+            return None
+        return {
+            k: float(v) / vc
+            for k, v in freqs.items()
+            if isinstance(v, (int, float)) and not str(k).startswith("_")
+        }
+
+    def _compare_series(
+        self,
+        prev_data: dict[str, float],
+        cur_data: dict[str, float],
+        prev_meta: dict[str, Any] | None = None,
+        cur_meta: dict[str, Any] | None = None,
+    ) -> tuple[dict[str, float], dict[str, float], str]:
+        """Готовит ряды для сравнения: (prev_series, cur_series, method).
+
+        Методика 'volume': у обоих снимков известен объём выборки
+        (vacancy_count > 0) - делим count'ы на объём, рост каталога
+        вакансий больше не выглядит ростом спроса. Изменение в % от
+        общего множителя не зависит, ряды сопоставимы как есть.
+        Методика 'share': прежний фолбэк - доля навыка от итога снимка
+        (старые файлы без _meta.vacancy_count, vacancy_count=None/0).
+        Сырые count'ы остаются в ответах (current_freq/prev_freq) -
+        форма публичного API не меняется.
+        """
+        prev_series = self._volume_normalized_series(prev_data, prev_meta)
+        cur_series = self._volume_normalized_series(cur_data, cur_meta)
+        if prev_series is not None and cur_series is not None:
+            return prev_series, cur_series, "volume"
+
+        prev_total = sum(v for v in prev_data.values() if isinstance(v, (int, float))) or 1.0
+        cur_total = sum(v for v in cur_data.values() if isinstance(v, (int, float))) or 1.0
+        prev_share = {
+            k: v / prev_total
+            for k, v in prev_data.items()
+            if isinstance(v, (int, float)) and not str(k).startswith("_")
+        }
+        cur_share = {
+            k: v / cur_total
+            for k, v in cur_data.items()
+            if isinstance(v, (int, float)) and not str(k).startswith("_")
+        }
+        return prev_share, cur_share, "share"
+
     def get_trending_skills(
         self,
         top_n: int = 20,
@@ -200,17 +305,30 @@ class TrendAnalyzer:
         посчитаны разными прогонами/методиками (сырые counts против нормализованных
         весов) - прямое сравнение давало фантомные «-96% по всем». Поэтому при
         наличии 2+ файлов сравниваем ПОСЛЕДНИЕ ДВА ФАЙЛА между собой и только
-        в ДОЛЯХ (share от итога файла) - объёмы выборок по месяцам различаются.
+        в ДОЛЯХ - объёмы выборок по месяцам различаются.
+
+        Нормализация по объёму (BACKLOG 1.3): если у обоих снимков известен
+        vacancy_count (> 0), берётся share = count / vacancy_count - рост
+        каталога вакансий не выдаётся за рост спроса. Иначе - прежняя
+        методика (доля от итога снимка), старые файлы без _meta.vacancy_count
+        работают как раньше. Сырые counts в ответах сохраняются.
         """
+        prev_meta: dict[str, Any] | None = None
+        cur_meta: dict[str, Any] | None = None
         if previous_snapshot is not None:
-            prev_data = previous_snapshot
-            cur_data = dict(self.current)
-            prev_label = prev_label
+            prev_data = {k: v for k, v in previous_snapshot.items() if k != "_meta"}
+            cur_data = {k: v for k, v in self.current.items() if k != "_meta"}
+            _pm = previous_snapshot.get("_meta")
+            prev_meta = _pm if isinstance(_pm, dict) else None
+            _cm = self.current.get("_meta")
+            cur_meta = _cm if isinstance(_cm, dict) else None
         else:
-            snapshots_result = self.load_all_snapshots()
-            if snapshots_result.is_err():
-                return Err(snapshots_result.err())
-            snapshots = snapshots_result.ok()
+            snapshots_result = self.load_all_snapshots_detailed()
+            match snapshots_result:
+                case Ok(snaps):
+                    snapshots = snaps
+                case Err(err):
+                    return Err(err)
             if len(snapshots) < 2:
                 logger.warning("not_enough_snapshots_for_trends")
                 return Ok({
@@ -218,8 +336,8 @@ class TrendAnalyzer:
                     TrendType.FALLING: [],
                     TrendType.EMERGING: [],
                 })
-            prev_dt, _, prev_data = snapshots[-2]
-            _cur_dt, _, cur_data = snapshots[-1]
+            prev_dt, _, prev_data, prev_meta = snapshots[-2]
+            _cur_dt, _, cur_data, cur_meta = snapshots[-1]
             prev_label = prev_dt.strftime("%Y-%m-%d")
             logger.info(
                 "trends_file_vs_file",
@@ -227,8 +345,11 @@ class TrendAnalyzer:
                 cur=_cur_dt.strftime("%Y-%m-%d"),
             )
 
-        prev_total = sum(v for v in prev_data.values() if isinstance(v, (int, float))) or 1.0
-        cur_total = sum(v for v in cur_data.values() if isinstance(v, (int, float))) or 1.0
+        prev_series, cur_series, compare_method = self._compare_series(
+            prev_data, cur_data, prev_meta=prev_meta, cur_meta=cur_meta
+        )
+        if compare_method == "volume":
+            logger.info("trends_volume_normalized")
 
         rising, falling, emerging = [], [], []
 
@@ -238,6 +359,8 @@ class TrendAnalyzer:
             if not isinstance(current_freq, (int, float)):
                 continue
             prev_freq = prev_data.get(skill, 0)
+            if not isinstance(prev_freq, (int, float)):
+                prev_freq = 0
             if prev_freq < min_frequency:
                 # Нового навыка (prev ниже шумового пола) не бывает в rising
                 # по построению - ведём отдельным списком emerging, иначе
@@ -251,9 +374,10 @@ class TrendAnalyzer:
                         "prev_label": prev_label,
                     })
                 continue
-            # Доли, а не сырые counts: выборки месяцев разного объёма.
-            cur_share = current_freq / cur_total
-            prev_share = prev_freq / prev_total
+            # Сопоставимые ряды (volume-normalized share или доля от итога),
+            # а не сырые counts: выборки месяцев разного объёма.
+            cur_share = cur_series.get(skill, 0.0)
+            prev_share = prev_series.get(skill, 0.0)
             if prev_share <= 0:
                 continue
             change_pct = ((cur_share - prev_share) / prev_share) * 100
@@ -264,6 +388,12 @@ class TrendAnalyzer:
                 "change_pct": round(change_pct, 1),
                 "prev_label": prev_label,
             }
+            if compare_method == "volume":
+                # Доп. нормализованное представление (доли на вакансию);
+                # additive-поле, старые потребители игнорируют его.
+                entry["cur_share"] = round(cur_share, 6)
+                entry["prev_share"] = round(prev_share, 6)
+                entry["normalized"] = True
             if change_pct >= min_change_percent:
                 entry["trend"] = TrendType.RISING
                 rising.append(entry)

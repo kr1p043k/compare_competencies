@@ -868,3 +868,131 @@ class TestSnapshotMetaR4:
         meta = json.loads(path.read_text(encoding="utf-8"))["_meta"]
         assert meta["vacancy_count"] is None
         assert meta["synthetic"] is False
+
+
+class TestSnapshotVolumeNormalization:
+    """BACKLOG 1.3: сравнение трендов нормализовано по объёму выборки."""
+
+    def _write_snap(self, tmp_path, name, data, meta):
+        out = {"_meta": meta}
+        out.update(data)
+        p = tmp_path / name
+        p.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+        return p
+
+    def test_save_snapshot_stores_normalized_share(self, tmp_path):
+        analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
+        path = analyzer.save_snapshot(
+            {"python": 10, "sql": 5}, apply_whitelist=False, vacancy_count=100,
+        ).unwrap()
+        meta = json.loads(path.read_text(encoding="utf-8"))["_meta"]
+        assert meta["normalized"] == {"python": 0.1, "sql": 0.05}
+
+    def test_save_snapshot_no_normalized_without_volume(self, tmp_path):
+        analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
+        path = analyzer.save_snapshot({"python": 10}, apply_whitelist=False).unwrap()
+        assert "normalized" not in json.loads(path.read_text(encoding="utf-8"))["_meta"]
+        path0 = analyzer.save_snapshot(
+            {"python": 10}, apply_whitelist=False, vacancy_count=0, as_of=datetime(2025, 1, 2, tzinfo=UTC),
+        ).unwrap()
+        assert "normalized" not in json.loads(path0.read_text(encoding="utf-8"))["_meta"]
+
+    def test_different_volumes_compare_fairly(self, tmp_path):
+        # Каталог удвоился (1000 -> 2000 вакансий). Спрос на python на
+        # вакансию удвоился (0.1 -> 0.2) = честные +100%. Сырая доля от
+        # итога дала бы +400% (100/1000 -> 400/800) - эффект разбавления
+        # java, а не роста спроса.
+        self._write_snap(tmp_path, "freq_market_2025-01.json",
+                         {"python": 100, "java": 900},
+                         {"type": "full_market", "snapshot_date": "2025-01-01", "vacancy_count": 1000})
+        self._write_snap(tmp_path, "freq_market_2025-02.json",
+                         {"python": 400, "java": 400},
+                         {"type": "full_market", "snapshot_date": "2025-02-01", "vacancy_count": 2000})
+        analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
+        trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0).unwrap()
+        py = next((r for r in trends["rising"] if r["skill"] == "python"), None)
+        assert py is not None
+        assert py["change_pct"] == 100.0  # volume-normalized, not +400 share dilution
+        assert py["normalized"] is True
+        assert py["cur_share"] == 0.2
+        assert py["prev_share"] == 0.1
+        # Абсолютные counts сохранены (API-форма не сломана).
+        assert py["current_freq"] == 400
+        assert py["prev_freq"] == 100
+
+    def test_flat_demand_under_catalog_growth_is_zero_change(self, tmp_path):
+        # Все count'ы удвоились вместе с каталогом - спрос не менялся:
+        # нормализация даёт 0% (в rising/falling никого).
+        self._write_snap(tmp_path, "freq_market_2025-01.json",
+                         {"python": 100, "java": 300},
+                         {"type": "full_market", "snapshot_date": "2025-01-01", "vacancy_count": 1000})
+        self._write_snap(tmp_path, "freq_market_2025-02.json",
+                         {"python": 200, "java": 600},
+                         {"type": "full_market", "snapshot_date": "2025-02-01", "vacancy_count": 2000})
+        analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
+        trends = analyzer.get_trending_skills(top_n=5, min_change_percent=1.0).unwrap()
+        assert trends["rising"] == []
+        assert trends["falling"] == []
+
+    def test_old_snapshot_without_vacancy_count_still_works(self, tmp_path):
+        # Файлы без _meta.vacancy_count: fallback на прежнюю методику
+        # (доля от итога), сравнение считается и не падает.
+        self._write_snap(tmp_path, "freq_market_2025-01.json",
+                         {"python": 100, "java": 300},
+                         {"type": "full_market", "snapshot_date": "2025-01-01"})
+        self._write_snap(tmp_path, "freq_market_2025-02.json",
+                         {"python": 150, "java": 250},
+                         {"type": "full_market", "snapshot_date": "2025-02-01"})
+        analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
+        trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0).unwrap()
+        py = next((r for r in trends["rising"] if r["skill"] == "python"), None)
+        assert py is not None
+        # Share math: 100/400=0.25 -> 150/400=0.375 = +50%.
+        assert py["change_pct"] == 50.0
+        assert "normalized" not in py
+
+    def test_bare_snapshot_without_meta_at_all_still_works(self, tmp_path):
+        (tmp_path / "freq_market_2025-01.json").write_text(
+            json.dumps({"python": 100, "java": 300}), encoding="utf-8")
+        (tmp_path / "freq_market_2025-02.json").write_text(
+            json.dumps({"python": 200, "java": 200}), encoding="utf-8")
+        analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
+        trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0).unwrap()
+        py = next((r for r in trends["rising"] if r["skill"] == "python"), None)
+        assert py is not None
+        # Share fallback: 100/400=0.25 -> 200/400=0.5 = +100%.
+        assert py["change_pct"] == 100.0
+        assert "normalized" not in py
+
+    def test_vacancy_count_zero_no_division_error(self, tmp_path):
+        # vacancy_count=0 (в т.ч. смешанная пара 0/известный) - не делим на
+        # ноль: fallback на share-методику.
+        self._write_snap(tmp_path, "freq_market_2025-01.json",
+                         {"python": 100, "java": 300},
+                         {"type": "full_market", "snapshot_date": "2025-01-01", "vacancy_count": 0})
+        self._write_snap(tmp_path, "freq_market_2025-02.json",
+                         {"python": 150, "java": 250},
+                         {"type": "full_market", "snapshot_date": "2025-02-01", "vacancy_count": 2000})
+        analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
+        trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0).unwrap()
+        py = next((r for r in trends["rising"] if r["skill"] == "python"), None)
+        assert py is not None
+        # Share fallback: 0.25 -> 0.375 = +50%; volume-поля отсутствуют.
+        assert py["change_pct"] == 50.0
+        assert "cur_share" not in py
+
+    def test_prev_snapshot_dict_with_meta_uses_volume_math(self, tmp_path):
+        # Путь previous_snapshot (dict из load_file, с _meta внутри):
+        # volume-нормализация должна применяться и здесь.
+        prev = {"_meta": {"vacancy_count": 1000}, "python": 100, "java": 900}
+        analyzer = TrendAnalyzer(
+            {"_meta": {"vacancy_count": 2000}, "python": 400, "java": 400},
+            historical_dir=tmp_path,
+        )
+        trends = analyzer.get_trending_skills(
+            top_n=5, min_change_percent=10.0, previous_snapshot=prev,
+        ).unwrap()
+        py = next((r for r in trends["rising"] if r["skill"] == "python"), None)
+        assert py is not None
+        assert py["change_pct"] == 100.0
+        assert py["normalized"] is True
