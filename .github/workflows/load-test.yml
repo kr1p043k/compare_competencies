@@ -8,54 +8,99 @@ on:
   #   - cron: '0 4 * * *'  # каждую ночь в 4 утра МСК
   workflow_dispatch:
 
+# SLO-константы: единый источник порогов для шага "Check thresholds" ниже.
+# Те же числа обязаны стоять в thresholds tests/load/k6_script.js -
+# обоснование и правила изменения: docs/LOAD-BASELINE.md ("SLO-пороги CI").
+env:
+  SLO_P95_MS: "800"        # http_req_duration p95, мс
+  SLO_ERROR_RATE: "0.01"   # http_req_failed, доля (1%)
+  SLO_CHECKS_RATE: "0.99"  # checks, минимальная доля passed (99%)
+
 jobs:
   load-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Start services
         run: docker-compose up -d
-      
+
       - name: Wait for API
         run: |
           until curl -s http://localhost:8000/api/health; do
             sleep 5
           done
-      
+
       - name: Install k6
         run: |
           sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
           echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
           sudo apt-get update
           sudo apt-get install k6
-      
+
       - name: Run load test
-        # k6 сам падает с кодом 99 при нарушении thresholds в скрипте -
-        # это основной гейт. --summary-export пишет итоговый JSON-отчёт.
+        # Первичный гейт: k6 выходит с кодом 99, когда threshold из скрипта
+        # нарушен, - шаг и джоб падают. --summary-export пишет итоговый JSON
+        # для вторичного гейта ("Check thresholds").
         run: |
           mkdir -p tests/load/reports
           k6 run tests/load/k6_script.js --summary-export=tests/load/reports/results.json
-      
+
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: load-test-results
           path: tests/load/reports/
-      
+
       - name: Check thresholds
+        # Вторичный fail-closed гейт по summary JSON: метрика отсутствует или
+        # формат изменился - exit 1. Пороги берутся из env SLO_* (верх файла).
+        # Старый формат summary-export пишет .rate/.value и ["p(95)"],
+        # новый (k6 v1.5+, opt-in) - .values.*; jq пробует все варианты.
         run: |
-          # Вторичный fail-closed гейт: если метрики нет или формат изменился,
-          # на выходе 1 и шаг падает. Новый формат summary-export пишет .rate,
-          # старый писал .value.
-          if [ ! -f tests/load/reports/results.json ]; then
-            echo "results.json not found"
+          set -e
+          REPORT=tests/load/reports/results.json
+          if [ ! -f "$REPORT" ]; then
+            echo "FAIL: $REPORT not found (summary-export missing)"
             exit 1
           fi
-          ERROR_RATE=$(jq -r '.metrics.http_req_failed.rate // .metrics.http_req_failed.value // 1' tests/load/reports/results.json)
-          echo "http_req_failed rate: $ERROR_RATE"
-          if (( $(echo "$ERROR_RATE > 0.05" | bc -l) )); then
-            echo "Error rate too high: $ERROR_RATE"
+
+          # http_req_failed: доля ошибок должна быть строго < SLO_ERROR_RATE.
+          ERROR_RATE=$(jq -r '.metrics.http_req_failed.rate // .metrics.http_req_failed.value // .metrics.http_req_failed.values.rate // empty' "$REPORT")
+          if [ -z "$ERROR_RATE" ] || [ "$ERROR_RATE" = "null" ]; then
+            echo "FAIL: http_req_failed metric missing in $REPORT"
             exit 1
           fi
+          echo "http_req_failed rate: $ERROR_RATE (SLO: < $SLO_ERROR_RATE)"
+          if (( $(echo "$ERROR_RATE >= $SLO_ERROR_RATE" | bc -l) )); then
+            echo "FAIL: error rate $ERROR_RATE breaches SLO_ERROR_RATE=$SLO_ERROR_RATE"
+            exit 1
+          fi
+
+          # http_req_duration p95: строго < SLO_P95_MS мс.
+          # k6 пишет ключ "p(95)"; в отдельных версиях встречался "p(95.0)".
+          P95_MS=$(jq -r '.metrics.http_req_duration["p(95)"] // .metrics.http_req_duration["p(95.0)"] // .metrics.http_req_duration.values["p(95)"] // .metrics.http_req_duration.values.p95 // empty' "$REPORT")
+          if [ -z "$P95_MS" ] || [ "$P95_MS" = "null" ]; then
+            echo "FAIL: http_req_duration p(95) metric missing in $REPORT"
+            exit 1
+          fi
+          echo "http_req_duration p(95): $P95_MS ms (SLO: < $SLO_P95_MS ms)"
+          if (( $(echo "$P95_MS >= $SLO_P95_MS" | bc -l) )); then
+            echo "FAIL: p95 latency $P95_MS ms breaches SLO_P95_MS=$SLO_P95_MS"
+            exit 1
+          fi
+
+          # checks: доля passed должна быть строго > SLO_CHECKS_RATE.
+          CHECKS_RATE=$(jq -r '.metrics.checks.rate // .metrics.checks.value // .metrics.checks.values.rate // empty' "$REPORT")
+          if [ -z "$CHECKS_RATE" ] || [ "$CHECKS_RATE" = "null" ]; then
+            echo "FAIL: checks metric missing in $REPORT"
+            exit 1
+          fi
+          echo "checks rate: $CHECKS_RATE (SLO: > $SLO_CHECKS_RATE)"
+          if (( $(echo "$CHECKS_RATE <= $SLO_CHECKS_RATE" | bc -l) )); then
+            echo "FAIL: checks rate $CHECKS_RATE breaches SLO_CHECKS_RATE=$SLO_CHECKS_RATE"
+            exit 1
+          fi
+
+          echo "OK: all SLO thresholds satisfied"

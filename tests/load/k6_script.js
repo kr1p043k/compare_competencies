@@ -3,6 +3,9 @@
 //      BASE_URL=https://staging.example.com k6 run tests/load/k6_script.js
 //
 // Primary CI gate: k6 exits with code 99 when a threshold below is breached.
+// The numbers are the agreed SLO; they must match env SLO_* in
+// .github/workflows/load-test.yml (secondary gate) - rationale:
+// docs/LOAD-BASELINE.md ("SLO-пороги CI").
 
 import http from 'k6/http';
 import { check } from 'k6';
@@ -23,8 +26,11 @@ export const options = {
     },
   },
   thresholds: {
-    http_req_failed: ['rate<0.05'],
-    http_req_duration: ['p(95)<500'],
+    // SLO (совпадает с env SLO_* в .github/workflows/load-test.yml):
+    // p95 < 800 ms, доля ошибок < 1%, passed checks > 99%.
+    http_req_failed: ['rate<0.01'],
+    http_req_duration: ['p(95)<800'],
+    checks: ['rate>0.99'],
   },
 };
 
