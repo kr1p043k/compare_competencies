@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { RefreshCw, AlertCircle, MapPin, Briefcase, FileText } from "lucide-react";
+import { RefreshCw, MapPin, Briefcase, FileText } from "lucide-react";
 import { SelfProfileEditor } from "./SelfProfileEditor";
 import { StudentKrm } from "./StudentKrm";
 import { StudentStartHere } from "./StudentStartHere";
@@ -12,7 +12,10 @@ import {
   Card,
   CardBody,
   CardHeader,
+  EmptyState,
+  ErrorState,
   SectionTitle,
+  Skeleton,
   tableHeadClass,
   tableRowClass,
 } from "../../design";
@@ -21,14 +24,18 @@ import { cn } from "./ui/utils";
 export function StudentDashboard({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // Ошибка истории теперь доходит до UI: раньше catch писал только в лог,
+  // и таблица оставалась пустой без объяснения причины.
+  const [error, setError] = useState<string | null>(null);
 
   const loadHistory = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await request<{ history?: unknown[] }>("/api/student/history?limit=50");
       setHistory(data.history || []);
     } catch (err) {
-      reportError("StudentDashboard:history", err);
+      setError(reportError("StudentDashboard:history", err));
     } finally { setLoading(false); }
   };
 
@@ -63,12 +70,28 @@ export function StudentDashboard({ onNavigate }: { onNavigate?: (tab: string) =>
       <Card>
         <CardHeader title="История запросов" />
         <CardBody>
-          {history.length === 0 && !loading && (
-            <div className="flex items-center gap-2 py-4 text-muted-foreground">
-              <AlertCircle className="size-5" />
-              <span>История пуста. Запустите анализ компетенций, чтобы здесь появились записи.</span>
+          {loading && (
+            <div className="space-y-2" role="status" aria-label="Загрузка истории запросов">
+              <span className="sr-only">Загрузка истории…</span>
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-8 w-full" />
+              ))}
             </div>
           )}
+          {!loading && error && (
+            <ErrorState
+              title="Не удалось загрузить историю запросов"
+              description={error}
+              onRetry={() => void loadHistory()}
+            />
+          )}
+          {!loading && !error && history.length === 0 && (
+            <EmptyState
+              title="История пуста"
+              description="Запустите анализ компетенций, чтобы здесь появились записи."
+            />
+          )}
+          {!loading && !error && history.length > 0 && (
           <div className="overflow-x-auto max-h-96 overflow-y-auto">
             <table className="w-full text-sm">
               <thead>
@@ -127,10 +150,11 @@ export function StudentDashboard({ onNavigate }: { onNavigate?: (tab: string) =>
                       </td>
                     </tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </CardBody>
+                 </tbody>
+               </table>
+             </div>
+           )}
+         </CardBody>
       </Card>
       <SelfProfileEditor />
       <LlmChatPanel role="student" />

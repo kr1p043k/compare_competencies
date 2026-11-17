@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BookOpen, ChevronDown, Search, Loader2 } from "lucide-react";
 import { api } from "../api";
 import { reportError } from "./../../lib/errors";
-import { Badge, Button, Card, EmptyState, PageHeader, inputClass } from "../../design";
+import { Badge, Button, Card, EmptyState, ErrorState, PageHeader, inputClass } from "../../design";
 import { cn } from "./ui/utils";
 
 interface TaxCategory {
@@ -25,6 +25,9 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
   const [cats, setCats] = useState<TaxCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Счётчик перезапуска загрузки: кнопка «Повторить» в ErrorState поднимает его,
+  // effect ниже повторяет тот же запрос без изменения его логики.
+  const [reloadTick, setReloadTick] = useState(0);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [skillInput, setSkillInput] = useState("");
@@ -61,6 +64,8 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
 
   useEffect(() => {
     let alive = true;
+    setLoading(true);
+    setError(null);
     api<{ categories: TaxCategory[] }>("/taxonomy/categories")
       .then((d) => {
         if (alive) setCats(d?.categories || []);
@@ -74,7 +79,7 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
     return () => {
       alive = false;
     };
-  }, []);
+  }, [reloadTick]);
 
   useEffect(() => {
     loadMine();
@@ -189,7 +194,7 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
             <Loader2 className="size-6 animate-spin" />
           </div>
         ) : error ? (
-          <p className="text-sm text-destructive text-center py-6">{error}</p>
+          <ErrorState description={error} onRetry={() => setReloadTick((n) => n + 1)} />
         ) : filtered.length === 0 ? (
           <EmptyState icon={<Search className="size-8" />} title="Ничего не найдено" description="Попробуйте другой запрос." />
         ) : (

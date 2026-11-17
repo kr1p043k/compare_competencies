@@ -32,7 +32,7 @@ import { MarketView } from "./MarketView";
 import { ProfileView } from "./ProfileView";
 import { RecommendationsReport } from "./RecommendationsReport";
 import { SummaryReport } from "./SummaryReport";
-import { Badge } from "../../design";
+import { Badge, EmptyState, Skeleton } from "../../design";
 import { profileLabel } from "../../lib/profiles";
 
 /**
@@ -248,6 +248,23 @@ export function DataTab({
           </Button>
         </div>
 
+        {/* Единые состояния области результата: скелетон на первой загрузке,
+            EmptyState, когда результат ещё не получен (раньше блок молча
+            ничего не рисовал). Логику запросов не трогаем. */}
+        {loading && !lastResult && (
+          <div className="space-y-3" role="status" aria-label="Загрузка результата">
+            <span className="sr-only">Загрузка…</span>
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-16 w-full" />
+            ))}
+          </div>
+        )}
+        {!loading && !lastResult && (
+          <EmptyState
+            title="Результатов пока нет"
+            description="Загрузите сохранённый прогон или запустите gap-анализ, чтобы увидеть рекомендации, сводку и профиль."
+          />
+        )}
         {lastResult && (() => {
           const d = lastResult as Record<string, unknown>;
           if (d.recommendations || d.closest_roles) {
