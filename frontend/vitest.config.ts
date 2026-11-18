@@ -39,6 +39,10 @@ export default defineConfig({
         branches: 80,
         functions: 80,
         lines: 80,
+        // lib и design гейтятся по отдельности: иначе хорошо покрытый lib
+        // маскировал бы просадку в design (и наоборот).
+        "src/lib/**": { statements: 80, branches: 80, functions: 80, lines: 80 },
+        "src/design/**": { statements: 80, branches: 80, functions: 80, lines: 80 },
       },
     },
   },
