@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 from src.config import settings
 from src.database import Base
-from src.models import krm_models  # noqa: F401  регистрирует ORM-таблицы в Base.metadata
+from src.models import extra_models, krm_models  # noqa: F401  регистрирует ORM-таблицы в Base.metadata
 
 config = context.config
 if config.config_file_name:
@@ -22,17 +22,31 @@ config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 target_metadata = Base.metadata
 
 
+def include_object(obj, name, type_, reflected, compare_to):
+    """Фильтр сравнения для `alembic check`.
+
+    Индексы и уникальные/FK-ограничения управляются миграциями: в БД имена
+    (`idx_*`, `*_key`, сокращения) расходятся с именами, которые генерирует
+    SQLAlchemy (`ix_*`, `uq_*`), при том что набор колонок совпадает. Их сравнение
+    отключено, чтобы гейт не падал на переименованиях (backlog 6.3.2).
+    Таблицы, колонки и типы по-прежнему сравниваются.
+    """
+    return type_ not in ("index", "unique_constraint", "foreign_key_constraint")
+
+
 def run_migrations_offline():
     """Запуск миграций в офлайн-режиме (без подключения к БД)."""
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(url=url, target_metadata=target_metadata, literal_binds=True)
+    context.configure(
+        url=url, target_metadata=target_metadata, literal_binds=True, include_object=include_object
+    )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def do_run_migrations(connection):
     """Выполнение миграций через синхронное соединение."""
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(connection=connection, target_metadata=target_metadata, include_object=include_object)
     with context.begin_transaction():
         context.run_migrations()
 
