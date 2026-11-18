@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "./api";
-import { onError, reportError } from "./errors";
+import { errMessage, onError, reportError } from "./errors";
 
 describe("reportError", () => {
   it("returns the message and logs it", () => {
@@ -55,5 +55,34 @@ describe("reportError", () => {
 
     offBad();
     offGood();
+  });
+
+  it("stringifies values that are not Error instances", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+
+    expect(reportError("test", 42)).toBe("42");
+  });
+
+  it("survives a failing backend log", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
+
+    expect(() => reportError("test", new Error("x"))).not.toThrow();
+    await Promise.resolve();
+  });
+});
+
+describe("errMessage", () => {
+  it("reads a message from Error and message-like objects", () => {
+    expect(errMessage(new Error("boom"))).toBe("boom");
+    expect(errMessage({ message: "obj" })).toBe("obj");
+  });
+
+  it("returns undefined for values without a string message", () => {
+    expect(errMessage({ message: 42 })).toBeUndefined();
+    expect(errMessage({})).toBeUndefined();
+    expect(errMessage(null)).toBeUndefined();
+    expect(errMessage("str")).toBeUndefined();
   });
 });
