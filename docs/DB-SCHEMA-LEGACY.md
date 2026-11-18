@@ -80,3 +80,49 @@ alembic upgrade head
 3. Перед деплоем сверять `alembic heads` с версией в целевой БД.
 4. Объекты из «Противоречия» и раздел «Не найдено» - сначала решение
    (перенос / deprecated-пометка), потом действие.
+
+## 5. Осиротевшая версия alembic (лечение)
+
+**Симптом:** `alembic check` / `alembic upgrade` падают с
+`Can't locate revision identified by '<rev>'`, хотя код на голове.
+**Причина:** миграцию применили, а затем переименовали/удалили файл; в
+`alembic_version` остался несуществующий id.
+**Лечение (локальная БД):**
+
+```bash
+python -m alembic stamp --purge <head_из_alembic_heads>
+python -m alembic check     # теперь показывает реальный дрейф, а не падение
+```
+
+`--purge` нужен потому, что обычный `stamp` валидирует текущую версию и тоже падает.
+На проде - только после сверки схемы (stamp не меняет DDL).
+
+## 6. Инвентарь дрейфа моделей vs схемы (6.3.2, замер 2026-11-16)
+
+После лечения осиротевшей версии (`fix_not_null_llm_ud` -> `fix_tz_notif_subs`)
+`alembic check` даёт:
+
+| Операция | Кол-во |
+|---|---|
+| `remove_index` | 122 |
+| `add_index` | 94 |
+| `remove_table` | 16 (8 таблиц x 2) |
+| `remove_column` | 11 |
+| `add_constraint` | 9 |
+| `remove_constraint` | 4 |
+| `add_fk` / `remove_fk` | 2 / 2 |
+
+Таблицы вне ORM (есть в БД, нет в моделях): `admin_totp`, `app_settings`,
+`discipline_scope`, `llm_cache`, `skill_embedding_cache`, `student_actions`,
+`totp_tokens`, `trend_precomputed`.
+
+План закрытия (в порядке убывания эффекта):
+1. Добавить 8 таблиц вне ORM в `src/models` (или явно исключить их из autogenerate
+   через `include_object` в `alembic/env.py` - если они управляются вручную).
+2. Унифицировать имена индексов: модели генерируют `ix_*`, миграции создают `idx_*`.
+   Либо задать `naming_convention` в `MetaData`, либо переименовать индексы миграцией.
+3. Привести типы: `JSON` -> `JSONB`, `DateTime` -> `DateTime(timezone=True)`,
+   `String(n)` там, где в схеме `VARCHAR(n)`.
+4. Добавить недостающие колонки (`users.failed_login_count/locked_until/
+   last_failed_login_at`, `pipeline_runs.idempotency_key`).
+5. Только после этого включать `alembic check` в CI (сейчас он был бы красным).
