@@ -59,7 +59,16 @@
 
 ### Added
 
-- (заполнять здесь новые эндпоинты/параметры/поля до релиза)
+- `GET /admin/llm/cost` (admin) — стоимость LLM-обращений: `?days=1..365`,
+  итог `total_usd`/`requests` и разбивка `by_model`/`by_day`. При недоступной
+  БД или отсутствии колонки `cost_usd` отдаёт нули и `reason` (без 500).
+- `GET /admin/monitoring/grafana` (admin) — список дашбордов Grafana
+  (`GRAFANA_URL`/`GRAFANA_USER`/`GRAFANA_PASSWORD`); graceful-фолбэк
+  `enabled/reachable=false` вместо 500.
+- `GET /live`, `GET /api/live` — liveness-проба: процесс жив, зависимости не
+  проверяются (в отличие от `/ready`, который отдаёт 503 при недоступной БД).
+- `Idempotency-Key` для триггеров пайплайна — повторный запрос с тем же ключом
+  не запускает второй прогон, а возвращает существующий `task_id`.
 
 ### Changed (non-breaking)
 
