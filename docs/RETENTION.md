@@ -25,6 +25,28 @@ python -m src.cli retention --vacancies-days 730 --logs-days 90 --apply
 python -m src.cli retention --session-days 30 --run-days 365 --apply
 ```
 
+## Планирование (enforcement)
+
+Политика должна исполняться сама, а не «когда вспомнят». Ежедневно в 04:00
+(с разбросом до 10 минут) чистку запускает systemd-таймер `cc-retention.timer`,
+который вызывает `cc-retention.sh` -> `docker exec compare-competencies-api
+python -m src.cli retention --apply`.
+
+Установка (один раз на сервере):
+
+```bash
+sudo cp deploy/cc-retention.sh /home/admin_server/bin/cc-retention.sh
+sudo chmod +x /home/admin_server/bin/cc-retention.sh
+sudo cp deploy/cc-retention.service deploy/cc-retention.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now cc-retention.timer
+systemctl list-timers cc-retention.timer          # следующий запуск
+journalctl -u cc-retention.service -n 50 --no-pager   # что удалено в последний раз
+```
+
+`Persistent=true` догоняет пропущенный запуск после простоя. Таймер не трогает
+активные сессии и незавершённые прогоны (см. раздел «Политика»).
+
 ## Заметки
 
 - По умолчанию режим dry-run: ничего не удаляется без явного `--apply`.
