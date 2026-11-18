@@ -102,6 +102,15 @@ class Settings(BaseSettings):
     # Соединения, простаивавшие дольше, с (5 мин), закрываются - защита от
     # полумёртвых коннектов после сетевых сбоев/рестарта сервера БД.
     DB_POOL_MAX_INACTIVE_LIFETIME: float = 300.0
+
+    # ---------- исходящие HTTP-запросы ----------
+    # Единый таймаут/ретраи для внешних вызовов (hh, hub, ...). connect отдельно
+    # от read: "медленно соединяется" и "медленно отвечает" - разные сбои.
+    # Ретраи - на уровне транспорта httpx (для идемпотентных GET).
+    HTTP_CONNECT_TIMEOUT_S: float = 5.0
+    HTTP_READ_TIMEOUT_S: float = 30.0
+    HTTP_RETRIES: int = 2
+
     @model_validator(mode="after")
     def _check_db_pool(self) -> "Settings":
         """Fail-fast: некорректная конфигурация пула не должна стартовать молча."""
