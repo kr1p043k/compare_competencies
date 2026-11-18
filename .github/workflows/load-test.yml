@@ -8,6 +8,14 @@ on:
   #   - cron: '0 4 * * *'  # каждую ночь в 4 утра МСК
   workflow_dispatch:
 
+# SLO-константы: единый источник порогов для шага "Check thresholds" и
+# теста-синхронизации tests/test_load_test_slo.py (thresholds в k6-скрипте
+# обязаны совпадать с этими значениями).
+env:
+  SLO_ERROR_RATE: "0.05"   # допустимая доля failed-запросов (rate)
+  SLO_P95_MS: "500"        # допустимая p95-длительность запроса, мс
+  SLO_CHECKS_RATE: "0.95"  # минимальная доля passed checks
+
 jobs:
   load-test:
     runs-on: ubuntu-latest
@@ -47,15 +55,47 @@ jobs:
       - name: Check thresholds
         run: |
           # Вторичный fail-closed гейт: если метрики нет или формат изменился,
-          # на выходе 1 и шаг падает. Новый формат summary-export пишет .rate,
-          # старый писал .value.
-          if [ ! -f tests/load/reports/results.json ]; then
+          # выходим с кодом 1 и шаг падает. Пороги берутся из env SLO_*
+          # (верх файла). Новый формат summary-export пишет .rate, старый - .value.
+          REPORT=tests/load/reports/results.json
+          if [ ! -f "$REPORT" ]; then
             echo "results.json not found"
             exit 1
           fi
-          ERROR_RATE=$(jq -r '.metrics.http_req_failed.rate // .metrics.http_req_failed.value // 1' tests/load/reports/results.json)
-          echo "http_req_failed rate: $ERROR_RATE"
-          if (( $(echo "$ERROR_RATE > 0.05" | bc -l) )); then
-            echo "Error rate too high: $ERROR_RATE"
+
+          # Ошибки: http_req_failed rate <= SLO_ERROR_RATE.
+          ERROR_RATE=$(jq -r '.metrics.http_req_failed.rate // .metrics.http_req_failed.value // empty' "$REPORT")
+          if [ -z "$ERROR_RATE" ] || [ "$ERROR_RATE" = "null" ]; then
+            echo "http_req_failed metric missing in $REPORT (SLO_ERROR_RATE=$SLO_ERROR_RATE)"
             exit 1
+          fi
+          echo "http_req_failed rate: $ERROR_RATE (SLO: <= $SLO_ERROR_RATE)"
+          if (( $(echo "$ERROR_RATE > $SLO_ERROR_RATE" | bc -l) )); then
+            echo "FAIL: error rate $ERROR_RATE exceeds SLO_ERROR_RATE=$SLO_ERROR_RATE"
+            exit 1
+          fi
+
+          # Латентность: http_req_duration p(95) <= SLO_P95_MS мс.
+          # k6 пишет ключ "p(95)"; в старых версиях встречался "p(95.0)".
+          P95_MS=$(jq -r '.metrics.http_req_duration["p(95)"] // .metrics.http_req_duration["p(95.0)"] // empty' "$REPORT")
+          if [ -z "$P95_MS" ] || [ "$P95_MS" = "null" ]; then
+            echo "http_req_duration p(95) metric missing in $REPORT (SLO_P95_MS=$SLO_P95_MS)"
+            exit 1
+          fi
+          echo "http_req_duration p(95): $P95_MS ms (SLO: <= $SLO_P95_MS ms)"
+          if (( $(echo "$P95_MS > $SLO_P95_MS" | bc -l) )); then
+            echo "FAIL: p95 latency $P95_MS ms exceeds SLO_P95_MS=$SLO_P95_MS ms"
+            exit 1
+          fi
+
+          # Checks: если отчёт содержит метрику checks, доля passed >= SLO_CHECKS_RATE.
+          CHECKS_RATE=$(jq -r '.metrics.checks.rate // .metrics.checks.value // empty' "$REPORT")
+          if [ -n "$CHECKS_RATE" ] && [ "$CHECKS_RATE" != "null" ]; then
+            echo "checks rate: $CHECKS_RATE (SLO: >= $SLO_CHECKS_RATE)"
+            if (( $(echo "$CHECKS_RATE < $SLO_CHECKS_RATE" | bc -l) )); then
+              echo "FAIL: checks rate $CHECKS_RATE below SLO_CHECKS_RATE=$SLO_CHECKS_RATE"
+              exit 1
+            fi
+          else
+            echo "checks metric absent from report; checks SLO skipped"
           fi
