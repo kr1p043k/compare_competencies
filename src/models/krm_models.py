@@ -37,6 +37,7 @@ class Vacancy(Base):
     salary_to: Mapped[int | None] = mapped_column(Integer)
     salary_currency: Mapped[str | None] = mapped_column(String(10))
     employer_name: Mapped[str | None] = mapped_column(Text)
+    employer_logo: Mapped[str | None] = mapped_column(Text)
     employer_id: Mapped[int | None] = mapped_column(Integer)
     area_name: Mapped[str | None] = mapped_column(Text)
     snippet_requirement: Mapped[str | None] = mapped_column(Text)
@@ -263,6 +264,9 @@ class KSAEntry(Base):
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     parse_version_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("parse_versions.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.text("NOW()")
+    )
 
     competency: Mapped["Competency"] = relationship(back_populates="ksa_entries")
     parse_version: Mapped[Optional["ParseVersion"]] = relationship(back_populates="ksa_entries")
@@ -359,6 +363,9 @@ class User(Base):
        default=partial(datetime.now, UTC),
        onupdate=partial(datetime.now, UTC),
     )
+    failed_login_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=sa.text("0"))
+    locked_until: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    last_failed_login_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
 
     recommendations: Mapped[list["Recommendation"]] = relationship(back_populates="user")
     sessions: Mapped[list["Session"]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -380,7 +387,9 @@ class UserDirection(Base):
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     user_id: Mapped[str] = mapped_column(UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     dir_code: Mapped[str] = mapped_column(String(50), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), default=partial(datetime.now, UTC), nullable=False
+    )
 
     user: Mapped["User"] = relationship(back_populates="user_directions")
 
@@ -587,6 +596,7 @@ class PipelineRun(Base):
     stats: Mapped[dict | None] = mapped_column(JSONB)
     direction_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
     owner_id: Mapped[str | None] = mapped_column(UUID, nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(64))
 
     __table_args__ = (
         CheckConstraint(
@@ -663,14 +673,16 @@ class LLMInteraction(Base):
     analysis_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id"), index=True)
     direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id"), index=True)
     discipline_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("disciplines.id"), index=True)
-    prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
-    response_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    prompt_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    response_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     prompt_hash: Mapped[str | None] = mapped_column(Text)
     response_summary: Mapped[str | None] = mapped_column(Text)
-    model: Mapped[str] = mapped_column(String(50), default="yandexgpt")
-    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    model: Mapped[str] = mapped_column(String(50), default="yandexgpt", nullable=False)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     cost_usd: Mapped[float | None] = mapped_column(Numeric(12, 6), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), default=partial(datetime.now, UTC), nullable=False
+    )
 
 
 # ─── LLM Recommendation (кэш запросов) ────────────────────────────────────

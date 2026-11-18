@@ -122,14 +122,12 @@ jobs:
           DATABASE_URL: postgresql+asyncpg://user:pass@localhost:5432/test
           SECRET_KEY: 0123456789abcdef0123456789abcdef
       # #6.3.2: дрейф моделей и миграций ловится здесь, а не на проде.
-      # Голый `alembic check` на текущем дереве красный из-за легаси (миграции
-      # держат таблицы auth/TOTP/кэшей, которых уже нет в Base.metadata),
-      # поэтому гейт сверяет diff-операции с закоммиченным ratchet-baseline
-      # scripts/alembic_drift_baseline.json и падает только на новых сигнатурах
-      # (или exit 2, если проверка вовсе не состоялась). Тот же чистый
-      # test-контейнер postgres, что и у шага выше: upgrade уже применён.
+      # Дрейф сведён к нулю: ORM-модели для всех таблиц, типы/колонки/NOT NULL
+      # выровнены; индексы и имена уникальных/FK-ограничений управляются
+      # миграциями и не сравниваются (см. include_object в alembic/env.py).
+      # Гейт строгий: любое новое расхождение таблиц/колонок/типов падает.
       - name: Alembic drift check (models vs migrations)
-        run: python scripts/check_alembic_drift.py
+        run: python -m alembic check
         env:
           DATABASE_URL: postgresql+asyncpg://user:pass@localhost:5432/test
           SECRET_KEY: 0123456789abcdef0123456789abcdef
