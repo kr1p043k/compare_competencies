@@ -366,7 +366,9 @@ class HubPublicationsClient:
             self._client = None
             self._closed = True
         if self._client is None or self._closed:
-            self._client = httpx.AsyncClient(
+            from src.infrastructure.http_client import new_async_client
+
+            self._client = new_async_client(
                 timeout=self.timeout,
                 transport=self._transport,
                 headers={"User-Agent": _BROWSER_UA, "Accept": "application/json"},
