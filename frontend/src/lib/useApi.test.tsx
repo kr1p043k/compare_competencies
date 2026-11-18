@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { useApi, useMutation } from "./useApi";
+import { errorText, useApi, useMutation } from "./useApi";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -84,5 +84,35 @@ describe("useMutation", () => {
 
     expect(result.current.error?.message).toBe("nope");
     expect(result.current.loading).toBe(false);
+  });
+
+  it("reset clears data, error and loading", async () => {
+    const fn = vi.fn().mockResolvedValue({ ok: true });
+    const { result } = renderHook(() => useMutation(fn));
+
+    await act(async () => {
+      await result.current.run(undefined as never);
+    });
+    expect(result.current.data).toEqual({ ok: true });
+
+    act(() => result.current.reset());
+
+    expect(result.current.data).toBeNull();
+    expect(result.current.error).toBeNull();
+    expect(result.current.loading).toBe(false);
+  });
+});
+
+describe("errorText", () => {
+  it("uses the message of ApiError and Error", async () => {
+    const { ApiError } = await import("./api");
+
+    expect(errorText(new ApiError("нет доступа", 403, null, "/"))).toBe("нет доступа");
+    expect(errorText(new Error("бум"))).toBe("бум");
+  });
+
+  it("falls back to a generic message for unknown values", () => {
+    expect(errorText("что-то")).toBe("Неизвестная ошибка");
+    expect(errorText(null)).toBe("Неизвестная ошибка");
   });
 });

@@ -27,6 +27,17 @@ function open_() {
   fireEvent.click(screen.getByText("открыть"));
 }
 
+function EmptyHarness() {
+  const [open, setOpen] = useState(false);
+  const ref = useFocusTrap<HTMLDivElement>(open);
+  return (
+    <div>
+      <button onClick={() => setOpen(true)}>открыть пустой</button>
+      {open && <div ref={ref} role="dialog" aria-modal="true" tabIndex={-1} />}
+    </div>
+  );
+}
+
 describe("useFocusTrap", () => {
   it("ставит фокус на первый элемент при открытии", () => {
     render(<Harness />);
@@ -67,5 +78,16 @@ describe("useFocusTrap", () => {
     open_();
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(document.activeElement).toBe(opener);
+  });
+
+  it("держит фокус на контейнере, если фокусируемых элементов нет", () => {
+    render(<EmptyHarness />);
+    fireEvent.click(screen.getByText("открыть пустой"));
+    const dialog = screen.getByRole("dialog");
+    dialog.focus();
+
+    fireEvent.keyDown(dialog, { key: "Tab" });
+
+    expect(document.activeElement).toBe(dialog);
   });
 });

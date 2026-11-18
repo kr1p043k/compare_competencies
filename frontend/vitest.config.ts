@@ -24,19 +24,21 @@ export default defineConfig({
       forks: { singleFork: true },
     },
     maxWorkers: 1,
-    // Пороги равны текущему измеренному покрытию (округление вниз до целого),
-    // чтобы гейт ловил деградацию, но не падал на зелёной базе.
-    // Замер 2026-11-16 (vitest --coverage, v8):
-    //   stmts 44.98 | branch 73.07 | funcs 52.84 | lines 44.98.
+    // Гейт для core-скоупа (lib + design): 80% по всем метрикам (бэклог 7.5.4).
+    // Замер 2026-11-19 (vitest --coverage, v8):
+    //   stmts 98.15 | branch 93.57 | funcs 97.29 | lines 98.15.
     // Поднимать числа можно только вместе с ростом реального покрытия.
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
+      // Core = lib + design (see backlog 7.5.4). App components and shadcn ui
+      // are out of scope: gating them at 80% would demand brittle DOM tests.
+      include: ["src/lib/**/*.{ts,tsx}", "src/design/**/*.{ts,tsx}"],
       thresholds: {
-        statements: 44,
-        branches: 73,
-        functions: 52,
-        lines: 44,
+        statements: 80,
+        branches: 80,
+        functions: 80,
+        lines: 80,
       },
     },
   },
