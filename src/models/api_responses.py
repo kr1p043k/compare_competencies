@@ -452,3 +452,23 @@ class VacancyAnalyticsResponse(BaseModel):
     top_regions: list[NameCountItem] = Field(default_factory=list)
     top_employers: list[NameCountItem] = Field(default_factory=list)
     skills: VacancySkillsStats = Field(default_factory=VacancySkillsStats)
+
+
+class StudentHistoryResponse(BaseModel):
+    """РСЃС‚РѕСЂРёСЏ РґРµР№СЃС‚РІРёР№ СЃС‚СѓРґРµРЅС‚Р°."""
+    history: list[Any] = Field(default_factory=list)
+    total: int = 0
+
+
+class StudentActionAck(BaseModel):
+    """РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ Р·Р°РїРёСЃРё РґРµР№СЃС‚РІРёСЏ."""
+    status: str = "ok"
+
+
+class TeacherHistoryResponse(BaseModel):
+    """Р СЏРґС‹ РјРµС‚СЂРёРє РѕС…РІР°С‚Р° РїРѕ СЃРЅР°РїС€РѕС‚Р°Рј (oldest first) + РґРµР»СЊС‚Р°."""
+    points: list[Any] = Field(default_factory=list)
+    first: Any | None = None
+    last: Any | None = None
+    delta: Any | None = None
+    skipped_lines: int = 0

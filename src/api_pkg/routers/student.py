@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from src.api_pkg.rate_limit import limiter
 from src.api_pkg.student_actions import get_actions, log_action
+from src.models.api_responses import StudentActionAck, StudentHistoryResponse
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["student"])
@@ -18,7 +19,7 @@ class LogActionRequest(BaseModel):
     profile: str = ""
 
 
-@router.get("/student/history")
+@router.get("/student/history", response_model=StudentHistoryResponse)
 @limiter.limit("30/minute")
 async def student_history(request: Request, limit: int = 50):
     """История действий студента."""
@@ -29,7 +30,7 @@ async def student_history(request: Request, limit: int = 50):
     return {"history": entries, "total": len(entries)}
 
 
-@router.post("/student/log-action")
+@router.post("/student/log-action", response_model=StudentActionAck)
 @limiter.limit("20/minute")
 async def student_log_action(request: Request, body: LogActionRequest):
     """Залогировать действие студента."""
