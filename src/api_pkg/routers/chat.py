@@ -22,10 +22,12 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncGenerator
+from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_any_role, require_role
@@ -135,7 +137,25 @@ async def teacher_chat_stream(
     )
 
 
-@router.get("/teacher/chat/history")
+class ChatMessageItem(BaseModel):
+    """Сообщение треда: роль, блоки (типизируются плагинами), метка времени.
+
+    `blocks` намеренно Any: старые записи хранят dict, новые - список блоков.
+    """
+
+    role: str
+    blocks: Any = None
+    ts: Any | None = None
+
+
+class ChatHistoryResponse(BaseModel):
+    """История треда: id (None для нового) и сообщения по порядку."""
+
+    thread_id: str | None = None
+    messages: list[ChatMessageItem]
+
+
+@router.get("/teacher/chat/history", response_model=ChatHistoryResponse)
 @limiter.limit("30/minute")
 async def teacher_chat_history(
     request: Request,
@@ -168,7 +188,7 @@ async def student_chat_stream(
     )
 
 
-@router.get("/student/chat/history")
+@router.get("/student/chat/history", response_model=ChatHistoryResponse)
 @limiter.limit("30/minute")
 async def student_chat_history(
     request: Request,
