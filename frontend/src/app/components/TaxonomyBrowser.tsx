@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BookOpen, ChevronDown, Search, Loader2 } from "lucide-react";
 import { api } from "../api";
 import { reportError } from "./../../lib/errors";
+import { fuzzyMatch } from "../../lib/fuzzy";
 import { Badge, Button, Card, EmptyState, ErrorState, PageHeader, inputClass } from "../../design";
 import { cn } from "./ui/utils";
 
@@ -87,14 +88,14 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
   }, [showSuggest]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     if (!q) return cats;
     return cats
       .map((c) => ({
         ...c,
-        skills: c.skills.filter((s) => s.toLowerCase().includes(q)),
+        skills: c.skills.filter((s) => fuzzyMatch(q, s)),
       }))
-      .filter((c) => c.skills.length > 0 || c.label.toLowerCase().includes(q));
+      .filter((c) => c.skills.length > 0 || fuzzyMatch(q, c.label));
   }, [cats, query]);
 
   const totalSkills = useMemo(
