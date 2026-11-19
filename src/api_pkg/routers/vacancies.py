@@ -11,7 +11,9 @@ from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_authenticated
 from src.models.api_responses import (
     VacanciesResponse,
+    VacancyAnalyticsResponse,
     VacancyDetailResponse,
+    VacancyInfoResponse,
     VacancyStatsResponse,
 )
 
@@ -204,7 +206,7 @@ async def get_vacancies(
     }
 
 
-@router.get("/vacancies/info")
+@router.get("/vacancies/info", response_model=VacancyInfoResponse)
 async def get_vacancies_info():
     """Информация об источнике вакансий."""
     pool = await _get_db_pool()
@@ -377,7 +379,7 @@ async def get_vacancies_stats(
 @limiter.limit("30/minute")
 async def get_vacancies_analytics(
     request: Request,
-):
+) -> VacancyAnalyticsResponse:
     """Аналитика по вакансиям."""
     pool = await _get_db_pool()
     if not pool:
