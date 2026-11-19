@@ -356,6 +356,24 @@ async def _run_bootstrap_guarded() -> None:
             _bootstrap_running = False
 
 
+def dispatch_pipeline_task(action: PipelineAction, task_id: str, **kwargs) -> None:
+    """Запустить пайплайн-задачу в фоне, не привязываясь к Request/BackgroundTasks.
+
+    Единая точка запуска (BACKLOG 6.2.5): сильная ссылка (keep_task_ref) держит
+    задачу до завершения; исключение логируется, статус задачи выставляет сам
+    run_pipeline_task в своём try/except/finally.
+    """
+    from src.utils import keep_task_ref
+
+    async def _runner() -> None:
+        try:
+            await run_pipeline_task(action, task_id, **kwargs)
+        except Exception:  # noqa: BLE001 - фоновая задача не должна терять трейс
+            logger.exception("pipeline_dispatch_failed", task_id=task_id, action=str(action))
+
+    keep_task_ref(asyncio.create_task(_runner()))
+
+
 async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
     from src.pipeline import runner as pr
 
@@ -569,7 +587,7 @@ async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
         task_id, "running", "Запуск пересборки...", started_at, step=0,
         owner_uid=await _current_uid(request),
     )
-    background_tasks.add_task(run_pipeline_task, PipelineAction.REBUILD, task_id)
+    dispatch_pipeline_task(PipelineAction.REBUILD, task_id)
     return PipelineResponse(
         status="started", message="Full rebuild started in background",
         command="rebuild",
@@ -715,7 +733,7 @@ async def run_pipeline_action_sync(
             task_id, "running", "Запуск пересборки...", started_at, step=0,
             owner_uid=await _current_uid(request),
         )
-        background_tasks.add_task(run_pipeline_task, action, task_id)
+        dispatch_pipeline_task(action, task_id)
         return PipelineResponse(
             status="started",
             message="Full rebuild started in background",
