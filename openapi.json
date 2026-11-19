@@ -385,6 +385,60 @@
         "title": "CategoryCoverage",
         "type": "object"
       },
+      "ChatHistoryResponse": {
+        "description": "История треда: id (None для нового) и сообщения по порядку.",
+        "properties": {
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ChatMessageItem"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          }
+        },
+        "required": [
+          "messages"
+        ],
+        "title": "ChatHistoryResponse",
+        "type": "object"
+      },
+      "ChatMessageItem": {
+        "description": "Сообщение треда: роль, блоки (типизируются плагинами), метка времени.\n\n`blocks` намеренно Any: старые записи хранят dict, новые - список блоков.",
+        "properties": {
+          "blocks": {
+            "title": "Blocks"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "ts": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ts"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "ChatMessageItem",
+        "type": "object"
+      },
       "ChatRequest": {
         "properties": {
           "max_tokens": {
@@ -1309,6 +1363,29 @@
         "title": "MissingSkillsResponse",
         "type": "object"
       },
+      "NameCountItem": {
+        "description": "Пара (название, количество) для топ-списков.",
+        "properties": {
+          "count": {
+            "default": 0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "NameCountItem",
+        "type": "object"
+      },
       "NewCompetencyIn": {
         "properties": {
           "abilities": {
@@ -1845,6 +1922,23 @@
           "total"
         ],
         "title": "ProfessionsResponse",
+        "type": "object"
+      },
+      "ProfileListResponse": {
+        "description": "Список доступных профилей обучения (встроенные + созданные).",
+        "properties": {
+          "profiles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Profiles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "profiles"
+        ],
+        "title": "ProfileListResponse",
         "type": "object"
       },
       "ProfileShort": {
@@ -3203,6 +3297,35 @@
         "title": "VacanciesResponse",
         "type": "object"
       },
+      "VacancyAnalyticsResponse": {
+        "description": "Аналитика рынка: зарплаты по уровням, регионы, работодатели, навыки.",
+        "properties": {
+          "salary_by_level": {
+            "additionalProperties": true,
+            "title": "Salary By Level",
+            "type": "object"
+          },
+          "skills": {
+            "$ref": "#/components/schemas/VacancySkillsStats"
+          },
+          "top_employers": {
+            "items": {
+              "$ref": "#/components/schemas/NameCountItem"
+            },
+            "title": "Top Employers",
+            "type": "array"
+          },
+          "top_regions": {
+            "items": {
+              "$ref": "#/components/schemas/NameCountItem"
+            },
+            "title": "Top Regions",
+            "type": "array"
+          }
+        },
+        "title": "VacancyAnalyticsResponse",
+        "type": "object"
+      },
       "VacancyDetailResponse": {
         "description": "Детали вакансии.",
         "properties": {
@@ -3293,6 +3416,85 @@
           }
         },
         "title": "VacancyDetailResponse",
+        "type": "object"
+      },
+      "VacancyInfoResponse": {
+        "description": "Диагностика загруженного среза вакансий (count, диапазон дат, статус).",
+        "properties": {
+          "cache_status": {
+            "additionalProperties": true,
+            "title": "Cache Status",
+            "type": "object"
+          },
+          "count": {
+            "default": 0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "date_range": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Range"
+          },
+          "db_available": {
+            "default": false,
+            "title": "Db Available",
+            "type": "boolean"
+          },
+          "file_modified": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Modified"
+          },
+          "last_pipeline_stats": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Pipeline Stats"
+          },
+          "last_updated": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Updated"
+          },
+          "load_error": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Error"
+          },
+          "total_vacancies": {
+            "default": 0,
+            "title": "Total Vacancies",
+            "type": "integer"
+          },
+          "with_skills": {
+            "default": 0,
+            "title": "With Skills",
+            "type": "integer"
+          }
+        },
+        "title": "VacancyInfoResponse",
         "type": "object"
       },
       "VacancyItem": {
@@ -3398,6 +3600,33 @@
           "skills"
         ],
         "title": "VacancyItem",
+        "type": "object"
+      },
+      "VacancySkillsStats": {
+        "description": "Покрытие вакансий навыками.",
+        "properties": {
+          "avg_skills_per_vacancy": {
+            "default": 0.0,
+            "title": "Avg Skills Per Vacancy",
+            "type": "number"
+          },
+          "percent": {
+            "default": 0.0,
+            "title": "Percent",
+            "type": "number"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "with_skills": {
+            "default": 0,
+            "title": "With Skills",
+            "type": "integer"
+          }
+        },
+        "title": "VacancySkillsStats",
         "type": "object"
       },
       "VacancyStatsResponse": {
@@ -8245,7 +8474,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileListResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9441,7 +9672,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ChatHistoryResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -10023,7 +10256,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ChatHistoryResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -12970,7 +13205,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/VacancyInfoResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -12990,7 +13227,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/VacancyAnalyticsResponse"
+                }
               }
             },
             "description": "Successful Response"
