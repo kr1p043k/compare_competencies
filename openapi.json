@@ -2915,18 +2915,6 @@
         "title": "StatusResponse",
         "type": "object"
       },
-      "StudentActionAck": {
-        "description": "Подтверждение записи действия.",
-        "properties": {
-          "status": {
-            "default": "ok",
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "title": "StudentActionAck",
-        "type": "object"
-      },
       "StudentCreatedBody": {
         "properties": {
           "profile_name": {
@@ -2951,23 +2939,6 @@
           "skills"
         ],
         "title": "StudentCreatedBody",
-        "type": "object"
-      },
-      "StudentHistoryResponse": {
-        "description": "История действий студента.",
-        "properties": {
-          "history": {
-            "items": {},
-            "title": "History",
-            "type": "array"
-          },
-          "total": {
-            "default": 0,
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "title": "StudentHistoryResponse",
         "type": "object"
       },
       "StudentImportItem": {
@@ -3177,50 +3148,6 @@
           "dir_code"
         ],
         "title": "TeacherDirectionOut",
-        "type": "object"
-      },
-      "TeacherHistoryResponse": {
-        "description": "Ряды метрик охвата по снапшотам (oldest first) + дельта.",
-        "properties": {
-          "delta": {
-            "anyOf": [
-              {},
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Delta"
-          },
-          "first": {
-            "anyOf": [
-              {},
-              {
-                "type": "null"
-              }
-            ],
-            "title": "First"
-          },
-          "last": {
-            "anyOf": [
-              {},
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last"
-          },
-          "points": {
-            "items": {},
-            "title": "Points",
-            "type": "array"
-          },
-          "skipped_lines": {
-            "default": 0,
-            "title": "Skipped Lines",
-            "type": "integer"
-          }
-        },
-        "title": "TeacherHistoryResponse",
         "type": "object"
       },
       "TopSkillsResponse": {
@@ -9954,9 +9881,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StudentHistoryResponse"
-                }
+                "schema": {}
               }
             },
             "description": "Successful Response"
@@ -9996,9 +9921,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StudentActionAck"
-                }
+                "schema": {}
               }
             },
             "description": "Successful Response"
@@ -10825,7 +10748,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TeacherHistoryResponse"
+                  "additionalProperties": true,
+                  "title": "Response Teacher History Api Teacher History Get",
+                  "type": "object"
                 }
               }
             },
