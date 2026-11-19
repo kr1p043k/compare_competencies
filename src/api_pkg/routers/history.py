@@ -18,6 +18,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from src.api_pkg.routers.auth import require_any_role
+from src.models.api_responses import TeacherHistoryResponse
 
 router = APIRouter(tags=["teacher"])
 
@@ -51,7 +52,11 @@ def _load_snapshot() -> Any:
     return _snapshot_module
 
 
-@router.get("/teacher/history", dependencies=[Depends(require_any_role(*_ROLES))])
+@router.get(
+    "/teacher/history",
+    response_model=TeacherHistoryResponse,
+    dependencies=[Depends(require_any_role(*_ROLES))],
+)
 async def teacher_history(
     dir_code: str = "09.03.02",
     year: int = 2025,
