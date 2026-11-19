@@ -10,7 +10,7 @@ from datetime import datetime
 
 import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Boolean, Integer, Text
+from sqlalchemy import BigInteger, Boolean, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -58,6 +58,8 @@ class AdminTotp(Base):
     recovery_codes: Mapped[dict | None] = mapped_column(JSONB)
     failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default=sa.text("0"))
     locked_until: Mapped[datetime | None] = _ts()
+    # Живая колонка (НЕ legacy): защита от повторного использования TOTP-кода.
+    last_totp_step: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
 
 class TotpToken(Base):
