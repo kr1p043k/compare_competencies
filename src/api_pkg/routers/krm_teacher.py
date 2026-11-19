@@ -129,10 +129,42 @@ def _load_krm_direction(dir_code: str) -> dict:
     return next(iter(data.values()))
 
 
+# ---------- response models (backlog 6.2.1) ----------
+
+
+class TeacherDirectionOut(BaseModel):
+    dir_code: str
+    name: str = ""
+    profile: str = ""
+    disciplines_count: int = 0
+
+
+class AccessCheckResponse(BaseModel):
+    access: bool
+    dir_code: str
+
+
+class DisciplineSummaryOut(BaseModel):
+    name: str
+    competencies_count: int
+    skills_count: int
+
+
+class DisciplineCompetencyOut(BaseModel):
+    code: str
+    skills: list[str] = []
+
+
+class DisciplineDetailResponse(BaseModel):
+    name: str
+    dir_code: str
+    competencies: list[DisciplineCompetencyOut]
+
+
 # ---------- endpoints ----------
 
 
-@router.get("/krm/teacher/my-directions")
+@router.get("/krm/teacher/my-directions", response_model=list[TeacherDirectionOut])
 @limiter.limit("60/minute")
 async def krm_teacher_my_directions(request: Request):
     """Направления, доступные текущему пользователю (с метаданными)."""
@@ -142,7 +174,7 @@ async def krm_teacher_my_directions(request: Request):
     return [d for d in all_dirs if d["dir_code"] in allowed]
 
 
-@router.get("/krm/teacher/check-access")
+@router.get("/krm/teacher/check-access", response_model=AccessCheckResponse)
 @limiter.limit("60/minute")
 async def krm_teacher_check_access(request: Request, dir_code: str = ""):
     """Проверка доступа к направлению. Возвращает {access: true/false, dir_code}."""
@@ -164,7 +196,8 @@ async def krm_teacher_direction(request: Request, dir_code: str):
     return _load_krm_direction(dir_code)
 
 
-@router.get("/krm/teacher/directions/{dir_code}/disciplines")
+@router.get("/krm/teacher/directions/{dir_code}/disciplines",
+            response_model=list[DisciplineSummaryOut])
 @limiter.limit("60/minute")
 async def krm_teacher_disciplines(request: Request, dir_code: str):
     """Список дисциплин направления с числом компетенций и навыков."""
@@ -181,7 +214,8 @@ async def krm_teacher_disciplines(request: Request, dir_code: str):
     ]
 
 
-@router.get("/krm/teacher/directions/{dir_code}/disciplines/{discipline_name:path}")
+@router.get("/krm/teacher/directions/{dir_code}/disciplines/{discipline_name:path}",
+            response_model=DisciplineDetailResponse)
 @limiter.limit("60/minute")
 async def krm_teacher_discipline_detail(request: Request, dir_code: str, discipline_name: str):
     """Детали дисциплины: компетенции и ЗУН (skills по каждой компетенции)."""
