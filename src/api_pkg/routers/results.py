@@ -4,6 +4,7 @@ import asyncio
 import copy
 import json
 import threading
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -202,6 +203,43 @@ _explanation_engine_lock = threading.Lock()
 # неприемлемо медленны, а топ рекомендаций почти всегда среди частых.
 _EXPLANATION_CANDIDATE_LIMIT = 200
 
+#: TTL и размер кэша SHAP-объяснений. Пересчёт дорогой (модель + SHAP), а вход
+#: меняется только при смене набора навыков профиля или перезагрузке модели
+#: (id движка), поэтому кэш ключуется ими обоими.
+_EXPL_CACHE_TTL_S = 300.0
+_EXPL_CACHE_MAX = 128
+_expl_cache: dict[tuple, tuple[float, dict[str, Any]]] = {}
+
+
+def _expl_cache_key(profile: str, skills: list[str], engine: Any) -> tuple:
+    normalized = tuple(sorted(s.strip().lower() for s in skills if s and s.strip()))
+    return (profile, id(engine), hash(normalized))
+
+
+def _expl_cache_get(key: tuple) -> dict[str, Any] | None:
+    item = _expl_cache.get(key)
+    if item is None:
+        return None
+    ts, payload = item
+    # >= (а не >): при TTL=0 кэш выключен, даже если часы не успели тикнуть.
+    if time.monotonic() - ts >= _EXPL_CACHE_TTL_S:
+        _expl_cache.pop(key, None)
+        return None
+    return copy.deepcopy(payload)
+
+
+def _expl_cache_put(key: tuple, payload: dict[str, Any]) -> None:
+    if len(_expl_cache) >= _EXPL_CACHE_MAX:
+        oldest = min(_expl_cache.items(), key=lambda kv: kv[1][0])[0]
+        _expl_cache.pop(oldest, None)
+    _expl_cache[key] = (time.monotonic(), copy.deepcopy(payload))
+
+
+def _expl_cache_clear() -> None:
+    """Сброс кэша (для тестов и админ-инвалидации)."""
+    _expl_cache.clear()
+
+
 
 def _get_or_load_explanation_engine() -> Any:
     """Вернуть LTR-движок; подгрузить артефакт, если он ещё не загружен.
@@ -306,6 +344,12 @@ async def get_ml_explanations(
             "explanations": [],
         }
 
+    cache_key = _expl_cache_key(profile, student_skills, engine)
+    cached = _expl_cache_get(cache_key)
+    if cached is not None:
+        logger.debug("ml_explanations_cache_hit", profile=profile)
+        return cached
+
     market_all = list(engine.skill_metadata.keys())
     known_lower = {s.lower().strip() for s in student_skills}
     missing = [s for s in market_all if s.lower().strip() not in known_lower]
@@ -341,19 +385,22 @@ async def get_ml_explanations(
                         "contributions": contributions,
                     }
                 )
-            return {
+            result = {
                 "profile": profile,
                 "model": "ltr_xgboost_shap",
                 "explanations": explanations,
             }
         case Err(e):
             logger.warning("ml_explanations_predict_failed", profile=profile, error=str(e))
-            return {
+            result = {
                 "profile": profile,
                 "model": "ltr_xgboost_shap",
                 "message": "Не удалось посчитать объяснения ML-модели.",
                 "explanations": [],
             }
+
+    _expl_cache_put(cache_key, result)
+    return result
 
 
 @router.get("/results/report/{profile}", dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])
