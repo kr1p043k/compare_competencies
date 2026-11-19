@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { ListFilter } from "lucide-react";
 import { api } from "../api";
-import { Badge, Meter, MetricPair, Skeleton, StatCard } from "../../design";
+import { Badge, Meter, Skeleton, StatCard } from "../../design";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { MetricsGlossary } from "./MetricsGlossary";
 import { TaxonomyBrowser } from "./TaxonomyBrowser";
@@ -20,129 +19,21 @@ import {
 } from "./teacherFilters";
 import { errMessage, reportError } from "./../../lib/errors";
 import { ApiError, request } from "../../lib/api";
-
-function plural(n: number, one: string, few: string, many: string): string {
-  const m10 = n % 10;
-  const m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return one;
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
-  return many;
-}
-
-const RPD_STAGE_LABELS: Record<string, string> = {
-  saved: "файл сохранён",
-  parse: "разбор PDF и извлечение компетенций",
-  collect: "скачивание аннотаций с Yandex Disk",
-  merge: "слияние аннотаций в KRM",
-  seed: "запись направления в базу данных",
-  analysis: "пересчёт анализа направления",
-  done: "готово",
-  error: "ошибка",
-};
-
-function rpdStageLabel(stage?: string): string {
-  if (!stage) return "...";
-  return RPD_STAGE_LABELS[stage] ?? stage;
-}
-
-type Direction = {
-  dir_code: string;
-  name: string;
-  profile: string;
-  disciplines_count: number;
-};
-
-type DirectionAnalysis = {
-  direction: string;
-  direction_name: string;
-  profile: string;
-  total_disciplines: number;
-  average_coverage: number;
-  /** Охват спроса: доля релевантных рынку навыков, реально закрытых. */
-  average_market_top_coverage?: number;
-  /** False, когда релевантных навыков слишком мало для процента. */
-  average_market_top_reliable?: boolean;
-  /** Охват спроса с весом спроса по каждому навыку (качество охвата). */
-  average_market_weight_coverage?: number;
-  average_quality_coverage?: number;
-  coverage_level: string;
-  total_gaps_across_all: number;
-  top_cross_discipline_gaps: { skill: string; disciplines: number }[];
-  /** frequency - вакансий с навыком; change_pct/basis - только когда
-   *  бэкенд нашёл динамику (SnapshotTrendAnalyzer, «рост спроса»). */
-  top_emerging_across_all: { skill: string; frequency: number; change_pct?: number | null; basis?: string }[];
-  recommendations: { type: string; priority: string; message: string }[];
-  trends: { rising: { skill: string; change_pct: number }[]; declining: { skill: string; change_pct: number }[] };
-  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; strong_coverage?: number; coverage_level: string; gaps: number; emerging: number; emerging_growth?: number; emerging_growth_skills?: { skill: string; change_pct: number | null }[]; market_top_coverage?: number; market_weight_coverage?: number; market_top_total?: number; market_top_reliable?: boolean; market_top_source?: string; years?: number[] }[];
-  generated_at: string;
-};
-
-type Discipline = {
-  id: string;
-  name: string;
-  in_scope?: boolean;
-  scope_source?: string;
-  competencies_count: number;
-  skills_count: number;
-  knowledge_count?: number;
-  abilities_count?: number;
-  semester?: number | null;
-  course?: number | null;
-};
-
-interface KsaItem {
-  id: string;
-  text: string;
-}
-
-type Competency = {
-  id: string;
-  code: string;
-  name: string;
-  skills: string[];
-  ksa?: {
-    knowledge: KsaItem[];
-    abilities: KsaItem[];
-    skills: KsaItem[];
-  };
-};
-
-type DisciplineDetail = {
-  id: string;
-  name: string;
-  competencies: Competency[];
-};
-
-type Recommendation = {
-  id: number;
-  discipline_id: string;
-  competency_id: string;
-  suggestion: string;
-  suggestion_type: string;
-};
-
-type Stats = {
-  /** Часть полей может отсутствовать, если анализ ещё не запускался. */
-  total_disciplines?: number;
-  total_competencies?: number;
-  total_skills?: number;
-  total_reports?: number;
-  by_profession?: Record<string, number>;
-};
-
-type ScopeChain = {
-  total: number;
-  in_scope: number;
-  excluded_manual: number;
-  excluded_no_data: number;
-  analyzed: number | null;
-};
-
-type RpdStatus = {
-  status: string;
-  error?: string;
-  stats?: { progress?: number; stage?: string; disciplines?: number };
-};
+import { covBorderClass, covTextClass, plural, rpdStageLabel } from "./teacher-dashboard/helpers";
+import type {
+  Direction,
+  DirectionAnalysis,
+  Discipline,
+  DisciplineDetail,
+  Recommendation,
+  RpdStatus,
+  ScopeChain,
+  Stats,
+} from "./teacher-dashboard/types";
+import { DirectionInsights } from "./teacher-dashboard/DirectionInsights";
+import { DisciplineList } from "./teacher-dashboard/DisciplineList";
+import { DisciplineRecsSection } from "./teacher-dashboard/DisciplineRecsSection";
+import { ZunSection } from "./teacher-dashboard/ZunSection";
 
 export function TeacherDashboard() {
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
@@ -695,18 +586,6 @@ export function TeacherDashboard() {
     );
   }
 
-  // Класс-эквивалент прежнего inline-стиля `card` (фактические значения совпадают:
-  // radius 8px = rounded-lg, padding 14px = p-3.5, margin 10px = mb-2.5).
-  const card = "rounded-lg border border-border bg-card p-3.5 mb-2.5 shadow-xs";
-
-  function covBorderClass(cov: number) {
-    return cov > 0.5 ? "border-success" : cov > 0.2 ? "border-warning" : "border-destructive";
-  }
-
-  function covTextClass(cov: number) {
-    return cov > 0.5 ? "text-success" : cov > 0.2 ? "text-warning" : "text-destructive";
-  }
-
   return (
     <div className="flex h-[calc(100vh-100px)] font-sans text-foreground bg-card rounded-2xl border border-border overflow-hidden">
       <div className="w-[380px] min-w-[380px] border-r border-border flex flex-col overflow-hidden">
@@ -1033,177 +912,24 @@ export function TeacherDashboard() {
           {/* «Показать в списке» - фильтр видимости: только скрывает строки
               уже загруженного списка, данных не перезагружает (в отличие от
               выбора набора выше). */}
-          <div className="flex gap-1.5 px-2 pb-2 items-center flex-wrap" role="group" aria-label="Показать в списке: фильтр видимости">
-            <span
-              className="text-xs text-muted-foreground"
-              title="Видимость строк уже загруженного списка. Данные не перезагружает: набор выбирается в блоке «Набор»."
-            >
-              <ListFilter className="inline-block size-3.5 -mt-0.5 mr-0.5 text-subtle-foreground" aria-hidden="true" />
-              Показать в списке:
-            </span>
-            {([0, 2024, 2025] as const).map((y) => (
-              <button
-                key={y}
-                onClick={() => setYearFilter(y)}
-                aria-pressed={yearFilter === y}
-                title={y === 0 ? "Все строки выбранного набора без фильтра" : `Только дисциплины, которые входят и в учебный план набора ${y}`}
-                className={
-                  "text-xs px-2 py-0.5 rounded border cursor-pointer " +
-                  (yearFilter === y
-                    ? "border-primary/60 bg-primary-soft text-primary-soft-foreground"
-                    : "border-border-strong bg-card text-muted-foreground")
-                }
-              >
-                {y === 0 ? "все" : `в плане ${y}`}
-              </button>
-            ))}
-          </div>
-          {/* Чипы-фильтры по данным анализа: считать их из заголовков неудобно,
-              поэтому на каждом чипе — сколько дисциплин он даст. */}
-          <div className="flex gap-1.5 px-2 pb-1.5 flex-wrap items-center">
-            {([
-              ["all", "Все", "Без дополнительного фильтра"],
-              ["gaps", "С пробелами", "Есть навыки рынка, которых дисциплина не закрывает"],
-              ["low", "Слабый охват", "Охват ниже 50% — в списке подсвечен янтарным/красным"],
-              ["nodata", "Нет данных", "Нет данных анализа: вне учёта или без извлечённых навыков"],
-            ] as const).map(([id, label, hint]) => (
-              <button
-                key={id}
-                onClick={() => setDiscFilter(id)}
-                aria-pressed={discFilter === id}
-                title={hint}
-                className={
-                  "text-xs px-2 py-0.5 rounded border cursor-pointer " +
-                  (discFilter === id
-                    ? "border-primary/60 bg-primary-soft text-primary-soft-foreground"
-                    : "border-border-strong bg-card text-muted-foreground")
-                }
-              >
-                {label} ({discCounts[id]})
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2 px-2 pb-2 items-center">
-            <select
-              value={discSort}
-              onChange={(e) => setDiscSort(e.target.value as DiscSort)}
-              aria-label="Сортировка дисциплин"
-              title="Порядок дисциплин в списке"
-              className="text-xs px-1.5 py-1 rounded border border-border-strong bg-card text-foreground outline-none"
-            >
-              <option value="plan">По учебному плану</option>
-              <option value="name">По алфавиту</option>
-              <option value="coverage">Худший охват сверху</option>
-              <option value="gaps">Больше пробелов сверху</option>
-            </select>
-            <span className="text-[11px] text-subtle-foreground ml-auto whitespace-nowrap">
-              {filtered.length} из {disciplines.length}
-            </span>
-            {discFiltersActive && (
-              <button
-                onClick={() => { setSearch(""); setYearFilter(0); setDiscFilter("all"); setDiscSort("plan"); }}
-                className="text-[11px] text-primary hover:text-primary/80 border-0 bg-transparent cursor-pointer underline whitespace-nowrap"
-              >
-                Сбросить
-              </button>
-            )}
-          </div>
-          {filtered.length === 0 && (
-            <div className="text-center text-xs text-subtle-foreground py-8 px-4">
-              Ничего не найдено
-              {discFiltersActive && (
-                <>
-                  {" — "}
-                  <button
-                    onClick={() => { setSearch(""); setYearFilter(0); setDiscFilter("all"); setDiscSort("plan"); }}
-                    className="text-primary hover:text-primary/80 border-0 bg-transparent cursor-pointer underline"
-                  >
-                    сбросить фильтры
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-          {filtered.map((d) => {
-            // Map.get вместо .find по массиву: O(1), а не O(n) на каждую строку.
-            const discAnalysis = analysisByName.get(d.name);
-            return (
-              <div
-                key={d.name}
-                onClick={() => loadDiscipline(d.name)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === "Enter") loadDiscipline(d.name); }}
-            className={`flex gap-2 items-start py-2.5 pl-2 pr-3 cursor-pointer border-b border-border ${selected?.name === d.name ? "bg-primary-soft" : "bg-transparent"} ${d.in_scope ?? true ? "opacity-100" : "opacity-55"}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={d.in_scope ?? true}
-                  aria-label="Учитывать в анализе"
-                  disabled={scopeSaving === d.name}
-                  title={(d.scope_source === "methodology" ? "Исключена методологией (можно вернуть). " : "") + "Учитывать в анализе"}
-                  onChange={(e) => saveScope(d.name, e.target.checked)}
-                  onClick={(e) => e.stopPropagation()}
-                  className="size-[15px] accent-primary cursor-pointer shrink-0 mt-0.5"
-                />
-                <div className="flex-1 min-w-0">
-                <div className="flex justify-between flex-1 min-w-0">
-                  <div className="text-[13px] font-semibold text-primary truncate flex-1 min-w-0">
-                    {d.name}
-                    {(() => {
-                      const years = analysisByName.get(d.name)?.years;
-                      if (!years || years.length === 0) return null;
-                      const only = years.length === 1 ? years[0] : null;
-                      return (
-                        <span
-                          title={only ? `Только в наборе ${only}` : `В наборах ${years.join(" и ")}`}
-                          className={
-                            "ml-1.5 align-middle text-xs font-medium rounded px-1.5 py-0.5 whitespace-nowrap " +
-                            (only === 2024
-                              ? "bg-muted text-muted-foreground"
-                              : only === 2025
-                                ? "bg-success-soft text-success"
-                                : "bg-muted text-muted-foreground")
-                          }
-                        >
-                          {only ?? years.join("/")}
-                        </span>
-                      );
-                    })()}
-                  </div>
-                  {discAnalysis && (
-                    <MetricPair
-                      className="text-xs"
-                      primaryValue={`${(discAnalysis.coverage_ratio * 100).toFixed(0)}%`}
-                      primaryTitle="Покрытие: доля навыков дисциплины, подтверждённых рынком"
-                      primaryClassName={`font-bold ${covTextClass(discAnalysis.coverage_ratio)}`}
-                      secondaryValue={
-                        discAnalysis.weighted_coverage != null
-                          ? `${(discAnalysis.weighted_coverage * 100).toFixed(0)}%`
-                          : undefined
-                      }
-                      secondaryLabel="кач."
-                      secondaryTitle="Качество совпадений: покрытие, взвешенное по спросу. Поля нет в payload - не выводится"
-                    />
-                  )}
-                </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                    {d.scope_source === "methodology" && (
-                      <span className="mr-1.5 text-xs text-primary-soft-foreground bg-primary-soft rounded px-1 py-0.5">методология</span>
-                    )}
-                    {d.scope_source === "custom" && (
-                      <span className="mr-1.5 text-xs text-warning bg-warning-soft rounded px-1 py-0.5">вручную</span>
-                    )}
-                  {d.course != null && `${d.course} курс · `}
-                  {d.competencies_count} {plural(d.competencies_count, "комп.", "комп.", "комп.")} · {d.skills_count} {plural(d.skills_count, "навык", "навыка", "навыков")}
-                  {d.abilities_count != null && ` · ${d.abilities_count} ${plural(d.abilities_count, "умение", "умения", "умений")}`}
-                  {d.knowledge_count != null && ` · ${d.knowledge_count} ${plural(d.knowledge_count, "знание", "знания", "знаний")}`}
-                  {discAnalysis && ` / ${discAnalysis.gaps} ${plural(discAnalysis.gaps, "пробел", "пробела", "пробелов")}`}
-                </div>
-                </div>
-              </div>
-            );
-          })}
+          <DisciplineList
+            filtered={filtered}
+            disciplines={disciplines}
+            analysisByName={analysisByName}
+            selected={selected}
+            setSearch={setSearch}
+            yearFilter={yearFilter}
+            setYearFilter={setYearFilter}
+            discFilter={discFilter}
+            setDiscFilter={setDiscFilter}
+            discSort={discSort}
+            setDiscSort={setDiscSort}
+            discCounts={discCounts}
+            discFiltersActive={discFiltersActive}
+            scopeSaving={scopeSaving}
+            loadDiscipline={loadDiscipline}
+            saveScope={saveScope}
+          />
         </div>
       </div>
 
@@ -1360,131 +1086,7 @@ export function TeacherDashboard() {
               {/* Общие блоки направления - только пока дисциплина не выбрана.
                   При выбранной дисциплине её детали ниже (AnalysisPanel). */}
               {!selected && (<>
-              {/* Direction-level recommendations */}
-              {(analysis.recommendations || []).length > 0 && (
-                <div id="t-recs" className={`${card} scroll-mt-2`}>
-                  <div className="text-xs font-semibold text-primary mb-2">
-                    Рекомендации
-                  </div>
-                  {(analysis.recommendations || []).map((r, i) => (
-                    <div
-                      key={i}
-                      className={`mb-1.5 rounded-md border px-2.5 py-2 text-xs ${
-                        r.priority === "high"
-                          ? "border-destructive/30 bg-destructive/5"
-                          : r.priority === "medium"
-                            ? "border-warning/40 bg-warning-soft"
-                            : "border-info/30 bg-info-soft"
-                      }`}
-                    >
-                      <div className="flex gap-1.5 items-center mb-1">
-                        <span
-                          className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
-                            r.priority === "high"
-                              ? "bg-destructive/10 text-destructive"
-                              : r.priority === "medium"
-                                ? "bg-warning-soft text-warning"
-                                : "bg-info-soft text-info"
-                          }`}
-                        >
-                          {r.priority}
-                        </span>
-                        <span className="text-xs text-muted-foreground">{r.type}</span>
-                      </div>
-                      <div className="text-foreground leading-snug">{r.message}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-               <details className={`${card} scroll-mt-2`}>
-                 <summary className="text-xs font-semibold text-primary cursor-pointer select-none">
-                   Востребованные навыки рынка
-                 </summary>
-                 <div className="text-xs text-muted-foreground mb-1.5">
-                   Навыки из свежих вакансий, которых нет в плане. Происхождение: частота в вакансиях
-                   {(analysis.top_emerging_across_all || []).some((s) => s.change_pct != null)
-                     ? " и динамика спроса по срезам рынка"
-                     : ""}
-                   .
-                 </div>
-                 <div className="flex gap-1 flex-wrap">
-                    {((analysis.top_emerging_across_all) || []).map((s, i: number) => (
-                     <span
-                       key={i}
-                       className="inline-block px-2 py-0.5 rounded text-xs bg-primary-soft text-primary-soft-foreground m-0.5"
-                       title={`Вакансий с этим навыком: ${s.frequency}${s.basis ? ` · основа отбора: ${s.basis}` : ""}`}
-                     >
-                       {s.skill}
-                       <span className="ml-1 opacity-70">{s.frequency} вк.</span>
-                       {s.change_pct != null && (
-                         <span
-                           className="ml-1 text-success"
-                           title={s.basis ? `Основа отбора: ${s.basis} (динамика по срезам рынка)` : "Динамика спроса"}
-                         >
-                           {s.change_pct > 0 ? "+" : ""}{s.change_pct.toFixed(0)}%
-                         </span>
-                       )}
-                     </span>
-                   ))}
-                 </div>
-               </details>
-
-               <details id="t-gaps" className={`${card} scroll-mt-2`}>
-                 <summary className="text-xs font-semibold text-primary cursor-pointer select-none">
-                   Разрывы между планом и рынком
-                 </summary>
-                 <div className="text-xs text-muted-foreground mb-1.5">
-                   Навыки из планов дисциплин (РПД), на которые нет спроса в вакансиях. Число - в скольких
-                   дисциплинах навык встречается. Происхождение: сравнение РПД с топом рынка при
-                   teacher-анализе.
-                 </div>
-                 <div className="flex gap-1 flex-wrap">
-                   {(analysis.top_cross_discipline_gaps || []).map((g, i) => (
-                     <span
-                       key={i}
-                       className="inline-block px-2 py-0.5 rounded text-xs bg-destructive/10 text-destructive m-0.5"
-                       title={`Навык есть в планах ${g.disciplines === 1 ? "одной дисциплине" : `${g.disciplines} дисциплинах`}, но в свежих вакансиях спроса нет`}
-                     >
-                       {g.skill}
-                       <span className="ml-1 opacity-70">
-                         {g.disciplines} {plural(g.disciplines, "дисциплина", "дисциплины", "дисциплин")}
-                       </span>
-                     </span>
-                   ))}
-                 </div>
-               </details>
-
-              {analysis.trends && (
-                <details id="t-trends" className={`${card} scroll-mt-2`}>
-                  <summary className="text-xs font-semibold text-primary cursor-pointer select-none mb-2">
-                    Растущие и падающие навыки
-                  </summary>
-                <div className="flex gap-3 flex-wrap">
-                  {analysis.trends.rising?.length > 0 && (
-                    <div className={`${card} flex-1 min-w-[200px]`}>
-                      <div className="text-xs font-semibold text-success mb-2">Растущие навыки</div>
-                      {analysis.trends.rising.map((t, i) => (
-                        <div key={i} className="text-xs py-0.5 text-muted-foreground">
-                          {t.skill} <span className="text-success">{t.change_pct > 0 ? "+" : ""}{t.change_pct}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {analysis.trends.declining?.length > 0 && (
-                    <div className={`${card} flex-1 min-w-[200px]`}>
-                      <div className="text-xs font-semibold text-destructive mb-2">Падающие навыки</div>
-                      {analysis.trends.declining.map((t, i) => (
-                        <div key={i} className="text-xs py-0.5 text-muted-foreground">
-                          {t.skill} <span className="text-destructive">{t.change_pct}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                </details>
-              )}
-
+              <DirectionInsights analysis={analysis} />
               </>)}
             </>)}
 
@@ -1527,400 +1129,68 @@ export function TeacherDashboard() {
 
             {/* Шаг 2: компетенции и их ЗУН */}
             {analysisMode === "coverage" && disciplineView === "zun" && (<>
-            <div className="mb-3">
-              {!compForm ? (
-                <button onClick={() => { setCompForm(true); setCompErr({}); }}
-                  className="text-xs text-success-foreground bg-success hover:brightness-110 transition-colors px-3 py-1.5 rounded-lg cursor-pointer border-0">
-                  + Компетенция
-                </button>
-              ) : (
-                <div className="rounded-lg border border-success/30 bg-success-soft p-3 space-y-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <div>
-                      <input value={compCode} onChange={(e) => setCompCode(e.target.value)}
-                        placeholder="Код: ПК-2.1"
-                        aria-label="Код компетенции"
-                        className={`h-9 w-full px-2 rounded border bg-input-background text-xs ${compErr.code ? "border-destructive" : "border-border-strong"}`} />
-                      {compErr.code && <div className="text-xs text-destructive mt-1">{compErr.code}</div>}
-                    </div>
-                    <div>
-                      <input value={compName} onChange={(e) => setCompName(e.target.value)}
-                        placeholder="Название (необязательно)"
-                        aria-label="Название компетенции"
-                        className={`h-9 w-full px-2 rounded border bg-input-background text-xs ${compErr.name ? "border-destructive" : "border-border-strong"}`} />
-                      {compErr.name && <div className="text-xs text-destructive mt-1">{compErr.name}</div>}
-                    </div>
-                  </div>
-                  {compErr.msg && <div className="text-xs text-destructive">{compErr.msg}</div>}
-                  <div className="flex items-center gap-2">
-                    <button onClick={saveCompetency} disabled={compSaving}
-                      className="bg-success text-success-foreground px-3 py-1.5 rounded-lg hover:brightness-110 transition-colors cursor-pointer border-0 disabled:opacity-50">
-                      {compSaving ? "..." : "Создать"}
-                    </button>
-                    <button onClick={() => setCompForm(false)}
-                      className="text-xs text-muted-foreground hover:text-foreground border-0 bg-transparent cursor-pointer">Отмена</button>
-                  </div>
-                  <div className="text-xs text-subtle-foreground">ЗУН и инструменты дописываются после создания: +ЗУН у компетенции, инструменты - через Администрирование → Навыки.</div>
-                </div>
-              )}
-            </div>
-
-            {/* Фильтры по компетенциям: длинные списки (10+) без поиска
-                приходится прокручивать вслепую. */}
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <input
-                placeholder="Поиск: код или название…"
-                aria-label="Поиск компетенции"
-                value={compSearch}
-                onChange={(e) => setCompSearch(e.target.value)}
-                className="h-8 w-56 px-2.5 rounded-md text-xs box-border bg-card border border-border text-foreground outline-none"
-              />
-              {([
-                ["all", "Все", "Без дополнительного фильтра"],
-                ["no-ksa", "Без ЗУН", "Компетенции без единого пункта знаний/умений/навыков — часто требуют дозаполнения"],
-                ["with-ksa", "С ЗУН", "Компетенции хотя бы с одним пунктом знаний/умений/навыков"],
-              ] as const).map(([id, label, hint]) => (
-                <button
-                  key={id}
-                  onClick={() => setCompFilter(id)}
-                  aria-pressed={compFilter === id}
-                  title={hint}
-                  className={
-                    "text-xs px-2 py-0.5 rounded border cursor-pointer " +
-                    (compFilter === id
-                      ? "border-primary/60 bg-primary-soft text-primary-soft-foreground"
-                      : "border-border-strong bg-card text-muted-foreground")
-                  }
-                >
-                  {label}{compCounts ? ` (${compCounts[id]})` : ""}
-                </button>
-              ))}
-              <span className="text-[11px] text-subtle-foreground ml-auto whitespace-nowrap">
-                {compsVisible.length} из {selected.competencies.length}
-              </span>
-              {compFiltersActive && (
-                <button
-                  onClick={() => { setCompSearch(""); setCompFilter("all"); }}
-                  className="text-[11px] text-primary hover:text-primary/80 border-0 bg-transparent cursor-pointer underline whitespace-nowrap"
-                >
-                  Сбросить
-                </button>
-              )}
-            </div>
-            {compsVisible.length === 0 && (
-              <div className="text-center text-xs text-subtle-foreground py-6 bg-muted rounded-lg">
-                По фильтру ничего не найдено —{" "}
-                <button
-                  onClick={() => { setCompSearch(""); setCompFilter("all"); }}
-                  className="text-primary hover:text-primary/80 border-0 bg-transparent cursor-pointer underline"
-                >
-                  сбросить
-                </button>
-              </div>
-            )}
-
-            {compsVisible.map((comp) => {
-              const ksa = comp.ksa;
-              const hasGroups = !!ksa && (
-                (ksa.knowledge?.length || 0) + (ksa.abilities?.length || 0) + (ksa.skills?.length || 0)
-              ) > 0;
-              const total = hasGroups
-                ? (ksa!.knowledge.length + ksa!.abilities.length + ksa!.skills.length)
-                : comp.skills.length;
-              const groups = hasGroups ? [
-                { title: "Знания", items: ksa!.knowledge },
-                { title: "Умения", items: ksa!.abilities },
-                { title: "Навыки", items: ksa!.skills },
-              ] : [];
-              // Аккордеон: развёрнута максимум одна компетенция, по умолчанию
-              // все свёрнуты — список из 10+ развёрнутых карточек и перегружал экран.
-              const compOpen = openComp === comp.id;
-              return (
-              <div
-                key={comp.code}
-                className="mb-2 border border-border rounded-lg overflow-hidden"
-              >
-                <div
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={compOpen}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenComp(compOpen ? null : comp.id); } }}
-                  onClick={() => setOpenComp(compOpen ? null : comp.id)}
-                  className="px-4 py-2.5 bg-muted flex items-center gap-2 cursor-pointer"
-                >
-                  <span aria-hidden="true" className="text-subtle-foreground text-xs shrink-0">{compOpen ? "▾" : "▸"}</span>
-                  <span className="font-semibold text-sm text-primary shrink-0">
-                    {comp.code}
-                  </span>
-                  {comp.name && (
-                    <span className="text-xs text-muted-foreground truncate" title={comp.name}>
-                      {comp.name}
-                    </span>
-                  )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setZunForm({ compId: comp.id, ksaType: "skills", text: "" });
-                      setZunMsg("");
-                      setOpenComp(comp.id);
-                    }}
-                    className="ml-auto text-xs text-primary hover:text-primary/80 border-0 bg-transparent cursor-pointer shrink-0"
-                    title="Добавить пункт (знание / умение / навык) в эту компетенцию"
-                  >
-                    + ЗУН
-                  </button>
-                  <span className="text-xs text-subtle-foreground shrink-0">
-                    {total} {plural(total, "пункт", "пункта", "пунктов")}
-                  </span>
-                </div>
-                {compOpen && (
-                <div className="px-4 py-2">
-                {zunForm && zunForm.compId === comp.id && (
-                  <div className="mb-2 rounded-lg border border-primary/30 bg-primary-soft p-2">
-                    <div className="flex gap-2 mb-2">
-                      <select
-                        value={zunForm.ksaType}
-                        onChange={(e) => setZunForm({ ...zunForm, ksaType: e.target.value })}
-                        className="text-xs border border-border-strong rounded-md px-2 py-1 bg-input-background"
-                      >
-                        <option value="knowledge">Знания</option>
-                        <option value="abilities">Умения</option>
-                        <option value="skills">Навыки</option>
-                      </select>
-                      <button
-                        onClick={() => setZunForm(null)}
-                        className="text-xs text-muted-foreground hover:text-foreground border-0 bg-transparent cursor-pointer"
-                      >
-                        Отмена
-                      </button>
-                    </div>
-                    <textarea
-                      value={zunForm.text}
-                      onChange={(e) => setZunForm({ ...zunForm, text: e.target.value })}
-                      rows={3}
-                      maxLength={2000}
-                      placeholder="Текст пункта: знание, умение или навык…"
-                      className="w-full text-xs border border-border-strong rounded-md px-2 py-1 mb-2"
-                    />
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={addZunEntry}
-                        disabled={zunSaving || !zunForm.text.trim()}
-                        className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary transition-colors cursor-pointer border-0 disabled:opacity-50"
-                      >
-                        {zunSaving ? "Сохранение…" : "Добавить"}
-                      </button>
-                      {zunMsg && <span className="text-xs text-muted-foreground">{zunMsg}</span>}
-                    </div>
-                    <div className="text-xs text-subtle-foreground mt-1">Пункт попадёт в анализ при следующем пересчёте.</div>
-                  </div>
-                )}
-                  {total === 0 ? (
-                    <div className="text-xs text-subtle-foreground">Навыки не извлечены</div>
-                  ) : hasGroups ? (
-                    groups.map((g) => g.items.length > 0 && (
-                      <div key={g.title} className="mb-2 last:mb-0">
-                        <div className="text-xs font-semibold text-primary uppercase tracking-wide mt-1.5 mb-1">
-                          {g.title} ({g.items.length})
-                        </div>
-                        {g.items.map((sk) => (
-                          <div key={sk.id} className="py-0.5 text-xs leading-relaxed border-b border-border last:border-0">
-                            {ksaEditing && ksaEditing.id === sk.id ? (
-                              <div className="flex gap-2 items-start">
-                                <textarea
-                                  value={ksaEditing.text}
-                                  onChange={(e) => setKsaEditing({ ...ksaEditing, text: e.target.value })}
-                                  rows={2}
-                                  maxLength={2000}
-                                  className="flex-1 text-xs border border-border-strong rounded-md px-2 py-1"
-                                />
-                                <button onClick={saveKsaEdit} disabled={zunSaving} className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded-md hover:bg-primary cursor-pointer border-0 disabled:opacity-50">OK</button>
-                                <button onClick={() => setKsaEditing(null)} className="text-xs text-muted-foreground hover:text-foreground border-0 bg-transparent cursor-pointer">Отмена</button>
-                              </div>
-                            ) : (
-                              <div className="flex gap-1 items-start group">
-                                <span className="flex-1">{sk.text}</span>
-                                <button onClick={() => { setKsaEditing({ id: sk.id, text: sk.text }); setZunMsg(""); }} title="Редактировать" className="text-subtle-foreground hover:text-primary border-0 bg-transparent cursor-pointer text-xs">Изменить</button>
-                                <button onClick={() => delKsa(sk.id)} title="Удалить" className="text-subtle-foreground hover:text-destructive border-0 bg-transparent cursor-pointer text-xs">Удалить</button>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    ))
-                  ) : (
-                    comp.skills.map((sk, i) => (
-                      <div key={i} className="py-0.5 text-xs leading-relaxed border-b border-border last:border-0">
-                        {sk}
-                      </div>
-                    ))
-                  )}
-                </div>
-                )}
-              </div>
-              );
-            })}
+            <ZunSection
+              selected={selected}
+              compForm={compForm}
+              setCompForm={setCompForm}
+              compErr={compErr}
+              setCompErr={setCompErr}
+              compCode={compCode}
+              setCompCode={setCompCode}
+              compName={compName}
+              setCompName={setCompName}
+              compSaving={compSaving}
+              saveCompetency={saveCompetency}
+              compSearch={compSearch}
+              setCompSearch={setCompSearch}
+              compFilter={compFilter}
+              setCompFilter={setCompFilter}
+              compCounts={compCounts}
+              compsVisible={compsVisible}
+              compFiltersActive={compFiltersActive}
+              openComp={openComp}
+              setOpenComp={setOpenComp}
+              zunForm={zunForm}
+              setZunForm={setZunForm}
+              zunMsg={zunMsg}
+              setZunMsg={setZunMsg}
+              zunSaving={zunSaving}
+              addZunEntry={addZunEntry}
+              ksaEditing={ksaEditing}
+              setKsaEditing={setKsaEditing}
+              saveKsaEdit={saveKsaEdit}
+              delKsa={delKsa}
+            />
             </>)}
 
             {/* Шаг 3: рекомендации по дисциплине */}
             {analysisMode === "coverage" && disciplineView === "recs" && (
-            <div className="mt-1">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="flex items-center justify-center w-8 h-8 bg-primary rounded-lg">
-                  <span className="text-primary-foreground text-sm font-bold">!</span>
-                </div>
-                <h3 className="text-sm font-semibold text-foreground">Рекомендации</h3>
-                <span className="text-xs text-subtle-foreground">({recs.filter((r) => r.discipline_id === selected?.name).length})</span>
-                {seedMsg && <span className="text-xs text-muted-foreground">{seedMsg}</span>}
-                <button
-                  onClick={() => setShowAddForm(!showAddForm)}
-                  className="ml-auto text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary transition-colors cursor-pointer border-0"
-                >
-                  {showAddForm ? "Отмена" : "Добавить рекомендацию"}
-                </button>
-                <button
-                  onClick={seedAutoRecs}
-                  disabled={seedLoading}
-                  title="Заполнить панель топ-рекомендациями из автоанализа (ручные сохранятся)"
-                  className="text-xs bg-card text-primary-soft-foreground border border-primary/40 px-3 py-1.5 rounded-lg hover:bg-primary-soft transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  {seedLoading ? "Заполнение…" : "Заполнить из анализа"}
-                </button>
-              </div>
-              {showAddForm && (
-                <div className="mb-4 p-4 bg-muted rounded-lg border border-border">
-                  {(recType === "modify" || recType === "remove") && (
-                    <select
-                      value={selectedCompetency}
-                      onChange={(e) => setSelectedCompetency(e.target.value)}
-                      className="w-full h-9 px-2 mb-2 text-sm bg-input-background border border-border-strong rounded-lg outline-none text-foreground"
-                    >
-                      <option value="">-- Select competency --</option>
-                      {selected?.competencies.map((c) => (
-                        <option key={c.code} value={c.code}>{c.code}</option>
-                      ))}
-                    </select>
-                  )}
-                  <textarea
-                    placeholder={recType === "add" ? "Your recommendation for this discipline..." : "Your recommendation for this competency..."}
-                    value={suggestion}
-                    onChange={(e) => setSuggestion(e.target.value)}
-                    rows={2}
-                    className="w-full p-2 text-sm border border-border-strong rounded-lg resize-vertical outline-none box-border bg-card text-foreground"
-                  />
-                  <div className="flex gap-2 mt-2 items-center">
-                    <select
-                      value={recType}
-                      onChange={(e) => { setRecType(e.target.value); setSelectedCompetency(""); }}
-                      className="h-9 px-2 text-sm bg-input-background border border-border-strong rounded-lg outline-none text-foreground"
-                    >
-                      <option value="modify">Изменить</option>
-                      <option value="add">Добавить</option>
-                      <option value="remove">Удалить</option>
-                    </select>
-                    <button
-                      onClick={async () => {
-                        setRecError("");
-                        const ok = await addRec();
-                        if (ok) {
-                          setShowAddForm(false);
-                          setSelectedCompetency("");
-                        }
-                      }}
-                      className="h-9 px-4 text-sm bg-primary text-primary-foreground border-0 rounded-lg cursor-pointer hover:bg-primary transition-colors"
-                    >
-                      Отправить
-                    </button>
-                  </div>
-                  {recError && (
-                    <div className="mt-2 text-xs text-destructive">
-                      Не удалось сохранить: {recError}
-                    </div>
-                  )}
-                </div>
-              )}
-              {discRecCount > 0 && (
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <select
-                    value={recComp}
-                    onChange={(e) => setRecComp(e.target.value)}
-                    aria-label="Фильтр по компетенции"
-                    title="Показать рекомендации только по одной компетенции"
-                    className="h-8 px-2 rounded-md text-xs bg-input-background border border-border-strong text-foreground"
-                  >
-                    <option value="">Все компетенции</option>
-                    {selected.competencies.map((c) => (
-                      <option key={c.code} value={c.code}>{c.code}{c.name ? ` — ${c.name}` : ""}</option>
-                    ))}
-                  </select>
-                  {([
-                    ["", "Все"],
-                    ["modify", "Изменить"],
-                    ["add", "Добавить"],
-                    ["remove", "Удалить"],
-                  ] as const).map(([id, label]) => (
-                    <button
-                      key={id || "all"}
-                      onClick={() => setRecTypeF(id)}
-                      aria-pressed={recTypeF === id}
-                      title={id ? `Только рекомендации типа «${label.toLowerCase()}»` : "Все типы рекомендаций"}
-                      className={
-                        "text-xs px-2 py-0.5 rounded border cursor-pointer " +
-                        (recTypeF === id
-                          ? "border-primary/60 bg-primary-soft text-primary-soft-foreground"
-                          : "border-border-strong bg-card text-muted-foreground")
-                      }
-                    >
-                      {label}
-                    </button>
-                  ))}
-                  <span className="text-[11px] text-subtle-foreground ml-auto whitespace-nowrap">
-                    {recsVisible.length} из {discRecCount}
-                  </span>
-                  {recFiltersActive && (
-                    <button
-                      onClick={() => { setRecComp(""); setRecTypeF(""); }}
-                      className="text-[11px] text-primary hover:text-primary/80 border-0 bg-transparent cursor-pointer underline whitespace-nowrap"
-                    >
-                      Сбросить
-                    </button>
-                  )}
-                </div>
-              )}
-              {discRecCount === 0 ? (
-                <div className="text-xs text-subtle-foreground bg-muted rounded-lg p-4 text-center">
-                  Для этой дисциплины рекомендаций пока нет
-                </div>
-              ) : recsVisible.length === 0 ? (
-                <div className="text-xs text-subtle-foreground bg-muted rounded-lg p-4 text-center">
-                  По фильтру ничего не найдено —{" "}
-                  <button
-                    onClick={() => { setRecComp(""); setRecTypeF(""); }}
-                    className="text-primary hover:text-primary/80 border-0 bg-transparent cursor-pointer underline"
-                  >
-                    сбросить
-                  </button>
-                </div>
-              ) : (
-                recsVisible.map((r, i) => (
-                  <div
-                    key={r.id ?? i}
-                    className="mb-2 rounded-lg border border-primary/30 bg-primary-soft/60 p-3 text-sm "
-                  >
-                    <div className="text-subtle-foreground mb-1 text-xs">
-                      [{r.suggestion_type}] {r.competency_id || "—"}
-                    </div>
-                    <div className="text-foreground">{r.suggestion}</div>
-                    <button
-                      onClick={() => { if (window.confirm("Удалить рекомендацию безвозвратно?")) deleteRec(r.id); }}
-                      className="mt-2 text-xs text-destructive border border-destructive/60 rounded px-2 py-0.5 hover:bg-destructive/10 transition-colors bg-transparent cursor-pointer"
-                    >
-                      Удалить
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
+            <DisciplineRecsSection
+              selected={selected}
+              recs={recs}
+              discRecCount={discRecCount}
+              recsVisible={recsVisible}
+              recFiltersActive={recFiltersActive}
+              recComp={recComp}
+              setRecComp={setRecComp}
+              recTypeF={recTypeF}
+              setRecTypeF={setRecTypeF}
+              showAddForm={showAddForm}
+              setShowAddForm={setShowAddForm}
+              recType={recType}
+              setRecType={setRecType}
+              selectedCompetency={selectedCompetency}
+              setSelectedCompetency={setSelectedCompetency}
+              suggestion={suggestion}
+              setSuggestion={setSuggestion}
+              recError={recError}
+              setRecError={setRecError}
+              seedMsg={seedMsg}
+              seedLoading={seedLoading}
+              seedAutoRecs={seedAutoRecs}
+              addRec={addRec}
+              deleteRec={deleteRec}
+            />
             )}
           </>
         )}
