@@ -7,141 +7,39 @@
  * ввода подтверждения (адрес пользователя или слово УДАЛИТЬ) в диалоге.
  * Действия над другим администратором дополнительно требуют пароль текущего
  * администратора (caller_password), иначе сервер отвечает 403.
+ *
+ * Разметка разнесена по ./admin-users (таблица, фильтры, карточки, диалоги);
+ * состояние, загрузка данных и проверки подтверждений остаются здесь.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+
 import { request } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import {
-  Badge,
   Button,
   Card,
   CardBody,
   CardHeader,
   EmptyState,
   ErrorState,
-  Field,
-  inputClass,
-  Skeleton,
-  TableFrame,
-  tableHeadClass,
-  tableRowClass,
 } from "../../design/primitives";
-import {
-  asRole,
-  type Role,
-  fmtDateTime,
-  ROLES,
-  ROLE_LABEL,
-  roleLabel,
-  roleTone,
-} from "./adminRoles";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "./ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Ellipsis,
-  IdCard,
-  KeyRound,
-  LogOut,
-  RefreshCw,
-  RotateCcw,
-  ShieldCheck,
-  ShieldOff,
-  UserCog,
-} from "lucide-react";
-
-const DEACTIVATION_WORD = "УДАЛИТЬ";
-
-const SKELETON_ROWS = 6;
-const selectClass =
-  "h-9 px-3 rounded-lg border border-input bg-input-background text-sm";
-
-interface Direction {
-  dir_code: string;
-  name: string;
-}
-
-interface AdminUser {
-  id: string;
-  username: string;
-  role: Role;
-  name: string;
-  total_requests: number;
-  is_active: boolean;
-  directions: string[];
-  totp_enabled: boolean;
-  open_sessions: number;
-  last_activity: string | number | null;
-}
-
-interface UsersPage {
-  users: AdminUser[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-interface UserSession {
-  id: string;
-  ip_address: string;
-  user_agent: string;
-  logged_in_at: string | number | null;
-  last_activity: string | number | null;
-  is_open: boolean;
-}
-
-interface UserDetail {
-  user: AdminUser;
-  directions: string[];
-  sessions: UserSession[];
-  totp_enabled: boolean;
-}
-
-type ActionKind = "deactivate" | "password" | "revoke" | "twofa" | "role";
-
-interface ActionDialog {
-  kind: ActionKind;
-  user: AdminUser;
-}
-
-function truncate(text: string, max = 24): string {
-  if (!text) return "-";
-  return text.length > max ? `${text.slice(0, max)}…` : text;
-}
-
-const ACTION_META: Record<ActionKind, { title: string; confirm: string }> = {
-  deactivate: { title: "Деактивация пользователя", confirm: "Деактивировать" },
-  password: { title: "Сброс пароля", confirm: "Сохранить пароль" },
-  revoke: { title: "Отзыв сессий", confirm: "Отозвать сессии" },
-  twofa: { title: "Сброс 2FA", confirm: "Сбросить 2FA" },
-  role: { title: "Смена роли", confirm: "Сохранить роль" },
-};
-
-/**
- * Действия, которые сервер выполняет только с подтверждением caller_password,
- * если цель - другой администратор. Отзыв сессий этого не требует.
- */
-const STEP_UP_KINDS: Record<ActionKind, boolean> = {
-  deactivate: true,
-  password: true,
-  revoke: false,
-  twofa: true,
-  role: true,
-};
+import { type Role, roleLabel } from "./adminRoles";
+import { ActionDialogView } from "./admin-users/ActionDialogView";
+import { CreateUserCard } from "./admin-users/CreateUserCard";
+import { DEACTIVATION_WORD, STEP_UP_KINDS } from "./admin-users/constants";
+import { RopDirectionsCard } from "./admin-users/RopDirectionsCard";
+import type {
+  ActionDialog,
+  ActionKind,
+  AdminUser,
+  Direction,
+  UserDetail,
+  UsersPage,
+} from "./admin-users/types";
+import { UserDetailDialog } from "./admin-users/UserDetailDialog";
+import { UsersFilters } from "./admin-users/UsersFilters";
+import { UsersTable } from "./admin-users/UsersTable";
 
 export function AdminUsersTab() {
   // текущий пользователь: без него не определить, что цель действия - другой админ
@@ -284,6 +182,23 @@ export function AdminUsersTab() {
 
   const bumpReload = () => setReloadKey((k) => k + 1);
 
+  /* --------------------------------------------------------- фильтры и выборки */
+
+  const changeRoleFilter = (value: "all" | Role) => {
+    setRoleFilter(value);
+    setOffset(0);
+  };
+
+  const changeStatusFilter = (value: "all" | "active" | "inactive") => {
+    setStatusFilter(value);
+    setOffset(0);
+  };
+
+  const changeLimit = (value: number) => {
+    setLimit(value);
+    setOffset(0);
+  };
+
   /* --------------------------------------------------------- действия по строке */
 
   const openAction = (kind: ActionKind, user: AdminUser) => {
@@ -408,7 +323,22 @@ export function AdminUsersTab() {
     setDetailError("");
   };
 
+  const retryDetail = () => {
+    if (detailId) void loadDetail(detailId);
+  };
+
   /* ------------------------------------------------------------ создание, РОП */
+
+  const changeNewUserRole = (role: Role) => {
+    setNewUserRole(role);
+    setNewUserDirs([]);
+  };
+
+  const toggleNewUserDir = (dirCode: string, checked: boolean) => {
+    setNewUserDirs((prev) =>
+      checked ? [...prev, dirCode] : prev.filter((x) => x !== dirCode),
+    );
+  };
 
   const createUser = async () => {
     setUserCreated(null);
@@ -462,6 +392,19 @@ export function AdminUsersTab() {
     } finally {
       setCreateBusy(false);
     }
+  };
+
+  const selectRopUser = (userId: string) => {
+    const u = ropList.find((x) => x.id === userId);
+    setEditUser(userId);
+    setEditUserDirs(u?.directions ?? []);
+    setDirMsg(null);
+  };
+
+  const toggleEditUserDir = (dirCode: string, checked: boolean) => {
+    setEditUserDirs((prev) =>
+      checked ? [...prev, dirCode] : prev.filter((x) => x !== dirCode),
+    );
   };
 
   const saveDirections = async () => {
@@ -525,65 +468,16 @@ export function AdminUsersTab() {
         />
         <CardBody className="space-y-4">
           {/* фильтры: всё считается на сервере */}
-          <div className="flex flex-wrap items-end gap-3">
-            <Field label="Поиск" htmlFor="users-search" className="w-64 max-w-full">
-              <input
-                id="users-search"
-                type="search"
-                className={inputClass}
-                placeholder="Имя или email"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </Field>
-            <Field label="Роль" htmlFor="users-role">
-              <select
-                id="users-role"
-                className={selectClass}
-                value={roleFilter}
-                onChange={(e) => {
-                  setRoleFilter(e.target.value as "all" | Role);
-                  setOffset(0);
-                }}
-              >
-                <option value="all">Все роли</option>
-                <option value="admin">Админ</option>
-                <option value="teacher">Преподаватель</option>
-                <option value="rop">РОП</option>
-                <option value="student">Студент</option>
-              </select>
-            </Field>
-            <Field label="Статус" htmlFor="users-status">
-              <select
-                id="users-status"
-                className={selectClass}
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value as "all" | "active" | "inactive");
-                  setOffset(0);
-                }}
-              >
-                <option value="all">Все</option>
-                <option value="active">Активные</option>
-                <option value="inactive">Деактивированные</option>
-              </select>
-            </Field>
-            <Field label="На странице" htmlFor="users-limit">
-              <select
-                id="users-limit"
-                className={selectClass}
-                value={String(limit)}
-                onChange={(e) => {
-                  setLimit(Number(e.target.value) || 25);
-                  setOffset(0);
-                }}
-              >
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-            </Field>
-          </div>
+          <UsersFilters
+            search={search}
+            roleFilter={roleFilter}
+            statusFilter={statusFilter}
+            limit={limit}
+            onSearchChange={setSearch}
+            onRoleChange={changeRoleFilter}
+            onStatusChange={changeStatusFilter}
+            onLimitChange={changeLimit}
+          />
 
           {phase === "error" && rows.length === 0 && (
             <ErrorState
@@ -632,133 +526,13 @@ export function AdminUsersTab() {
           )}
 
           {(showSkeleton || rows.length > 0) && (
-            <TableFrame>
-              <table className="w-full text-sm">
-                <thead className={tableHeadClass}>
-                  <tr>
-                    <th scope="col" className="px-3 py-2.5 text-left font-semibold">Имя</th>
-                    <th scope="col" className="px-3 py-2.5 text-left font-semibold">Email</th>
-                    <th scope="col" className="px-3 py-2.5 text-left font-semibold">Роль</th>
-                    <th scope="col" className="px-3 py-2.5 text-left font-semibold">Направления</th>
-                    <th scope="col" className="px-3 py-2.5 text-right font-semibold">Сессии</th>
-                    <th scope="col" className="px-3 py-2.5 text-left font-semibold">2FA</th>
-                    <th scope="col" className="px-3 py-2.5 text-left font-semibold">Активность</th>
-                    <th scope="col" className="px-3 py-2.5 text-right font-semibold">Запросов</th>
-                    <th scope="col" className="px-3 py-2.5 text-right font-semibold">
-                      <span className="sr-only">Действия</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {showSkeleton
-                    ? Array.from({ length: SKELETON_ROWS }).map((_, i) => (
-                        <tr key={i} className={tableRowClass}>
-                          {Array.from({ length: 9 }).map((__, j) => (
-                            <td key={j} className="px-3 py-3">
-                              <Skeleton className="h-4 w-16" />
-                            </td>
-                          ))}
-                        </tr>
-                      ))
-                    : rows.map((u) => (
-                        <tr key={u.id} className={tableRowClass}>
-                          <td className="px-3 py-2 font-medium text-foreground">
-                            <span className={u.is_active ? "" : "opacity-60"}>
-                              {u.name || "-"}
-                            </span>
-                            {!u.is_active && (
-                              <Badge tone="danger" className="ml-2">
-                                деактивирован
-                              </Badge>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-muted-foreground">{u.username}</td>
-                          <td className="px-3 py-2">
-                            <Badge tone={roleTone(u.role)}>{roleLabel(u.role)}</Badge>
-                          </td>
-                          <td className="px-3 py-2">
-                            {(u.directions ?? []).length > 0 ? (
-                              <span className="inline-flex flex-wrap items-center gap-1">
-                                {u.directions.slice(0, 3).map((d) => (
-                                  <span
-                                    key={d}
-                                    className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground"
-                                  >
-                                    {d}
-                                  </span>
-                                ))}
-                                {u.directions.length > 3 && (
-                                  <span className="text-xs text-muted-foreground">
-                                    +{u.directions.length - 3}
-                                  </span>
-                                )}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-right tabular-nums text-foreground">
-                            {u.open_sessions}
-                          </td>
-                          <td className="px-3 py-2">
-                            <Badge tone={u.totp_enabled ? "success" : "neutral"}>
-                              {u.totp_enabled ? "вкл" : "выкл"}
-                            </Badge>
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
-                            {fmtDateTime(u.last_activity)}
-                          </td>
-                          <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                            {u.total_requests}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger
-                                aria-label={`Действия: ${u.name} (${u.username})`}
-                                className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                              >
-                                <Ellipsis className="size-4" />
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-52">
-                                <DropdownMenuItem onSelect={() => openDetail(u.id)}>
-                                  <IdCard className="size-4" /> Карточка
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => openAction("role", u)}>
-                                  <UserCog className="size-4" /> Сменить роль
-                                </DropdownMenuItem>
-                                {u.is_active ? (
-                                  <DropdownMenuItem
-                                    variant="destructive"
-                                    onSelect={() => openAction("deactivate", u)}
-                                  >
-                                    <ShieldOff className="size-4" /> Деактивировать
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem onSelect={() => void activateUser(u)}>
-                                    <ShieldCheck className="size-4" /> Активировать
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onSelect={() => openAction("password", u)}>
-                                  <KeyRound className="size-4" /> Сбросить пароль
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => openAction("revoke", u)}>
-                                  <LogOut className="size-4" /> Отозвать сессии
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={() => openAction("twofa", u)}
-                                  disabled={!u.totp_enabled}
-                                >
-                                  <RotateCcw className="size-4" /> Сбросить 2FA
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </td>
-                        </tr>
-                      ))}
-                </tbody>
-              </table>
-            </TableFrame>
+            <UsersTable
+              showSkeleton={showSkeleton}
+              rows={rows}
+              onOpenDetail={openDetail}
+              onOpenAction={openAction}
+              onActivate={activateUser}
+            />
           )}
 
           {total > 0 && (
@@ -790,467 +564,69 @@ export function AdminUsersTab() {
       </Card>
 
       {/* Создание пользователя */}
-      <Card>
-        <CardHeader
-          title="Создать пользователя"
-          description="Адрес, стартовый пароль (не короче 10 символов) и роль."
-        />
-        <CardBody>
-          <form
-            className="space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void createUser();
-            }}
-          >
-            <Field label="Электронная почта" htmlFor="new-user-email">
-              <input
-                id="new-user-email"
-                type="email"
-                className={inputClass}
-                value={newUserEmail}
-                onChange={(e) => setNewUserEmail(e.target.value)}
-                autoComplete="off"
-              />
-            </Field>
-            <Field label="Пароль" htmlFor="new-user-pass" hint="Минимум 10 символов">
-              <input
-                id="new-user-pass"
-                type="password"
-                className={inputClass}
-                value={newUserPass}
-                onChange={(e) => setNewUserPass(e.target.value)}
-                autoComplete="new-password"
-              />
-            </Field>
-            <Field label="ФИО" htmlFor="new-user-name">
-              <input
-                id="new-user-name"
-                className={inputClass}
-                value={newUserName}
-                onChange={(e) => setNewUserName(e.target.value)}
-                autoComplete="off"
-              />
-            </Field>
-            <Field label="Роль" htmlFor="new-user-role">
-              <select
-                id="new-user-role"
-                className={`${selectClass} w-full`}
-                value={newUserRole}
-                onChange={(e) => {
-                  setNewUserRole(asRole(e.target.value));
-                  setNewUserDirs([]);
-                }}
-              >
-                <option value="teacher">Преподаватель</option>
-                <option value="admin">Администратор</option>
-                <option value="rop">Руководитель ОП</option>
-              </select>
-            </Field>
-            {newUserRole === "rop" && (
-              <Field label="Направления" htmlFor="new-user-dirs">
-                <div
-                  id="new-user-dirs"
-                  className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-border p-3"
-                >
-                  {directions.map((d) => (
-                    <label key={d.dir_code} className="flex cursor-pointer items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={newUserDirs.includes(d.dir_code)}
-                        onChange={(e) =>
-                          setNewUserDirs((prev) =>
-                            e.target.checked
-                              ? [...prev, d.dir_code]
-                              : prev.filter((x) => x !== d.dir_code),
-                          )
-                        }
-                        className="accent-primary"
-                      />
-                      <span className="font-mono text-xs text-muted-foreground">{d.dir_code}</span>
-                      <span className="truncate text-xs text-muted-foreground">{d.name}</span>
-                    </label>
-                  ))}
-                  {directions.length === 0 && (
-                    <p className="text-xs text-muted-foreground">Направления не загружены</p>
-                  )}
-                </div>
-              </Field>
-            )}
-            <div className="flex items-center gap-3">
-              <Button type="submit" loading={createBusy}>
-                Создать
-              </Button>
-              {userCreated && (
-                <p
-                  role="status"
-                  aria-live="polite"
-                  className={
-                    userCreated.ok
-                      ? "text-sm text-success"
-                      : "text-sm text-destructive"
-                  }
-                >
-                  {userCreated.text}
-                </p>
-              )}
-            </div>
-          </form>
-        </CardBody>
-      </Card>
+      <CreateUserCard
+        directions={directions}
+        email={newUserEmail}
+        password={newUserPass}
+        name={newUserName}
+        role={newUserRole}
+        dirs={newUserDirs}
+        busy={createBusy}
+        result={userCreated}
+        onEmailChange={setNewUserEmail}
+        onPasswordChange={setNewUserPass}
+        onNameChange={setNewUserName}
+        onRoleChange={changeNewUserRole}
+        onToggleDir={toggleNewUserDir}
+        onCreate={() => void createUser()}
+      />
 
       {/* Редактор направлений РОП */}
-      <Card>
-        <CardHeader
-          title="Направления РОП"
-          description="Настройте, какие направления доступны руководителю ОП."
-        />
-        <CardBody className="space-y-3">
-          <Field label="Пользователь" htmlFor="rop-user-select">
-            <select
-              id="rop-user-select"
-              className={`${selectClass} w-full`}
-              value={editUser}
-              onChange={(e) => {
-                const u = ropList.find((x) => x.id === e.target.value);
-                setEditUser(e.target.value);
-                setEditUserDirs(u?.directions ?? []);
-                setDirMsg(null);
-              }}
-            >
-              <option value="">Выберите пользователя</option>
-              {ropList.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.username})
-                </option>
-              ))}
-            </select>
-          </Field>
-          {editUser && (
-            <>
-              <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-border p-3">
-                {directions.map((d) => (
-                  <label key={d.dir_code} className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={editUserDirs.includes(d.dir_code)}
-                      onChange={(e) =>
-                        setEditUserDirs((prev) =>
-                          e.target.checked
-                            ? [...prev, d.dir_code]
-                            : prev.filter((x) => x !== d.dir_code),
-                        )
-                      }
-                      className="accent-primary"
-                    />
-                    <span className="font-mono text-xs text-muted-foreground">{d.dir_code}</span>
-                    <span className="truncate text-xs text-muted-foreground">{d.name}</span>
-                  </label>
-                ))}
-                {directions.length === 0 && (
-                  <p className="text-xs text-muted-foreground">Направления не загружены</p>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
-                <Button onClick={() => void saveDirections()} loading={dirBusy}>
-                  Сохранить
-                </Button>
-                {dirMsg && (
-                  <p
-                    role="status"
-                    aria-live="polite"
-                    className={
-                      dirMsg.ok
-                        ? "text-sm text-success"
-                        : "text-sm text-destructive"
-                    }
-                  >
-                    {dirMsg.text}
-                  </p>
-                )}
-              </div>
-            </>
-          )}
-        </CardBody>
-      </Card>
+      <RopDirectionsCard
+        directions={directions}
+        ropList={ropList}
+        editUser={editUser}
+        editUserDirs={editUserDirs}
+        dirBusy={dirBusy}
+        dirMsg={dirMsg}
+        onSelectUser={selectRopUser}
+        onToggleDir={toggleEditUserDir}
+        onSave={() => void saveDirections()}
+      />
 
       {/* Диалог подтверждения действия */}
-      <Dialog open={dialog !== null} onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent className="sm:max-w-md">
-          {dialog && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{ACTION_META[dialog.kind].title}</DialogTitle>
-                <DialogDescription>
-                  {dialog.kind === "deactivate" &&
-                    `${dialog.user.name} (${dialog.user.username}) потеряет доступ к системе. Войти будет нельзя, пока аккаунт не активируют снова.`}
-                  {dialog.kind === "password" &&
-                    `Задайте новый пароль для ${dialog.user.username}. Все активные сессии будут отозваны.`}
-                  {dialog.kind === "revoke" &&
-                    `Все активные сессии пользователя ${dialog.user.username} будут завершены.`}
-                  {dialog.kind === "twofa" &&
-                    `Двухфакторная аутентификация пользователя ${dialog.user.username} будет сброшена.`}
-                  {dialog.kind === "role" && `Выберите новую роль для ${dialog.user.username}.`}
-                </DialogDescription>
-              </DialogHeader>
-              <form
-                className="space-y-4"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void submitDialog();
-                }}
-              >
-                {dialog.kind === "role" && (
-                  <Field label="Роль" htmlFor="dialog-role">
-                    <select
-                      id="dialog-role"
-                      className={`${selectClass} w-full`}
-                      value={roleValue}
-                      onChange={(e) => setRoleValue(asRole(e.target.value))}
-                    >
-                      {ROLES.map((r) => (
-                        <option key={r} value={r}>
-                          {ROLE_LABEL[r]}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                )}
-                {dialog.kind === "password" && (
-                  <>
-                    <Field
-                      label="Новый пароль"
-                      htmlFor="dialog-pass-1"
-                      hint="Минимум 10 символов"
-                      error={newPass1.length > 0 && newPass1.length < 10 ? "Минимум 10 символов" : undefined}
-                    >
-                      <input
-                        id="dialog-pass-1"
-                        type="password"
-                        className={inputClass}
-                        value={newPass1}
-                        onChange={(e) => setNewPass1(e.target.value)}
-                        autoComplete="new-password"
-                      />
-                    </Field>
-                    <Field
-                      label="Повторите пароль"
-                      htmlFor="dialog-pass-2"
-                      error={newPass2.length > 0 && newPass1 !== newPass2 ? "Пароли не совпадают" : undefined}
-                    >
-                      <input
-                        id="dialog-pass-2"
-                        type="password"
-                        className={inputClass}
-                        value={newPass2}
-                        onChange={(e) => setNewPass2(e.target.value)}
-                        autoComplete="new-password"
-                      />
-                    </Field>
-                  </>
-                )}
-                {dialog.kind !== "role" && (
-                  <Field
-                    label={
-                      needWord
-                        ? "Введите слово УДАЛИТЬ для подтверждения"
-                        : `Введите адрес ${dialog.user.username} для подтверждения`
-                    }
-                    htmlFor="dialog-confirm"
-                  >
-                    <input
-                      id="dialog-confirm"
-                      className={inputClass}
-                      value={confirmText}
-                      onChange={(e) => setConfirmText(e.target.value)}
-                      aria-invalid={!confirmSatisfied || undefined}
-                      autoComplete="off"
-                      autoFocus
-                    />
-                  </Field>
-                )}
-                {stepUpRequired && (
-                  <Field
-                    label="Пароль администратора"
-                    htmlFor="dialog-caller-password"
-                    hint="Нужен для подтверждения действий с другим администратором"
-                  >
-                    <input
-                      id="dialog-caller-password"
-                      type="password"
-                      className={inputClass}
-                      value={callerPassword}
-                      onChange={(e) => setCallerPassword(e.target.value)}
-                      autoComplete="current-password"
-                      required
-                      aria-invalid={callerPassword === "" || undefined}
-                    />
-                  </Field>
-                )}
-                {dialogErr && (
-                  <div
-                    role="alert"
-                    className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                  >
-                    {dialogErr}
-                  </div>
-                )}
-                {dialogMsg && (
-                  <div
-                    role="status"
-                    aria-live="polite"
-                    className="rounded-lg border border-success/30 bg-success-soft px-3 py-2 text-sm text-success"
-                  >
-                    {dialogMsg}
-                  </div>
-                )}
-                <DialogFooter>
-                  <Button type="button" variant="secondary" onClick={closeDialog} disabled={busy}>
-                    Отмена
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant={dialog.kind === "deactivate" ? "danger" : "primary"}
-                    loading={busy}
-                    disabled={
-                      !confirmSatisfied ||
-                      (dialog.kind === "password" && !passOk) ||
-                      (dialog.kind === "role" && roleValue === dialog.user.role) ||
-                      (stepUpRequired && callerPassword === "")
-                    }
-                  >
-                    {ACTION_META[dialog.kind].confirm}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <ActionDialogView
+        dialog={dialog}
+        confirmText={confirmText}
+        newPass1={newPass1}
+        newPass2={newPass2}
+        callerPassword={callerPassword}
+        roleValue={roleValue}
+        needWord={needWord}
+        confirmSatisfied={confirmSatisfied}
+        stepUpRequired={stepUpRequired}
+        passOk={passOk}
+        busy={busy}
+        dialogMsg={dialogMsg}
+        dialogErr={dialogErr}
+        onConfirmTextChange={setConfirmText}
+        onNewPass1Change={setNewPass1}
+        onNewPass2Change={setNewPass2}
+        onCallerPasswordChange={setCallerPassword}
+        onRoleValueChange={setRoleValue}
+        onSubmit={() => void submitDialog()}
+        onClose={closeDialog}
+      />
 
       {/* Карточка пользователя */}
-      <Dialog open={detailId !== null} onOpenChange={(open) => !open && closeDetail()}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{detail?.user?.name || "Карточка пользователя"}</DialogTitle>
-            <DialogDescription>{detail ? detail.user.username : "Загрузка данных"}</DialogDescription>
-          </DialogHeader>
-          {detailPhase === "loading" && (
-            <div className="space-y-3">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-4 w-1/3" />
-              <Skeleton className="h-24 w-full" />
-            </div>
-          )}
-          {detailPhase === "error" && (
-            <ErrorState
-              title="Не удалось загрузить карточку"
-              description={detailError}
-              onRetry={() => detailId && void loadDetail(detailId)}
-            />
-          )}
-          {detailPhase === "ready" && detail && (
-            <div className="space-y-4">
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
-                <dt className="text-xs text-muted-foreground">Email</dt>
-                <dd className="text-foreground">{detail.user.username}</dd>
-                <dt className="text-xs text-muted-foreground">Роль</dt>
-                <dd>
-                  <Badge tone={roleTone(detail.user.role)}>{roleLabel(detail.user.role)}</Badge>
-                </dd>
-                <dt className="text-xs text-muted-foreground">Статус</dt>
-                <dd>
-                  <Badge tone={detail.user.is_active ? "success" : "danger"}>
-                    {detail.user.is_active ? "активен" : "деактивирован"}
-                  </Badge>
-                </dd>
-                <dt className="text-xs text-muted-foreground">2FA</dt>
-                <dd>
-                  <Badge tone={detail.totp_enabled ? "success" : "neutral"}>
-                    {detail.totp_enabled ? "вкл" : "выкл"}
-                  </Badge>
-                </dd>
-                <dt className="text-xs text-muted-foreground">Запросов</dt>
-                <dd className="tabular-nums text-foreground">{detail.user.total_requests}</dd>
-                <dt className="text-xs text-muted-foreground">Активность</dt>
-                <dd className="text-foreground">{fmtDateTime(detail.user.last_activity)}</dd>
-                <dt className="text-xs text-muted-foreground">Направления</dt>
-                <dd className="col-span-2 flex flex-wrap items-center gap-1">
-                  {(detail.directions ?? []).length > 0 ? (
-                    detail.directions.map((d) => (
-                      <span
-                        key={d}
-                        className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground"
-                      >
-                        {d}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </dd>
-              </dl>
-              <div>
-                <h4 className="mb-2 text-sm font-semibold text-foreground">Сессии</h4>
-                <TableFrame>
-                  <table className="w-full text-sm">
-                    <thead className={tableHeadClass}>
-                      <tr>
-                        <th scope="col" className="px-3 py-2 text-left font-semibold">IP</th>
-                        <th scope="col" className="px-3 py-2 text-left font-semibold">
-                          User-Agent
-                        </th>
-                        <th scope="col" className="px-3 py-2 text-left font-semibold">Вход</th>
-                        <th scope="col" className="px-3 py-2 text-left font-semibold">
-                          Активность
-                        </th>
-                        <th scope="col" className="px-3 py-2 text-left font-semibold">Статус</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detail.sessions.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="px-3 py-4 text-center text-muted-foreground">
-                            Сессий нет
-                          </td>
-                        </tr>
-                      ) : (
-                        detail.sessions.map((s) => (
-                          <tr key={s.id} className={tableRowClass}>
-                            <td
-                              className="px-3 py-1.5 font-mono text-xs"
-                              title={s.ip_address || undefined}
-                            >
-                              {truncate(s.ip_address, 18)}
-                            </td>
-                            <td
-                              className="max-w-[16rem] truncate px-3 py-1.5 text-xs text-muted-foreground"
-                              title={s.user_agent || undefined}
-                            >
-                              {s.user_agent || "-"}
-                            </td>
-                            <td className="whitespace-nowrap px-3 py-1.5 text-xs">
-                              {fmtDateTime(s.logged_in_at)}
-                            </td>
-                            <td className="whitespace-nowrap px-3 py-1.5 text-xs">
-                              {fmtDateTime(s.last_activity)}
-                            </td>
-                            <td className="px-3 py-1.5">
-                              <Badge tone={s.is_open ? "success" : "neutral"}>
-                                {s.is_open ? "открыта" : "закрыта"}
-                              </Badge>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </TableFrame>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <UserDetailDialog
+        detailId={detailId}
+        detail={detail}
+        detailPhase={detailPhase}
+        detailError={detailError}
+        onRetry={retryDetail}
+        onClose={closeDetail}
+      />
     </div>
   );
 }
