@@ -142,6 +142,7 @@ class CoverageAnalyzer:
         direction_rpd_norm: set[str] | None = None,
         discipline_skill_map: dict[str, set[str]] | None = None,
         ksa_types: dict[str, str] | None = None,
+        skill_sources: dict[str, str] | None = None,
     ) -> Result[DisciplineCoverage, CoverageError]:
         if not discipline_id:
             logger.error("missing_discipline_id")
@@ -230,6 +231,7 @@ class CoverageAnalyzer:
 
         matched_list: list[SkillMatch] = []
         gaps_list: list[str] = []
+        gap_sources: dict[str, str] = {}
         rpd_norm: set[str] = set()
 
         for s in all_rpd:
@@ -241,14 +243,18 @@ class CoverageAnalyzer:
             if match_result.is_err():
                 continue
             m, mtype, conf = match_result.unwrap()
+            # provenance требования: KSA-текст (РПД) или канон skills (whitelist)
+            _src = "ksa" if ksa_types and s in ksa_types else "whitelist"
             if m and not self._is_fringe_match(m):
                 matched_list.append(SkillMatch(
                     skill_name=s, market_match=m,
                     frequency=self.matcher.market_skills.get(m, 0),
                     match_type=mtype, confidence=conf,
+                    source=_src, market_source="parsed_skills",
                 ))
             else:
                 gaps_list.append(s)
+                gap_sources[s] = _src
 
         # Per-discipline emerging (not in THIS discipline; giants capped, v39)
         from src.analyzers.skill_matcher import EMERGING_MAX_FREQ
@@ -489,6 +495,10 @@ class CoverageAnalyzer:
             market_top_covered=top_covered[:20],
             market_top_missing=top_missing[:10],
             gaps_list=deduped_gaps[:20],
+            gaps_detail=[
+                {"skill": g, "source": gap_sources.get(g, "ksa")}
+                for g in deduped_gaps[:20]
+            ],
             emerging=emerging_skills,
             truly_missing=truly_missing,
             cross_references=cross_refs,

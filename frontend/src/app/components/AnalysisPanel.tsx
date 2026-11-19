@@ -37,8 +37,9 @@ interface DisciplineAnalysis {
     weighted_coverage?: number;
     strong_coverage?: number;
     coverage_level: string;
-    top_market_matched_skills: { skill: string; matched_as?: string; frequency: number; match_type: string }[];
+    top_market_matched_skills: { skill: string; matched_as?: string; frequency: number; match_type: string; source?: string; market_source?: string }[];
     gaps_in_curriculum: string[];
+    gaps_detail?: { skill: string; source: string }[];
     emerging_market_skills_not_in_rpd: { skill: string; frequency: number }[];
   };
   competencies: CompetencyCov[];
@@ -60,6 +61,16 @@ function matchTone(matchType: string): BadgeTone {
   if (matchType === "fuzzy") return "warning";
   if (matchType === "semantic") return "info";
   return "neutral";
+}
+
+/** Человекочитаемый источник требования/рынка (BACKLOG 2.3). */
+const SOURCE_LABEL: Record<string, string> = {
+  ksa: "РПД",
+  whitelist: "канон",
+  parsed_skills: "рынок",
+};
+function sourceLabel(source?: string): string {
+  return source ? SOURCE_LABEL[source] ?? source : "";
 }
 
 export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { disciplineName: string; dirCode?: string }) {
@@ -117,6 +128,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
   );
 
   const { metrics, competencies, recommendations } = data;
+  const gapSource = new Map((metrics.gaps_detail ?? []).map((d) => [d.skill, d.source] as const));
   const cov = metrics.coverage_ratio;
   const wcov = metrics.weighted_coverage;
   const scov = metrics.strong_coverage;
@@ -256,6 +268,11 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
                   >
                     {s.skill}
                     <span className="text-xs opacity-50">{s.match_type}</span>
+                    {s.source && (
+                      <span className="text-xs opacity-60" title={`Источник: ${sourceLabel(s.source)}`}>
+                        {sourceLabel(s.source)}
+                      </span>
+                    )}
                     <span className="text-xs opacity-60" title={`Вакансий с этим навыком: ${s.frequency}`}>
                       {s.frequency} вк.
                     </span>
@@ -273,8 +290,11 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {(expandedGaps ? metrics.gaps_in_curriculum : metrics.gaps_in_curriculum.slice(0, 10)).map((g, i) => (
-                  <Badge key={i} tone="danger" className="text-xs">
+                  <Badge key={i} tone="danger" className="text-xs" title={`Источник: ${sourceLabel(gapSource.get(g)) || "РПД"}`}>
                     {g.length > 35 && !expandedGaps ? g.slice(0, 35) + "…" : g}
+                    {gapSource.get(g) && (
+                      <span className="text-xs opacity-60">{sourceLabel(gapSource.get(g))}</span>
+                    )}
                   </Badge>
                 ))}
               </div>
