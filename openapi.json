@@ -1,6 +1,28 @@
 {
   "components": {
     "schemas": {
+      "AcademicKrmCompetenciesBody": {
+        "description": "Коды компетенций ОП для current_competencies в analyze-gap.",
+        "properties": {
+          "codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Codes",
+            "type": "array"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "codes",
+          "count"
+        ],
+        "title": "AcademicKrmCompetenciesBody",
+        "type": "object"
+      },
       "AdminStepUpRequest": {
         "description": "Подтверждение опасной операции над другим администратором.",
         "properties": {
@@ -44,6 +66,20 @@
           "message"
         ],
         "title": "AlertBody",
+        "type": "object"
+      },
+      "ApiVersionBody": {
+        "description": "Версия публичного контракта (политика - docs/API-CHANGELOG.md).",
+        "properties": {
+          "api_version": {
+            "title": "Api Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "api_version"
+        ],
+        "title": "ApiVersionBody",
         "type": "object"
       },
       "Body_rpd_collect_api_teacher_rpd_collect_post": {
@@ -703,11 +739,61 @@
         "type": "object"
       },
       "HealthResponse": {
-        "description": "Ответ health-check.",
+        "description": "Ответ health-check.\n\nПоля versions/artifacts опциональны: /health отдаёт их, когда реестр или\nserving что-то знает о загруженных артефактах. Раньше Extra fields\nмолча отбрасывались FastAPI - ltr_model_version/clusters_versions были в\nсловаре хендлера, но не в ответе.",
         "properties": {
+          "api_ready": {
+            "default": false,
+            "title": "Api Ready",
+            "type": "boolean"
+          },
+          "clusters_versions": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Clusters Versions",
+            "type": "object"
+          },
           "evaluator": {
             "title": "Evaluator",
             "type": "boolean"
+          },
+          "loaded_artifacts": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Loaded Artifacts",
+            "type": "object"
+          },
+          "ltr_artifact": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ltr Artifact"
+          },
+          "ltr_model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ltr Model Version"
           },
           "recommendation_engine": {
             "title": "Recommendation Engine",
@@ -2090,6 +2176,40 @@
         "title": "ReadyBody",
         "type": "object"
       },
+      "RootBody": {
+        "description": "Корневой health-check: подсказки для клиента/оператора.",
+        "properties": {
+          "docs": {
+            "title": "Docs",
+            "type": "string"
+          },
+          "health": {
+            "title": "Health",
+            "type": "string"
+          },
+          "service": {
+            "title": "Service",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "version",
+          "docs",
+          "health",
+          "status"
+        ],
+        "title": "RootBody",
+        "type": "object"
+      },
       "SchedulerSettingsPatch": {
         "properties": {
           "collect_interval_hours": {
@@ -3125,7 +3245,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RootBody"
+                }
               }
             },
             "description": "Successful Response"
@@ -3305,7 +3427,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AcademicKrmCompetenciesBody"
+                }
               }
             },
             "description": "Successful Response"
@@ -6436,7 +6560,7 @@
     },
     "/api/health": {
       "get": {
-        "description": "Готовность сервиса и зависимостей.",
+        "description": "Готовность сервиса и зависимостей.\n\nHealthResponse раньше описывал только status/version/evaluator/\nrecommendation_engine и молча отсекал остальные ключи словаря\n(ltr_model_version, clusters_versions) - контракт расширен опциональными\nполями, а не отключён (схема OpenAPI остаётся честной).",
         "operationId": "health_check_api_health_get",
         "responses": {
           "200": {
@@ -12540,11 +12664,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Api Version Api Version Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ApiVersionBody"
                 }
               }
             },
@@ -12559,7 +12679,7 @@
     },
     "/health": {
       "get": {
-        "description": "Готовность сервиса и зависимостей.",
+        "description": "Готовность сервиса и зависимостей.\n\nHealthResponse раньше описывал только status/version/evaluator/\nrecommendation_engine и молча отсекал остальные ключи словаря\n(ltr_model_version, clusters_versions) - контракт расширен опциональными\nполями, а не отключён (схема OpenAPI остаётся честной).",
         "operationId": "health_check_health_get",
         "responses": {
           "200": {

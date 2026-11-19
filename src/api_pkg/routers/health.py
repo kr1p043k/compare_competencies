@@ -22,10 +22,16 @@ logger = structlog.get_logger("api")
 router = APIRouter(tags=["monitoring"])
 
 
-@router.get("/api/version")
-async def api_version() -> dict[str, str]:
+class ApiVersionBody(BaseModel):
+    """Версия публичного контракта (политика - docs/API-CHANGELOG.md)."""
+
+    api_version: str
+
+
+@router.get("/api/version", response_model=ApiVersionBody)
+async def api_version() -> ApiVersionBody:
     """Версия публичного API (контракта). Политика - docs/API-CHANGELOG.md."""
-    return {"api_version": config.API_VERSION}
+    return ApiVersionBody(api_version=config.API_VERSION)
 
 
 _registry: ModelRegistry | None = None
@@ -38,17 +44,27 @@ def _get_registry() -> ModelRegistry:
     return _registry
 
 
-@router.get("/")
-async def root():
+class RootBody(BaseModel):
+    """Корневой health-check: подсказки для клиента/оператора."""
+
+    service: str
+    version: str
+    docs: str
+    health: str
+    status: str
+
+
+@router.get("/", response_model=RootBody)
+async def root() -> RootBody:
     """Корневой health-check."""
     v = config.VERSION if hasattr(config, "VERSION") else "2.0"
-    return {
-        "service": "Compare Competencies API",
-        "version": v,
-        "docs": "/docs",
-        "health": "/health",
-        "status": "/api/status",
-    }
+    return RootBody(
+        service="Compare Competencies API",
+        version=v,
+        docs="/docs",
+        health="/health",
+        status="/api/status",
+    )
 
 
 class LogEntry(BaseModel):
