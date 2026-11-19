@@ -36,6 +36,54 @@ class SubscriptionUpdate(BaseModel):
     is_active: bool | None = None
 
 
+# ─── Response models (backlog 6.2.1) ───────────────────────────────────────
+
+class SubscriptionOut(BaseModel):
+    id: str
+    topic: str
+    source: str
+    telegram_chat_id: str | None = None
+    email: str | None = None
+    is_active: bool
+    last_checked_at: str | None = None
+    created_at: str
+
+
+class SubscriptionsResponse(BaseModel):
+    subscriptions: list[SubscriptionOut]
+    total: int
+
+
+class NotificationOut(BaseModel):
+    id: str
+    subscription_id: str | None = None
+    title: str
+    body: str
+    article_url: str | None = None
+    article_source: str | None = None
+    severity: str
+    is_read: bool
+    created_at: str
+
+
+class NotificationsResponse(BaseModel):
+    notifications: list[NotificationOut]
+    total: int
+
+
+class StatusResponse(BaseModel):
+    status: str
+
+
+class CreatedResponse(BaseModel):
+    status: str
+    id: str
+
+
+class UnreadCountResponse(BaseModel):
+    unread_count: int
+
+
 # ─── Auth dependency ───────────────────────────────────────────────────────
 
 async def require_auth(request: Request) -> dict:
@@ -47,7 +95,7 @@ async def require_auth(request: Request) -> dict:
 
 # ─── Endpoints ─────────────────────────────────────────────────────────────
 
-@router.get("/subscriptions")
+@router.get("/subscriptions", response_model=SubscriptionsResponse)
 @limiter.limit("30/minute")
 async def list_subscriptions(request: Request, user: dict = Depends(require_auth)):
     """Подписки пользователя."""
@@ -67,7 +115,7 @@ async def list_subscriptions(request: Request, user: dict = Depends(require_auth
     return {
         "subscriptions": [
             {
-                "id": s.id,
+                "id": str(s.id),
                 "topic": s.topic,
                 "source": s.source,
                 "telegram_chat_id": s.telegram_chat_id,
@@ -82,7 +130,7 @@ async def list_subscriptions(request: Request, user: dict = Depends(require_auth
     }
 
 
-@router.post("/subscriptions")
+@router.post("/subscriptions", response_model=CreatedResponse)
 @limiter.limit("10/minute")
 async def create_subscription(request: Request, body: SubscriptionCreate, user: dict = Depends(require_auth)):
     """Создать подписку."""
@@ -103,10 +151,10 @@ async def create_subscription(request: Request, body: SubscriptionCreate, user: 
         await session.commit()
         await session.refresh(sub)
     await audit_action(request, "subscriptions.create", f"uid={uid} id={sub.id}")
-    return {"status": "ok", "id": sub.id}
+    return {"status": "ok", "id": str(sub.id)}
 
 
-@router.delete("/subscriptions/{sub_id}")
+@router.delete("/subscriptions/{sub_id}", response_model=StatusResponse)
 @limiter.limit("10/minute")
 async def delete_subscription(sub_id: str, request: Request, user: dict = Depends(require_auth)):
     """Удалить подписку."""
@@ -126,7 +174,7 @@ async def delete_subscription(sub_id: str, request: Request, user: dict = Depend
     return {"status": "ok"}
 
 
-@router.get("/notifications")
+@router.get("/notifications", response_model=NotificationsResponse)
 @limiter.limit("30/minute")
 async def list_notifications(
     request: Request,
@@ -157,8 +205,8 @@ async def list_notifications(
     return {
         "notifications": [
             {
-                "id": n.id,
-                "subscription_id": n.subscription_id,
+                "id": str(n.id),
+                "subscription_id": str(n.subscription_id) if n.subscription_id else None,
                 "title": n.title,
                 "body": n.body,
                 "article_url": n.article_url,
@@ -173,7 +221,7 @@ async def list_notifications(
     }
 
 
-@router.post("/notifications/{notif_id}/read")
+@router.post("/notifications/{notif_id}/read", response_model=StatusResponse)
 @limiter.limit("30/minute")
 async def mark_read(notif_id: str, request: Request, user: dict = Depends(require_auth)):
     """Пометить уведомление прочитанным."""
@@ -192,7 +240,7 @@ async def mark_read(notif_id: str, request: Request, user: dict = Depends(requir
     return {"status": "ok"}
 
 
-@router.get("/notifications/unread-count")
+@router.get("/notifications/unread-count", response_model=UnreadCountResponse)
 @limiter.limit("30/minute")
 async def unread_count(request: Request, user: dict = Depends(require_auth)):
     """Число непрочитанных уведомлений."""
