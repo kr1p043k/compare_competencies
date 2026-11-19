@@ -269,48 +269,79 @@ function FallbackBlock({
 
 /* -------------------------------------------------------------------- роутер */
 
-export function ChatBlockView({ block }: { block: ChatBlock }): ReactNode {
-  switch (block.type) {
-    case "text": {
-      const text = extractBlockText(block);
-      return text ? <ChatMarkdown>{text}</ChatMarkdown> : null;
-    }
+/**
+ * Рендер одного типа блока. Плагины (фичи, эксперименты, новые типы с сервера)
+ * регистрируют свой тип и не трогают сам роутер.
+ */
+export type BlockRenderer = (block: ChatBlock) => ReactNode;
 
-    case "metric": {
-      const tiles = extractMetrics(block);
-      if (tiles.length === 0) return <FallbackBlock block={block} note="Метрика без данных" />;
-      return <MetricBlock tiles={tiles} />;
-    }
+const _renderers = new Map<string, BlockRenderer>();
 
-    case "citation": {
-      const items = extractCitations(block);
-      if (items.length === 0) {
-        const text = extractBlockText(block);
-        return text ? <ChatMarkdown>{text}</ChatMarkdown> : null;
-      }
-      return <CitationBlock items={items} />;
-    }
+/**
+ * Зарегистрировать рендер типа блока. Возвращает функцию отписки.
+ * Повторная регистрация того же типа перекрывает предыдущий рендер.
+ */
+export function registerBlockRenderer(type: string, renderer: BlockRenderer): () => void {
+  if (!type) throw new Error("block type is required");
+  _renderers.set(type, renderer);
+  return () => {
+    if (_renderers.get(type) === renderer) _renderers.delete(type);
+  };
+}
 
-    case "chart": {
-      // Распознавание данных - чистая функция (тестируется отдельно);
-      // без данных recharts не грузим.
-      const data = extractChartData(block);
-      if (!data) {
-        const text = extractBlockText(block);
-        if (text) return <ChatMarkdown>{text}</ChatMarkdown>;
-        return <FallbackBlock block={block} note="Диаграмма без распознаваемых данных" />;
-      }
-      return (
-        <Suspense fallback={<Skeleton className="h-44 w-full" />}>
-          <ChatChartBlock data={data} />
-        </Suspense>
-      );
-    }
+/** Снять рендер типа (для тестов и динамических фич). */
+export function unregisterBlockRenderer(type: string): void {
+  _renderers.delete(type);
+}
 
-    case "action_list":
-      return <ActionListBlock block={block} />;
+/** Список зарегистрированных типов (по алфавиту) - для отладки/тестов. */
+export function registeredBlockTypes(): string[] {
+  return [..._renderers.keys()].sort();
+}
 
-    default:
-      return <FallbackBlock block={block} />;
+// Встроенные типы из серверного `_ALLOWED_BLOCK_TYPES`
+// (src/services/llm_chat.py). Регистрируются через тот же реестр, чтобы
+// роутер был единообразным и не знал о конкретных типах.
+registerBlockRenderer("text", (block) => {
+  const text = extractBlockText(block);
+  return text ? <ChatMarkdown>{text}</ChatMarkdown> : null;
+});
+
+registerBlockRenderer("metric", (block) => {
+  const tiles = extractMetrics(block);
+  if (tiles.length === 0) return <FallbackBlock block={block} note="Метрика без данных" />;
+  return <MetricBlock tiles={tiles} />;
+});
+
+registerBlockRenderer("citation", (block) => {
+  const items = extractCitations(block);
+  if (items.length === 0) {
+    const text = extractBlockText(block);
+    return text ? <ChatMarkdown>{text}</ChatMarkdown> : null;
   }
+  return <CitationBlock items={items} />;
+});
+
+registerBlockRenderer("chart", (block) => {
+  // Распознавание данных - чистая функция (тестируется отдельно);
+  // без данных recharts не грузим.
+  const data = extractChartData(block);
+  if (!data) {
+    const text = extractBlockText(block);
+    if (text) return <ChatMarkdown>{text}</ChatMarkdown>;
+    return <FallbackBlock block={block} note="Диаграмма без распознаваемых данных" />;
+  }
+  return (
+    <Suspense fallback={<Skeleton className="h-44 w-full" />}>
+      <ChatChartBlock data={data} />
+    </Suspense>
+  );
+});
+
+registerBlockRenderer("action_list", (block) => <ActionListBlock block={block} />);
+
+/** Рендер блока: зарегистрированный тип -> его рендер, иначе аккуратный фолбэк. */
+export function ChatBlockView({ block }: { block: ChatBlock }): ReactNode {
+  const render = _renderers.get(block.type);
+  return render ? render(block) : <FallbackBlock block={block} />;
 }
