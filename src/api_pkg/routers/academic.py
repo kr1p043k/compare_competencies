@@ -367,7 +367,14 @@ async def sso_login(body: SsoRequest, request: Request, response: Response):
     }
 
 
-@router.get("/academic/krm-competencies")
+class AcademicKrmCompetenciesBody(BaseModel):
+    """Коды компетенций ОП для current_competencies в analyze-gap."""
+
+    codes: list[str]
+    count: int
+
+
+@router.get("/academic/krm-competencies", response_model=AcademicKrmCompetenciesBody)
 @limiter.limit("60/minute")
 async def academic_krm_competencies(
     request: Request,
