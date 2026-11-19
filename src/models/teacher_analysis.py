@@ -11,12 +11,17 @@ logger = structlog.get_logger(__name__)
 
 @dataclass
 class SkillMatch:
-    """Совпадение навыка с рынком."""
+    """Сопоставление навыка с рынком."""
     skill_name: str
     frequency: int = 0
     market_match: str | None = None
     match_type: str = "exact"  # exact | fuzzy | substring
     confidence: float = 1.0
+    # Provenance (BACKLOG 2.3): откуда требование и откуда рынок.
+    # source: "ksa" (сырой текст KSA/РПД) | "whitelist" (канон skills) |
+    #         "parsed_skills" (из описаний вакансий).
+    source: str = "ksa"
+    market_source: str = "parsed_skills"
 
 
 @dataclass
@@ -55,6 +60,8 @@ class DisciplineCoverage:
     top_matched: list[SkillMatch] = field(default_factory=list)
     matched_market: list[str] = field(default_factory=list)
     gaps_list: list[str] = field(default_factory=list)
+    # Provenance пробелов (BACKLOG 2.3): имя -> {source, ksa_type}.
+    gaps_detail: list[dict] = field(default_factory=list)
     emerging: list[SkillMatch] = field(default_factory=list)
     truly_missing: list[SkillMatch] = field(default_factory=list)
     cross_references: list[CrossReference] = field(default_factory=list)

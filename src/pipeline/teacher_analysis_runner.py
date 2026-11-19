@@ -1010,10 +1010,12 @@ async def run_teacher_analysis(
                 "coverage_level": coverage.coverage_level,
                 "top_market_matched_skills": [
                     {"skill": m.skill_name, "matched_as": m.market_match,
-                     "frequency": m.frequency, "match_type": m.match_type}
+                     "frequency": m.frequency, "match_type": m.match_type,
+                     "source": m.source, "market_source": m.market_source}
                     for m in coverage.top_matched
                 ],
                 "gaps_in_curriculum": coverage.gaps_list,
+                "gaps_detail": coverage.gaps_detail,
                 "emerging_market_skills_not_in_rpd": [
                     {"skill": e.skill_name, "frequency": e.frequency}
                     for e in coverage.emerging
