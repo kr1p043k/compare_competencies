@@ -23,6 +23,24 @@
         "title": "AcademicKrmCompetenciesBody",
         "type": "object"
       },
+      "AccessCheckResponse": {
+        "properties": {
+          "access": {
+            "title": "Access",
+            "type": "boolean"
+          },
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access",
+          "dir_code"
+        ],
+        "title": "AccessCheckResponse",
+        "type": "object"
+      },
       "AdminStepUpRequest": {
         "description": "Подтверждение опасной операции над другим администратором.",
         "properties": {
@@ -882,6 +900,53 @@
         "title": "DeepSearchStatusOut",
         "type": "object"
       },
+      "DisciplineCompetencyOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "skills": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "DisciplineCompetencyOut",
+        "type": "object"
+      },
+      "DisciplineDetailResponse": {
+        "properties": {
+          "competencies": {
+            "items": {
+              "$ref": "#/components/schemas/DisciplineCompetencyOut"
+            },
+            "title": "Competencies",
+            "type": "array"
+          },
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "dir_code",
+          "competencies"
+        ],
+        "title": "DisciplineDetailResponse",
+        "type": "object"
+      },
       "DisciplineScopeIn": {
         "properties": {
           "keywords": {
@@ -902,6 +967,29 @@
           }
         },
         "title": "DisciplineScopeIn",
+        "type": "object"
+      },
+      "DisciplineSummaryOut": {
+        "properties": {
+          "competencies_count": {
+            "title": "Competencies Count",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "skills_count": {
+            "title": "Skills Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "competencies_count",
+          "skills_count"
+        ],
+        "title": "DisciplineSummaryOut",
         "type": "object"
       },
       "EmbeddingsRequest": {
@@ -2827,6 +2915,18 @@
         "title": "StatusResponse",
         "type": "object"
       },
+      "StudentActionAck": {
+        "description": "Подтверждение записи действия.",
+        "properties": {
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "StudentActionAck",
+        "type": "object"
+      },
       "StudentCreatedBody": {
         "properties": {
           "profile_name": {
@@ -2851,6 +2951,23 @@
           "skills"
         ],
         "title": "StudentCreatedBody",
+        "type": "object"
+      },
+      "StudentHistoryResponse": {
+        "description": "История действий студента.",
+        "properties": {
+          "history": {
+            "items": {},
+            "title": "History",
+            "type": "array"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "StudentHistoryResponse",
         "type": "object"
       },
       "StudentImportItem": {
@@ -3032,6 +3149,78 @@
           "coverage"
         ],
         "title": "TaxonomyCoverageResponse",
+        "type": "object"
+      },
+      "TeacherDirectionOut": {
+        "properties": {
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "disciplines_count": {
+            "default": 0,
+            "title": "Disciplines Count",
+            "type": "integer"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "profile": {
+            "default": "",
+            "title": "Profile",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dir_code"
+        ],
+        "title": "TeacherDirectionOut",
+        "type": "object"
+      },
+      "TeacherHistoryResponse": {
+        "description": "Ряды метрик охвата по снапшотам (oldest first) + дельта.",
+        "properties": {
+          "delta": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta"
+          },
+          "first": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First"
+          },
+          "last": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last"
+          },
+          "points": {
+            "items": {},
+            "title": "Points",
+            "type": "array"
+          },
+          "skipped_lines": {
+            "default": 0,
+            "title": "Skipped Lines",
+            "type": "integer"
+          }
+        },
+        "title": "TeacherHistoryResponse",
         "type": "object"
       },
       "TopSkillsResponse": {
@@ -7317,7 +7506,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AccessCheckResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7399,7 +7590,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DisciplineSummaryOut"
+                  },
+                  "title": "Response Krm Teacher Disciplines Api Krm Teacher Directions  Dir Code  Disciplines Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -7449,7 +7646,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/DisciplineDetailResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7530,7 +7729,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeacherDirectionOut"
+                  },
+                  "title": "Response Krm Teacher My Directions Api Krm Teacher My Directions Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -9749,7 +9954,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/StudentHistoryResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9789,7 +9996,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/StudentActionAck"
+                }
               }
             },
             "description": "Successful Response"
@@ -10616,9 +10825,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Teacher History Api Teacher History Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/TeacherHistoryResponse"
                 }
               }
             },
