@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef, memo, useMemo, useCallback } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { VacancyCard } from "./VacancyCard";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { motion } from "motion/react";
 import { VacancyDetailPanel } from "./VacancyDetailPanel";
 import {
   Badge,
@@ -14,127 +13,22 @@ import {
   inputClass,
 } from "../../design";
 import { cn } from "./ui/utils";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
-import { Search, X, Filter, Loader2, AlertCircle, ChevronLeft, ChevronRight, ChevronUp, LayoutGrid, List, Database, Rocket, Globe, MapPin, ChevronDown, Download } from "lucide-react";
+import { Search, Filter, Loader2, AlertCircle, ChevronUp, LayoutGrid, List, Database, Rocket, Globe, MapPin, ChevronDown } from "lucide-react";
 import { reportError } from "./../../lib/errors";
-import { download, request, saveBlob } from "../../lib/api";
+import { request } from "../../lib/api";
 import { useIncrementalList } from "../../lib/useIncrementalList";
-
-const HH_REGIONS = [
-  "Москва", "Санкт-Петербург", "Екатеринбург", "Новосибирск",
-  "Нижний Новгород", "Казань", "Самара", "Ростов-на-Дону", "Уфа", "Красноярск",
-  "Пермь", "Воронеж", "Волгоград", "Краснодар", "Саратов", "Тюмень",
-  "Тольятти", "Ижевск", "Барнаул", "Иркутск", "Ульяновск", "Хабаровск",
-  "Владивосток", "Ярославль", "Махачкала", "Томск", "Оренбург", "Кемерово",
-  "Новокузнецк", "Рязань", "Астрахань", "Пенза", "Набережные Челны", "Липецк",
-  "Тула", "Киров", "Чебоксары", "Калининград", "Брянск", "Курск", "Иваново",
-  "Магнитогорск", "Тверь", "Ставрополь", "Белгород", "Сочи", "Нижний Тагил",
-  "Владимир", "Архангельск", "Калуга", "Сургут", "Чита", "Грозный",
-  "Смоленск", "Волжский", "Курган", "Орёл", "Череповец", "Вологда",
-  "Мурманск", "Саранск", "Якутск", "Подольск", "Стерлитамак", "Петрозаводск",
-  "Кострома", "Новороссийск", "Йошкар-Ола", "Таганрог",
-  "Комсомольск-на-Амуре", "Сыктывкар", "Нижневартовск", "Нальчик", "Шахты",
-  "Дзержинск", "Благовещенск", "Прокопьевск", "Рыбинск", "Бийск",
-  "Великий Новгород", "Северодвинск", "Псков", "Новочеркасск",
-  "Южно-Сахалинск", "Батайск", "Кызыл", "Абакан", "Майкоп", "Черкесск",
-  "Элиста", "Магадан", "Анадырь", "Биробиджан", "Нарьян-Мар", "Салехард",
-  "Ханты-Мансийск", "Горно-Алтайск", "Улан-Удэ", "Петропавловск-Камчатский",
-  "Севастополь",
-];
-
-const HH_REGION_MAP: Record<string, number> = {
-  "Москва": 1, "Санкт-Петербург": 2, "Екатеринбург": 3, "Новосибирск": 4,
-  "Нижний Новгород": 66, "Казань": 88, "Самара": 78, "Ростов-на-Дону": 76,
-  "Уфа": 99, "Красноярск": 54, "Пермь": 72, "Воронеж": 26, "Волгоград": 24,
-  "Краснодар": 53, "Саратов": 79, "Тюмень": 95, "Тольятти": 212, "Ижевск": 96,
-  "Барнаул": 11, "Иркутск": 35, "Ульяновск": 98, "Хабаровск": 102,
-  "Владивосток": 22, "Ярославль": 112, "Махачкала": 29, "Томск": 90,
-  "Оренбург": 70, "Кемерово": 47, "Новокузнецк": 1240, "Рязань": 77,
-  "Астрахань": 15, "Пенза": 71, "Набережные Челны": 1641, "Липецк": 58,
-  "Тула": 92, "Киров": 49, "Чебоксары": 107, "Калининград": 41, "Брянск": 19,
-  "Курск": 56, "Иваново": 32, "Магнитогорск": 1399, "Тверь": 89,
-  "Ставрополь": 84, "Белгород": 17, "Сочи": 237, "Нижний Тагил": 1291,
-  "Владимир": 23, "Архангельск": 14, "Калуга": 43, "Сургут": 1381,
-  "Чита": 106, "Грозный": 105, "Смоленск": 83, "Волжский": 1512,
-  "Курган": 55, "Орёл": 69, "Череповец": 1753, "Вологда": 25,
-  "Мурманск": 64, "Саранск": 63, "Якутск": 80, "Подольск": 2061,
-  "Стерлитамак": 1364, "Петрозаводск": 73, "Кострома": 52,
-  "Новороссийск": 1454, "Йошкар-Ола": 61, "Таганрог": 1550,
-  "Комсомольск-на-Амуре": 1979, "Сыктывкар": 51, "Нижневартовск": 1375,
-  "Нальчик": 39, "Шахты": 1552, "Дзержинск": 247, "Благовещенск": 12,
-  "Прокопьевск": 1243, "Рыбинск": 1814, "Бийск": 1220,
-  "Великий Новгород": 67, "Северодвинск": 1017, "Псков": 75,
-  "Новочеркасск": 1545, "Южно-Сахалинск": 81, "Батайск": 1533,
-  "Кызыл": 91, "Абакан": 103, "Майкоп": 8, "Черкесск": 46, "Элиста": 42,
-  "Магадан": 60, "Анадырь": 219, "Биробиджан": 31, "Нарьян-Мар": 1986,
-  "Салехард": 304, "Ханты-Мансийск": 147, "Горно-Алтайск": 10,
-  "Улан-Удэ": 20, "Петропавловск-Камчатский": 44, "Севастополь": 130,
-};
-
-interface VacancyInfo {
-  count: number;
-  with_skills?: number;
-  file_modified: string | null;
-  date_range: { from: string; to: string } | null;
-  load_error: string | null;
-}
-
-interface Vacancy {
-  id: string;
-  name: string;
-  experience: string;
-  salary_from?: number;
-  salary_to?: number;
-  salary_currency?: string;
-  employer_name: string;
-  employer_logo?: string;
-  area: string;
-  published_at: string;
-  alternate_url: string;
-  skills: string[];
-  snippet?: {
-    requirement?: string;
-    responsibility?: string;
-  };
-}
-
-interface VacanciesResponse {
-  items: Vacancy[];
-  total: number;
-  limit: number;
-  offset: number;
-  has_more: boolean;
-}
-
-interface PipelineStep {
-  step: number;
-  total: number;
-  status: "running" | "success" | "error" | "completed";
-  message: string;
-  progress: number;
-}
-
-interface VacanciesListProps {
-  pipelineStep?: PipelineStep | null;
-  pipelineLoading?: boolean;
-  restartFlag?: number;
-  onStartPipeline?: (regionIds: string, profession: string, maxPages?: number, periodDays?: number) => void;
-  canRunPipeline?: boolean;
-}
-
-// Строки списка не перерисовываются от ререндеров VacanciesList
-// (health-poll и статусы пайплайна дёргают App сверху): React.memo обёртка.
-const MemoVacancyCard = memo(VacancyCard);
-
-// Инкрементальный рендер списка: столько карточек рисуем сразу
-// и столько же добавляем при «Показать ещё» / прокрутке к sentinel.
-const PAGE_SIZE = 24;
+import { HH_REGIONS, HH_REGION_MAP, PAGE_SIZE, fmtDateRU } from "./vacancies/constants";
+import type {
+  AppliedFilters,
+  Vacancy,
+  VacanciesListProps,
+  VacanciesResponse,
+  VacancyInfo,
+} from "./vacancies/types";
+import { MemoVacancyCard } from "./vacancies/VacancyCard";
+import { VacancyFiltersDrawer } from "./vacancies/VacancyFiltersDrawer";
+import { VacancyPagination } from "./vacancies/VacancyPagination";
+import { VacancyStatsBar } from "./vacancies/VacancyStatsBar";
 
 export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onStartPipeline, canRunPipeline = true }: VacanciesListProps) {
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
@@ -162,7 +56,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [monthsFilter, setMonthsFilter] = useState<number | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [applied, setApplied] = useState<{ search: string; experience: string; city: string; months: number | null; date_from: string; date_to: string }>({ search: "", experience: "all", city: "all", months: null, date_from: "", date_to: "" });
+  const [applied, setApplied] = useState<AppliedFilters>({ search: "", experience: "all", city: "all", months: null, date_from: "", date_to: "" });
   const activeFilterCount = [
     experienceFilter !== "all",
     cityFilter !== "all",
@@ -174,17 +68,6 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   // 48 на страницу: столько забираем с сервера. Больше окна рендера (PAGE_SIZE
   // = 24), поэтому инкрементальный показ реально включается, а не простаивает.
   const itemsPerPage = 48;
-  const fmtDateRU = (iso: string) => {
-    const p = (iso || "").slice(0, 10).split("-");
-    return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : iso;
-  };
-  const PERIOD_PRESETS: { value: number | null; label: string }[] = [
-    { value: null, label: "Всё время" },
-    { value: 1, label: "Месяц" },
-    { value: 3, label: "3 месяца" },
-    { value: 6, label: "Полгода" },
-    { value: 12, label: "Год" },
-  ];
 
   useEffect(() => {
     loadVacancies();
@@ -302,7 +185,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
     } catch (err) { reportError("app/components/VacanciesList.tsx:269", err); }
   };
 
-  const applyFilters = (over: Partial<{ search: string; experience: string; city: string; months: number | null; date_from: string; date_to: string }> = {}) => {
+  const applyFilters = (over: Partial<AppliedFilters> = {}) => {
     setApplied({
       search: searchQuery,
       experience: experienceFilter,
@@ -749,249 +632,32 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       </motion.div>
 
       {/* Фильтры выезжают справа */}
-      <AnimatePresence>
-        {filterOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40 bg-overlay"
-              onClick={() => setFilterOpen(false)}
-            />
-            <motion.aside
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "tween", duration: 0.22, ease: "easeOut" }}
-              className="fixed top-0 right-0 bottom-0 z-50 w-full sm:max-w-lg bg-background border-l border-border dark:border-border shadow-sm flex flex-col"
-            >
-              <div className="flex items-center justify-between gap-3 p-5 border-b border-border dark:border-border">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-primary p-2">
-                    <Filter className="size-5 text-primary-foreground" />
-                  </div>
-                  <div>
-                    <div className="text-lg font-semibold text-foreground">Фильтры и поиск</div>
-                    <div className="text-xs text-muted-foreground">
-                      {activeFilterCount > 0 ? `Активно: ${activeFilterCount}` : "Показаны все вакансии"}
-                    </div>
-                  </div>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => setFilterOpen(false)} title="Закрыть" aria-label="Закрыть фильтры" className="size-9 shrink-0 p-0">
-                  <X className="size-4" />
-                </Button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-6">
-            <div className="space-y-6">
-              {/* Search */}
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
-                  Поиск по названию
-                </label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                    <input
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyPress={handleSearchKeyPress}
-                      placeholder="Должность или компания"
-                      className={cn(inputClass, "pl-10")}
-                    />
-                  </div>
-                  <Button
-                    onClick={handleSearch}
-                    disabled={loading}
-                    aria-label="Найти"
-                    className="h-10 w-10 p-0"
-                  >
-                    {loading ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Search className="size-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="border-t border-border dark:border-border" />
-
-              {/* Experience + city */}
-              <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
-                  Опыт
-                </label>
-                <Select value={experienceFilter} onValueChange={(v) => { setExperienceFilter(v); }}>
-                  <SelectTrigger className="h-10 rounded-lg">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Все уровни</SelectItem>
-                    <SelectItem value="junior">Junior</SelectItem>
-                    <SelectItem value="middle">Middle</SelectItem>
-                    <SelectItem value="senior">Senior</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* City filter */}
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
-                  Город
-                </label>
-                <Select value={cityFilter} onValueChange={(v) => { setCityFilter(v); }}>
-                  <SelectTrigger className="h-10 rounded-lg">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-80">
-                    <SelectItem value="all">Все города</SelectItem>
-                    {allCityOptions.map(city => (
-                      <SelectItem key={city} value={city}>
-                        {city}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              </div>
-
-              <div className="border-t border-border dark:border-border" />
-
-              {/* Period presets */}
-              <div className="space-y-3">
-                <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
-                  Период
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {PERIOD_PRESETS.map(p => {
-                    const isActive = monthsFilter === p.value && !dateFrom && !dateTo;
-                    const dimmed = (dateFrom !== "" || dateTo !== "") && p.value !== null;
-                    return (
-                      <Button
-                        key={p.label}
-                        type="button"
-                        variant={isActive ? "primary" : "secondary"}
-                        size="sm"
-                        onClick={() => { setMonthsFilter(p.value); if (p.value !== null) { setDateFrom(""); setDateTo(""); } }}
-                        className={cn("h-9 rounded-full px-4 text-sm font-medium", dimmed && "opacity-40")}
-                      >
-                        {p.label}
-                      </Button>
-                    );
-                  })}
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    min={vacancyInfo?.date_range?.from?.slice(0, 10)}
-                    max={dateTo || vacancyInfo?.date_range?.to?.slice(0, 10)}
-                    onChange={(e) => { setDateFrom(e.target.value); if (e.target.value) setMonthsFilter(null); }}
-                    className={cn(inputClass, "dark:[color-scheme:dark]")}
-                    aria-label="Дата от"
-                  />
-                  <span className="text-sm text-muted-foreground">-</span>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    min={dateFrom || vacancyInfo?.date_range?.from?.slice(0, 10)}
-                    max={vacancyInfo?.date_range?.to?.slice(0, 10)}
-                    onChange={(e) => { setDateTo(e.target.value); if (e.target.value) setMonthsFilter(null); }}
-                    className={cn(inputClass, "dark:[color-scheme:dark]")}
-                    aria-label="Дата до"
-                  />
-                </div>
-                {vacancyInfo?.date_range && (
-                  <p className="text-xs text-muted-foreground">
-                    Записи с {fmtDateRU(vacancyInfo.date_range.from)}
-                  </p>
-                )}
-              </div>
-            </div>
-            </div>
-
-            {/* Active filters */}
-            {(applied.experience !== "all" || applied.city !== "all" || applied.search || applied.months !== null || applied.date_from || applied.date_to) && (
-              <div className="flex flex-wrap items-center gap-2 px-6 pt-4 border-t border-border dark:border-border">
-                {applied.experience !== "all" && (
-                  <Badge
-                    tone="neutral"
-                    className="cursor-pointer hover:bg-foreground/10"
-                    onClick={() => { setExperienceFilter("all"); applyFilters({ experience: "all" }); }}
-                  >
-                    {applied.experience} ✕
-                  </Badge>
-                )}
-                {applied.city !== "all" && (
-                  <Badge
-                    tone="neutral"
-                    className="cursor-pointer hover:bg-foreground/10"
-                    onClick={() => { setCityFilter("all"); applyFilters({ city: "all" }); }}
-                  >
-                    {applied.city} ✕
-                  </Badge>
-                )}
-                {applied.search && (
-                  <Badge
-                    tone="neutral"
-                    className="cursor-pointer hover:bg-foreground/10"
-                    onClick={() => {
-                      setSearchQuery("");
-                      applyFilters({ search: "" });
-                    }}
-                  >
-                    "{applied.search}" ✕
-                  </Badge>
-                )}
-                {applied.months !== null && (
-                  <Badge
-                    tone="neutral"
-                    className="cursor-pointer hover:bg-foreground/10"
-                    onClick={() => { setMonthsFilter(null); applyFilters({ months: null }); }}
-                  >
-                    {applied.months} мес ✕
-                  </Badge>
-                )}
-                {(applied.date_from || applied.date_to) && (
-                  <Badge
-                    tone="neutral"
-                    className="cursor-pointer hover:bg-foreground/10"
-                    onClick={() => { setDateFrom(""); setDateTo(""); applyFilters({ date_from: "", date_to: "" }); }}
-                  >
-                    {applied.date_from ? fmtDateRU(applied.date_from) : "…"} - {applied.date_to ? fmtDateRU(applied.date_to) : "…"} ✕
-                  </Badge>
-                )}
-              </div>
-            )}
-              <div className="flex items-center gap-3 p-5 border-t border-border dark:border-border bg-background">
-                <Button
-                  onClick={() => { applyFilters(); setFilterOpen(false); }}
-                  disabled={loading}
-                  className="gap-2 h-10 flex-1 rounded-lg whitespace-nowrap hover:bg-primary/90 hover:brightness-100"
-                >
-                  {loading ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Search className="size-4" />
-                  )}
-                  Показать вакансии{total > 0 ? ` (${total})` : ""}
-                </Button>
-                <Button
-                  onClick={clearFilters}
-                  disabled={loading || activeFilterCount === 0}
-                  variant="secondary"
-                  className="gap-2 h-10 rounded-lg whitespace-nowrap text-muted-foreground"
-                >
-                  <X className="size-4" />
-                  Сбросить
-                </Button>
-              </div>
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
+      <VacancyFiltersDrawer
+        open={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        activeFilterCount={activeFilterCount}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        onSearchKeyPress={handleSearchKeyPress}
+        onSearch={handleSearch}
+        loading={loading}
+        experienceFilter={experienceFilter}
+        onExperienceChange={setExperienceFilter}
+        cityFilter={cityFilter}
+        onCityChange={setCityFilter}
+        allCityOptions={allCityOptions}
+        monthsFilter={monthsFilter}
+        onMonthsChange={setMonthsFilter}
+        dateFrom={dateFrom}
+        onDateFromChange={setDateFrom}
+        dateTo={dateTo}
+        onDateToChange={setDateTo}
+        vacancyInfo={vacancyInfo}
+        applied={applied}
+        onApplyFilters={applyFilters}
+        total={total}
+        onClearFilters={clearFilters}
+      />
 
       {/* Vacancies Grid */}
       {loading ? (
@@ -1098,44 +764,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       ) : (
         <>
           {/* Count + Export */}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
-              Найдено <span className="font-semibold text-foreground dark:text-muted-foreground">{total}</span> вакансий
-              {visible < total && (
-                <span> (показано {visible})</span>
-              )}
-            </p>
-            <Button
-              variant="secondary"
-              size="sm"
-              title={canRunPipeline === false ? "Экспорт доступен преподавателям" : undefined}
-              onClick={async () => {
-                try {
-                  const eq = new URLSearchParams();
-                  if (applied.search.trim()) eq.append("search", applied.search.trim());
-                  if (applied.experience !== "all") eq.append("experience", applied.experience);
-                  if (applied.city !== "all") eq.append("region", applied.city);
-                  if (applied.months) eq.append("months", String(applied.months));
-                  if (applied.date_from) eq.append("date_from", applied.date_from);
-                  if (applied.date_to) eq.append("date_to", applied.date_to);
-                  const qs = eq.toString();
-                  const { blob, filename } = await download(
-                    `/api/teacher/export/vacancies${qs ? `?${qs}` : ""}`,
-                  );
-                  saveBlob(
-                    blob,
-                    filename ?? `vacancies_skills_${new Date().toISOString().split("T")[0]}.xlsx`,
-                  );
-                } catch (e) {
-                  console.error("Export failed:", e);
-                }
-              }}
-              className={cn("gap-2", canRunPipeline === false && "hidden")}
-            >
-              <Download className="size-4" />
-              Excel
-            </Button>
-          </div>
+          <VacancyStatsBar total={total} visible={visible} canRunPipeline={canRunPipeline} applied={applied} />
 
           <div
             className={
@@ -1173,61 +802,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="flex items-center justify-center gap-2"
-            >
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1 || loading}
-                aria-label="Предыдущая страница"
-                className="size-10 p-0"
-              >
-                <ChevronLeft className="size-4" />
-              </Button>
-
-              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                let pageNum: number;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
-
-                return (
-                  <Button
-                    key={pageNum}
-                    variant={currentPage === pageNum ? "primary" : "secondary"}
-                    size="sm"
-                    onClick={() => setCurrentPage(pageNum)}
-                    disabled={loading}
-                    aria-current={currentPage === pageNum ? "page" : undefined}
-                    className="size-10 p-0"
-                  >
-                    {pageNum}
-                  </Button>
-                );
-              })}
-
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages || loading}
-                aria-label="Следующая страница"
-                className="size-10 p-0"
-              >
-                <ChevronRight className="size-4" />
-              </Button>
-            </motion.div>
+            <VacancyPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              loading={loading}
+              onPageChange={setCurrentPage}
+            />
           )}
         </>
       )}
