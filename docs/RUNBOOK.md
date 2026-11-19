@@ -337,6 +337,25 @@ docker compose up -d backend prometheus --force-recreate
   `reachable=false` с причиной.
 - Диагностика шторма 5xx и алертов - разделы 4 и 4.1.
 
+### 7.3 ML-модель не загрузилась / объяснения недоступны
+
+Симптомы: `/api/results/ml-explanations/{profile}` отдаёт `explanations: []` и
+`message: "ML-модель не обучена - объяснения недоступны..."`; `GET /health`
+показывает `ltr_model_version: null`. Это деградация, а не 500: базовый
+gap-анализ и покрытие продолжают работать.
+
+1. Валидность артефакта и манифестов: `python scripts/check_model_manifests.py`
+   (сверяет `feature_names`, наличие NDCG@10, список несовместимых моделей).
+2. Версия прод-модели и кластеров: `curl -s http://localhost:8000/health`;
+   артефакты лежат в `data/models/`, манифесты - `<name>.manifest.json`.
+3. Нет/битый артефакт - переобучить: `python scripts/retrain_ranker.py`,
+   затем `docker compose restart backend` (движок грузится на старте).
+4. Выбор прод-модели детерминирован по NDCG
+   (`src/predictors/ltr_recommendation_engine.py`); рассинхрон ловит
+   `check_model_manifests.py`, регресс - `scripts/check_feature_drift.py`.
+5. Не блокировать сервис из-за ML: объяснения - опциональная фича, остальное
+   должно оставаться доступным.
+
 ### 7.3 ML-анализатор не загрузился
 
 Симптомы: эндпоинты оценки профиля отвечают `503 "Анализатор ещё не загружен"`
