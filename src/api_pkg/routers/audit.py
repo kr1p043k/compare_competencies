@@ -9,6 +9,7 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -18,6 +19,38 @@ from src.database import async_session_factory
 from src.models.krm_models import AuditLog
 
 logger = structlog.get_logger("api")
+
+class AuditEntry(BaseModel):
+    """Одна запись журнала аудита."""
+
+    id: str
+    actor_email: str | None = None
+    actor_role: str | None = None
+    action: str
+    target_type: str | None = None
+    target_id: str | None = None
+    target: str | None = None
+    meta: dict[str, Any] | None = None
+    ip: str | None = None
+    request_id: str | None = None
+    created_at: str | None = None
+
+
+class AuditPage(BaseModel):
+    """Страница журнала аудита."""
+
+    entries: list[AuditEntry]
+    total: int
+    limit: int
+    offset: int
+
+
+class AuditActions(BaseModel):
+    """Список действий, встречающихся в журнале."""
+
+    actions: list[str]
+    total: int
+
 
 router = APIRouter(tags=["audit"], dependencies=[Depends(require_any_role("admin"))])
 
@@ -68,7 +101,7 @@ def _serialize_audit(row: AuditLog) -> dict[str, Any]:
     }
 
 
-@router.get("/admin/audit")
+@router.get("/admin/audit", response_model=AuditPage)
 @limiter.limit("30/minute")
 async def list_audit(
     request: Request,
@@ -126,7 +159,7 @@ async def list_audit(
     }
 
 
-@router.get("/admin/audit/actions")
+@router.get("/admin/audit/actions", response_model=AuditActions)
 @limiter.limit("30/minute")
 async def list_audit_actions(request: Request):
     """Уникальные action для фильтра UI (алфавит, максимум 200)."""
