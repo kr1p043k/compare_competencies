@@ -411,3 +411,44 @@ class PublicationTypesResponse(BaseModel):
     exact: bool = True
     failed_probes: int = 0
     source: str = "hub.sfedu.ru"
+
+
+class ProfileListResponse(BaseModel):
+    """Список доступных профилей обучения (встроенные + созданные)."""
+    profiles: list[str]
+
+
+class VacancyInfoResponse(BaseModel):
+    """Диагностика загруженного среза вакансий (count, диапазон дат, статус)."""
+    count: int = 0
+    total_vacancies: int = 0
+    with_skills: int = 0
+    file_modified: Any | None = None
+    date_range: Any | None = None
+    load_error: Any | None = None
+    cache_status: dict[str, Any] = Field(default_factory=dict)
+    last_updated: str | None = None
+    last_pipeline_stats: Any | None = None
+    db_available: bool = False
+
+
+class NameCountItem(BaseModel):
+    """Пара (название, количество) для топ-списков."""
+    name: str | None = None
+    count: int = 0
+
+
+class VacancySkillsStats(BaseModel):
+    """Покрытие вакансий навыками."""
+    with_skills: int = 0
+    total: int = 0
+    percent: float = 0.0
+    avg_skills_per_vacancy: float = 0.0
+
+
+class VacancyAnalyticsResponse(BaseModel):
+    """Аналитика рынка: зарплаты по уровням, регионы, работодатели, навыки."""
+    salary_by_level: dict[str, Any] = Field(default_factory=dict)
+    top_regions: list[NameCountItem] = Field(default_factory=list)
+    top_employers: list[NameCountItem] = Field(default_factory=list)
+    skills: VacancySkillsStats = Field(default_factory=VacancySkillsStats)

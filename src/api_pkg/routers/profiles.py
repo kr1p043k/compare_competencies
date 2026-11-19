@@ -24,6 +24,7 @@ from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.models.api_responses import (
     DeadSkillsResponse,
     MissingSkillsResponse,
+    ProfileListResponse,
     ProfilesCompareResponse,
     ProfileShort,
 )
@@ -133,7 +134,11 @@ async def compare_profiles(
     return {"profiles": evaluations}
 
 
-@router.get("/profiles", dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])
+@router.get(
+    "/profiles",
+    response_model=ProfileListResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
+)
 @limiter.limit("60/minute")
 async def list_profiles(request: Request):
     """Profile names available in memory (built-ins + custom created via POST /profiles/custom)."""
