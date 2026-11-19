@@ -27,6 +27,9 @@ _DRIVER_SUFFIXES = ("+asyncpg", "+psycopg", "+psycopg2")
 class DSNNotConfiguredError(RuntimeError):
     """DSN не найден ни в аргументах, ни в окружении, ни в .env."""
 
+# Совместимость: старое имя класса (tests/test_article_*.py).
+DSNNotConfigured = DSNNotConfiguredError
+
 
 def _read_dotenv() -> str:
     env_path = ROOT / ".env"
