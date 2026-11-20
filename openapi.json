@@ -1013,6 +1013,408 @@
         "title": "ExperienceLevel",
         "type": "string"
       },
+      "ForecastEngineStatusResponse": {
+        "description": "Статус фонового фита Prophet.",
+        "properties": {
+          "elapsed_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elapsed Seconds"
+          },
+          "engine": {
+            "default": "trend",
+            "title": "Engine",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "eta_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Seconds"
+          },
+          "finished_at": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "progress": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress"
+          },
+          "prophet_fitted": {
+            "default": false,
+            "title": "Prophet Fitted",
+            "type": "boolean"
+          },
+          "prophet_models": {
+            "default": 0,
+            "title": "Prophet Models",
+            "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          }
+        },
+        "title": "ForecastEngineStatusResponse",
+        "type": "object"
+      },
+      "ForecastItem": {
+        "description": "Один прогноз навыка (см. forecast._serialize).",
+        "properties": {
+          "confidence": {
+            "default": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "current_frequency": {
+            "default": 0.0,
+            "title": "Current Frequency",
+            "type": "number"
+          },
+          "data_points": {
+            "default": 0,
+            "title": "Data Points",
+            "type": "integer"
+          },
+          "engine_used": {
+            "default": "trend",
+            "title": "Engine Used",
+            "type": "string"
+          },
+          "forecast_months": {
+            "default": 0,
+            "title": "Forecast Months",
+            "type": "integer"
+          },
+          "mape": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mape"
+          },
+          "method": {
+            "default": "trend",
+            "title": "Method",
+            "type": "string"
+          },
+          "next_year_frequency": {
+            "default": 0.0,
+            "title": "Next Year Frequency",
+            "type": "number"
+          },
+          "predicted_change_pct": {
+            "default": 0.0,
+            "title": "Predicted Change Pct",
+            "type": "number"
+          },
+          "predicted_growth": {
+            "default": 0.0,
+            "title": "Predicted Growth",
+            "type": "number"
+          },
+          "skill": {
+            "title": "Skill",
+            "type": "string"
+          },
+          "trend_direction": {
+            "default": "growing",
+            "title": "Trend Direction",
+            "type": "string"
+          },
+          "uncertainty_lower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncertainty Lower"
+          },
+          "uncertainty_upper": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncertainty Upper"
+          }
+        },
+        "required": [
+          "skill"
+        ],
+        "title": "ForecastItem",
+        "type": "object"
+      },
+      "ForecastListResponse": {
+        "description": "Постраничный список прогнозов + метаданные движка.",
+        "properties": {
+          "engine": {
+            "default": "trend",
+            "title": "Engine",
+            "type": "string"
+          },
+          "forecasts": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastItem"
+            },
+            "title": "Forecasts",
+            "type": "array"
+          },
+          "limit": {
+            "default": 0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "months": {
+            "default": 0,
+            "title": "Months",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "prophet_fitted": {
+            "default": false,
+            "title": "Prophet Fitted",
+            "type": "boolean"
+          },
+          "prophet_models": {
+            "default": 0,
+            "title": "Prophet Models",
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "ForecastListResponse",
+        "type": "object"
+      },
+      "ForecastObservedResponse": {
+        "description": "Наблюдаемые изменения частот (без прогноза).",
+        "properties": {
+          "direction": {
+            "default": "",
+            "title": "Direction",
+            "type": "string"
+          },
+          "engine": {
+            "default": "trend",
+            "title": "Engine",
+            "type": "string"
+          },
+          "forecasts": {
+            "items": {},
+            "title": "Forecasts",
+            "type": "array"
+          },
+          "max_points": {
+            "default": 0,
+            "title": "Max Points",
+            "type": "integer"
+          },
+          "months": {
+            "default": 0,
+            "title": "Months",
+            "type": "integer"
+          },
+          "n": {
+            "default": 0,
+            "title": "N",
+            "type": "integer"
+          },
+          "prophet_fitted": {
+            "default": false,
+            "title": "Prophet Fitted",
+            "type": "boolean"
+          },
+          "prophet_models": {
+            "default": 0,
+            "title": "Prophet Models",
+            "type": "integer"
+          },
+          "required_points": {
+            "default": 0,
+            "title": "Required Points",
+            "type": "integer"
+          }
+        },
+        "title": "ForecastObservedResponse",
+        "type": "object"
+      },
+      "ForecastPopularResponse": {
+        "description": "Самые популярные навыки рынка.",
+        "properties": {
+          "direction": {
+            "default": "popular",
+            "title": "Direction",
+            "type": "string"
+          },
+          "engine": {
+            "default": "trend",
+            "title": "Engine",
+            "type": "string"
+          },
+          "forecasts": {
+            "items": {},
+            "title": "Forecasts",
+            "type": "array"
+          },
+          "months": {
+            "default": 0,
+            "title": "Months",
+            "type": "integer"
+          },
+          "n": {
+            "default": 0,
+            "title": "N",
+            "type": "integer"
+          },
+          "prophet_fitted": {
+            "default": false,
+            "title": "Prophet Fitted",
+            "type": "boolean"
+          },
+          "prophet_models": {
+            "default": 0,
+            "title": "Prophet Models",
+            "type": "integer"
+          }
+        },
+        "title": "ForecastPopularResponse",
+        "type": "object"
+      },
+      "ForecastTopResponse": {
+        "description": "Топ растущих/падающих навыков.",
+        "properties": {
+          "direction": {
+            "default": "",
+            "title": "Direction",
+            "type": "string"
+          },
+          "engine": {
+            "default": "trend",
+            "title": "Engine",
+            "type": "string"
+          },
+          "forecasts": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastItem"
+            },
+            "title": "Forecasts",
+            "type": "array"
+          },
+          "months": {
+            "default": 0,
+            "title": "Months",
+            "type": "integer"
+          },
+          "n": {
+            "default": 0,
+            "title": "N",
+            "type": "integer"
+          },
+          "prophet_fitted": {
+            "default": false,
+            "title": "Prophet Fitted",
+            "type": "boolean"
+          },
+          "prophet_models": {
+            "default": 0,
+            "title": "Prophet Models",
+            "type": "integer"
+          },
+          "reliable": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reliable"
+          },
+          "requested_months": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Months"
+          },
+          "total": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "title": "ForecastTopResponse",
+        "type": "object"
+      },
       "FrontendLogRequest": {
         "properties": {
           "action": {
@@ -2915,6 +3317,18 @@
         "title": "StatusResponse",
         "type": "object"
       },
+      "StudentActionAck": {
+        "description": "РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ Р·Р°РїРёСЃРё РґРµР№СЃС‚РІРёСЏ.",
+        "properties": {
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "StudentActionAck",
+        "type": "object"
+      },
       "StudentCreatedBody": {
         "properties": {
           "profile_name": {
@@ -2939,6 +3353,23 @@
           "skills"
         ],
         "title": "StudentCreatedBody",
+        "type": "object"
+      },
+      "StudentHistoryResponse": {
+        "description": "РСЃС‚РѕСЂРёСЏ РґРµР№СЃС‚РІРёР№ СЃС‚СѓРґРµРЅС‚Р°.",
+        "properties": {
+          "history": {
+            "items": {},
+            "title": "History",
+            "type": "array"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "StudentHistoryResponse",
         "type": "object"
       },
       "StudentImportItem": {
@@ -3148,6 +3579,50 @@
           "dir_code"
         ],
         "title": "TeacherDirectionOut",
+        "type": "object"
+      },
+      "TeacherHistoryResponse": {
+        "description": "Р СЏРґС‹ РјРµС‚СЂРёРє РѕС…РІР°С‚Р° РїРѕ СЃРЅР°РїС€РѕС‚Р°Рј (oldest first) + РґРµР»СЊС‚Р°.",
+        "properties": {
+          "delta": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta"
+          },
+          "first": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First"
+          },
+          "last": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last"
+          },
+          "points": {
+            "items": {},
+            "title": "Points",
+            "type": "array"
+          },
+          "skipped_lines": {
+            "default": 0,
+            "title": "Skipped Lines",
+            "type": "integer"
+          }
+        },
+        "title": "TeacherHistoryResponse",
         "type": "object"
       },
       "TopSkillsResponse": {
@@ -6976,7 +7451,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastListResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7006,7 +7483,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastEngineStatusResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7083,7 +7562,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastObservedResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7139,7 +7620,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastPopularResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7228,7 +7711,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastTopResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7281,7 +7766,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastItem"
+                }
               }
             },
             "description": "Successful Response"
@@ -9881,7 +10368,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/StudentHistoryResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9921,7 +10410,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/StudentActionAck"
+                }
               }
             },
             "description": "Successful Response"
@@ -10748,9 +11239,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Teacher History Api Teacher History Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/TeacherHistoryResponse"
                 }
               }
             },
