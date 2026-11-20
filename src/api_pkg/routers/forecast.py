@@ -11,6 +11,14 @@ from src import DomainError, Err, Ok, Result, config
 from src.api_pkg import deps
 from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.auth import require_authenticated, user_error_detail
+from src.models.api_responses import (
+    ForecastEngineStatusResponse,
+    ForecastItem,
+    ForecastListResponse,
+    ForecastObservedResponse,
+    ForecastPopularResponse,
+    ForecastTopResponse,
+)
 from src.predictors.prophet_forecast import ProphetForecastEngine
 from src.predictors.skill_forecast import ForecastResult, SkillForecastEngine
 from src.utils import safe_read_json
@@ -318,7 +326,7 @@ def _select_observed_direction(items: list[dict], direction: str) -> list[dict]:
     return list(items)
 
 
-@router.get("/forecast/all")
+@router.get("/forecast/all", response_model=ForecastListResponse)
 @limiter.limit("30/minute")
 async def get_all_forecasts(
     request: Request,
@@ -378,7 +386,7 @@ async def get_all_forecasts(
             )
 
 
-@router.get("/forecast/top")
+@router.get("/forecast/top", response_model=ForecastTopResponse)
 @limiter.limit("30/minute")
 async def get_top_forecasts(
     request: Request,
@@ -450,7 +458,7 @@ async def get_top_forecasts(
             )
 
 
-@router.get("/forecast/engine")
+@router.get("/forecast/engine", response_model=ForecastEngineStatusResponse)
 @limiter.limit("60/minute")
 async def get_forecast_engine_status(request: Request):
     """Лёгкий статус движка + прогресс фонового фита Prophet (для countdown)."""
@@ -479,7 +487,7 @@ def _engine_info_for_status() -> dict:
     return {"engine": "trend", "prophet_fitted": False, "prophet_models": 0}
 
 
-@router.get("/forecast/observed")
+@router.get("/forecast/observed", response_model=ForecastObservedResponse)
 @limiter.limit("30/minute")
 async def get_observed_drops(
     request: Request,
@@ -544,7 +552,7 @@ def _run_top_forecast(engine, direction: str, n: int, months: int) -> Result[lis
             return Err(e)
 
 
-@router.get("/forecast/popular")
+@router.get("/forecast/popular", response_model=ForecastPopularResponse)
 @limiter.limit("30/minute")
 async def get_popular_forecasts(
     request: Request,
@@ -602,7 +610,7 @@ def _run_popular_forecast(engine, n: int, months: int) -> Result[list, DomainErr
     return Ok(all_results[:n])
 
 
-@router.get("/forecast/{skill}")
+@router.get("/forecast/{skill}", response_model=ForecastItem)
 @limiter.limit("60/minute")
 async def get_skill_forecast(skill: str, request: Request, months: int = Query(12, ge=1, le=24)):
     """Прогноз по одному навыку."""
