@@ -6,8 +6,11 @@
 развёрнутые описания, навыки студента - короткие каноники).
 """
 
+from typing import Any
+
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 
 from src.api_pkg import deps
 from src.api_pkg.rate_limit import limiter
@@ -47,14 +50,47 @@ def _norm(text: str) -> str:
     return (text or "").lower().strip()
 
 
-@router.get("/krm/directions", dependencies=[Depends(require_any_role(*_STUDENT_ROLES))])
+class DirectionsResponse(BaseModel):
+    """Список направлений (элементы задаются справочником)."""
+
+    directions: list[Any]
+
+
+class CompetencyCounts(BaseModel):
+    krm: int
+    student: int
+    overlap: int
+    merged: int
+    student_only: int
+
+
+class StudentCompetenciesResponse(BaseModel):
+    """Сводка компетенций: КРМ + навыки студента и их пересечение."""
+
+    direction: str
+    direction_name: str
+    profile: str
+    disciplines: list[Any]
+    merged: list[Any]
+    counts: CompetencyCounts
+
+
+@router.get(
+    "/krm/directions",
+    response_model=DirectionsResponse,
+    dependencies=[Depends(require_any_role(*_STUDENT_ROLES))],
+)
 @limiter.limit("60/minute")
 async def krm_directions(request: Request):
     """Все направления КРМ (для выбора студентом)."""
     return {"directions": _list_all_dirs()}
 
 
-@router.get("/krm/student/competencies", dependencies=[Depends(require_any_role(*_STUDENT_ROLES))])
+@router.get(
+    "/krm/student/competencies",
+    response_model=StudentCompetenciesResponse,
+    dependencies=[Depends(require_any_role(*_STUDENT_ROLES))],
+)
 @limiter.limit("30/minute")
 async def krm_student_competencies(
     request: Request,

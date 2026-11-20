@@ -608,6 +608,39 @@
         "title": "CompetenciesRequest",
         "type": "object"
       },
+      "CompetencyCounts": {
+        "properties": {
+          "krm": {
+            "title": "Krm",
+            "type": "integer"
+          },
+          "merged": {
+            "title": "Merged",
+            "type": "integer"
+          },
+          "overlap": {
+            "title": "Overlap",
+            "type": "integer"
+          },
+          "student": {
+            "title": "Student",
+            "type": "integer"
+          },
+          "student_only": {
+            "title": "Student Only",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "krm",
+          "student",
+          "overlap",
+          "merged",
+          "student_only"
+        ],
+        "title": "CompetencyCounts",
+        "type": "object"
+      },
       "CompetencyIn": {
         "properties": {
           "code": {
@@ -898,6 +931,21 @@
           "total"
         ],
         "title": "DeepSearchStatusOut",
+        "type": "object"
+      },
+      "DirectionsResponse": {
+        "description": "Список направлений (элементы задаются справочником).",
+        "properties": {
+          "directions": {
+            "items": {},
+            "title": "Directions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "directions"
+        ],
+        "title": "DirectionsResponse",
         "type": "object"
       },
       "DisciplineCompetencyOut": {
@@ -3327,6 +3375,46 @@
           }
         },
         "title": "StudentActionAck",
+        "type": "object"
+      },
+      "StudentCompetenciesResponse": {
+        "description": "Сводка компетенций: КРМ + навыки студента и их пересечение.",
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/CompetencyCounts"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "direction_name": {
+            "title": "Direction Name",
+            "type": "string"
+          },
+          "disciplines": {
+            "items": {},
+            "title": "Disciplines",
+            "type": "array"
+          },
+          "merged": {
+            "items": {},
+            "title": "Merged",
+            "type": "array"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          }
+        },
+        "required": [
+          "direction",
+          "direction_name",
+          "profile",
+          "disciplines",
+          "merged",
+          "counts"
+        ],
+        "title": "StudentCompetenciesResponse",
         "type": "object"
       },
       "StudentCreatedBody": {
@@ -7820,7 +7908,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/DirectionsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7878,7 +7968,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/StudentCompetenciesResponse"
+                }
               }
             },
             "description": "Successful Response"
