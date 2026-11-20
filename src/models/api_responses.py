@@ -472,3 +472,92 @@ class TeacherHistoryResponse(BaseModel):
     last: Any | None = None
     delta: Any | None = None
     skipped_lines: int = 0
+
+
+class ForecastItem(BaseModel):
+    """Один прогноз навыка (см. forecast._serialize)."""
+    skill: str
+    current_frequency: float = 0.0
+    predicted_growth: float = 0.0
+    predicted_change_pct: float = 0.0
+    confidence: float = 0.0
+    next_year_frequency: float = 0.0
+    method: str = "trend"
+    engine_used: str = "trend"
+    data_points: int = 0
+    mape: float | None = None
+    forecast_months: int = 0
+    trend_direction: str = "growing"
+    uncertainty_lower: float | None = None
+    uncertainty_upper: float | None = None
+
+
+class ForecastEngineInfo(BaseModel):
+    """Сведения о движке прогноза."""
+    engine: str = "trend"
+    prophet_fitted: bool = False
+    prophet_models: int = 0
+
+
+class ForecastListResponse(BaseModel):
+    """Постраничный список прогнозов + метаданные движка."""
+    total: int = 0
+    limit: int = 0
+    offset: int = 0
+    months: int = 0
+    forecasts: list[ForecastItem] = Field(default_factory=list)
+    engine: str = "trend"
+    prophet_fitted: bool = False
+    prophet_models: int = 0
+
+
+class ForecastTopResponse(BaseModel):
+    """Топ растущих/падающих навыков."""
+    direction: str = ""
+    n: int = 0
+    months: int = 0
+    requested_months: int | None = None
+    forecasts: list[ForecastItem] = Field(default_factory=list)
+    engine: str = "trend"
+    prophet_fitted: bool = False
+    prophet_models: int = 0
+    total: Any | None = None
+    reliable: Any | None = None
+
+
+class ForecastEngineStatusResponse(BaseModel):
+    """Статус фонового фита Prophet."""
+    engine: str = "trend"
+    prophet_fitted: bool = False
+    prophet_models: int = 0
+    state: Any | None = None
+    started_at: Any | None = None
+    finished_at: Any | None = None
+    progress: Any | None = None
+    error: Any | None = None
+    elapsed_seconds: float | None = None
+    eta_seconds: float | None = None
+
+
+class ForecastObservedResponse(BaseModel):
+    """Наблюдаемые изменения частот (без прогноза)."""
+    direction: str = ""
+    n: int = 0
+    months: int = 0
+    required_points: int = 0
+    max_points: int = 0
+    forecasts: list[Any] = Field(default_factory=list)
+    engine: str = "trend"
+    prophet_fitted: bool = False
+    prophet_models: int = 0
+
+
+class ForecastPopularResponse(BaseModel):
+    """Самые популярные навыки рынка."""
+    direction: str = "popular"
+    n: int = 0
+    months: int = 0
+    forecasts: list[Any] = Field(default_factory=list)
+    engine: str = "trend"
+    prophet_fitted: bool = False
+    prophet_models: int = 0
