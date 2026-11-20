@@ -119,7 +119,7 @@ export function DataTab({
             Профиль компетенций
           </Label>
           <Select value={profile} onValueChange={onProfileChange}>
-            <SelectTrigger className="h-11 bg-input-background border-input">
+            <SelectTrigger aria-label="Профиль компетенций" className="h-11 bg-input-background border-input">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -188,7 +188,7 @@ export function DataTab({
           </Label>
           <div className="flex flex-col sm:flex-row gap-3">
             <Select value={targetProfession} onValueChange={onTargetProfessionChange}>
-              <SelectTrigger className="h-11 flex-1 bg-input-background border-input">
+              <SelectTrigger aria-label="Целевая профессия для сравнения" className="h-11 flex-1 bg-input-background border-input">
                 <SelectValue placeholder="Выберите профессию..." />
               </SelectTrigger>
               <SelectContent>

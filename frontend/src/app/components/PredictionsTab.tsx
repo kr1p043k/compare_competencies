@@ -158,13 +158,13 @@ export function PredictionsTab() {
                     <TrendingUp className="size-5 text-primary-foreground" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl font-semibold text-foreground">Топ растущих навыков</CardTitle>
+                    <CardTitle aria-level={2} className="text-xl font-semibold text-foreground">Топ растущих навыков</CardTitle>
                     <CardDescription>Прогноз популярности · {vacanciesCount ? `${vacanciesCount} вакансий` : "-"} · {dataFrom && dataTo ? `${dataFrom}-${dataTo}` : "-"}{engineInfo?.engine ? ` · Движок: ${engineInfo.engine === "prophet" ? `Prophet (${engineInfo.prophet_models} моделей)` : "Trend (Prophet ещё считается)"}` : ""}</CardDescription>
                   </div>
                   <div className="ml-auto flex items-center gap-2">
                     <CalendarDays className="size-4 text-subtle-foreground" />
                     <Select value={String(months)} onValueChange={(v) => { const m = Number(v); setMonths(m); loadForecasts(activeTab, m); }}>
-                      <SelectTrigger className="w-28 h-9 text-sm">
+                      <SelectTrigger aria-label="Горизонт прогноза, месяцы" className="w-28 h-9 text-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -235,7 +235,7 @@ export function PredictionsTab() {
                   <TrendingDown className="size-5 text-primary-foreground" />
                 </div>
                 <div>
-                  <CardTitle className="text-xl font-semibold text-foreground">Падающие навыки</CardTitle>
+                  <CardTitle aria-level={2} className="text-xl font-semibold text-foreground">Падающие навыки</CardTitle>
                   <CardDescription>Измеренное падение спроса за период{vacanciesCount ? ` · ${vacanciesCount} вакансий` : ""}{dataFrom && dataTo ? ` · ${dataFrom}-${dataTo}` : ""}</CardDescription>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
