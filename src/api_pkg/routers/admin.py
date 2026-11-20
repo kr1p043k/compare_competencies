@@ -1108,7 +1108,7 @@ async def _grafana_status() -> dict[str, Any]:
     except Exception as exc:
         logger.warning("grafana_unreachable", error=str(exc))
         return {"enabled": True, "reachable": False,
-                "reason": f"Grafana недоступен: {exc}", "dashboards": []}
+                "reason": f"Grafana недоступна: {exc}", "dashboards": []}
     return {"enabled": True, "reachable": True, "reason": None,
             "dashboards": _map_dashboards(public, items)}
 
