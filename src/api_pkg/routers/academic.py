@@ -269,7 +269,20 @@ async def _academic_post(
     return resp.json()
 
 
-@router.post("/auth/sso")
+class SsoLoginResponse(BaseModel):
+    """Union трёх исходов /auth/sso (все поля, кроме status, опциональны)."""
+
+    token: str | None = None
+    role: str | None = None
+    name: str | None = None
+    username: str | None = None
+    status: str | None = None
+    challenge_id: str | None = None
+    enroll_id: str | None = None
+    expires_in: int | None = None
+
+
+@router.post("/auth/sso", response_model=SsoLoginResponse, response_model_exclude_none=True)
 @limiter.limit("10/minute")
 async def sso_login(body: SsoRequest, request: Request, response: Response):
     """SSO-вход через академический провайдер.

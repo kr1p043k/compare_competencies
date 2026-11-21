@@ -19,6 +19,7 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
+from pydantic import BaseModel
 
 from src import config
 from src.api_pkg.rate_limit import limiter
@@ -350,7 +351,45 @@ async def _upload_pipeline(
             _rpd_procs.pop(run_id, None)
 
 
-@router.post("/teacher/rpd/upload")
+# ---------- response models (backlog 6.2.1) ----------
+
+
+class RpdUploadResponse(BaseModel):
+    status: str
+    run_id: str
+    file: str
+    dir_code: str
+
+
+class RpdCollectResponse(BaseModel):
+    status: str
+    run_id: str
+    dir_code: str
+    source: str
+    has_url: bool
+
+
+class RpdCancelResponse(BaseModel):
+    status: str
+    message: str
+
+
+class RpdSourcesResponse(BaseModel):
+    yandex_covered: list[str] = []
+    all_directions: list[str] = []
+
+
+class RpdStatusResponse(BaseModel):
+    id: str
+    action: str
+    status: str
+    started_at: str | None = None
+    completed_at: str | None = None
+    error: str | None = None
+    stats: dict = {}
+
+
+@router.post("/teacher/rpd/upload", response_model=RpdUploadResponse)
 @limiter.limit("5/minute")
 async def rpd_upload(
     request: Request,
@@ -466,7 +505,7 @@ async def _collect_pipeline(run_id: str, dir_code: str, public_url: str | None =
             _rpd_procs.pop(run_id, None)
 
 
-@router.post("/teacher/rpd/collect")
+@router.post("/teacher/rpd/collect", response_model=RpdCollectResponse)
 @limiter.limit("2/minute")
 async def rpd_collect(request: Request, background_tasks: BackgroundTasks,
                       dir_code: Annotated[str, Form()] = "09.03.02",
@@ -495,7 +534,7 @@ async def rpd_collect(request: Request, background_tasks: BackgroundTasks,
             "has_url": bool(public_url)}
 
 
-@router.post("/teacher/rpd/cancel/{run_id}")
+@router.post("/teacher/rpd/cancel/{run_id}", response_model=RpdCancelResponse)
 async def rpd_cancel(request: Request, run_id: str):
     """Остановить сбор/загрузку РПД: флаг отмены + kill процесса."""
     from src.database import async_session_factory
@@ -531,7 +570,7 @@ async def rpd_cancel(request: Request, run_id: str):
 # ---------- Metadata ----------
 
 
-@router.get("/teacher/rpd/sources")
+@router.get("/teacher/rpd/sources", response_model=RpdSourcesResponse)
 async def rpd_sources(request: Request):
     """Источники РПД."""
     return {"yandex_covered": sorted(YANDEX_COVERED), "all_directions": sorted(YANDEX_COVERED | {
@@ -541,7 +580,7 @@ async def rpd_sources(request: Request):
     })}
 
 
-@router.get("/teacher/rpd/status/{run_id}")
+@router.get("/teacher/rpd/status/{run_id}", response_model=RpdStatusResponse)
 async def rpd_status(run_id: str, request: Request):
     """Статус задачи сбора РПД."""
     from src.database import async_session_factory
