@@ -10653,11 +10653,9 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
-              }
+              "image/png": {}
             },
-            "description": "Successful Response"
+            "description": "PNG: сравнение покрытия"
           }
         },
         "summary": "Get Coverage Comparison Image",
@@ -10673,11 +10671,9 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
-              }
+              "image/png": {}
             },
-            "description": "Successful Response"
+            "description": "PNG: корреляция навыков"
           }
         },
         "summary": "Get Skill Correlation Image",
@@ -10693,11 +10689,9 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
-              }
+              "image/png": {}
             },
-            "description": "Successful Response"
+            "description": "PNG: тепловая карта навыков"
           }
         },
         "summary": "Get Skills Heatmap Image",
@@ -10733,11 +10727,9 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
-              }
+              "image/png": {}
             },
-            "description": "Successful Response"
+            "description": "PNG-изображение профиля"
           },
           "422": {
             "content": {
@@ -10876,11 +10868,9 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
-              }
+              "application/pdf": {}
             },
-            "description": "Successful Response"
+            "description": "PDF-отчёт по профилю"
           },
           "422": {
             "content": {

@@ -11,7 +11,7 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from src import Err, Ok, config
 from src.api_pkg import deps
@@ -403,7 +403,12 @@ async def get_ml_explanations(
     return result
 
 
-@router.get("/results/report/{profile}", dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])
+@router.get(
+    "/results/report/{profile}",
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}, "description": "PDF-отчёт по профилю"}},
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
+)
 @limiter.limit("10/minute")
 async def get_report_pdf(
     request: Request,
@@ -411,8 +416,6 @@ async def get_report_pdf(
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
     """PDF-отчёт профиля: метрики, роли, рекомендации + PNG-графики."""
-    from fastapi.responses import Response
-
     from src.reports.pdf_report import build_profile_pdf
 
     await _require_student_profile(request, profile)
@@ -446,6 +449,8 @@ async def get_report_pdf(
 # эндпоинты не используют. НЕ удалять и НЕ менять контракт без новой версии.
 @router.get(
     "/results/images/{profile}/{image_type}",
+    response_class=FileResponse,
+    responses={200: {"content": {"image/png": {}}, "description": "PNG-изображение профиля"}},
     dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
 )
 @limiter.limit("60/minute")
@@ -483,6 +488,8 @@ async def get_profile_image(
 
 @router.get(
     "/results/images/coverage-comparison",
+    response_class=FileResponse,
+    responses={200: {"content": {"image/png": {}}, "description": "PNG: сравнение покрытия"}},
     dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
 )
 @limiter.limit("30/minute")
@@ -498,6 +505,8 @@ async def get_coverage_comparison_image(request: Request):
 
 @router.get(
     "/results/images/skills-heatmap",
+    response_class=FileResponse,
+    responses={200: {"content": {"image/png": {}}, "description": "PNG: тепловая карта навыков"}},
     dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
 )
 @limiter.limit("30/minute")
@@ -511,6 +520,8 @@ async def get_skills_heatmap_image(request: Request):
 
 @router.get(
     "/results/images/skill-correlation",
+    response_class=FileResponse,
+    responses={200: {"content": {"image/png": {}}, "description": "PNG: корреляция навыков"}},
     dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
 )
 @limiter.limit("30/minute")
