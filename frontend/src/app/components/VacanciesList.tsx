@@ -13,9 +13,10 @@ import {
   inputClass,
 } from "../../design";
 import { cn } from "./ui/utils";
-import { Search, Filter, Loader2, AlertCircle, ChevronUp, LayoutGrid, List, Database, Rocket, Globe, MapPin, ChevronDown } from "lucide-react";
+import { Search, Filter, Loader2, AlertCircle, ChevronUp, LayoutGrid, List, Database, Rocket, Globe, MapPin, ChevronDown, Download } from "lucide-react";
 import { reportError } from "./../../lib/errors";
 import { request } from "../../lib/api";
+import { downloadCsv, toCsv } from "../../lib/csv";
 import { useIncrementalList } from "../../lib/useIncrementalList";
 import { HH_REGIONS, HH_REGION_MAP, PAGE_SIZE, fmtDateRU } from "./vacancies/constants";
 import type {
@@ -29,6 +30,20 @@ import { MemoVacancyCard } from "./vacancies/VacancyCard";
 import { VacancyFiltersDrawer } from "./vacancies/VacancyFiltersDrawer";
 import { VacancyPagination } from "./vacancies/VacancyPagination";
 import { VacancyStatsBar } from "./vacancies/VacancyStatsBar";
+
+/** Колонки CSV в том порядке, в каком их ждёт пользователь. */
+const VACANCY_CSV_COLUMNS: { key: string; label: string }[] = [
+  { key: "name", label: "Название" },
+  { key: "employer_name", label: "Компания" },
+  { key: "area", label: "Регион" },
+  { key: "salary_from", label: "Зарплата от" },
+  { key: "salary_to", label: "Зарплата до" },
+  { key: "salary_currency", label: "Валюта" },
+  { key: "experience", label: "Опыт" },
+  { key: "published_at", label: "Дата публикации" },
+  { key: "alternate_url", label: "Ссылка" },
+  { key: "skills", label: "Навыки" },
+];
 
 export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onStartPipeline, canRunPipeline = true }: VacanciesListProps) {
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
@@ -225,6 +240,18 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
     const regionParam = (regionIds && regionIds !== "0") ? regionIds : "0";
     const profession = pipelineProfession.trim() || "";
     onStartPipeline?.(regionParam, profession, pipelineMaxPagesLocal, pipelinePeriodLocal);
+  };
+
+  // Экспортируем текущую страницу с применёнными фильтрами (то, что уже
+  // получено с сервера и показано в списке), а не всю базу и не следующий запрос.
+  const exportCsv = () => {
+    if (vacancies.length === 0) return;
+    const rows = vacancies.map((vacancy) => ({
+      ...vacancy,
+      skills: Array.isArray(vacancy.skills) ? vacancy.skills.join("; ") : "",
+    }));
+    const filename = `vacancies-${new Date().toISOString().slice(0, 10)}.csv`;
+    downloadCsv(filename, toCsv(rows, VACANCY_CSV_COLUMNS));
   };
 
   const totalPages = Math.ceil(total / itemsPerPage);
@@ -605,6 +632,18 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     {activeFilterCount}
                   </span>
                 )}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={exportCsv}
+                disabled={vacancies.length === 0}
+                aria-label="Экспорт CSV"
+                title="Экспортировать текущий список в CSV"
+                className="gap-2"
+              >
+                <Download className="size-4" />
+                Экспорт CSV
               </Button>
               <Button
                 variant={viewMode === "grid" ? "primary" : "secondary"}
