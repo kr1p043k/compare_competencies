@@ -5015,6 +5015,1341 @@
         "title": "ZUNPatch",
         "type": "object"
       },
+      "ZunAnalyzeStarted": {
+        "additionalProperties": true,
+        "description": "POST /teacher/zun/analyze.",
+        "properties": {
+          "dir_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dir Code"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ZunAnalyzeStarted",
+        "type": "object"
+      },
+      "ZunAnalyzeStatus": {
+        "additionalProperties": true,
+        "description": "GET /teacher/zun/analyze/status/{run_id}.",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "stats": {
+            "additionalProperties": true,
+            "title": "Stats",
+            "type": "object"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "ZunAnalyzeStatus",
+        "type": "object"
+      },
+      "ZunCompetencyCoverage": {
+        "additionalProperties": true,
+        "description": "GET /teacher/zun/competencies/{id}/coverage.",
+        "properties": {
+          "competence_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competence Code"
+          },
+          "competence_id": {
+            "title": "Competence Id",
+            "type": "string"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ZunCompetencyCoverageDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "discipline_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline Id"
+          },
+          "discipline_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline Name"
+          }
+        },
+        "required": [
+          "competence_id"
+        ],
+        "title": "ZunCompetencyCoverage",
+        "type": "object"
+      },
+      "ZunCompetencyCoverageDetail": {
+        "additionalProperties": true,
+        "properties": {
+          "analysis_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis Date"
+          },
+          "coverage_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Ratio"
+          },
+          "matched_skills": {
+            "title": "Matched Skills"
+          },
+          "total_skills": {
+            "title": "Total Skills"
+          }
+        },
+        "title": "ZunCompetencyCoverageDetail",
+        "type": "object"
+      },
+      "ZunCompetencyCreated": {
+        "additionalProperties": true,
+        "description": "POST /teacher/zun/disciplines/{id}/competencies.",
+        "properties": {
+          "category": {
+            "title": "Category"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "competency_id": {
+            "title": "Competency Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "competency_id"
+        ],
+        "title": "ZunCompetencyCreated",
+        "type": "object"
+      },
+      "ZunCompetencyPicker": {
+        "additionalProperties": true,
+        "description": "GET /teacher/zun/competencies/search.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ZunCompetencyPickerItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "title": "ZunCompetencyPicker",
+        "type": "object"
+      },
+      "ZunCompetencyPickerItem": {
+        "additionalProperties": true,
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "discipline_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline Name"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "ZunCompetencyPickerItem",
+        "type": "object"
+      },
+      "ZunCompetencySkill": {
+        "additionalProperties": true,
+        "description": "Элемент GET /teacher/zun/competencies/{id}/skills.",
+        "properties": {
+          "ksa_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ksa Type"
+          },
+          "match_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Type"
+          },
+          "skill_id": {
+            "title": "Skill Id",
+            "type": "string"
+          },
+          "skill_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Name"
+          },
+          "source_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Text"
+          }
+        },
+        "required": [
+          "skill_id"
+        ],
+        "title": "ZunCompetencySkill",
+        "type": "object"
+      },
+      "ZunCoverageBlock": {
+        "additionalProperties": true,
+        "description": "Блок coverage в дереве дисциплины.",
+        "properties": {
+          "analysis_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis Date"
+          },
+          "coverage_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Level"
+          },
+          "coverage_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Ratio"
+          },
+          "matched_skills": {
+            "title": "Matched Skills"
+          },
+          "total_skills": {
+            "title": "Total Skills"
+          },
+          "weighted_coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weighted Coverage"
+          }
+        },
+        "title": "ZunCoverageBlock",
+        "type": "object"
+      },
+      "ZunDeleteAck": {
+        "additionalProperties": true,
+        "description": "DELETE /teacher/zun/entries/{ksa_id}.",
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ZunDeleteAck",
+        "type": "object"
+      },
+      "ZunDirectionItem": {
+        "additionalProperties": true,
+        "description": "Элемент GET /teacher/zun/directions.",
+        "properties": {
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "disciplines_count": {
+            "title": "Disciplines Count"
+          },
+          "has_ksa": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has Ksa"
+          },
+          "ksa_total": {
+            "title": "Ksa Total"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile"
+          }
+        },
+        "required": [
+          "dir_code"
+        ],
+        "title": "ZunDirectionItem",
+        "type": "object"
+      },
+      "ZunDisciplineItem": {
+        "additionalProperties": true,
+        "description": "Элемент GET /teacher/zun/disciplines.",
+        "properties": {
+          "competencies_count": {
+            "title": "Competencies Count"
+          },
+          "control_form": {
+            "title": "Control Form"
+          },
+          "coverage_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Level"
+          },
+          "coverage_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Ratio"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "indicators_count": {
+            "title": "Indicators Count"
+          },
+          "ksa_by_type": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ksa By Type"
+          },
+          "ksa_total": {
+            "title": "Ksa Total"
+          },
+          "linked_skills": {
+            "title": "Linked Skills"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "semester": {
+            "title": "Semester"
+          },
+          "weighted_coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weighted Coverage"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "ZunDisciplineItem",
+        "type": "object"
+      },
+      "ZunDisciplineTree": {
+        "additionalProperties": true,
+        "description": "GET /teacher/zun/disciplines/{discipline_id} и lookup по имени.",
+        "properties": {
+          "competencies": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Competencies",
+            "type": "array"
+          },
+          "control_form": {
+            "title": "Control Form"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ZunCoverageBlock"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "direction_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction Code"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "semester": {
+            "title": "Semester"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "ZunDisciplineTree",
+        "type": "object"
+      },
+      "ZunEntry": {
+        "additionalProperties": true,
+        "description": "POST/PATCH записи KSA.",
+        "properties": {
+          "ksa_id": {
+            "title": "Ksa Id",
+            "type": "string"
+          },
+          "ksa_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ksa Type"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "required": [
+          "ksa_id"
+        ],
+        "title": "ZunEntry",
+        "type": "object"
+      },
+      "ZunFilterItem": {
+        "additionalProperties": true,
+        "description": "Элемент GET /teacher/zun/filter.",
+        "properties": {
+          "category": {
+            "title": "Category"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "competence_id": {
+            "title": "Competence Id",
+            "type": "string"
+          },
+          "development_level": {
+            "title": "Development Level"
+          },
+          "discipline_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline Id"
+          },
+          "discipline_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline Name"
+          },
+          "ksa_total": {
+            "title": "Ksa Total"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "competence_id"
+        ],
+        "title": "ZunFilterItem",
+        "type": "object"
+      },
+      "ZunImportResult": {
+        "additionalProperties": true,
+        "description": "POST /teacher/zun/import/{dir_code}.",
+        "properties": {
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "disciplines_processed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disciplines Processed"
+          },
+          "inserted": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inserted"
+          },
+          "skipped_dups": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skipped Dups"
+          },
+          "skipped_gap": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skipped Gap"
+          }
+        },
+        "required": [
+          "dir_code"
+        ],
+        "title": "ZunImportResult",
+        "type": "object"
+      },
+      "ZunKsaCounts": {
+        "additionalProperties": true,
+        "properties": {
+          "abilities": {
+            "title": "Abilities"
+          },
+          "knowledge": {
+            "title": "Knowledge"
+          },
+          "skills": {
+            "title": "Skills"
+          },
+          "total": {
+            "title": "Total"
+          }
+        },
+        "title": "ZunKsaCounts",
+        "type": "object"
+      },
+      "ZunMyDirectionItem": {
+        "additionalProperties": true,
+        "description": "Элемент GET /teacher/zun/my-directions (набор полей зависит от роли).",
+        "properties": {
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile"
+          }
+        },
+        "required": [
+          "dir_code"
+        ],
+        "title": "ZunMyDirectionItem",
+        "type": "object"
+      },
+      "ZunScope": {
+        "additionalProperties": true,
+        "description": "GET /teacher/zun/scope.",
+        "properties": {
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "disciplines": {
+            "items": {
+              "$ref": "#/components/schemas/ZunScopeDiscipline"
+            },
+            "title": "Disciplines",
+            "type": "array"
+          },
+          "methodology_excluded": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Methodology Excluded",
+            "type": "array"
+          }
+        },
+        "required": [
+          "dir_code"
+        ],
+        "title": "ZunScope",
+        "type": "object"
+      },
+      "ZunScopeDiscipline": {
+        "additionalProperties": true,
+        "properties": {
+          "in_scope": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "In Scope"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ZunScopeDiscipline",
+        "type": "object"
+      },
+      "ZunScopeUpdated": {
+        "additionalProperties": true,
+        "description": "PUT /teacher/zun/scope.",
+        "properties": {
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dir_code",
+          "updated"
+        ],
+        "title": "ZunScopeUpdated",
+        "type": "object"
+      },
+      "ZunSearchItem": {
+        "additionalProperties": true,
+        "description": "Элемент GET /teacher/zun/search.",
+        "properties": {
+          "cleaned_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleaned Text"
+          },
+          "competence_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competence Code"
+          },
+          "competence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competence Id"
+          },
+          "discipline_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline Id"
+          },
+          "discipline_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline Name"
+          },
+          "is_indicator": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Indicator"
+          },
+          "ksa_id": {
+            "title": "Ksa Id",
+            "type": "string"
+          },
+          "ksa_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ksa Type"
+          },
+          "original_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Text"
+          },
+          "parent_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Code"
+          }
+        },
+        "required": [
+          "ksa_id"
+        ],
+        "title": "ZunSearchItem",
+        "type": "object"
+      },
+      "ZunSemanticMatch": {
+        "additionalProperties": true,
+        "description": "Элемент matches в GET /teacher/zun/search/semantic.",
+        "properties": {
+          "competence_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competence Code"
+          },
+          "competence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competence Id"
+          },
+          "discipline_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline Id"
+          },
+          "discipline_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline Name"
+          },
+          "is_indicator": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Indicator"
+          },
+          "ksa_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ksa Id"
+          },
+          "ksa_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ksa Type"
+          },
+          "original_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Text"
+          },
+          "parent_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Code"
+          },
+          "similarity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Similarity"
+          }
+        },
+        "title": "ZunSemanticMatch",
+        "type": "object"
+      },
+      "ZunSemanticResponse": {
+        "additionalProperties": true,
+        "description": "GET /teacher/zun/search/semantic.",
+        "properties": {
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/ZunSemanticMatch"
+            },
+            "title": "Matches",
+            "type": "array"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "ZunSemanticResponse",
+        "type": "object"
+      },
+      "ZunSkillLinked": {
+        "additionalProperties": true,
+        "description": "POST /teacher/zun/competencies/{id}/skills.",
+        "properties": {
+          "ksa_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ksa Type"
+          },
+          "match_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Type"
+          },
+          "skill_id": {
+            "title": "Skill Id",
+            "type": "string"
+          },
+          "skill_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Name"
+          }
+        },
+        "required": [
+          "skill_id"
+        ],
+        "title": "ZunSkillLinked",
+        "type": "object"
+      },
+      "ZunStats": {
+        "additionalProperties": true,
+        "description": "GET /teacher/zun/stats.",
+        "properties": {
+          "competencies_with_ksa": {
+            "title": "Competencies With Ksa"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/ZunStatsCoverage"
+          },
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "direction_names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Direction Names",
+            "type": "array"
+          },
+          "disciplines_with_ksa": {
+            "title": "Disciplines With Ksa"
+          },
+          "ksa_counts": {
+            "$ref": "#/components/schemas/ZunKsaCounts"
+          },
+          "linked_skills": {
+            "title": "Linked Skills"
+          },
+          "multiple_profiles": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multiple Profiles"
+          },
+          "profiles": {
+            "items": {},
+            "title": "Profiles",
+            "type": "array"
+          },
+          "total_competencies": {
+            "title": "Total Competencies"
+          },
+          "total_disciplines": {
+            "title": "Total Disciplines"
+          },
+          "total_indicators": {
+            "title": "Total Indicators"
+          }
+        },
+        "required": [
+          "dir_code",
+          "ksa_counts",
+          "coverage"
+        ],
+        "title": "ZunStats",
+        "type": "object"
+      },
+      "ZunStatsCoverage": {
+        "additionalProperties": true,
+        "properties": {
+          "avg_coverage_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Coverage Ratio"
+          },
+          "covered_disciplines": {
+            "title": "Covered Disciplines"
+          },
+          "latest_analysis_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Analysis Date"
+          }
+        },
+        "title": "ZunStatsCoverage",
+        "type": "object"
+      },
       "src__api_pkg__routers__academic__GapRequest": {
         "properties": {
           "broad_top_k": {
@@ -13082,7 +14417,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunAnalyzeStarted"
+                }
               }
             },
             "description": "Successful Response"
@@ -13175,7 +14512,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunAnalyzeStatus"
+                }
               }
             },
             "description": "Successful Response"
@@ -13237,7 +14576,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunCompetencyPicker"
+                }
               }
             },
             "description": "Successful Response"
@@ -13278,7 +14619,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunCompetencyCoverage"
+                }
               }
             },
             "description": "Successful Response"
@@ -13329,7 +14672,9 @@
           "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunEntry"
+                }
               }
             },
             "description": "Successful Response"
@@ -13380,7 +14725,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ZunCompetencySkill"
+                  },
+                  "title": "Response Zun Competency Skills Api Teacher Zun Competencies  Competency Id  Skills Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -13429,7 +14780,9 @@
           "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunSkillLinked"
+                }
               }
             },
             "description": "Successful Response"
@@ -13459,7 +14812,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ZunDirectionItem"
+                  },
+                  "title": "Response Zun Directions Api Teacher Zun Directions Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -13524,7 +14883,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ZunDisciplineItem"
+                  },
+                  "title": "Response Zun Disciplines Api Teacher Zun Disciplines Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -13575,7 +14940,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunDisciplineTree"
+                }
               }
             },
             "description": "Successful Response"
@@ -13616,7 +14983,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunDisciplineTree"
+                }
               }
             },
             "description": "Successful Response"
@@ -13667,7 +15036,9 @@
           "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunCompetencyCreated"
+                }
               }
             },
             "description": "Successful Response"
@@ -13708,7 +15079,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunDeleteAck"
+                }
               }
             },
             "description": "Successful Response"
@@ -13757,7 +15130,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunEntry"
+                }
               }
             },
             "description": "Successful Response"
@@ -13852,7 +15227,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ZunFilterItem"
+                  },
+                  "title": "Response Zun Filter Api Teacher Zun Filter Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -13903,7 +15284,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunImportResult"
+                }
               }
             },
             "description": "Successful Response"
@@ -13933,7 +15316,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ZunMyDirectionItem"
+                  },
+                  "title": "Response Zun My Directions Api Teacher Zun My Directions Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -13965,7 +15354,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunScope"
+                }
               }
             },
             "description": "Successful Response"
@@ -14003,7 +15394,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunScopeUpdated"
+                }
               }
             },
             "description": "Successful Response"
@@ -14097,7 +15490,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ZunSearchItem"
+                  },
+                  "title": "Response Zun Search Api Teacher Zun Search Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -14170,7 +15569,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunSemanticResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -14212,7 +15613,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ZunStats"
+                }
               }
             },
             "description": "Successful Response"
