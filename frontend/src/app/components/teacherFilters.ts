@@ -6,6 +6,8 @@
  * размазана по JSX.
  */
 
+import { fuzzyMatch } from "../../lib/fuzzy";
+
 export type DiscFilter = "all" | "gaps" | "low" | "nodata";
 export type DiscSort = "plan" | "name" | "coverage" | "gaps";
 export type CompFilter = "all" | "no-ksa" | "with-ksa";
@@ -52,9 +54,9 @@ export function filterDisciplines<T extends DiscLike>(
   analysisByName: Map<string, AnalysisRow | undefined>,
   opts: { search?: string; year?: number; filter?: DiscFilter },
 ): T[] {
-  const q = (opts.search ?? "").trim().toLowerCase();
+  const q = (opts.search ?? "").trim();
   return list.filter((d) => {
-    if (q && !d.name.toLowerCase().includes(q)) return false;
+    if (q && !fuzzyMatch(q, d.name)) return false;
     if (opts.year) {
       const years = analysisByName.get(d.name)?.years;
       if (!Array.isArray(years) || !years.includes(opts.year)) return false;
@@ -121,9 +123,9 @@ export function filterCompetencies<T extends CompLike>(
   list: T[],
   opts: { search?: string; filter?: CompFilter },
 ): T[] {
-  const q = (opts.search ?? "").trim().toLowerCase();
+  const q = (opts.search ?? "").trim();
   return list.filter((c) => {
-    if (q && !c.code.toLowerCase().includes(q) && !(c.name ?? "").toLowerCase().includes(q)) return false;
+    if (q && !fuzzyMatch(q, c.code) && !fuzzyMatch(q, c.name ?? "")) return false;
     const n = ksaCount(c);
     if (opts.filter === "no-ksa") return n === 0;
     if (opts.filter === "with-ksa") return n > 0;
