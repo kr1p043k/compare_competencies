@@ -100,6 +100,59 @@
         "title": "ApiVersionBody",
         "type": "object"
       },
+      "ArticleItem": {
+        "additionalProperties": true,
+        "description": "Статья из Course Trends (поля нормализует extract_articles).",
+        "properties": {
+          "abstract": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Abstract"
+          },
+          "authors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Authors",
+            "type": "array"
+          },
+          "citations": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Citations"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "title": "ArticleItem",
+        "type": "object"
+      },
       "AuditActions": {
         "description": "Список действий, встречающихся в журнале.",
         "properties": {
@@ -2612,6 +2665,49 @@
         "title": "ProfilesCompareResponse",
         "type": "object"
       },
+      "ProgramArticles": {
+        "additionalProperties": true,
+        "description": "Постраничный ответ со статьями программы.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "pid": {
+            "title": "Pid",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pid",
+          "total",
+          "limit",
+          "offset",
+          "items",
+          "source"
+        ],
+        "title": "ProgramArticles",
+        "type": "object"
+      },
       "PublicationFile": {
         "description": "Файл публикации хаба ЮФУ.",
         "properties": {
@@ -4876,9 +4972,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Program Articles Api Academic Programs  Pid  Articles Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ProgramArticles"
                 }
               }
             },
