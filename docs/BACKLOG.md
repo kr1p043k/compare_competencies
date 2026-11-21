@@ -4,7 +4,7 @@
 Числа и факты из исходников и файлов данных; ссылки на источники в скобках.
 
 Статус: `[ ]` открыто · `[~]` частично · `[x]` сделано.
-Последняя сверка: 2026-11-14, ветка `dev`.
+Последняя сверка: 2026-11-21, ветка `dev`.
 
 ## 0. Сводка статуса
 
@@ -19,29 +19,29 @@
 | 1.7 | Покрытие teacher_analysis_runner | `[x]` тесты добавлены |
 | 2.1 | Degraded-флаг сервисов | `[~]` есть для каналов пайплайна, нет общий middleware |
 | 2.2 | Coverage + Quality в UI | `[ ]` |
-| 2.3 | Provenance скилла | `[ ]` |
+| 2.3 | Provenance скилла | `[x]` source/market_source + gaps_detail, метки РПД/канон в UI (6fcda25f8) |
 | 2.4 | readiness → readiness_score | `[x]` остатков нет |
 | 3.1 | LLM-клиент: единый /v1 | `[x]` реализовано в 7a7b690a, тесты нормализации расширены |
 | 3.2 | Чат-хранилище | `[x]` миграция `add_chat_storage.py` |
 | 3.3 | Лимит контекста LLM | `[x]` truncation/max_tokens в `llm_client` |
-| 3.4 | Rate limit + auth эндпоинтов LLM | `[ ]` |
-| 3.5 | UI-чат: plugin-блоки | `[ ]` |
+| 3.4 | Rate limit + auth эндпоинтов LLM | `[x]` chat.py 4 лимита + require_any_role/require_role; llm.py 10/min + require_any_role |
+| 3.5 | UI-чат: plugin-блоки | `[x]` ChatBlockView + рендеры text/metric/citation/chart/action_list (c0a3e1e55) |
 | 3.6 | Тесты LLM | `[x]` 9 файлов в `tests/` |
 | 4.1 | ruff | `[x]` 120 → 0 (конфиг проекта) |
 | 4.2 | datetime.utcnow → now(UTC) | `[x]` остатков нет |
-| 4.3 | .tmp и logs | `[ ]` |
+| 4.3 | .tmp и logs | `[x]` .dockerignore: *.tmp, .tmp_*, *.log, logs_*, logs/ |
 | 5.1 | F601: задвоенный ключ `hadoop` (баг в synonym map) | `[x]` + huggingface/html/css → F601=0 |
 | 5.2 | ruff: разбивка остатка (E501/N806/SIM105/...) | `[x]` остаток 0 |
 | 5.3 | E402: импорты не в начале файла (scripts/seed_all_directions.py и др.) | `[x]` |
-| 5.4 | `print()` в prod-коде → structured logging (~340) | `[ ]` |
+| 5.4 | `print()` в prod-коде → structured logging | `[~]` остаток ~306 |
 | 5.5 | Крупные модули: разбить router-файлы | `[ ]` |
-| 5.6 | Frontend: `any`-типы (101 место) | `[ ]` |
-| 5.7 | Аудит широких `except` (202) на проглатывание ошибок | `[ ]` |
+| 5.6 | Frontend: `any`-типы | `[~]` 101 → 43 |
+| 5.7 | Аудит широких `except` на проглатывание ошибок | `[~]` 550 `except Exception` в src, аудит не начат |
 | 6.* | Расширенный бэклог: security/API/DB/данные/фронт/ML/infra/docs (~35 подзадач) | `[~]` часть уже сделана (см. §8) |
 | 7.* | Глубокий бэклог: async/frontend/observability/config/tests/UX/reliability (~35 подзадач) | `[~]` часть уже сделана (см. §8) |
 | 8 | Верификация: снятые/переуточнённые задачи | — |
 | 9.* | Аудит по расширенным правилам ruff (correctness/errors/logging/complexity/perf/tests) | `[ ]` |
-| 10.1 | Синхронизация `main` → `dev` (ESLint + 3 коммита) | `[ ]` |
+| 10.1 | Синхронизация `main` → `dev` (ESLint + 3 коммита) | `[x]` dev вобрал весь main (0 позади), eslint.config.js в dev |
 
 ---
 
