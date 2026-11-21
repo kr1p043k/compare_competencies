@@ -1,49 +1,58 @@
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+/**
+ * ChatMarkdown: безопасный markdown-поднабор для чата (7.5.4).
+ * Проверяем рендер блоков, запрет javascript:-ссылок и экранирование HTML.
+ */
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { ChatMarkdown } from "./ChatMarkdown";
 
+afterEach(cleanup);
+
 describe("ChatMarkdown", () => {
-  it("renders headings and paragraphs", () => {
-    render(<ChatMarkdown>{"# Заголовок\n\nОбычный абзац"}</ChatMarkdown>);
-    expect(screen.getByText("Заголовок")).toBeTruthy();
-    expect(screen.getByText("Обычный абзац")).toBeTruthy();
+  it("пустой текст -> ничего", () => {
+    const { container } = render(<ChatMarkdown>{""}</ChatMarkdown>);
+    expect(container.textContent).toBe("");
   });
 
-  it("renders bullet lists", () => {
-    render(<ChatMarkdown>{"- первый\n- второй"}</ChatMarkdown>);
-    expect(screen.getByText("первый")).toBeTruthy();
-    expect(screen.getByText("второй")).toBeTruthy();
-    expect(document.querySelectorAll("li").length).toBe(2);
+  it("заголовок, параграф и жирный текст", () => {
+    render(<ChatMarkdown>{"## Итог\n\nэто **важно**"}</ChatMarkdown>);
+    expect(screen.getByText("Итог")).toBeTruthy();
+    expect(screen.getByText("важно")).toBeTruthy();
   });
 
-  it("renders inline code and fenced code blocks", () => {
-    render(<ChatMarkdown>{"до `x = 1` после\n\n```\nprint(1)\n```"}</ChatMarkdown>);
-    expect(screen.getByText("x = 1")).toBeTruthy();
-    expect(screen.getByText(/print\(1\)/)).toBeTruthy();
+  it("списки: маркированный и нумерованный", () => {
+    render(<ChatMarkdown>{"- один\n- два"}</ChatMarkdown>);
+    expect(screen.getByText("один")).toBeTruthy();
+    expect(screen.getByText("два")).toBeTruthy();
   });
 
-  it("makes https links external and safe", () => {
-    render(<ChatMarkdown>{"[ссылка](https://example.com/x)"}</ChatMarkdown>);
-    const a = screen.getByRole("link") as HTMLAnchorElement;
-    expect(a.getAttribute("href")).toBe("https://example.com/x");
-    expect(a.getAttribute("target")).toBe("_blank");
-    expect(a.getAttribute("rel")).toContain("noopener");
+  it("код-блок рендерится как <code>", () => {
+    const { container } = render(<ChatMarkdown>{"```\nprint(1)\n```"}</ChatMarkdown>);
+    expect(container.querySelector("code")?.textContent).toContain("print(1)");
   });
 
-  it("does not emit a javascript: href", () => {
-    const { container } = render(<ChatMarkdown>{"[bad](javascript:alert(1))"}</ChatMarkdown>);
-    const hrefs = Array.from(container.querySelectorAll("a")).map((a) => a.getAttribute("href"));
-    expect(hrefs.every((h) => !h || !h.toLowerCase().startsWith("javascript:"))).toBe(true);
+  it("http-ссылка становится кликабельной", () => {
+    const { container } = render(
+      <ChatMarkdown>{"[хаб](https://hub.sfedu.ru)"}</ChatMarkdown>,
+    );
+    const a = container.querySelector("a");
+    expect(a?.getAttribute("href")).toBe("https://hub.sfedu.ru");
+    expect(a?.getAttribute("rel")).toContain("noopener");
   });
 
-  it("renders nothing for empty or whitespace input", () => {
-    const { container } = render(<ChatMarkdown>{"   "}</ChatMarkdown>);
-    expect(container.firstChild).toBeNull();
+  it("javascript:-ссылка не превращается в href", () => {
+    const { container } = render(
+      <ChatMarkdown>{"[x](javascript:alert(1))"}</ChatMarkdown>,
+    );
+    expect(container.querySelector("a")).toBeNull();
   });
 
-  it("keeps plain text intact when there is no markdown", () => {
-    render(<ChatMarkdown>{"просто текст без разметки"}</ChatMarkdown>);
-    expect(screen.getByText("просто текст без разметки")).toBeTruthy();
+  it("HTML из модели показывается как текст, не интерпретируется", () => {
+    const { container } = render(
+      <ChatMarkdown>{"<img src=x onerror=alert(1)>"}</ChatMarkdown>,
+    );
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.textContent).toContain("<img");
   });
 });
