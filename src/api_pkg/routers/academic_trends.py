@@ -17,6 +17,7 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.api_pkg.rate_limit import limiter
 from src.api_pkg.routers.academic import _get_sso_token
@@ -25,6 +26,31 @@ from src.infrastructure.course_trends import CourseTrendsClient, CourseTrendsErr
 from src.infrastructure.course_trends_normalize import extract_articles
 
 logger = structlog.get_logger(__name__)
+class ArticleItem(BaseModel):
+    """Статья из Course Trends (поля нормализует extract_articles)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    title: str = ""
+    abstract: str | None = None
+    authors: list[str] = Field(default_factory=list)
+    year: int | None = None
+    citations: int | None = None
+
+
+class ProgramArticles(BaseModel):
+    """Постраничный ответ со статьями программы."""
+
+    model_config = ConfigDict(extra="allow")
+
+    pid: str
+    total: int
+    limit: int
+    offset: int
+    items: list[ArticleItem]
+    source: str
+
+
 router = APIRouter(tags=["academic-trends"])
 
 # Статьи/рекомендации по программе считаются заранее, но ответ может быть
@@ -128,6 +154,7 @@ async def program_bundle(pid: str, request: Request) -> Any:
 
 
 @router.get("/academic/programs/{pid}/articles",
+            response_model=ProgramArticles,
             dependencies=[Depends(require_any_role(*_ROLES))])
 @limiter.limit("60/minute")
 async def program_articles(
