@@ -717,6 +717,30 @@
         "title": "CompetencyIn",
         "type": "object"
       },
+      "CompetencyOption": {
+        "description": "Пункт выбора компетенции в конструкторе профиля.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "skills_count": {
+            "title": "Skills Count",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "title",
+          "skills_count"
+        ],
+        "title": "CompetencyOption",
+        "type": "object"
+      },
       "CreateUserRequest": {
         "properties": {
           "directions": {
@@ -793,6 +817,102 @@
           "code"
         ],
         "title": "CurrentCompetency",
+        "type": "object"
+      },
+      "CustomOptionsResponse": {
+        "description": "Данные пикера: компетенции и топ-30 технологий рынка.",
+        "properties": {
+          "competencies": {
+            "items": {
+              "$ref": "#/components/schemas/CompetencyOption"
+            },
+            "title": "Competencies",
+            "type": "array"
+          },
+          "technologies_suggest": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Technologies Suggest",
+            "type": "array"
+          }
+        },
+        "required": [
+          "competencies",
+          "technologies_suggest"
+        ],
+        "title": "CustomOptionsResponse",
+        "type": "object"
+      },
+      "CustomProfileCounts": {
+        "properties": {
+          "competencies": {
+            "title": "Competencies",
+            "type": "integer"
+          },
+          "skills": {
+            "title": "Skills",
+            "type": "integer"
+          },
+          "technologies": {
+            "title": "Technologies",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "competencies",
+          "skills",
+          "technologies"
+        ],
+        "title": "CustomProfileCounts",
+        "type": "object"
+      },
+      "CustomProfileCreatedResponse": {
+        "description": "Результат создания пользовательского профиля.",
+        "properties": {
+          "competencies_count": {
+            "title": "Competencies Count",
+            "type": "integer"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/CustomProfileCounts"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "skills_count": {
+            "title": "Skills Count",
+            "type": "integer"
+          },
+          "target_level": {
+            "title": "Target Level",
+            "type": "string"
+          },
+          "technologies_count": {
+            "title": "Technologies Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "profile",
+          "file",
+          "counts",
+          "target_level",
+          "competencies_count",
+          "skills_count",
+          "technologies_count"
+        ],
+        "title": "CustomProfileCreatedResponse",
         "type": "object"
       },
       "CustomProfileIn": {
@@ -9469,7 +9589,9 @@
           "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CustomProfileCreatedResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9499,7 +9621,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CustomOptionsResponse"
+                }
               }
             },
             "description": "Successful Response"
