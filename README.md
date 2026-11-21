@@ -392,6 +392,11 @@ cd frontend && npm install && npm run dev
   ```
   Минимально для работы требуется указать `HH_CLIENT_ID` и `HH_CLIENT_SECRET` (создать на https://dev.hh.ru/admin).
 
+  Второй агрегатор вакансий - Работа.ру (https://dev.rabota.ru): задайте
+  `RABOTA_APP_ID` и `RABOTA_SECRET`, затем выберите источник через
+  `VACANCY_SOURCE=rabota` или `VACANCY_SOURCE=both` (по умолчанию `hh`).
+  Тот же выбор доступен в CLI: `python main.py --source both`.
+
 ### Полный запуск (все сервисы)
 
 ```bash

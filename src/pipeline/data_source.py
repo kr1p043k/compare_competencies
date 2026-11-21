@@ -6,6 +6,7 @@ from typing import Protocol
 import structlog
 
 from src import DataSourceError, Err, Ok, Result, config
+from src.parsing.api.aggregator import make_vacancy_client
 from src.parsing.api.hh_api import HeadHunterAPI
 from src.parsing.skills.vacancy_parser import VacancyParser
 from src.parsing.utils import (
@@ -94,7 +95,9 @@ class HhDataSource(DataSourceProtocol):
         return Ok((vacancies, parser))
 
     def _collect_from_hh(self) -> Result[tuple[list, VacancyParser], DataSourceError]:
-        hh_api = HeadHunterAPI()
+        # Единый вход: hh напрямую или синглтон-агрегатор hh+rabota
+        # (выбор через args.source / config.VACANCY_SOURCE).
+        hh_api = make_vacancy_client(HeadHunterAPI, getattr(self.args, "source", None))
         parser = VacancyParser()
 
         # main.py не объявляет --interactive/--queries/--area-ids, но стадия

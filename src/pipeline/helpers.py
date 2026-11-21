@@ -49,6 +49,12 @@ def load_vacancies_details(
     log.info("loading_vacancy_details_started")
     _load_details_progress(0, len(basic_vacancies), "старт")
 
+    # Асинхронная догрузка умеет только hh.ru: у агрегатора (rabota.ru)
+    # отдельного эндпоинта по id нет, данные берутся из кэша поиска.
+    if use_async and not getattr(hh_api, "supports_async_details", True):
+        log.warning("async_unsupported_by_source_fallback_sync")
+        use_async = False
+
     if use_async:
         try:
             from src.parsing.api.hh_api_async import HeadHunterAPIAsync

@@ -55,6 +55,8 @@ def parse_arguments():
         help="Использовать LLM (YandexGPT) для живых объяснений рекомендаций")
     parser.add_argument("--skip-collection", action="store_true",
         help="Пропустить сбор вакансий, использовать существующие файлы")
+    parser.add_argument("--source", type=str, default=None, choices=["hh", "rabota", "both", "auto"],
+        help="Источник вакансий: hh (по умолчанию), rabota, both, auto")
     parser.add_argument("--teacher-analysis", "-ta", nargs="?", const="all", default=None,
         help="Запустить teacher analysis. Укажите код направления (09.03.02) или all")
     parser.add_argument("--discipline", type=str, default=None,

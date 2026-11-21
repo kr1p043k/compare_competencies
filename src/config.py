@@ -157,6 +157,33 @@ class Settings(BaseSettings):
     # HH закрыл /vacancies для анонимных запросов.
     HH_ACCESS_TOKEN: SecretStr | None = None
 
+    # ---------- rabota.ru API (второй агрегатор вакансий) ----------
+    # Публичный поиск вакансий: POST /v5/outer_clients/vacancies/search.json
+    # с application_id + time + signature (sha256 от канонического JSON + secret).
+    # WAF (BI.ZONE) отбивает короткие User-Agent, поэтому UA по умолчанию полный.
+    RABOTA_BASE_URL: str = "https://api.rabota.ru/v5"
+    RABOTA_APP_ID: int | None = None
+    RABOTA_SECRET: SecretStr | None = None
+    RABOTA_USER_AGENT: str = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    )
+    # Регион Москвы в нумерации rabota.ru (у hh DEFAULT_AREA=1 - тоже Москва,
+    # но id разные: у rabota 3=Москва, 4=СПб, 481=Казань, 328=Екатеринбург).
+    RABOTA_DEFAULT_REGION_ID: int = 3
+    # Публичный поиск отдаёт не больше 100 записей на страницу и упирается
+    # в глубину ~4000 (offset). Страховка от бесконечной пагинации.
+    RABOTA_MAX_OFFSET: int = 4000
+    RABOTA_PER_PAGE: int = 100
+    # Сдвиг id вакансий Работы.ру: в таблице vacancies UNIQUE(hh_id), а id
+    # у источников независимые. 1e9 выше любого hh id (сейчас ~1.4e8) и
+    # ещё помещается в int4 (2.147e9), т.е. колонка Integer не переполнится.
+    RABOTA_ID_OFFSET: int = 1_000_000_000
+
+    # ---------- агрегатор источников вакансий ----------
+    # hh | rabota | both (единый вход через get_vacancy_feed()).
+    VACANCY_SOURCE: str = "hh"
+
     # ---------- параметры поиска ----------
     DEFAULT_AREA: int = 1
     DEFAULT_PERIOD_DAYS: int = 30
@@ -483,6 +510,17 @@ PIPELINE_RETRIES = settings.PIPELINE_RETRIES
 HH_CLIENT_ID = settings.HH_CLIENT_ID
 HH_CLIENT_SECRET = settings.HH_CLIENT_SECRET
 HH_ACCESS_TOKEN = settings.HH_ACCESS_TOKEN
+
+RABOTA_BASE_URL = settings.RABOTA_BASE_URL
+RABOTA_APP_ID = settings.RABOTA_APP_ID
+RABOTA_SECRET = settings.RABOTA_SECRET
+RABOTA_USER_AGENT = settings.RABOTA_USER_AGENT
+RABOTA_DEFAULT_REGION_ID = settings.RABOTA_DEFAULT_REGION_ID
+RABOTA_MAX_OFFSET = settings.RABOTA_MAX_OFFSET
+RABOTA_PER_PAGE = settings.RABOTA_PER_PAGE
+RABOTA_ID_OFFSET = settings.RABOTA_ID_OFFSET
+
+VACANCY_SOURCE = settings.VACANCY_SOURCE
 
 DEFAULT_AREA = settings.DEFAULT_AREA
 DEFAULT_PERIOD_DAYS = settings.DEFAULT_PERIOD_DAYS
