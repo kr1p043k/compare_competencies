@@ -6,6 +6,7 @@ import re
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 
 from src import config
 from src.api_pkg.rate_limit import limiter
@@ -16,7 +17,36 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["trends"], dependencies=[Depends(require_authenticated())])
 
 
-@router.get("/trends/professions")
+class ProfessionItem(BaseModel):
+    """Профессия со снимком."""
+
+    name: str
+    snapshot: str
+    date: str
+
+
+class ProfessionsResponse(BaseModel):
+    professions: list[ProfessionItem]
+
+
+class ProfessionSkillItem(BaseModel):
+    skill: str
+    frequency: float | int
+
+
+class ProfessionTrendsResponse(BaseModel):
+    """Топ навыков профессии из снимка или live-SQL."""
+
+    profession: str
+    source: str
+    snapshot_date: str | None = None
+    vacancy_count: int | None = None
+    synthetic: bool | None = None
+    methodology_version: str | None = None
+    skills: list[ProfessionSkillItem]
+
+
+@router.get("/trends/professions", response_model=ProfessionsResponse)
 @limiter.limit("60/minute")
 async def list_professions(request: Request):
     """List available professions that have snapshots."""
@@ -42,7 +72,7 @@ async def list_professions(request: Request):
     return {"professions": sorted(result, key=lambda x: x["name"])}
 
 
-@router.get("/trends/by-profession")
+@router.get("/trends/by-profession", response_model=ProfessionTrendsResponse)
 @limiter.limit("60/minute")
 async def get_profession_trends(
     request: Request,

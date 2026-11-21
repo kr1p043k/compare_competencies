@@ -2394,72 +2394,100 @@
         "title": "ProfessionDetailResponse",
         "type": "object"
       },
-      "ProfessionItem": {
-        "description": "Профессия.",
+      "ProfessionSkillItem": {
         "properties": {
-          "aliases": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Aliases",
-            "type": "array"
+          "frequency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Frequency"
           },
-          "competency_codes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Competency Codes",
-            "type": "array"
-          },
-          "domains": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Domains",
-            "type": "array"
-          },
-          "hh_queries": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Hh Queries",
-            "type": "array"
-          },
-          "name": {
-            "title": "Name",
+          "skill": {
+            "title": "Skill",
             "type": "string"
           }
         },
         "required": [
-          "name",
-          "domains",
-          "competency_codes",
-          "hh_queries",
-          "aliases"
+          "skill",
+          "frequency"
         ],
-        "title": "ProfessionItem",
+        "title": "ProfessionSkillItem",
         "type": "object"
       },
-      "ProfessionsResponse": {
-        "description": "Список профессий.",
+      "ProfessionTrendsResponse": {
+        "description": "Топ навыков профессии из снимка или live-SQL.",
         "properties": {
-          "professions": {
+          "methodology_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Methodology Version"
+          },
+          "profession": {
+            "title": "Profession",
+            "type": "string"
+          },
+          "skills": {
             "items": {
-              "$ref": "#/components/schemas/ProfessionItem"
+              "$ref": "#/components/schemas/ProfessionSkillItem"
             },
-            "title": "Professions",
+            "title": "Skills",
             "type": "array"
           },
-          "total": {
-            "title": "Total",
-            "type": "integer"
+          "snapshot_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Date"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "synthetic": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synthetic"
+          },
+          "vacancy_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vacancy Count"
           }
         },
         "required": [
-          "professions",
-          "total"
+          "profession",
+          "source",
+          "skills"
         ],
-        "title": "ProfessionsResponse",
+        "title": "ProfessionTrendsResponse",
         "type": "object"
       },
       "ProfileListResponse": {
@@ -4531,6 +4559,114 @@
           "topic"
         ],
         "title": "GapRequest",
+        "type": "object"
+      },
+      "src__api_pkg__routers__trends_by_profession__ProfessionItem": {
+        "description": "Профессия со снимком.",
+        "properties": {
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "snapshot": {
+            "title": "Snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "snapshot",
+          "date"
+        ],
+        "title": "ProfessionItem",
+        "type": "object"
+      },
+      "src__api_pkg__routers__trends_by_profession__ProfessionsResponse": {
+        "properties": {
+          "professions": {
+            "items": {
+              "$ref": "#/components/schemas/src__api_pkg__routers__trends_by_profession__ProfessionItem"
+            },
+            "title": "Professions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "professions"
+        ],
+        "title": "ProfessionsResponse",
+        "type": "object"
+      },
+      "src__models__api_responses__ProfessionItem": {
+        "description": "Профессия.",
+        "properties": {
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "competency_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Competency Codes",
+            "type": "array"
+          },
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Domains",
+            "type": "array"
+          },
+          "hh_queries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hh Queries",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "domains",
+          "competency_codes",
+          "hh_queries",
+          "aliases"
+        ],
+        "title": "ProfessionItem",
+        "type": "object"
+      },
+      "src__models__api_responses__ProfessionsResponse": {
+        "description": "Список профессий.",
+        "properties": {
+          "professions": {
+            "items": {
+              "$ref": "#/components/schemas/src__models__api_responses__ProfessionItem"
+            },
+            "title": "Professions",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "professions",
+          "total"
+        ],
+        "title": "ProfessionsResponse",
         "type": "object"
       }
     }
@@ -10782,7 +10918,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProfessionsResponse"
+                  "$ref": "#/components/schemas/src__models__api_responses__ProfessionsResponse"
                 }
               }
             },
@@ -13697,7 +13833,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ProfessionTrendsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -13727,7 +13865,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/src__api_pkg__routers__trends_by_profession__ProfessionsResponse"
+                }
               }
             },
             "description": "Successful Response"
