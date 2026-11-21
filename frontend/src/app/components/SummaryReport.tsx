@@ -32,8 +32,8 @@ const METRICS: MetricDef[] = [
 function rowVisible(key: string, evals: Record<string, EvalEntry>, profiles: string[]): boolean {
   const vals = profiles.map((p) => evals[p]?.[key as keyof EvalEntry]);
   if (vals.every((v) => v === undefined || v === null)) return false;
-  // profession_coverage без фокуса всегда 0 - строку не показываем.
-  if (key === "profession_coverage" && vals.every((v) => v === 0)) return false;
+  // profession_coverage показываем всегда: если целевая профессия не задана,
+  // строка не исчезает молча, а честно показывает «н/д» (см. scoreCell).
   return true;
 }
 
@@ -260,7 +260,16 @@ export function SummaryReport({ data }: SummaryReportProps) {
                   </TableCell>
                   {profiles.map((p) => (
                     <TableCell key={p} className="whitespace-nowrap">
-                      {scoreCell(evals[p]?.[m.key as keyof EvalEntry] as number | undefined, m.key === "avg_gap")}
+                      {m.key === "profession_coverage" && !evals[p]?.profession_coverage ? (
+                        <span
+                          className="text-xs text-subtle-foreground"
+                          title="Целевая профессия не задана у профиля - не с чем сравнивать"
+                        >
+                          н/д
+                        </span>
+                      ) : (
+                        scoreCell(evals[p]?.[m.key as keyof EvalEntry] as number | undefined, m.key === "avg_gap")
+                      )}
                     </TableCell>
                   ))}
                 </TableRow>

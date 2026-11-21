@@ -310,7 +310,7 @@ function ForecastRow({ item, rank, expanded, onToggle, months }: { item: Forecas
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-2">
             {item.data_points !== undefined && (
-              <span className="px-2 py-0.5 rounded bg-muted">месяцев истории: {item.data_points}</span>
+              <span className="px-2 py-0.5 rounded bg-muted whitespace-nowrap">месяцев истории: {item.data_points}</span>
             )}
             {insufficient && (
               <span className="px-2 py-0.5 rounded bg-warning-soft text-warning">недостаточно данных для прогноза</span>
@@ -373,7 +373,7 @@ function LowConfidenceBadge({ item, confPct }: { item: ForecastItem; confPct: nu
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onClick={() => setOpen((v) => !v)}
-        className="px-2 py-0.5 rounded bg-muted text-muted-foreground cursor-help"
+        className="px-2 py-0.5 rounded bg-muted text-muted-foreground cursor-help text-xs whitespace-nowrap"
       >
         {label}
       </button>
