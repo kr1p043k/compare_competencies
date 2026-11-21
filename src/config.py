@@ -179,6 +179,10 @@ class Settings(BaseSettings):
     # у источников независимые. 1e9 выше любого hh id (сейчас ~1.4e8) и
     # ещё помещается в int4 (2.147e9), т.е. колонка Integer не переполнится.
     RABOTA_ID_OFFSET: int = 1_000_000_000
+    # Работа.ру не умеет фильтровать выдачу по IT-профессиям (параметр
+    # professional_role игнорируется), поэтому режем локально по дереву
+    # professional_areas (ветка 01.* = IT/Интернет/Телеком) + ключевым словам.
+    RABOTA_IT_ONLY: bool = True
 
     # ---------- агрегатор источников вакансий ----------
     # hh | rabota | both (единый вход через get_vacancy_feed()).
@@ -519,6 +523,7 @@ RABOTA_DEFAULT_REGION_ID = settings.RABOTA_DEFAULT_REGION_ID
 RABOTA_MAX_OFFSET = settings.RABOTA_MAX_OFFSET
 RABOTA_PER_PAGE = settings.RABOTA_PER_PAGE
 RABOTA_ID_OFFSET = settings.RABOTA_ID_OFFSET
+RABOTA_IT_ONLY = settings.RABOTA_IT_ONLY
 
 VACANCY_SOURCE = settings.VACANCY_SOURCE
 

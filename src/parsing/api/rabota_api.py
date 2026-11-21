@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
 from typing import Any
 
@@ -95,6 +96,45 @@ _CURRENCY_TO_CODE = {
     "uah": "UAH",
     "грн": "UAH",
 }
+
+# --- IT-фильтр --------------------------------------------------------------
+# Работа.ру игнорирует professional_role/industry, поэтому «python» отдаёт и
+# педагогов. Основной признак - дерево professional_areas: ветка 01.* это
+# IT/Интернет/Телеком (01.01.01 Программирование, 01.01.03 Аналитика,
+# 01.01.04 Сети и защита информации). Ключевые слова - страховка на случай,
+# когда areas пустые или размечены неверно.
+IT_AREA_TREE_PREFIX = "01."
+
+# Слова в названии вакансии/профессии. Регексы с \b (в Python 3 \b работает
+# для кириллицы), чтобы «qa» не ловилось внутри «Qatar», а «1с» - внутри «1сентября».
+_IT_TITLE_PATTERNS = [
+    r"\bpython\b", r"\bпитон\b", r"\bjava\b", r"\bjavascript\b", r"\btypescript\b",
+    r"\b(?:node|vue|react|angular)\.?js\b", r"\bphp\b", r"\bc\+\+\b", r"\bc#\b",
+    r"\bgolang\b", r"\brust\b", r"\bscala\b", r"\bkotlin\b", r"\bswift\b",
+    r"\b1с\b", r"\b1c\b", r"\bdevops\b", r"\bdev-ops\b", r"\bsre\b",
+    r"\bqa\b", r"\bтестировщик\b", r"\bтестирование\b", r"\bавтотест\w*",
+    r"\bпрограммист\w*", r"\bразработчик\w*", r"\bdeveloper\b", r"\bengineer\b",
+    r"\bbackend\b", r"\bfrontend\b", r"\bfull[-\s]?stack\b", r"\bверстальщик\w*",
+    r"\bсистемный аналитик\w*", r"\bбизнес-аналитик\w*", r"\bаналитик данных\b",
+    r"\bdata\s?scientist\b", r"\bdata\s?engineer\b", r"\bdata\s?analyst\b",
+    r"\bml\s?(?:engineer|инженер|разработчик)\w*", r"\bмашинн\w+ обучени\w+",
+    r"\bсистемн\w+ администратор\w*", r"\bсетев\w+ инженер\w*", r"\bсисадмин\w*",
+    r"\bинформационн\w+ безопасност\w*", r"\bпентест\w*", r"\bбитрикс\w*",
+    r"\bархитектор\s+по\b", r"\bteamlead\b", r"\bteam\s?lead\b", r"\bтимлид\w*",
+]
+_IT_TITLE_RE = re.compile("|".join(_IT_TITLE_PATTERNS), re.IGNORECASE)
+
+
+def _is_it_vacancy(raw: dict[str, Any]) -> bool:
+    """True, если вакансия относится к IT (по дереву областей или по названию)."""
+    for area in raw.get("professional_areas") or []:
+        if isinstance(area, dict) and str(area.get("tree") or "").startswith(IT_AREA_TREE_PREFIX):
+            return True
+    title = str(raw.get("title") or "")
+    top = raw.get("top_position")
+    if isinstance(top, dict):
+        title = f"{title} {top.get('name') or ''}"
+    return bool(_IT_TITLE_RE.search(title))
 
 
 def _canonical_json(value: Any) -> str:
@@ -393,12 +433,14 @@ class RabotaAPI:
         date_to: str | None = None,
         since_id: int | None = None,
         professional_role: str | list[str] | None = None,
+        it_only: bool | None = None,
         **kwargs: Any,
     ) -> Result[list[dict[str, Any]], ApiError]:
         per_page = max(1, min(int(per_page or 100), int(config.RABOTA_PER_PAGE), 100))
         region_id = self.map_area(area)
         max_offset = int(config.RABOTA_MAX_OFFSET)
         max_pages = max(1, int(max_pages or 1))
+        it_only = config.RABOTA_IT_ONLY if it_only is None else it_only
 
         base_request: dict[str, Any] = {
             "fields": SEARCH_FIELDS,
@@ -428,6 +470,7 @@ class RabotaAPI:
         offset = 0
         page = 0
         total_available: int | None = None
+        filtered_out = 0
 
         while page < max_pages and offset < max_offset:
             request = dict(base_request)
@@ -447,6 +490,10 @@ class RabotaAPI:
             if not vacancies:
                 break
             for raw in vacancies:
+                # IT-фильтр: API не умеет ограничивать по профессии, режем сами.
+                if it_only and not _is_it_vacancy(raw):
+                    filtered_out += 1
+                    continue
                 try:
                     mapped = rabota_to_hh(raw, id_offset=self._id_offset)
                 except ValueError as exc:
@@ -463,6 +510,8 @@ class RabotaAPI:
                 page=page + 1,
                 offset=offset,
                 items=len(vacancies),
+                it_only=it_only,
+                filtered_out=filtered_out,
                 total=total_available,
             )
             if len(vacancies) < per_page:
@@ -478,8 +527,15 @@ class RabotaAPI:
                 "pages": max(1, (int(total_available) + per_page - 1) // per_page),
                 "page": page,
                 "per_page": per_page,
+                "filtered_out": filtered_out,
             }
-        logger.info("rabota_search_completed", total=len(collected), query=text)
+        logger.info(
+            "rabota_search_completed",
+            total=len(collected),
+            filtered_out=filtered_out,
+            it_only=it_only,
+            query=text,
+        )
         return Ok(collected)
 
     def search_vacancies_validated(self, *args, **kwargs) -> Result[list[dict[str, Any]], ApiError]:
