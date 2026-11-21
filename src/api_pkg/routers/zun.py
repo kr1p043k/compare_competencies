@@ -45,8 +45,28 @@ from src.api_pkg.routers.zun_schemas import (
     CompetencyIn,
     ScopePut,
     SkillLinkIn,
+    ZunAnalyzeStarted,
+    ZunAnalyzeStatus,
+    ZunCompetencyCoverage,
+    ZunCompetencyCreated,
+    ZunCompetencyPicker,
+    ZunCompetencySkill,
+    ZunDeleteAck,
+    ZunDirectionItem,
+    ZunDisciplineItem,
+    ZunDisciplineTree,
+    ZunEntry,
+    ZunFilterItem,
+    ZunImportResult,
     ZUNIn,
+    ZunMyDirectionItem,
     ZUNPatch,
+    ZunScope,
+    ZunScopeUpdated,
+    ZunSearchItem,
+    ZunSemanticResponse,
+    ZunSkillLinked,
+    ZunStats,
 )
 from src.db import get_pool
 from src.utils import clip01
@@ -244,7 +264,7 @@ _SEM_TTL = 600
 # ---------- A. metadata ----------
 
 
-@router.get("/teacher/zun/directions")
+@router.get("/teacher/zun/directions", response_model=list[ZunDirectionItem], response_model_exclude_unset=True)
 @limiter.limit("60/minute")
 async def zun_directions(request: Request):
     """Направления ЗУН."""
@@ -287,7 +307,7 @@ async def zun_directions(request: Request):
     ]
 
 
-@router.get("/teacher/zun/my-directions")
+@router.get("/teacher/zun/my-directions", response_model=list[ZunMyDirectionItem], response_model_exclude_unset=True)
 @limiter.limit("60/minute")
 async def zun_my_directions(request: Request):
     """Мои направления (по правам)."""
@@ -311,7 +331,7 @@ async def zun_my_directions(request: Request):
 # ---------- B. summaries ----------
 
 
-@router.get("/teacher/zun/stats")
+@router.get("/teacher/zun/stats", response_model=ZunStats, response_model_exclude_unset=True)
 @limiter.limit("60/minute")
 async def zun_stats(request: Request, dir_code: str = "09.03.02"):
     """Статистика ЗУН направления."""
@@ -381,7 +401,7 @@ async def zun_stats(request: Request, dir_code: str = "09.03.02"):
     }
 
 
-@router.get("/teacher/zun/disciplines")
+@router.get("/teacher/zun/disciplines", response_model=list[ZunDisciplineItem], response_model_exclude_unset=True)
 @limiter.limit("60/minute")
 async def zun_disciplines(
     request: Request,
@@ -561,7 +581,11 @@ async def _build_discipline_tree(pool, disc_id: str, dir_code: str | None = None
     }
 
 
-@router.get("/teacher/zun/disciplines/{discipline_id}")
+@router.get(
+    "/teacher/zun/disciplines/{discipline_id}",
+    response_model=ZunDisciplineTree,
+    response_model_exclude_unset=True,
+)
 @limiter.limit("60/minute")
 async def zun_discipline_tree(request: Request, discipline_id: str):
     """Дерево дисциплины."""
@@ -569,7 +593,11 @@ async def zun_discipline_tree(request: Request, discipline_id: str):
     return await _build_discipline_tree(get_pool(), discipline_id)
 
 
-@router.get("/teacher/zun/disciplines/name/{discipline_name:path}")
+@router.get(
+    "/teacher/zun/disciplines/name/{discipline_name:path}",
+    response_model=ZunDisciplineTree,
+    response_model_exclude_unset=True,
+)
 @limiter.limit("60/minute")
 async def zun_discipline_by_name(request: Request, discipline_name: str, dir_code: str = "09.03.02"):
     """Дисциплина по имени."""
@@ -606,7 +634,7 @@ async def zun_discipline_by_name(request: Request, discipline_name: str, dir_cod
 # ---------- D. search ----------
 
 
-@router.get("/teacher/zun/search")
+@router.get("/teacher/zun/search", response_model=list[ZunSearchItem], response_model_exclude_unset=True)
 @limiter.limit("120/minute")
 async def zun_search(
     request: Request,
@@ -713,7 +741,7 @@ async def _semantic_cache_items(pool, dir_ids: list[str]) -> tuple[list[dict], n
         return items, np.zeros((0, 0))
 
 
-@router.get("/teacher/zun/search/semantic")
+@router.get("/teacher/zun/search/semantic", response_model=ZunSemanticResponse, response_model_exclude_unset=True)
 @limiter.limit("60/minute")
 async def zun_search_semantic(
     request: Request,
@@ -827,7 +855,7 @@ async def _fallback_semantic(pool, q: str, dir_code: str, ksa_type: str, limit: 
 # ---------- E. filter ----------
 
 
-@router.get("/teacher/zun/filter")
+@router.get("/teacher/zun/filter", response_model=list[ZunFilterItem], response_model_exclude_unset=True)
 @limiter.limit("120/minute")
 async def zun_filter(
     request: Request,
@@ -892,7 +920,11 @@ async def zun_filter(
 # ---------- F. competency -> market ----------
 
 
-@router.get("/teacher/zun/competencies/{competency_id}/skills")
+@router.get(
+    "/teacher/zun/competencies/{competency_id}/skills",
+    response_model=list[ZunCompetencySkill],
+    response_model_exclude_unset=True,
+)
 @limiter.limit("120/minute")
 async def zun_competency_skills(request: Request, competency_id: str, match_type: str = ""):
     """Навыки компетенции."""
@@ -930,7 +962,11 @@ async def zun_competency_skills(request: Request, competency_id: str, match_type
     ]
 
 
-@router.get("/teacher/zun/competencies/{competency_id}/coverage")
+@router.get(
+    "/teacher/zun/competencies/{competency_id}/coverage",
+    response_model=ZunCompetencyCoverage,
+    response_model_exclude_unset=True,
+)
 @limiter.limit("120/minute")
 async def zun_competency_coverage(request: Request, competency_id: str):
     """Покрытие компетенции."""
@@ -1012,7 +1048,7 @@ async def zun_analyze_results(
     return json.loads(summary.read_text(encoding="utf-8"))
 
 
-@router.get("/teacher/zun/competencies/search")
+@router.get("/teacher/zun/competencies/search", response_model=ZunCompetencyPicker, response_model_exclude_unset=True)
 @limiter.limit("60/minute")
 async def zun_search_competencies(request: Request, q: str = "", dir_code: str = "09.03.02", limit: int = 20):
     """Lightweight competency picker: [{id, code, discipline_name}]."""
@@ -1034,7 +1070,7 @@ async def zun_search_competencies(request: Request, q: str = "", dir_code: str =
     return {"items": [{"id": str(r["id"]), "code": r["code"], "discipline_name": r["discipline_name"]} for r in rows]}
 
 
-@router.get("/teacher/zun/scope")
+@router.get("/teacher/zun/scope", response_model=ZunScope, response_model_exclude_unset=True)
 @limiter.limit("60/minute")
 async def zun_get_scope(request: Request, dir_code: str = "09.03.02"):
     """Scope state for UI checkboxes: effective per-discipline + methodology list."""
@@ -1062,7 +1098,7 @@ async def zun_get_scope(request: Request, dir_code: str = "09.03.02"):
     }
 
 
-@router.put("/teacher/zun/scope")
+@router.put("/teacher/zun/scope", response_model=ZunScopeUpdated, response_model_exclude_unset=True)
 @limiter.limit("30/minute")
 async def zun_put_scope(request: Request, body: ScopePut):
     """Set UI scope overrides (checkboxes). Takes effect on next teacher-analysis."""
@@ -1107,7 +1143,12 @@ async def zun_put_scope(request: Request, body: ScopePut):
 # ---------- G. write KSA (no migrations) ----------
 
 
-@router.post("/teacher/zun/competencies/{competency_id}/entries", status_code=201)
+@router.post(
+    "/teacher/zun/competencies/{competency_id}/entries",
+    status_code=201,
+    response_model=ZunEntry,
+    response_model_exclude_unset=True,
+)
 @limiter.limit("30/minute")
 async def zun_add_entry(request: Request, competency_id: str, body: ZUNIn):
     """Добавить KSA-запись."""
@@ -1165,7 +1206,12 @@ async def zun_add_entry(request: Request, competency_id: str, body: ZUNIn):
 _COMP_CODE_RE = re.compile("^(УК|ОПК|ПК|ППК|ИП|ВПК)[- ]([0-9]+(?:\\.[0-9]+)*)$")
 
 
-@router.post("/teacher/zun/disciplines/{discipline_id}/competencies", status_code=201)
+@router.post(
+    "/teacher/zun/disciplines/{discipline_id}/competencies",
+    status_code=201,
+    response_model=ZunCompetencyCreated,
+    response_model_exclude_unset=True,
+)
 @limiter.limit("30/minute")
 async def zun_add_competency(request: Request, discipline_id: str, body: CompetencyIn):
     """Create a custom competency under a discipline (code like УК-1, ПК-2.1)."""
@@ -1214,7 +1260,12 @@ async def zun_add_competency(request: Request, discipline_id: str, body: Compete
 _CS_KSA_TYPES = ("knowledge", "abilities", "skills", "flat")
 
 
-@router.post("/teacher/zun/competencies/{competency_id}/skills", status_code=201)
+@router.post(
+    "/teacher/zun/competencies/{competency_id}/skills",
+    status_code=201,
+    response_model=ZunSkillLinked,
+    response_model_exclude_unset=True,
+)
 @limiter.limit("30/minute")
 async def zun_link_skill(request: Request, competency_id: str, body: SkillLinkIn):
     """Attach a market/admin tool to a competency in DB (explicit link).
@@ -1278,7 +1329,7 @@ async def zun_link_skill(request: Request, competency_id: str, body: SkillLinkIn
     return {"skill_id": str(skill_id), "skill_name": name, "ksa_type": body.ksa_type, "match_type": "exact"}
 
 
-@router.patch("/teacher/zun/entries/{ksa_id}")
+@router.patch("/teacher/zun/entries/{ksa_id}", response_model=ZunEntry, response_model_exclude_unset=True)
 @limiter.limit("30/minute")
 async def zun_patch_entry(request: Request, ksa_id: str, body: ZUNPatch):
     """Обновить KSA-запись."""
@@ -1304,7 +1355,7 @@ async def zun_patch_entry(request: Request, ksa_id: str, body: ZUNPatch):
     return {"ksa_id": ksa_id, "ksa_type": row["ksa_type"], "text": text}
 
 
-@router.delete("/teacher/zun/entries/{ksa_id}")
+@router.delete("/teacher/zun/entries/{ksa_id}", response_model=ZunDeleteAck, response_model_exclude_unset=True)
 @limiter.limit("30/minute")
 async def zun_delete_entry(request: Request, ksa_id: str):
     """Удалить KSA-запись."""
@@ -1323,7 +1374,7 @@ async def zun_delete_entry(request: Request, ksa_id: str):
 # ---------- H1/H2. analyze ----------
 
 
-@router.post("/teacher/zun/analyze")
+@router.post("/teacher/zun/analyze", response_model=ZunAnalyzeStarted, response_model_exclude_unset=True)
 @limiter.limit("2/minute")
 async def zun_analyze(request: Request, background_tasks: BackgroundTasks, dir_code: str = "09.03.02"):
     """Запустить ZUN-анализ.
@@ -1364,7 +1415,7 @@ async def zun_analyze(request: Request, background_tasks: BackgroundTasks, dir_c
     return {"status": "started", "dir_code": dir_code}
 
 
-@router.get("/teacher/zun/analyze/status/{run_id}")
+@router.get("/teacher/zun/analyze/status/{run_id}", response_model=ZunAnalyzeStatus, response_model_exclude_unset=True)
 @limiter.limit("120/minute")
 async def zun_analyze_status(request: Request, run_id: str):
     """Статус ZUN-анализа."""
@@ -1494,7 +1545,7 @@ async def _import_direction(pool, dir_code: str, dry_run: bool) -> dict:
     }
 
 
-@router.post("/teacher/zun/import/{dir_code}")
+@router.post("/teacher/zun/import/{dir_code}", response_model=ZunImportResult, response_model_exclude_unset=True)
 @limiter.limit("5/minute")
 async def zun_import(request: Request, dir_code: str, dry_run: bool = False):
     """Импорт KRM направления."""
