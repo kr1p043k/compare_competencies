@@ -210,7 +210,26 @@ def _clean_str_list(items: Any, *, max_len: int, field: str) -> list[str]:
     return out
 
 
-@router.get("/profiles/custom/options", dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])
+class CompetencyOption(BaseModel):
+    """Пункт выбора компетенции в конструкторе профиля."""
+
+    code: str
+    title: str
+    skills_count: int
+
+
+class CustomOptionsResponse(BaseModel):
+    """Данные пикера: компетенции и топ-30 технологий рынка."""
+
+    competencies: list[CompetencyOption]
+    technologies_suggest: list[str]
+
+
+@router.get(
+    "/profiles/custom/options",
+    response_model=CustomOptionsResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
+)
 @limiter.limit("60/minute")
 async def custom_profile_options(request: Request):
     """Picker data: competencies union (memory profiles + files) + top-30 market technologies. Read-only."""
@@ -314,8 +333,28 @@ async def custom_profile_options(request: Request):
         raise HTTPException(status_code=400, detail="Не удалось загрузить опции профиля.") from None
 
 
+class CustomProfileCounts(BaseModel):
+    competencies: int
+    skills: int
+    technologies: int
+
+
+class CustomProfileCreatedResponse(BaseModel):
+    """Результат создания пользовательского профиля."""
+
+    name: str
+    profile: str
+    file: str
+    counts: CustomProfileCounts
+    target_level: str
+    competencies_count: int
+    skills_count: int
+    technologies_count: int
+
+
 @router.post(
     "/profiles/custom",
+    response_model=CustomProfileCreatedResponse,
     status_code=201,
     dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
 )
