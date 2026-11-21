@@ -3369,6 +3369,169 @@
         "title": "RootBody",
         "type": "object"
       },
+      "RpdCancelResponse": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "message"
+        ],
+        "title": "RpdCancelResponse",
+        "type": "object"
+      },
+      "RpdCollectResponse": {
+        "properties": {
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "has_url": {
+            "title": "Has Url",
+            "type": "boolean"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "run_id",
+          "dir_code",
+          "source",
+          "has_url"
+        ],
+        "title": "RpdCollectResponse",
+        "type": "object"
+      },
+      "RpdSourcesResponse": {
+        "properties": {
+          "all_directions": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "All Directions",
+            "type": "array"
+          },
+          "yandex_covered": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Yandex Covered",
+            "type": "array"
+          }
+        },
+        "title": "RpdSourcesResponse",
+        "type": "object"
+      },
+      "RpdStatusResponse": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "stats": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Stats",
+            "type": "object"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "status"
+        ],
+        "title": "RpdStatusResponse",
+        "type": "object"
+      },
+      "RpdUploadResponse": {
+        "properties": {
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "run_id",
+          "file",
+          "dir_code"
+        ],
+        "title": "RpdUploadResponse",
+        "type": "object"
+      },
       "SchedulerSettingsPatch": {
         "properties": {
           "collect_interval_hours": {
@@ -12515,7 +12678,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RpdCancelResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -12554,7 +12719,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RpdCollectResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -12584,7 +12751,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RpdSourcesResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -12615,7 +12784,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RpdStatusResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -12655,7 +12826,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RpdUploadResponse"
+                }
               }
             },
             "description": "Successful Response"
