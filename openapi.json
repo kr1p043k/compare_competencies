@@ -2663,6 +2663,44 @@
         "title": "ProfessionTrendsResponse",
         "type": "object"
       },
+      "ProfessionsListResponse": {
+        "properties": {
+          "professions": {
+            "items": {
+              "$ref": "#/components/schemas/src__api_pkg__routers__trends_by_profession__ProfessionItem"
+            },
+            "title": "Professions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "professions"
+        ],
+        "title": "ProfessionsListResponse",
+        "type": "object"
+      },
+      "ProfessionsResponse": {
+        "description": "Список профессий.",
+        "properties": {
+          "professions": {
+            "items": {
+              "$ref": "#/components/schemas/src__models__api_responses__ProfessionItem"
+            },
+            "title": "Professions",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "professions",
+          "total"
+        ],
+        "title": "ProfessionsResponse",
+        "type": "object"
+      },
       "ProfileListResponse": {
         "description": "Список доступных профилей обучения (встроенные + созданные).",
         "properties": {
@@ -5059,22 +5097,6 @@
         "title": "ProfessionItem",
         "type": "object"
       },
-      "src__api_pkg__routers__trends_by_profession__ProfessionsResponse": {
-        "properties": {
-          "professions": {
-            "items": {
-              "$ref": "#/components/schemas/src__api_pkg__routers__trends_by_profession__ProfessionItem"
-            },
-            "title": "Professions",
-            "type": "array"
-          }
-        },
-        "required": [
-          "professions"
-        ],
-        "title": "ProfessionsResponse",
-        "type": "object"
-      },
       "src__models__api_responses__ProfessionItem": {
         "description": "Профессия.",
         "properties": {
@@ -5119,28 +5141,6 @@
           "aliases"
         ],
         "title": "ProfessionItem",
-        "type": "object"
-      },
-      "src__models__api_responses__ProfessionsResponse": {
-        "description": "Список профессий.",
-        "properties": {
-          "professions": {
-            "items": {
-              "$ref": "#/components/schemas/src__models__api_responses__ProfessionItem"
-            },
-            "title": "Professions",
-            "type": "array"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "professions",
-          "total"
-        ],
-        "title": "ProfessionsResponse",
         "type": "object"
       }
     }
@@ -11396,7 +11396,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/src__models__api_responses__ProfessionsResponse"
+                  "$ref": "#/components/schemas/ProfessionsResponse"
                 }
               }
             },
@@ -14354,7 +14354,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/src__api_pkg__routers__trends_by_profession__ProfessionsResponse"
+                  "$ref": "#/components/schemas/ProfessionsListResponse"
                 }
               }
             },

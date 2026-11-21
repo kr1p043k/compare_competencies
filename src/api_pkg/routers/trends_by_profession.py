@@ -25,7 +25,7 @@ class ProfessionItem(BaseModel):
     date: str
 
 
-class ProfessionsResponse(BaseModel):
+class ProfessionsListResponse(BaseModel):
     professions: list[ProfessionItem]
 
 
@@ -46,7 +46,7 @@ class ProfessionTrendsResponse(BaseModel):
     skills: list[ProfessionSkillItem]
 
 
-@router.get("/trends/professions", response_model=ProfessionsResponse)
+@router.get("/trends/professions", response_model=ProfessionsListResponse)
 @limiter.limit("60/minute")
 async def list_professions(request: Request):
     """List available professions that have snapshots."""
