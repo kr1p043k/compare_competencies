@@ -1826,6 +1826,344 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "IntakeComparisonResponse": {
+        "additionalProperties": true,
+        "description": "Сводка сравнения двух приёмов по направлению.",
+        "properties": {
+          "added": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/IntakeDisciplineCard"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Added"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
+          "direction_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction Name"
+          },
+          "kept": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/IntakeKeptDiscipline"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kept"
+          },
+          "new_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Year"
+          },
+          "old_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Year"
+          },
+          "removed": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/IntakeDisciplineCard"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Removed"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IntakeComparisonSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "IntakeComparisonResponse",
+        "type": "object"
+      },
+      "IntakeComparisonSummary": {
+        "additionalProperties": true,
+        "description": "Агрегаты сравнения приёмов.",
+        "properties": {
+          "added": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Added"
+          },
+          "avg_coverage_delta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Coverage Delta"
+          },
+          "avg_coverage_new": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Coverage New"
+          },
+          "avg_coverage_old": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Coverage Old"
+          },
+          "improved": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Improved"
+          },
+          "kept": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kept"
+          },
+          "removed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Removed"
+          },
+          "unchanged": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unchanged"
+          },
+          "worsened": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worsened"
+          }
+        },
+        "title": "IntakeComparisonSummary",
+        "type": "object"
+      },
+      "IntakeDisciplineCard": {
+        "additionalProperties": true,
+        "description": "Дисциплина в отчёте сравнения приёмов.\n\nОтчёт собирает scripts/compare_intakes.py; поля необязательные, чтобы\nчастичные отчёты не падали на валидации.",
+        "properties": {
+          "coverage_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Level"
+          },
+          "coverage_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Ratio"
+          },
+          "gaps": {
+            "title": "Gaps"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "IntakeDisciplineCard",
+        "type": "object"
+      },
+      "IntakeKeptDiscipline": {
+        "additionalProperties": true,
+        "description": "Дисциплина, сохранившаяся в обоих приёмах.",
+        "properties": {
+          "coverage_delta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Delta"
+          },
+          "coverage_ratio_new": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Ratio New"
+          },
+          "coverage_ratio_old": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Ratio Old"
+          },
+          "gaps_delta": {
+            "title": "Gaps Delta"
+          },
+          "gaps_new": {
+            "title": "Gaps New"
+          },
+          "gaps_old": {
+            "title": "Gaps Old"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "old_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Name"
+          },
+          "significant_change": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Significant Change"
+          }
+        },
+        "title": "IntakeKeptDiscipline",
+        "type": "object"
+      },
       "KRMCompetency": {
         "description": "Компетенция KRM с навыками.",
         "properties": {
@@ -13811,7 +14149,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Intake Comparison Api Teacher Intake Comparison Get"
+                  "$ref": "#/components/schemas/IntakeComparisonResponse"
                 }
               }
             },
