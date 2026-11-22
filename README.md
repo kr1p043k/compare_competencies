@@ -335,7 +335,6 @@
 ├── 📄 users.json                       # Пользователи по умолчанию (admin/teacher/student)
 ├── 📄 backup-volumes.sh                # Бэкап Docker volumes
 ├── 📄 update-deployment.sh             # Полный деплой + бэкап + rollback
-├── 📄 start-ollama.sh                  # Запуск Ollama
 └── 📄 README.md
 ```
 
@@ -533,7 +532,6 @@ python main.py --interactive
 | `users.json` | Пользователи по умолчанию: admin, teacher, student |
 | `backup-volumes.sh` | Бэкап Docker volumes + дамп PostgreSQL в `./backups/` |
 | `update-deployment.sh` | Полный деплой: бэкап → git pull → compose down → build → up → health check → rollback при ошибке |
-| `start-ollama.sh` | Запуск Ollama (для локальной разработки) |
 | `.dockerignore` | Игнор для Docker сборки (исключает node_modules, .git, \_\_pycache\_\_) |
 
 ## Документация
