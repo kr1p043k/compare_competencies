@@ -232,7 +232,7 @@ const LEVEL_BG: Record<LevelKey, string> = {
       <section>
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <Select value={level} onValueChange={(v) => setLevel(v as LevelKey)}>
-            <SelectTrigger className="w-52 h-9 bg-input-background border-input text-xs">
+            <SelectTrigger aria-label="Уровень компетенций" className="w-52 h-9 bg-input-background border-input text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -244,7 +244,7 @@ const LEVEL_BG: Record<LevelKey, string> = {
             </SelectContent>
           </Select>
           <Select value={String(axesCount)} onValueChange={(v) => setAxesCount(Number(v) as 12 | 15 | 20)}>
-            <SelectTrigger className="w-36 h-9 bg-input-background border-input text-xs">
+            <SelectTrigger aria-label="Число навыков на графике" className="w-36 h-9 bg-input-background border-input text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
