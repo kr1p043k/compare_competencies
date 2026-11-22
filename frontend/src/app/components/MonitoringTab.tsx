@@ -342,7 +342,7 @@ function MonitoringTabBase() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg"><BarChart3 className="size-5" />Этапы пайплайна</CardTitle>
+              <CardTitle aria-level={2} className="flex items-center gap-2 text-lg"><BarChart3 className="size-5" />Этапы пайплайна</CardTitle>
               <CardDescription>Длительность этапов пайплайна</CardDescription>
             </CardHeader>
             <CardContent>
@@ -370,7 +370,7 @@ function MonitoringTabBase() {
           {ltrMetrics.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg"><Cpu className="size-5" />LTR Model</CardTitle>
+                <CardTitle aria-level={2} className="flex items-center gap-2 text-lg"><Cpu className="size-5" />LTR Model</CardTitle>
                 <CardDescription>Метрики качества LTR-модели</CardDescription>
               </CardHeader>
               <CardContent>
@@ -389,7 +389,7 @@ function MonitoringTabBase() {
           {pipelineErrors.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg text-destructive"><AlertCircle className="size-5" />Ошибки пайплайна по этапам</CardTitle>
+                <CardTitle aria-level={2} className="flex items-center gap-2 text-lg text-destructive"><AlertCircle className="size-5" />Ошибки пайплайна по этапам</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
@@ -465,7 +465,7 @@ function MonitoringTabBase() {
       {/* ─── Subscriptions ───────────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
+          <CardTitle aria-level={2} className="flex items-center gap-2 text-lg">
             <Newspaper className="size-5" />
             Подписки на источники
           </CardTitle>
@@ -480,7 +480,7 @@ function MonitoringTabBase() {
             <div className="w-40">
               <label className="block text-sm font-medium text-foreground mb-1">Источник</label>
               <Select value={newSource} onValueChange={setNewSource}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Источник"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="openalex+arxiv">OpenAlex + arXiv</SelectItem>
                   <SelectItem value="openalex">OpenAlex</SelectItem>
@@ -530,7 +530,7 @@ function MonitoringTabBase() {
                     {sub.last_checked_at && ` · Проверена: ${new Date(sub.last_checked_at).toLocaleString("ru-RU")}`}
                   </p>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => deleteSubscription(sub.id)} className="text-destructive hover:text-destructive/80">
+                <Button variant="ghost" size="icon" aria-label="Удалить подписку" onClick={() => deleteSubscription(sub.id)} className="text-destructive hover:text-destructive/80">
                   <Trash2 className="size-4" />
                 </Button>
               </div>
@@ -545,7 +545,7 @@ function MonitoringTabBase() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Bell className="size-5" />
-              <CardTitle className="text-lg">Уведомления</CardTitle>
+              <CardTitle aria-level={2} className="text-lg">Уведомления</CardTitle>
               {unreadCount > 0 && (
                 <Badge className="bg-primary">{unreadCount} новых</Badge>
               )}
@@ -596,14 +596,14 @@ function MonitoringTabBase() {
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {n.article_url && (
-                      <a href={n.article_url} target="_blank" rel="noopener noreferrer">
-                        <Button variant="ghost" size="icon" className="size-8">
+                      <a href={n.article_url} target="_blank" rel="noopener noreferrer" aria-label={`Открыть статью: ${n.title}`}>
+                        <Button variant="ghost" size="icon" className="size-8" aria-label={`Открыть статью: ${n.title}`}>
                           <ExternalLink className="size-4" />
                         </Button>
                       </a>
                     )}
                     {!n.is_read && (
-                      <Button variant="ghost" size="icon" className="size-8 text-primary" onClick={() => markRead(n.id)}>
+                      <Button variant="ghost" size="icon" className="size-8 text-primary" aria-label="Отметить как прочитанное" onClick={() => markRead(n.id)}>
                         <CheckCheck className="size-4" />
                       </Button>
                     )}
@@ -618,7 +618,7 @@ function MonitoringTabBase() {
       {/* ─── Grafana ───────────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
+          <CardTitle aria-level={2} className="flex items-center gap-2 text-lg">
             <BarChart3 className="size-5" />
             Grafana
           </CardTitle>
