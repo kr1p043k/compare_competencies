@@ -1773,6 +1773,230 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "IntakeComparisonReport": {
+        "additionalProperties": true,
+        "description": "Ответ GET /teacher/intake-comparison.",
+        "properties": {
+          "added": {
+            "items": {
+              "$ref": "#/components/schemas/IntakeDisciplineCard"
+            },
+            "title": "Added",
+            "type": "array"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "direction_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction Name"
+          },
+          "kept": {
+            "items": {
+              "$ref": "#/components/schemas/IntakeKeptDiscipline"
+            },
+            "title": "Kept",
+            "type": "array"
+          },
+          "new_year": {
+            "title": "New Year",
+            "type": "integer"
+          },
+          "old_year": {
+            "title": "Old Year",
+            "type": "integer"
+          },
+          "removed": {
+            "items": {
+              "$ref": "#/components/schemas/IntakeDisciplineCard"
+            },
+            "title": "Removed",
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/IntakeSummary"
+          }
+        },
+        "required": [
+          "direction",
+          "old_year",
+          "new_year",
+          "summary"
+        ],
+        "title": "IntakeComparisonReport",
+        "type": "object"
+      },
+      "IntakeDisciplineCard": {
+        "additionalProperties": true,
+        "description": "Дисциплина в списках added/removed.",
+        "properties": {
+          "coverage_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Level"
+          },
+          "coverage_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Ratio"
+          },
+          "gaps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gaps"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "IntakeDisciplineCard",
+        "type": "object"
+      },
+      "IntakeKeptDiscipline": {
+        "additionalProperties": true,
+        "description": "Дисциплина, присутствующая в обоих наборах.",
+        "properties": {
+          "coverage_delta": {
+            "title": "Coverage Delta",
+            "type": "number"
+          },
+          "coverage_ratio_new": {
+            "title": "Coverage Ratio New",
+            "type": "number"
+          },
+          "coverage_ratio_old": {
+            "title": "Coverage Ratio Old",
+            "type": "number"
+          },
+          "gaps_delta": {
+            "title": "Gaps Delta",
+            "type": "integer"
+          },
+          "gaps_new": {
+            "title": "Gaps New",
+            "type": "integer"
+          },
+          "gaps_old": {
+            "title": "Gaps Old",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "old_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Name"
+          },
+          "significant_change": {
+            "title": "Significant Change",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "coverage_ratio_old",
+          "coverage_ratio_new",
+          "coverage_delta",
+          "gaps_old",
+          "gaps_new",
+          "gaps_delta",
+          "significant_change"
+        ],
+        "title": "IntakeKeptDiscipline",
+        "type": "object"
+      },
+      "IntakeSummary": {
+        "additionalProperties": true,
+        "properties": {
+          "added": {
+            "title": "Added",
+            "type": "integer"
+          },
+          "avg_coverage_delta": {
+            "title": "Avg Coverage Delta",
+            "type": "number"
+          },
+          "avg_coverage_new": {
+            "title": "Avg Coverage New",
+            "type": "number"
+          },
+          "avg_coverage_old": {
+            "title": "Avg Coverage Old",
+            "type": "number"
+          },
+          "improved": {
+            "title": "Improved",
+            "type": "integer"
+          },
+          "kept": {
+            "title": "Kept",
+            "type": "integer"
+          },
+          "removed": {
+            "title": "Removed",
+            "type": "integer"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          },
+          "worsened": {
+            "title": "Worsened",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "added",
+          "removed",
+          "kept",
+          "avg_coverage_old",
+          "avg_coverage_new",
+          "avg_coverage_delta",
+          "improved",
+          "worsened",
+          "unchanged"
+        ],
+        "title": "IntakeSummary",
+        "type": "object"
+      },
       "KRMCompetency": {
         "description": "Компетенция KRM с навыками.",
         "properties": {
@@ -13334,7 +13558,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Intake Comparison Api Teacher Intake Comparison Get"
+                  "$ref": "#/components/schemas/IntakeComparisonReport"
                 }
               }
             },

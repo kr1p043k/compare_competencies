@@ -22,8 +22,46 @@ REPORT = {
     "direction": "09.03.02",
     "old_year": 2024,
     "new_year": 2025,
-    "summary": {"added": 1, "removed": 0, "kept": 2},
-    "added": [{"name": "Машинное обучение"}],
+    "direction_name": "Прикладная информатика",
+    "summary": {
+        "added": 1,
+        "removed": 0,
+        "kept": 2,
+        "avg_coverage_old": 0.41,
+        "avg_coverage_new": 0.52,
+        "avg_coverage_delta": 0.11,
+        "improved": 1,
+        "worsened": 0,
+        "unchanged": 1,
+    },
+    "added": [
+        {"name": "Машинное обучение", "coverage_ratio": 0.35, "coverage_level": "medium", "gaps": 4}
+    ],
+    "removed": [],
+    "kept": [
+        {
+            "name": "Базы данных",
+            "old_name": None,
+            "coverage_ratio_old": 0.4,
+            "coverage_ratio_new": 0.55,
+            "coverage_delta": 0.15,
+            "gaps_old": 6,
+            "gaps_new": 4,
+            "gaps_delta": -2,
+            "significant_change": True,
+        },
+        {
+            "name": "Алгоритмы",
+            "old_name": "Алгоритмы и структуры данных",
+            "coverage_ratio_old": 0.42,
+            "coverage_ratio_new": 0.42,
+            "coverage_delta": 0.0,
+            "gaps_old": 5,
+            "gaps_new": 5,
+            "gaps_delta": 0,
+            "significant_change": False,
+        },
+    ],
 }
 
 
@@ -65,11 +103,38 @@ def test_intake_comparison_returns_report(monkeypatch):
 
 def test_intake_comparison_defaults_boundary(monkeypatch):
     """Граница: без query-параметров ручка идёт к дефолтам 09.03.02 / 2024 / 2025."""
-    fake = _FakeCompare(result={"summary": {"added": 0}})
+    fake = _FakeCompare(result={**REPORT, "added": [], "removed": [], "kept": []})
     client = _client(monkeypatch, fake)
     r = client.get("/api/teacher/intake-comparison")
     assert r.status_code == 200, r.text
     assert fake.calls == [("09.03.02", 2024, 2025)]
+
+
+# ----------------------------------------------------- контракт схемы ответа
+
+
+def test_response_model_matches_real_script_output():
+    """Схема ответа не расходится с build_intake_report настоящего скрипта."""
+    monkeypatch_mod = cmp_mod._load_compare()
+    old_disciplines = [
+        {"name": "Базы данных", "coverage_ratio": 0.4, "coverage_level": "medium", "gaps": 6},
+        {"name": "Алгоритмы", "coverage_ratio": 0.42, "coverage_level": "medium", "gaps": 5},
+    ]
+    new_disciplines = [
+        {"name": "Базы данных", "coverage_ratio": 0.55, "coverage_level": "high", "gaps": 4},
+        {"name": "Алгоритмы", "coverage_ratio": 0.42, "coverage_level": "medium", "gaps": 5},
+        {"name": "Машинное обучение", "coverage_ratio": 0.35, "coverage_level": "medium", "gaps": 4},
+    ]
+    report = monkeypatch_mod.compare_intakes(old_disciplines, new_disciplines, avg_old=0.41, avg_new=0.52)
+    report.update(
+        direction="09.03.02",
+        old_year=2024,
+        new_year=2025,
+        direction_name="Прикладная информатика",
+    )
+
+    model = cmp_mod.IntakeComparisonReport.model_validate(report)
+    assert model.model_dump() == report
 
 
 # ----------------------------------------------------- ошибки (точный код)
