@@ -2,6 +2,7 @@
 
 import hmac
 import os
+import re
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -54,6 +55,24 @@ def _error_body(code: str, detail: object, request_id: str) -> dict:
     """
     message = detail if isinstance(detail, str) else "Ошибка запроса"
     return {"code": code, "message": message, "detail": detail, "request_id": request_id}
+
+
+_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{8,64}$")
+
+
+def _incoming_request_id(request: Request) -> str | None:
+    """Принять X-Request-ID от клиента или прокси, если он безопасен.
+
+    Сквозной id (7.3.2): nginx/оркестратор может прислать свой идентификатор, и
+    тогда одна цепочка логов связывает фронт, прокси и бэк. Берём только
+    значения из безопасного алфавита и разумной длины - это защита от инъекции
+    переводов строк в лог и от раздувания заголовка. Всё остальное игнорируем и
+    генерируем новый uuid4, чтобы id всегда был.
+    """
+    raw = request.headers.get("X-Request-ID")
+    if raw and _REQUEST_ID_RE.match(raw):
+        return raw
+    return None
 
 
 _metrics_token_warned = False
@@ -250,7 +269,7 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def add_request_id_middleware(request: Request, call_next):
-        request_id = str(uuid.uuid4())
+        request_id = _incoming_request_id(request) or str(uuid.uuid4())
         request.state.request_id = request_id
         logger.info(
             "Incoming request",
