@@ -190,6 +190,8 @@ class ReadyBody(BaseModel):
 
 
 @router.get("/ready", response_model=ReadyBody)
+@router.get("/health/ready", response_model=ReadyBody)
+@router.get("/api/health/ready", response_model=ReadyBody)
 async def ready_check(response: Response) -> ReadyBody:
     """Проверка готовности критических зависимостей (fail-closed).
 
@@ -230,6 +232,8 @@ class LiveBody(BaseModel):
 
 @router.get("/live", response_model=LiveBody)
 @router.get("/api/live", response_model=LiveBody)
+@router.get("/health/live", response_model=LiveBody)
+@router.get("/api/health/live", response_model=LiveBody)
 async def live_check() -> LiveBody:
     """Liveness-проба: 200, пока процесс отвечает.
 

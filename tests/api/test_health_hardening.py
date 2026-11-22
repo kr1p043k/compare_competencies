@@ -112,3 +112,39 @@ class TestMetricsToken:
         monkeypatch.setattr(auth, "get_current_user", _admin)
         monkeypatch.setattr(config.settings, "METRICS_TOKEN", None)
         assert _client().get("/metrics").status_code == 200
+
+
+class TestCanonicalHealthPaths:
+    """7.3.4: канонические /health/live и /health/ready для оркестратора.
+
+    Плоские /live и /ready остаются ради совместимости, но пробы в k8s/compose
+    должны ходить в /health/*: так liveness и readiness не путаются с бизнес-
+    эндпоинтами и переживают смену префикса API.
+    """
+
+    def test_live_alias_always_200(self):
+        resp = _client().get("/health/live")
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok"}
+
+    def test_live_api_alias(self):
+        resp = _client().get("/api/health/live")
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok"}
+
+    def test_ready_alias_fail_closed(self, monkeypatch):
+        monkeypatch.setattr(deps, "is_ready", False)
+        monkeypatch.setattr(db, "pool", None)
+        resp = _client().get("/health/ready")
+        assert resp.status_code == 503
+        body = resp.json()
+        assert body["status"] == "not_ready"
+        assert "data_not_loaded" in body["problems"]
+        assert "db_pool_unavailable" in body["problems"]
+
+    def test_ready_api_alias_200_when_ready(self, monkeypatch):
+        monkeypatch.setattr(deps, "is_ready", True)
+        monkeypatch.setattr(db, "pool", object())
+        resp = _client().get("/api/health/ready")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "ok"

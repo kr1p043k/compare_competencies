@@ -10977,6 +10977,50 @@
         ]
       }
     },
+    "/api/health/live": {
+      "get": {
+        "description": "Liveness-проба: 200, пока процесс отвечает.\n\nВ отличие от /ready (он проверяет загрузку данных и пул БД), liveness\nне ходит в зависимости: он отвечает за то, что процесс не завис. Так\nоркестратор перезапускает только реально мёртвый контейнер, а не тот,\nчто временно не готов.",
+        "operationId": "live_check_api_health_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveBody"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Live Check",
+        "tags": [
+          "monitoring"
+        ]
+      }
+    },
+    "/api/health/ready": {
+      "get": {
+        "description": "Проверка готовности критических зависимостей (fail-closed).\n\nКритическими считаются ТОЛЬКО две вещи:\n1) deps.is_ready - False, пока bootstrap не дочитал файл вакансий (startup.py\n   `_bootstrap`), либо True после загрузки данных / входа в режим ожидания;\n2) src.db.pool - без пула БД не работают auth/session-эндпоинты.\nВсё остальное (evaluator, recommendation_engine, trend_analyzer) НЕ критично:\n_set_waiting_mode() в startup.py обнуляет их, когда файла вакансий нет, и API\nпри этом считается готовым (режим ожидания) - ровнять их в 503 нельзя.",
+        "operationId": "ready_check_api_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyBody"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready Check",
+        "tags": [
+          "monitoring"
+        ]
+      }
+    },
     "/api/krm/directions": {
       "get": {
         "description": "Все направления КРМ (для выбора студентом).",
@@ -17228,6 +17272,50 @@
           }
         },
         "summary": "Health Check",
+        "tags": [
+          "monitoring"
+        ]
+      }
+    },
+    "/health/live": {
+      "get": {
+        "description": "Liveness-проба: 200, пока процесс отвечает.\n\nВ отличие от /ready (он проверяет загрузку данных и пул БД), liveness\nне ходит в зависимости: он отвечает за то, что процесс не завис. Так\nоркестратор перезапускает только реально мёртвый контейнер, а не тот,\nчто временно не готов.",
+        "operationId": "live_check_health_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveBody"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Live Check",
+        "tags": [
+          "monitoring"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "description": "Проверка готовности критических зависимостей (fail-closed).\n\nКритическими считаются ТОЛЬКО две вещи:\n1) deps.is_ready - False, пока bootstrap не дочитал файл вакансий (startup.py\n   `_bootstrap`), либо True после загрузки данных / входа в режим ожидания;\n2) src.db.pool - без пула БД не работают auth/session-эндпоинты.\nВсё остальное (evaluator, recommendation_engine, trend_analyzer) НЕ критично:\n_set_waiting_mode() в startup.py обнуляет их, когда файла вакансий нет, и API\nпри этом считается готовым (режим ожидания) - ровнять их в 503 нельзя.",
+        "operationId": "ready_check_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyBody"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready Check",
         "tags": [
           "monitoring"
         ]
