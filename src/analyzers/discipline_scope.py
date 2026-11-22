@@ -44,7 +44,9 @@ def load_overrides(path: Path | None = None) -> dict[str, dict]:
     """Read the manual mapping: {discipline: {"skills": [...], "keywords": [...]}}."""
     p = path or OVERRIDES_PATH
     try:
-        data = json.loads(Path(p).read_text(encoding="utf-8"))
+        # utf-8-sig: файл мог быть сохранён Блокнотом с BOM, и тогда ручные
+        # исключения преподавателя молча пропадали (scope_overrides_corrupt).
+        data = json.loads(Path(p).read_text(encoding="utf-8-sig"))
     except FileNotFoundError:
         # Файл необязателен: без него действуют только правила методики.
         return {}

@@ -926,15 +926,27 @@ async def krm_search_run_detail(run_id: str):
 
 @router.post("/teacher/krm/run-analysis", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def run_teacher_analysis_endpoint(
+    request: Request,
     background_tasks: BackgroundTasks,
     dir_code: str = "09.03.02",
 ):
     """Запустить teacher analysis (с run_id, прогрессом и ошибками)."""
+    from src.api_pkg.routers.auth import get_current_user
     from src.api_pkg.routers.rpd import _run_cli, _update_run, short_cli_error
     from src.pipeline.db_writer import complete_pipeline_run, create_pipeline_run
 
     _validate_dir_code(dir_code)
-    run_id = await create_pipeline_run("teacher-analysis")
+
+    # Владелец и направление обязательны: статус запуска читается через
+    # /teacher/rpd/status/{run_id}, а _require_run_access пускает владельца
+    # только когда owner_id записан. Без них запуск, созданный преподавателем,
+    # отдавал 403 на каждом опросе, и кнопка «Запустить анализ» висела до
+    # таймаута с сообщением «нет связи».
+    user = await get_current_user(request)
+    owner_id = str(user["uid"]) if user and user.get("uid") is not None else None
+    run_id = await create_pipeline_run(
+        "teacher-analysis", owner_id=owner_id, direction_code=dir_code
+    )
     await _update_run(run_id, {"stage": "analysis", "status": "running", "dir_code": dir_code})
 
     async def _run():

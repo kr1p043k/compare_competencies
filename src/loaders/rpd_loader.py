@@ -33,15 +33,67 @@ except ImportError:
 
 # ─── Patterns ───────────────────────────────────────────────────────────────
 
+#: Заголовок раздела РПД: «III. ТРЕБОВАНИЯ …» или «III. Требования …».
+#: Класс символов БЕЗ \n: прежний [А-ЯЁA-Z\s]+ с IGNORECASE съедал перевод
+#: строки и склеивал «IV. Содержание\nIII. Практические задания» в один
+#: заголовок, из-за чего границы секций уезжали.
 SEC_PATTERN = re.compile(
-    r"\n\s*(?:I{1,3}|IV|V|VI|VII|VIII|IX|X)\.?\s+[А-ЯЁA-Z][А-ЯЁA-Z\s]+",
-    re.IGNORECASE
+    r"(?:^|\n)[ \t]*(?:I{1,3}|IV|V|VI{1,3}|IX|X)\.?[ \t]+"
+    r"[А-ЯЁA-Z][А-ЯЁA-Z \t\-–—,.:]{0,90}",
+    re.IGNORECASE,
 )
 
+#: Разделитель кода: до трёх пробелов/дефисов всех видов/минуса.
+#: В реальных РПД встречается «ОПК -3.1» (пробел + дефис) и «УК−8» (минус):
+#: одиночный [-\s]? такие коды не ловил, и компетенция терялась целиком.
+_COMP_SEP = r"[\s\-–—−]{0,3}"
+
+#: ВПК обязателен: в 9 РПД 2025 (Java, ИИ-приложения, ЖЦ веб-приложений,
+#: прикладные архитектуры ГНС, компьютерное зрение) ВСЕ компетенции - ВПК.
+#: Без него строка «ВПК-2. Способен…» не становилась компетенцией, и вся
+#: дисциплина давала 0 кодов и 0 ЗУН. ВПК идёт первым в альтернативе, чтобы
+#: не разбираться как ПК.
 COMP_PATTERN = re.compile(
-    r"(ОПК[-\s]?\d+(?:[.]\d+)?|ПК[-\s]?\d+(?:[.]\d+)?"
-    r"|УК[-\s]?\d+(?:[.]\d+)?|ППК[-\s]?[РС]\d+(?:[.]\d+)?"
-    r"|ИП[-\s]?\d+(?:[.]\d+)?)"
+    r"(ВПК" + _COMP_SEP + r"\d+(?:[.]\d+)?"
+    r"|ОПК" + _COMP_SEP + r"\d+(?:[.]\d+)?|ПК" + _COMP_SEP + r"\d+(?:[.]\d+)?"
+    r"|УК" + _COMP_SEP + r"\d+(?:[.]\d+)?|ППК" + _COMP_SEP + r"[РС]\d+(?:[.]\d+)?"
+    r"|ИП" + _COMP_SEP + r"\d+(?:[.]\d+)?)"
+)
+
+#: Любой KSA-маркер с двоеточием (RU или EN).
+KSA_ANY_RE = re.compile(
+    r"(Знания|Умения|Навыки|Знать|Уметь|Владеть|Знает|Умеет|Владеет"
+    r"|Knowledge|Abilities|Skills|Be able|To know|To be able|Knows|Can)(?:\s+to)?\s*:",
+    re.IGNORECASE,
+)
+
+#: Слова-маркеры KSA. Английские формы нужны для англоязычных РПД
+#: («To know:», «To be able to:»), где русских заголовков нет вовсе.
+_KSA_WORDS = (
+    r"Знания|Умения|Навыки|Знать|Уметь|Владеть|Знает|Умеет|Владеет"
+    r"|Knowledge|Abilities|Skills|Be able|To know|To be able|Knows|Can"
+)
+
+#: Маркер с двоеточием - в любом месте строки («Знания: основы…»).
+#: «To be able to:» - отдельный вариант английской формы.
+KSA_MARKER_RE = re.compile(
+    r"(" + _KSA_WORDS + r")(?:\s+to)?\s*:", re.IGNORECASE
+)
+
+#: Маркер без двоеточия - только если он занимает строку целиком.
+KSA_MARKER_BARE_RE = re.compile(r"^(" + _KSA_WORDS + r")\s*$", re.IGNORECASE)
+
+
+def count_ksa_markers(text: str) -> int:
+    """Число KSA-маркеров: с двоеточием или отдельной строкой без него."""
+    with_colon = len(KSA_ANY_RE.findall(text))
+    bare = sum(1 for ln in text.split("\n") if KSA_MARKER_BARE_RE.match(ln.strip()))
+    return with_colon + bare
+
+#: Шапка таблицы компетенций, повторяющаяся на каждой странице. В KSA-текст
+#: она попадать не должна (в KRM оседала как «знание»).
+TABLE_HEADER_RE = re.compile(
+    r"^(?:компетенци[яи]|индикаторы|результаты\s+обучения)\b", re.IGNORECASE
 )
 
 RUS_KSA_MAP = {
@@ -55,8 +107,10 @@ RUS_KSA_PATTERN = re.compile(
 )
 
 ENG_KSA_MAP = {
-    "Knowledge": "knowledge", "Know": "knowledge",
+    "Knowledge": "knowledge", "Know": "knowledge", "Knows": "knowledge",
+    "To know": "knowledge",
     "Abilities": "abilities", "Be able": "abilities", "Able": "abilities",
+    "To be able": "abilities", "Can": "abilities",
     "Skills": "skills",
 }
 ENG_KSA_PATTERN = re.compile(
@@ -83,6 +137,33 @@ def is_continuation(line: str) -> bool:
     if not line:
         return False
     return line.startswith(CONT_PREFIXES) or (line[0].islower() and not line[0].isdigit())
+
+
+#: Вводная фраза, а не пункт перечня: «Знания, умения и навыки, формируемые…».
+PROSE_KSA_RE = re.compile(
+    r"^(?:знания|умения|навыки)[,\s]+(?:умения|навыки|знания)", re.IGNORECASE
+)
+
+#: Конец предложения - признак, что перенос строки уже не продолжение.
+_SENTENCE_END = (".", ";", ":", "!", "?")
+
+
+def _ends_sentence(text: str) -> bool:
+    return (text or "").rstrip().endswith(_SENTENCE_END)
+
+
+def _is_wrap_line(line: str) -> bool:
+    """Строка похожа на перенос предыдущего пункта.
+
+    Это либо продолжение со строчной буквы/скобки, либо строка, начавшаяся
+    с аббревиатуры («ОС на основе…», «GPU в своих проектах…»). Обычная фраза
+    с заглавного слова переносом не считается - она станет новым пунктом.
+    """
+    if is_continuation(line):
+        return True
+    # Аббревиатура целиком в верхнем регистре: «ОС», «GPU», «ПО», «СУБД».
+    # «Знания» сюда не попадает - после «Зн» идёт строчная.
+    return bool(re.match(r"^[А-ЯЁA-Z]{2,}(?![А-Яа-яЁёa-z])", line))
 
 
 def clean_skill(text: str) -> str:
@@ -119,7 +200,13 @@ def dedup_children(comp_ksa: dict) -> dict:
 
 
 def normalize_comp_code(code: str) -> str:
-    return code.upper().replace(" ", "-")
+    """«ОПК -3.1» / «ПК 3» / «УК−8» -> «ОПК-3.1» / «ПК-3» / «УК-8».
+
+    Раньше здесь было `upper().replace(" ", "-")`, и код с пробелом перед
+    дефисом превращался в «ОПК--3.1». Такой код не совпадал с KRM, а в БД
+    давал отдельную компетенцию-двойник.
+    """
+    return re.sub(r"[\s\-–—−]+", "-", (code or "").strip()).upper()
 
 
 # ─── Text extraction ────────────────────────────────────────────────────────
@@ -202,6 +289,24 @@ def _parse_ksa_line(line: str) -> list[tuple[str, str]]:
     return results
 
 
+def _ksa_markers_in(line: str) -> list[re.Match]:
+    """KSA-маркеры в строке: с двоеточием (любое место) или без него (вся строка).
+
+    Двоеточие необязательно: в «РПД_Технологии и фронтиры науки о данных»
+    заголовки идут как «Знания» + перевод строки, без двоеточия. Прежний
+    жёсткий `\\s*:` не находил ни одного маркера, и вся дисциплина получала
+    9 кодов с пустым ЗУН. Голое слово ловим только если оно занимает строку
+    целиком - иначе проза «Знания, умения и навыки, формируемые…» стала бы
+    маркером.
+    """
+    found = list(KSA_MARKER_RE.finditer(line))
+    if not found:
+        bare = KSA_MARKER_BARE_RE.match(line)
+        if bare:
+            found = [bare]
+    return found
+
+
 def extract_ksa_skills(text: str) -> dict:
     """Parse text for competencies with KSA sections (Russian or English)."""
     lines = text.split("\n")
@@ -210,11 +315,6 @@ def extract_ksa_skills(text: str) -> dict:
     comp_ksa = {}
     inline_mode = False
 
-    ksa_multi = re.compile(
-        r"(Знания|Умения|Навыки|Знать|Уметь|Владеть|Знает|Умеет|Владеет"
-        r"|Knowledge|Abilities|Skills|Be able)\s*:",
-        re.IGNORECASE
-    )
     eng_map_lower = {k.lower(): v for k, v in ENG_KSA_MAP.items()}
 
     def _to_ksa_key(match) -> str:
@@ -238,7 +338,7 @@ def extract_ksa_skills(text: str) -> dict:
         # компетенцию и терял остаток секции (P-ksa, 2026-10-14).
         cm_line = line.lstrip("-•\u2013\u2022 ")
         cm = COMP_PATTERN.match(cm_line)
-        ksa_matches = list(ksa_multi.finditer(line))
+        ksa_matches = _ksa_markers_in(line)
 
         # Competency line (possibly with KSA on same line)
         if cm:
@@ -251,7 +351,7 @@ def extract_ksa_skills(text: str) -> dict:
 
             # Check if any KSA marker follows the competency on this line
             after_comp = cm_line[cm.end():]
-            ksa_on_line = list(ksa_multi.finditer(after_comp))
+            ksa_on_line = _ksa_markers_in(after_comp)
             if ksa_on_line:
                 # KSA on same line as competency
                 current_ksa = _to_ksa_key(ksa_on_line[0])
@@ -298,25 +398,50 @@ def extract_ksa_skills(text: str) -> dict:
         if not current_comp or not current_ksa:
             continue
 
+        # Шапка таблицы компетенций повторяется на каждой странице РПД.
+        # В KSA-текст она попадать не должна (раньше оседала как «знание»
+        # в нескольких компетенциях сразу).
+        if TABLE_HEADER_RE.match(line) and (
+            "индикатор" in line.lower() or "результат" in line.lower()
+            or line.lower().startswith("компетенци")
+        ):
+            continue
+
+        flat = comp_ksa[current_comp]["flat"]
+        ksa_list = comp_ksa[current_comp][current_ksa]
         is_bullet = bool(BULLET_RE.match(line))
+
+        def _add(text: str, ksa_list=ksa_list, flat=flat) -> None:
+            if PROSE_KSA_RE.match(text):
+                # «Знания, умения и навыки, формируемые…» - вводная фраза,
+                # а не пункт перечня.
+                return
+            skill = clean_skill(text)
+            if len(skill) >= 2 and any(c.isalnum() for c in skill):
+                ksa_list.append(skill)
+                flat.append(skill)
+
         if is_bullet:
             inline_mode = False
-            skill = clean_skill(line)
-            if len(skill) >= 2 and any(c.isalnum() for c in skill):
-                comp_ksa[current_comp][current_ksa].append(skill)
-                comp_ksa[current_comp]["flat"].append(skill)
-        elif is_continuation(line):
-            flat = comp_ksa[current_comp]["flat"]
-            if flat:
-                flat[-1] += " " + line
-                ksa_list = comp_ksa[current_comp][current_ksa]
-                if ksa_list:
-                    ksa_list[-1] = flat[-1]
+            _add(line)
         elif inline_mode:
-            skill = clean_skill(line)
-            if len(skill) >= 2 and any(c.isalnum() for c in skill):
-                comp_ksa[current_comp][current_ksa].append(skill)
-                comp_ksa[current_comp]["flat"].append(skill)
+            # Маркер был на своей строке («Знать:» без текста), а текст
+            # начинается со строчной буквы. Это НОВЫЙ пункт, а не
+            # продолжение: раньше is_continuation() уводил такую строку в
+            # ветку «дописать в flat[-1]», flat был пуст, и пункт исчезал
+            # молча (59 блоков из 912 в 2025, вплоть до 24/24 в одной РПД).
+            _add(line)
+        elif flat and _is_wrap_line(line) and not _ends_sentence(flat[-1]):
+            # Перенос длинного пункта: строчная буква или аббревиатура
+            # («ОС на основе стандартов…», «GPU в своих проектах;»), причём
+            # предыдущий пункт не закончен. Без этой ветки терялось до 44%
+            # текста KSA. Новая фраза с заглавного слова сюда НЕ попадает -
+            # она станет отдельным пунктом.
+            flat[-1] = (flat[-1] + " " + line).strip()
+            if ksa_list:
+                ksa_list[-1] = flat[-1]
+        else:
+            _add(line)
 
     return comp_ksa
 
@@ -324,47 +449,31 @@ def extract_ksa_skills(text: str) -> dict:
 # ─── Section detection ──────────────────────────────────────────────────────
 
 def find_section_text(text: str, sec_matches: list) -> str | None:
-    """Find the best competency section in the PDF text."""
-    if sec_matches:
-        best_start, best_end = None, None
-        for i, m in enumerate(sec_matches):
-            header = m.group().strip()
-            if header.startswith("III"):
-                end_pos = sec_matches[i+1].start() if i+1 < len(sec_matches) else len(text)
-                clen = end_pos - m.end()
-                if best_start is None or clen > (best_end - best_start if best_end else 0):
-                    best_start, best_end = m.end(), end_pos
+    """Секция с требованиями к результатам - по содержимому, не по длине.
 
-        if best_start:
-            # Check if the section has actual content (not just TOC)
-            section_text = text[best_start:best_end]
-            comp_in_sec = COMP_PATTERN.findall(section_text)
-            ksa_in_sec = len(re.findall(
-                r"(Знания|Умения|Навыки|Знать|Уметь|Владеть"
-                r"|Knowledge|Abilities|Skills|Be able)\s*:",
-                section_text, re.IGNORECASE
-            ))
-            if comp_in_sec and ksa_in_sec >= 3:
-                return section_text
+    Раньше бралась самая длинная секция, чей заголовок начинается с «III».
+    В «РПД_Методы оптимизации» таких три: оглавление, настоящие требования и
+    «III. Практические задания» - побеждали практические задания (8354
+    символа, 0 KSA-маркеров), и парсер видел пустую секцию.
 
-            # TOC section - scan forward for actual content
-            # Find the next section with actual competency content
-            for i, m in enumerate(sec_matches):
-                if m.start() < best_start:
-                    continue
-                next_end = sec_matches[i+1].start() if i+1 < len(sec_matches) else len(text)
-                candidate = text[m.end():next_end]
-                comps = COMP_PATTERN.findall(candidate)
-                ksas = len(re.findall(
-                    r"(Знания|Умения|Навыки|Знать|Уметь|Владеть"
-                    r"|Knowledge|Abilities|Skills|Be able)\s*:",
-                    candidate, re.IGNORECASE
-                ))
-                if comps and ksas >= 3:
-                    return candidate
-
-            # Last resort: search from III header to end of document
-            return text[best_start:]
+    Теперь секция оценивается по числу кодов компетенций и KSA-маркеров:
+    оглавление (0 маркеров) и приложения отсеиваются, побеждает настоящая
+    таблица. Если ни одна не набрала 3 маркера - фолбэк по ключевым словам.
+    """
+    best: str | None = None
+    best_score = -1
+    for i, m in enumerate(sec_matches):
+        end = sec_matches[i + 1].start() if i + 1 < len(sec_matches) else len(text)
+        cand = text[m.end():end]
+        ksas = count_ksa_markers(cand)
+        if ksas < 3:
+            continue
+        comps = len(COMP_PATTERN.findall(cand))
+        score = comps * 10 + ksas
+        if score > best_score:
+            best, best_score = cand, score
+    if best is not None:
+        return best
 
     # Fallback: search for keywords
     for pat in ["ТРЕБОВАНИЯ К РЕЗУЛЬТАТАМ", "ПЛАНИРУЕМЫЕ РЕЗУЛЬТАТЫ", "КОМПЕТЕНЦИ",
