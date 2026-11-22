@@ -102,6 +102,47 @@ def _lemmas(s: str) -> set[str]:
         return toks
 
 
+#: Шапка таблицы компетенций, повторяющаяся на каждой странице аннотации.
+_TABLE_HEADER = re.compile(
+    r"^(?:компетенци[яи]|индикаторы\s+достижения|результаты\s+обучения)", re.I
+)
+
+#: Буллеты/тире всех видов, которыми размечены темы в аннотациях.
+_BULLET = re.compile(r"^[\u2012\u2013\u2014\u2212\-\u2022\u2023\u25E6\u2043\u2219•‣⁃]\s*")
+
+#: Слова-обрывки, которые не являются темой (заголовки подразделов аннотации).
+_NOISE_TOPIC = re.compile(
+    r"^(?:содержание\s+(?:лекционных|практических|лабораторных)"
+    r"|content\s+of\s+(?:practical|lab)|forms?\s+of\s+control"
+    r"|образовательные\s+технологии|учебно-методическое)", re.I
+)
+
+
+def _split_long_line(line: str, limit: int = 300) -> list[str]:
+    """Длинную строку PDF (без переносов) разбить по буллетам «•»."""
+    if len(line) <= limit:
+        return [line]
+    parts = re.split(r"\s*[•\u2022\u2219\u25E6]\s*", line)
+    return [p for p in (x.strip() for x in parts) if p]
+
+
+def _clean_topic(line: str) -> str:
+    """Тема без буллета, номера и мусорных заголовков.
+
+    Аннотации размечены буллетами («• Лабораторная работа: …»), а заголовок
+    таблицы компетенций повторяется на каждой странице. В KRM это оседало
+    как «знание»: 321 запись начиналась с тире, 66 - с «•», а «Компетенция
+    Индикаторы достижения компетенции Результаты обучения» размножалась по
+    пяти компетенциям подряд.
+    """
+    t = _BULLET.sub("", (line or "").strip())
+    t = re.sub(r"^\d+[.)]\s*", "", t).strip()
+    t = re.sub(r"\s+", " ", t)
+    if len(t) < 4 or _TABLE_HEADER.match(t) or _NOISE_TOPIC.match(t):
+        return ""
+    return t
+
+
 def extract_content(text: str) -> list[str]:
     """Темы из секции «Содержание дисциплины» / «Course contents»."""
     sections = [
@@ -120,29 +161,104 @@ def extract_content(text: str) -> list[str]:
         seg = text[sm.end() : sm.end() + em.start()] if em else text[sm.end() :]
         raw = [ln.strip() for ln in seg.splitlines() if len(ln.strip()) >= 3]
         for ln in raw:
-            ln = re.sub(r"^\d+[.)]\s*", "", ln).strip()
-            if ln and ln not in topics:
-                topics.append(ln)
+            for part in _split_long_line(ln):
+                topic = _clean_topic(part)
+                if topic and topic not in topics:
+                    topics.append(topic)
         break
     return topics
 
 
-def build_ksa(comp_codes: list[str], topics: list[str], old_ksa: dict) -> dict:
-    """Темы (knowledge) равномерно по компетенциям + старые KSA актуальных кодов."""
+#: Маркеры ЗУН в аннотациях (в т.ч. без двоеточия и английские формы).
+_ANN_KSA_RE = re.compile(
+    r"^(Знания|Умения|Навыки|Знать|Уметь|Владеть|Знает|Умеет|Владеет"
+    r"|Knowledge|Abilities|Skills|To\s+know|To\s+be\s+able)\s*:?\s*$",
+    re.I,
+)
+_ANN_KSA_KEY = {
+    "знания": "knowledge", "знать": "knowledge", "знает": "knowledge",
+    "knowledge": "knowledge", "to know": "knowledge",
+    "умения": "abilities", "уметь": "abilities", "умеет": "abilities",
+    "abilities": "abilities", "to be able": "abilities",
+    "навыки": "skills", "владеть": "skills", "владеет": "skills",
+    "skills": "skills",
+}
+
+
+#: Заголовок, после которого блок ЗУН в аннотации заканчивается.
+_ANN_SECTION_END = re.compile(
+    r"^(?:РАЗДЕЛ|МОДУЛЬ|Формы\s+(?:контроля|промежуточной)"
+    r"|Образовательные\s+технологии|Учебно-методическое|Критерии"
+    r"|Фонд\s+оценочных|Материально-техническое|Трудо[её]мкость)", re.I
+)
+
+#: Потолок пунктов на тип ЗУН из аннотации: защита от «документ целиком».
+_ANN_KSA_CAP = 40
+
+
+def extract_ksa(text: str) -> dict[str, list[str]]:
+    """ЗУН-блоки аннотации: {knowledge|abilities|skills: [пункты]}.
+
+    Аннотации части дисциплин содержат полноценные «Знания/Умения/Навыки»
+    (Информационные технологии, История России, Компьютерные сети и др.).
+    Раньше из них брались только темы, а abilities/skills не появлялись
+    никогда - даже когда в PDF они были.
+    """
+    out: dict[str, list[str]] = {"knowledge": [], "abilities": [], "skills": []}
+    current: str | None = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        m = _ANN_KSA_RE.match(line)
+        if m:
+            current = _ANN_KSA_KEY.get(m.group(1).lower().replace("  ", " "))
+            continue
+        if current is None:
+            continue
+        if _TABLE_HEADER.match(line) or _ANN_SECTION_END.match(line):
+            current = None
+            continue
+        if re.match(r"^\d+\.\s*[А-ЯЁA-Z]", line) and len(line) < 90:
+            # Новый нумерованный раздел аннотации - блок ЗУН закончился.
+            current = None
+            continue
+        if len(out[current]) >= _ANN_KSA_CAP:
+            continue
+        topic = _clean_topic(line)
+        if topic and topic not in out[current]:
+            out[current].append(topic)
+    return out
+
+
+def build_ksa(comp_codes: list[str], topics: list[str], old_ksa: dict,
+              ann_ksa: dict[str, list[str]] | None = None) -> dict:
+    """Темы (knowledge) по компетенциям + старые и аннотационные ЗУН."""
     ksa: dict[str, dict] = {}
     for i, code in enumerate(comp_codes):
         old = old_ksa.get(code, {})
         knowledge = list(old.get("knowledge", []))
-        chunk = topics[i :: len(comp_codes)]
-        known = set(knowledge)
-        for t in chunk:
-            if t not in known:
-                known.add(t)
-                knowledge.append(t)
+        # Темы из аннотации добавляем только когда своего знания нет: иначе
+        # лекционные темы («• Лабораторная работа: …») раздували knowledge,
+        # уже заполненный разбором РПД.
+        if len(knowledge) < 3:
+            chunk = topics[i :: len(comp_codes)]
+            known = set(knowledge)
+            for t in chunk:
+                if t not in known:
+                    known.add(t)
+                    knowledge.append(t)
+        abilities = list(old.get("abilities", []))
+        skills = list(old.get("skills", []))
+        if ann_ksa:
+            for kt, target in (("abilities", abilities), ("skills", skills)):
+                for t in ann_ksa.get(kt) or []:
+                    if t not in target:
+                        target.append(t)
         ksa[code] = {
             "knowledge": knowledge,
-            "abilities": list(old.get("abilities", [])),
-            "skills": list(old.get("skills", [])),
+            "abilities": abilities,
+            "skills": skills,
         }
     return ksa
 
@@ -274,12 +390,13 @@ def add_missing(dir_code: str, anns: list[dict],
         if not comps:
             continue  # без компетенций запись бесполезна
         topics = extract_content(a.get("text", ""))
+        ann_ksa = extract_ksa(a.get("text", ""))
         # skills не пустые: _load_krm индексирует коды компетенций по skills,
         # и при {} дисциплина не даёт ни одного кода в анализ разрыва.
         skills = {c: list(topics) for c in comps} if topics else {}
         disc[name] = {
             "competencies": comps,
-            "ksa": build_ksa(comps, topics, {}),
+            "ksa": build_ksa(comps, topics, {}, ann_ksa),
             "skills": skills,
         }
         known.add(norm_name(name))
@@ -309,7 +426,7 @@ def _scaffold_krm(dir_code: str, anns: dict) -> bool:
         topics = extract_content(a.get("text", ""))
         discs[name] = {
             "competencies": comps,
-            "ksa": build_ksa(comps, topics, {}),
+            "ksa": build_ksa(comps, topics, {}, extract_ksa(a.get("text", ""))),
             "skills": {},
         }
     if not discs:
@@ -426,6 +543,7 @@ def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
             continue
         comps = sorted({normalize_comp(c) for c in a.get("competencies", [])})
         topics = extract_content(a.get("text", ""))
+        ann_ksa = extract_ksa(a.get("text", ""))
         if not comps:
             comps = disc[hit].get("competencies", [])  # остаёмся на прежних кодах
         if not comps:
@@ -444,7 +562,7 @@ def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
         comps = sorted(prev_comps) if prev_comps else sorted(set(comps))
         disc[hit]["competencies"] = comps
         old_ksa = disc[hit].get("ksa", {})
-        ksa = build_ksa(comps, topics, old_ksa)
+        ksa = build_ksa(comps, topics, old_ksa, ann_ksa)
         disc[hit]["ksa"] = ksa if ksa else old_ksa
         if topics:
             has_content += 1

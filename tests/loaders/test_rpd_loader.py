@@ -9,8 +9,13 @@ class TestRPDLoader:
         from src.loaders.rpd_loader import normalize_comp_code
         assert normalize_comp_code("ОПК-2") == "ОПК-2"
         assert normalize_comp_code("пк 10") == "ПК-10"
-        # Space before digit becomes double dash
-        assert normalize_comp_code("УК -3") == "УК--3"
+        # Пробел перед дефисом и минус из PDF схлопываются в один дефис:
+        # раньше «ОПК -3» давал «ОПК--3», код не совпадал с KRM и плодил
+        # компетенцию-двойник в БД.
+        assert normalize_comp_code("УК -3") == "УК-3"
+        assert normalize_comp_code("ОПК - 3.1") == "ОПК-3.1"
+        assert normalize_comp_code("УК−8") == "УК-8"
+        assert normalize_comp_code("ВПК -2.1") == "ВПК-2.1"
 
     def test_clean_skill(self):
         from src.loaders.rpd_loader import clean_skill
@@ -129,6 +134,125 @@ class TestRPDLoader:
         from src.loaders.rpd_loader import extract_ksa_skills
         result = extract_ksa_skills("No competencies here")
         assert result == {}
+
+    def test_vpk_competencies_are_parsed(self):
+        """ВПК нет в старом COMP_PATTERN - вся дисциплина давала 0 кодов.
+
+        9 РПД 2025 (Java, ИИ-приложения, ЖЦ веб-приложений, прикладные
+        архитектуры ГНС, компьютерное зрение) содержат ТОЛЬКО ВПК.
+        """
+        from src.loaders.rpd_loader import extract_ksa_skills
+        text = (
+            "ВПК-2. Способен к эксплуатации ИИ\n"
+            "ВПК-2.1. DL-1.2 Способен реализовывать нейронные сети\n"
+            "Знания:\n"
+            "‒ математические основы перцептрона\n"
+            "Умения:\n"
+            "‒ обучать модель\n"
+        )
+        result = extract_ksa_skills(text)
+        assert "ВПК-2" in result
+        assert "ВПК-2.1" in result
+        assert result["ВПК-2.1"]["knowledge"] == ["математические основы перцептрона"]
+        assert result["ВПК-2.1"]["abilities"] == ["обучать модель"]
+
+    def test_ksa_marker_without_colon_keeps_items(self):
+        """«Знания» отдельной строкой без двоеточия - целая РПД теряла ЗУН.
+
+        Так оформлена «РПД_Технологии и фронтиры науки о данных»: 9 кодов,
+        все с пустым ЗУН.
+        """
+        from src.loaders.rpd_loader import extract_ksa_skills
+        text = (
+            "УК-11. SS1 Способен\n"
+            "УК-11.1. SS1.1 Определяет\n"
+            "Знания \n"
+            "‒ основные понятия науки о данных\n"
+            "‒ жизненный цикл данных\n"
+            "Умения \n"
+            "‒ критически оценивать статьи\n"
+            "Навыки \n"
+            "‒ поиска и анализа статей\n"
+        )
+        result = extract_ksa_skills(text)
+        assert len(result["УК-11.1"]["knowledge"]) == 2
+        assert result["УК-11.1"]["abilities"] == ["критически оценивать статьи"]
+        assert result["УК-11.1"]["skills"] == ["поиска и анализа статей"]
+
+    def test_prose_knowledge_mention_is_not_a_marker(self):
+        """«Знания, умения и навыки, формируемые…» - проза, а не заголовок."""
+        from src.loaders.rpd_loader import extract_ksa_skills
+        text = (
+            "ОПК-2 Знания: основы\n"
+            "Знания, умения и навыки, формируемые данной дисциплиной, потребуются\n"
+            "ОПК-3 Знания: структуры данных\n"
+        )
+        result = extract_ksa_skills(text)
+        items = result["ОПК-2"]["knowledge"]
+        assert any(i.startswith("основы") for i in items)
+        assert not any("формируемые данной дисциплиной" in i for i in items)
+
+    def test_wrapped_line_starting_with_abbreviation_is_glued(self):
+        """Перенос, начавшийся с «ОС»/«GPU», терялся целиком (44% текста KSA)."""
+        from src.loaders.rpd_loader import extract_ksa_skills
+        text = (
+            "ОПК-5.1\n"
+            "Умения:\n"
+            "‒ администрировать программное обеспечение и информационные структуры\n"
+            "ОС на основе современных стандартов информационного взаимодействия\n"
+            "систем.\n"
+        )
+        result = extract_ksa_skills(text)
+        abilities = result["ОПК-5.1"]["abilities"]
+        assert len(abilities) == 1
+        assert "ОС на основе современных стандартов" in abilities[0]
+        assert abilities[0].endswith("систем.")
+
+    def test_table_header_is_not_a_ksa_item(self):
+        """Шапка таблицы компетенций повторяется на каждой странице РПД."""
+        from src.loaders.rpd_loader import extract_ksa_skills
+        text = (
+            "ОПК-2\n"
+            "Знания:\n"
+            "‒ основы алгоритмов\n"
+            "Компетенция Индикаторы достижения компетенции Результаты обучения\n"
+            "‒ структуры данных\n"
+        )
+        result = extract_ksa_skills(text)
+        assert result["ОПК-2"]["knowledge"] == ["основы алгоритмов", "структуры данных"]
+
+    def test_english_ksa_markers(self):
+        """Английские РПД: «To know:» / «To be able to:»."""
+        from src.loaders.rpd_loader import extract_ksa_skills
+        text = (
+            "ОПК-3\n"
+            "To know: rules for the design of elements\n"
+            "To be able to: develop algorithms\n"
+        )
+        result = extract_ksa_skills(text)
+        assert result["ОПК-3"]["knowledge"] == ["rules for the design of elements"]
+        assert result["ОПК-3"]["abilities"] == ["develop algorithms"]
+
+    def test_find_section_prefers_competency_table_over_appendix(self):
+        """Секция выбирается по содержимому, а не по длине.
+
+        В «РПД_Методы оптимизации» три заголовка «III.»; самой длинной была
+        «III. Практические задания» с нулём KSA-маркеров.
+        """
+        from src.loaders.rpd_loader import SEC_PATTERN, find_section_text
+        text = (
+            "III. Требования к результатам освоения дисциплины\n"
+            "ОПК-1 Знания: теория\nУмения: применять\nНавыки: владеть\n"
+            "IV. Содержание\n"
+            "III. Практические задания\n"
+            + "задание без компетенций " * 200
+            + "\n"
+        )
+        matches = list(SEC_PATTERN.finditer(text))
+        result = find_section_text(text, matches)
+        assert result is not None
+        assert "ОПК-1" in result
+        assert "задание без компетенций" not in result
 
     def test_find_section_text(self):
         from src.loaders.rpd_loader import SEC_PATTERN, find_section_text

@@ -427,3 +427,91 @@ def test_main_apply_leaves_no_double_space_keys(alias_mod, monkeypatch, tmp_path
     assert list(after) == [single]
     assert not any("  " in key for key in after)  # двойных пробелов не осталось
     assert after[single]["skills"]["ПК-18"] == ["s_double"]  # двойник не потерян
+
+
+# --------------------------------------------------------------------------
+# D. merge_annotations_to_krm: чистка тем и ЗУН из аннотаций
+# --------------------------------------------------------------------------
+
+
+def test_clean_topic_strips_bullets_and_table_header(ann_mod):
+    # В KRM оседало «• Лабораторная работа: …» и шапка таблицы компетенций,
+    # размноженная по пяти компетенциям.
+    assert ann_mod._clean_topic("• Лабораторная работа: основы") == "Лабораторная работа: основы"
+    assert ann_mod._clean_topic("‒  Основы теории множеств") == "Основы теории множеств"
+    assert ann_mod._clean_topic("1. Модуль первый") == "Модуль первый"
+    assert ann_mod._clean_topic(
+        "Компетенция Индикаторы достижения компетенции Результаты обучения") == ""
+    assert ann_mod._clean_topic("Содержание лекционных занятий") == ""
+    assert ann_mod._clean_topic("аб") == ""
+
+
+def test_extract_content_cleans_topics(ann_mod):
+    text = (
+        "4. Содержание дисциплины\n"
+        "• Тема первая\n"
+        "• Тема вторая\n"
+        "5. Дополнительная литература\n"
+    )
+    topics = ann_mod.extract_content(text)
+    assert topics == ["Тема первая", "Тема вторая"]
+
+
+def test_extract_content_splits_long_pdf_line(ann_mod):
+    # PDF без переносов отдаёт весь список одной строкой с «•».
+    text = ("4. Содержание дисциплины\n"
+            + "".join(f"• Тема номер {i}. " for i in range(40))
+            + "\n5. Дополнительная литература\n")
+    topics = ann_mod.extract_content(text)
+    assert len(topics) > 1
+    assert all("•" not in t for t in topics)
+
+
+def test_extract_ksa_pulls_abilities_and_skills(ann_mod):
+    # Раньше из аннотаций брались только темы: abilities/skills не появлялись
+    # никогда, даже когда в PDF они были.
+    text = (
+        "3. Цель\n"
+        "Знания:\n"
+        "‒ основные понятия алгоритмизации\n"
+        "Умения:\n"
+        "‒ разрабатывать алгоритмы решения задач\n"
+        "Навыки:\n"
+        "‒ навыками структурного программирования\n"
+        "4. Содержание дисциплины\n"
+        "• Тема\n"
+    )
+    ksa = ann_mod.extract_ksa(text)
+    assert ksa["knowledge"] == ["основные понятия алгоритмизации"]
+    assert ksa["abilities"] == ["разрабатывать алгоритмы решения задач"]
+    assert ksa["skills"] == ["навыками структурного программирования"]
+
+
+def test_extract_ksa_stops_at_section_heading(ann_mod):
+    text = (
+        "Умения:\n"
+        "‒ первое умение\n"
+        "Формы промежуточной аттестации\n"
+        "‒ экзамен в первом семестре\n"
+    )
+    ksa = ann_mod.extract_ksa(text)
+    assert ksa["abilities"] == ["первое умение"]
+
+
+def test_build_ksa_keeps_existing_knowledge(ann_mod):
+    # Темы из аннотации не должны раздувать knowledge, уже заполненный РПД.
+    old = {"ОПК-1": {"knowledge": ["k1", "k2", "k3"], "abilities": [], "skills": []}}
+    ksa = ann_mod.build_ksa(["ОПК-1"], ["тема из аннотации"], old)
+    assert ksa["ОПК-1"]["knowledge"] == ["k1", "k2", "k3"]
+
+
+def test_build_ksa_fills_empty_knowledge(ann_mod):
+    ksa = ann_mod.build_ksa(["ОПК-1"], ["тема из аннотации"], {})
+    assert ksa["ОПК-1"]["knowledge"] == ["тема из аннотации"]
+
+
+def test_build_ksa_merges_ann_abilities(ann_mod):
+    old = {"ОПК-1": {"knowledge": [], "abilities": ["старое"], "skills": []}}
+    ksa = ann_mod.build_ksa(["ОПК-1"], [], old, {"abilities": ["новое"], "skills": ["навык"]})
+    assert ksa["ОПК-1"]["abilities"] == ["старое", "новое"]
+    assert ksa["ОПК-1"]["skills"] == ["навык"]
