@@ -17,7 +17,7 @@ import httpx
 import structlog
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from src import config
 from src.api_pkg.client_ip import client_ip
@@ -418,7 +418,40 @@ async def academic_krm_competencies(
     return {"codes": codes, "count": len(codes)}
 
 
-@router.post("/academic/get-competencies")
+class AcademicCompetenciesResponse(BaseModel):
+    """Компетенции по теме: ответ Academic API либо локального анализатора.
+
+    Форма внешнего сервиса не гарантирована, поэтому поля объявлены широко
+    (Any) и разрешены дополнительные ключи - модель документирует контракт,
+    не сужая его.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    topic: Any = None
+    found_trends: Any = None
+    recommended_competencies: Any = None
+    rationale: Any = None
+    topic_filter_stats: Any = None
+    trends_source: Any = None
+
+
+class AcademicGapResponse(BaseModel):
+    """Результат gap-анализа: оценка покрытия и детализация по компетенциям."""
+
+    model_config = ConfigDict(extra="allow")
+
+    overall_score: Any = None
+    detailed_analysis: Any = None
+    summary: Any = None
+    topic_filter_stats: Any = None
+
+
+@router.post(
+    "/academic/get-competencies",
+    response_model=AcademicCompetenciesResponse,
+    response_model_exclude_unset=True,
+)
 @limiter.limit("10/minute")
 async def academic_get_competencies(
     body: CompetenciesRequest,
@@ -456,7 +489,12 @@ async def academic_get_competencies(
         raise
 
 
-@router.post("/academic/analyze-gap", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.post(
+    "/academic/analyze-gap",
+    response_model=AcademicGapResponse,
+    response_model_exclude_unset=True,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("10/minute")
 async def academic_analyze_gap(
     body: GapRequest,
@@ -479,7 +517,12 @@ async def academic_analyze_gap(
     )
 
 
-@router.post("/academic/analyze-gap-local", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.post(
+    "/academic/analyze-gap-local",
+    response_model=AcademicGapResponse,
+    response_model_exclude_unset=True,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("10/minute")
 async def academic_analyze_gap_local(
     body: CompetenciesRequest,

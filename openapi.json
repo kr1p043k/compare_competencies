@@ -1,6 +1,52 @@
 {
   "components": {
     "schemas": {
+      "AcademicCompetenciesResponse": {
+        "additionalProperties": true,
+        "description": "Компетенции по теме: ответ Academic API либо локального анализатора.\n\nФорма внешнего сервиса не гарантирована, поэтому поля объявлены широко\n(Any) и разрешены дополнительные ключи - модель документирует контракт,\nне сужая его.",
+        "properties": {
+          "found_trends": {
+            "title": "Found Trends"
+          },
+          "rationale": {
+            "title": "Rationale"
+          },
+          "recommended_competencies": {
+            "title": "Recommended Competencies"
+          },
+          "topic": {
+            "title": "Topic"
+          },
+          "topic_filter_stats": {
+            "title": "Topic Filter Stats"
+          },
+          "trends_source": {
+            "title": "Trends Source"
+          }
+        },
+        "title": "AcademicCompetenciesResponse",
+        "type": "object"
+      },
+      "AcademicGapResponse": {
+        "additionalProperties": true,
+        "description": "Результат gap-анализа: оценка покрытия и детализация по компетенциям.",
+        "properties": {
+          "detailed_analysis": {
+            "title": "Detailed Analysis"
+          },
+          "overall_score": {
+            "title": "Overall Score"
+          },
+          "summary": {
+            "title": "Summary"
+          },
+          "topic_filter_stats": {
+            "title": "Topic Filter Stats"
+          }
+        },
+        "title": "AcademicGapResponse",
+        "type": "object"
+      },
       "AcademicKrmCompetenciesBody": {
         "description": "Коды компетенций ОП для current_competencies в analyze-gap.",
         "properties": {
@@ -6526,7 +6572,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AcademicGapResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6566,7 +6614,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AcademicGapResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6606,7 +6656,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AcademicCompetenciesResponse"
+                }
               }
             },
             "description": "Successful Response"
