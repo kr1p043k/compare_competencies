@@ -112,4 +112,13 @@ describe("useTabRoute while disabled (login screen)", () => {
     await waitFor(() => expect(result.current[0]).toBe("teacher"));
     expect(window.location.hash).toBe("#/teacher");
   });
+  it("читает таб с параметрами после ? и не стирает их нормализацией", async () => {
+    window.location.hash = "#/admin?role=teacher&q=ivan&page=2";
+    const { result } = renderHook(() => useTabRoute("vacancies"));
+
+    expect(result.current[0]).toBe("admin");
+    await waitFor(() =>
+      expect(window.location.hash).toContain("role=teacher&q=ivan&page=2"),
+    );
+  });
 });

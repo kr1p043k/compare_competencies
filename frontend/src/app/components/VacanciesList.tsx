@@ -320,7 +320,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   <Rocket className="size-5 text-primary-foreground" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-foreground">Настройки сбора вакансий</h3>
+                  <h2 className="text-lg font-semibold text-foreground">Настройки сбора вакансий</h2>
                   <p className="text-sm text-muted-foreground">Выберите профессию и города для поиска</p>
                 </div>
               </div>
@@ -614,7 +614,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Filter className="size-5 text-primary-foreground" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-foreground">Фильтры и поиск</h3>
+                <h2 className="text-base font-semibold text-foreground">Фильтры и поиск</h2>
                 <p className="text-xs text-muted-foreground">Настройте параметры для поиска вакансий</p>
               </div>
             </div>

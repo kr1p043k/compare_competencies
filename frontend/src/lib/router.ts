@@ -9,8 +9,17 @@ export const KNOWN_TABS = [
 
 const PREFIX = "#/";
 
+/** Таб - первый сегмент hash до `?`; параметры таблиц (`?q=&role=&page=`) не часть таба. */
+function splitHash(): { path: string; query: string } {
+  const raw = window.location.hash.replace(/^#/, "");
+  const sep = raw.indexOf("?");
+  return sep === -1
+    ? { path: raw, query: "" }
+    : { path: raw.slice(0, sep), query: raw.slice(sep) };
+}
+
 function readHash(fallback: string): string {
-  const raw = window.location.hash.replace(/^#\/?/, "").trim();
+  const raw = splitHash().path.replace(/^\//, "").trim();
   if (!raw) return fallback;
   return (KNOWN_TABS as readonly string[]).includes(raw) ? raw : fallback;
 }
@@ -39,8 +48,10 @@ export function useTabRoute(
       const value = readHash(fallback);
       setTab(value);
       // Мусор в адресе приводим к известной вкладке, иначе ссылку нельзя скопировать.
-      if (window.location.hash !== `${PREFIX}${value}`) {
-        window.location.replace(`${PREFIX}${value}`);
+      // Параметры после `?` сохраняем: их пишет useUrlState, они нужны deep-link.
+      const { path, query } = splitHash();
+      if (path.replace(/^\//, "") !== value || !window.location.hash.startsWith(PREFIX)) {
+        window.location.replace(`${PREFIX}${value}${query}`);
       }
     };
     window.addEventListener("hashchange", onHashChange);

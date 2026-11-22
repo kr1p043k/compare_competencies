@@ -16,6 +16,7 @@ import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 
 import { request } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
+import { useUrlState } from "../../lib/useUrlState";
 import {
   Button,
   Card,
@@ -53,12 +54,15 @@ export function AdminUsersTab() {
   const requestIdRef = useRef(0);
   const detailReqRef = useRef(0);
 
+  // фильтры и страница живут в адресе (`#/admin?q=&role=&page=`): ссылку можно
+  // переслать, а «назад» возвращает к прежней выборке
   const [search, setSearch] = useState("");
-  const [q, setQ] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
+  const [q, setQ] = useUrlState<string>("q", "");
+  const [roleFilter, setRoleFilter] = useUrlState<"all" | Role>("role", "all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [limit, setLimit] = useState(25);
-  const [offset, setOffset] = useState(0);
+  const [page, setPage] = useUrlState<number>("page", 1);
+  const offset = (page - 1) * limit;
 
   // справочники: направления и список РОП
   const [directions, setDirections] = useState<Direction[]>([]);
@@ -131,7 +135,7 @@ export function AdminUsersTab() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setQ(search.trim());
-      setOffset(0);
+      setPage(1);
     }, 300);
     return () => clearTimeout(timer);
   }, [search]);
@@ -157,7 +161,7 @@ export function AdminUsersTab() {
       setPhase("ready");
       // после деактивации или смены роли текущая страница может опустеть
       if (list.length === 0 && totalCount > 0 && offset > 0) {
-        setOffset(Math.max(0, Math.floor((totalCount - 1) / limit) * limit));
+        setPage(Math.floor((totalCount - 1) / limit) + 1);
       }
     } catch (e) {
       if (reqId !== requestIdRef.current) return;
@@ -186,17 +190,17 @@ export function AdminUsersTab() {
 
   const changeRoleFilter = (value: "all" | Role) => {
     setRoleFilter(value);
-    setOffset(0);
+    setPage(1);
   };
 
   const changeStatusFilter = (value: "all" | "active" | "inactive") => {
     setStatusFilter(value);
-    setOffset(0);
+    setPage(1);
   };
 
   const changeLimit = (value: number) => {
     setLimit(value);
-    setOffset(0);
+    setPage(1);
   };
 
   /* --------------------------------------------------------- действия по строке */
@@ -515,7 +519,7 @@ export function AdminUsersTab() {
                       setSearch("");
                       setRoleFilter("all");
                       setStatusFilter("all");
-                      setOffset(0);
+                      setPage(1);
                     }}
                   >
                     Сбросить фильтры
@@ -544,8 +548,8 @@ export function AdminUsersTab() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  disabled={offset === 0 || phase === "loading"}
-                  onClick={() => setOffset(Math.max(0, offset - limit))}
+                  disabled={page <= 1 || phase === "loading"}
+                  onClick={() => setPage(Math.max(1, page - 1))}
                 >
                   <ChevronLeft className="size-4" /> Назад
                 </Button>
@@ -553,7 +557,7 @@ export function AdminUsersTab() {
                   size="sm"
                   variant="secondary"
                   disabled={offset + limit >= total || phase === "loading"}
-                  onClick={() => setOffset(offset + limit)}
+                  onClick={() => setPage(page + 1)}
                 >
                   Вперёд <ChevronRight className="size-4" />
                 </Button>

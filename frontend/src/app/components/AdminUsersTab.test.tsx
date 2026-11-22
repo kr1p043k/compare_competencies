@@ -67,6 +67,8 @@ vi.mock("./ui/dropdown-menu", () => {
 afterEach(() => {
   // Явная очистка: при singleFork автоочистка RTL не срабатывает между файлами.
   cleanup();
+  // Фильтры живут в hash - без сброса тест deep-link протекает в следующие.
+  window.location.hash = "";
 });
 
 const requestMock = vi.mocked(request);
@@ -218,5 +220,31 @@ describe("AdminUsersTab", () => {
         body: { is_active: false, caller_password: "chief-secret" },
       }),
     );
+  });
+
+  it("фильтры и страница берутся из адреса (deep-link)", async () => {
+    window.location.hash = "#/admin?q=ivan&role=teacher&page=2";
+    render(<AdminUsersTab />);
+
+    await screen.findByText("ivan@sfedu.ru");
+
+    // page=2 при limit=25 -> offset=25; q и role уходят на сервер как есть.
+    const first = listCalls()[0];
+    expect(first).toContain("q=ivan");
+    expect(first).toContain("role=teacher");
+    expect(first).toContain("offset=25");
+  });
+
+  it("поиск пишет фильтр в адрес и сбрасывает страницу", async () => {
+    const user = userEvent.setup();
+    window.location.hash = "#/admin?page=3";
+    render(<AdminUsersTab />);
+    await screen.findByText("ivan@sfedu.ru");
+
+    await user.type(screen.getByLabelText("Поиск"), "ivan");
+
+    // Debounce 300 мс: ждём, пока q попадёт в hash, и page=3 сбросится.
+    await waitFor(() => expect(window.location.hash).toContain("q=ivan"), { timeout: 2000 });
+    expect(window.location.hash).not.toContain("page=3");
   });
 });
