@@ -51,6 +51,20 @@ class ProgramArticles(BaseModel):
     source: str
 
 
+class AcademicTrendsPayload(BaseModel):
+    """Проксируемый JSON-объект Course Trends API.
+
+    Форму задаёт внешний сервис, поэтому поля не сужаются: extra=allow
+    сохраняет все ключи как есть. Часть эндпоинтов может отдать массив -
+    такие ответы покрывает AcademicTrendsResponse.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+
+AcademicTrendsResponse = AcademicTrendsPayload | list[Any]
+
+
 router = APIRouter(tags=["academic-trends"])
 
 # Статьи/рекомендации по программе считаются заранее, но ответ может быть
@@ -95,22 +109,33 @@ async def _fetch(request: Request, path: str) -> Any:
         ) from None
 
 
-@router.get("/academic/programs", dependencies=[Depends(require_any_role(*_ROLES))])
+@router.get(
+    "/academic/programs",
+    response_model=AcademicTrendsResponse,
+    dependencies=[Depends(require_any_role(*_ROLES))],
+)
 @limiter.limit("60/minute")
 async def list_programs(request: Request) -> Any:
     """Список программ сервиса ЮФУ: pid и метки (курсов, среднее покрытие)."""
     return await _fetch(request, "/programs")
 
 
-@router.get("/academic/glossary", dependencies=[Depends(require_any_role(*_ROLES))])
+@router.get(
+    "/academic/glossary",
+    response_model=AcademicTrendsResponse,
+    dependencies=[Depends(require_any_role(*_ROLES))],
+)
 @limiter.limit("60/minute")
 async def glossary(request: Request) -> Any:
     """Глоссарий терминов сервиса (что означает каждая метка)."""
     return await _fetch(request, "/meta/glossary")
 
 
-@router.get("/academic/programs/{pid}/summary",
-            dependencies=[Depends(require_any_role(*_ROLES))])
+@router.get(
+    "/academic/programs/{pid}/summary",
+    response_model=AcademicTrendsResponse,
+    dependencies=[Depends(require_any_role(*_ROLES))],
+)
 @limiter.limit("60/minute")
 async def program_summary(pid: str, request: Request) -> Any:
     """Краткая сводка по программе для виджета."""
@@ -118,8 +143,11 @@ async def program_summary(pid: str, request: Request) -> Any:
     return await _fetch(request, f"/programs/{pid}/summary")
 
 
-@router.get("/academic/programs/{pid}/course-trends",
-            dependencies=[Depends(require_any_role(*_ROLES))])
+@router.get(
+    "/academic/programs/{pid}/course-trends",
+    response_model=AcademicTrendsResponse,
+    dependencies=[Depends(require_any_role(*_ROLES))],
+)
 @limiter.limit("60/minute")
 async def course_trends(pid: str, request: Request) -> Any:
     """Тренды и статьи по курсам программы."""
@@ -127,8 +155,11 @@ async def course_trends(pid: str, request: Request) -> Any:
     return await _fetch(request, f"/programs/{pid}/course-trends")
 
 
-@router.get("/academic/programs/{pid}/course-coverage",
-            dependencies=[Depends(require_any_role(*_ROLES))])
+@router.get(
+    "/academic/programs/{pid}/course-coverage",
+    response_model=AcademicTrendsResponse,
+    dependencies=[Depends(require_any_role(*_ROLES))],
+)
 @limiter.limit("60/minute")
 async def course_coverage(pid: str, request: Request) -> Any:
     """Покрытие компетенций по курсам программы."""
@@ -136,8 +167,11 @@ async def course_coverage(pid: str, request: Request) -> Any:
     return await _fetch(request, f"/programs/{pid}/course-coverage")
 
 
-@router.get("/academic/programs/{pid}/recommendations",
-            dependencies=[Depends(require_any_role(*_ROLES))])
+@router.get(
+    "/academic/programs/{pid}/recommendations",
+    response_model=AcademicTrendsResponse,
+    dependencies=[Depends(require_any_role(*_ROLES))],
+)
 @limiter.limit("60/minute")
 async def recommendations(pid: str, request: Request) -> Any:
     """Предрассчитанные рекомендации по программе."""
@@ -145,7 +179,11 @@ async def recommendations(pid: str, request: Request) -> Any:
     return await _fetch(request, f"/programs/{pid}/recommendations")
 
 
-@router.get("/academic/programs/{pid}", dependencies=[Depends(require_any_role(*_ROLES))])
+@router.get(
+    "/academic/programs/{pid}",
+    response_model=AcademicTrendsResponse,
+    dependencies=[Depends(require_any_role(*_ROLES))],
+)
 @limiter.limit("60/minute")
 async def program_bundle(pid: str, request: Request) -> Any:
     """Всё по программе одним ответом (summary + тренды + покрытие + рекомендации)."""
