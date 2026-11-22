@@ -41,3 +41,19 @@ def test_date_garbage_ignored():
     assert build_vacancy_where(date_from="вчера")[0] == "TRUE"
     clause, params = build_vacancy_where(region="X", date_to="nope")
     assert "$1" in clause and "$2" not in clause  # мусор не съедает нумерацию
+
+def test_source_filter():
+    clause, params = build_vacancy_where(source="rabota")
+    assert clause == "v.source = $1"
+    assert params == ["rabota"]
+
+
+def test_source_all_ignored():
+    assert build_vacancy_where(source="all") == ("TRUE", [])
+    assert build_vacancy_where(source="") == ("TRUE", [])
+
+
+def test_source_numbering_with_other_filters():
+    clause, params = build_vacancy_where(source="hh", region="Москва")
+    assert "$1" in clause and "$2" in clause
+    assert params[0] == "hh" and params[1] == "Москва"

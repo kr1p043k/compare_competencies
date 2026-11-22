@@ -166,7 +166,7 @@ class TestSearch:
             {"id": i, "title": f"v{i}", "places": [], "company": {}, "skills": []} for i in range(100, 150)
         ]}}
         with patch.object(api, "_post", side_effect=[Ok(page1), Ok(page2)]) as mock_post:
-            match api.search_vacancies(text="", area=1, max_pages=5, per_page=100):
+            match api.search_vacancies(text="", area=1, max_pages=5, per_page=100, it_only=False):
                 case Ok(vacancies):
                     assert len(vacancies) == 150
                 case Err(e):
@@ -181,7 +181,7 @@ class TestSearch:
             {"id": i, "title": f"v{i}", "places": [], "company": {}, "skills": []} for i in range(100)
         ]}}
         with patch.object(api, "_post", side_effect=[Ok(page1), Err(MagicMock(message="boom"))]):
-            match api.search_vacancies(text="", area=1, max_pages=5):
+            match api.search_vacancies(text="", area=1, max_pages=5, it_only=False):
                 case Ok(vacancies):
                     assert len(vacancies) == 100
                 case Err(e):
@@ -251,3 +251,133 @@ class TestDetails:
         result = api.get_vacancy_details_as_object("7")
         assert result.is_ok()
         assert result.ok().name == "QA"
+
+
+class TestItFilter:
+    """Работа.ру не фильтрует по профессии, поэтому IT режем локально."""
+
+    def test_tree_01_is_it(self):
+        from src.parsing.api.rabota_api import _is_it_vacancy
+
+        assert _is_it_vacancy({
+            "title": "Специалист",
+            "professional_areas": [{"id": 2, "name": "Программист", "tree": "01.01.01.01"}],
+        })
+
+    def test_non_it_tree_is_rejected(self):
+        from src.parsing.api.rabota_api import _is_it_vacancy
+
+        assert not _is_it_vacancy({
+            "title": "Менеджер на выкладку товара",
+            "professional_areas": [{"id": 7, "name": "Продавец-консультант", "tree": "07.01.01.04"}],
+            "top_position": {"id": 1, "name": "товаровед"},
+        })
+
+    @pytest.mark.parametrize("title", [
+        "Python-разработчик",
+        "Ведущий Java разработчик",
+        "DevOps инженер",
+        "Системный аналитик",
+        "Тестировщик (QA)",
+        "1С программист",
+        "Data Scientist",
+        "ML инженер",
+        "Сетевой инженер",
+        "Специалист по информационной безопасности",
+    ])
+    def test_it_titles_pass_without_areas(self, title):
+        from src.parsing.api.rabota_api import _is_it_vacancy
+
+        assert _is_it_vacancy({"title": title, "professional_areas": []})
+
+    @pytest.mark.parametrize("title", [
+        "Педагог дополнительного образования",
+        "Менеджер по продажам",
+        "Водитель категории E",
+        "Бухгалтер",
+        "Повар",
+    ])
+    def test_non_it_titles_rejected_without_areas(self, title):
+        from src.parsing.api.rabota_api import _is_it_vacancy
+
+        assert not _is_it_vacancy({"title": title, "professional_areas": []})
+
+    def _api(self):
+        return RabotaAPI(app_id=983, secret="s", request_delay=0)
+
+    def _payload(self):
+        return {"response": {"total": 3, "vacancies": [
+            {"id": 1, "title": "Python разработчик", "places": [], "company": {},
+             "skills": [], "professional_areas": [{"id": 2, "tree": "01.01.01.01"}]},
+            {"id": 2, "title": "Педагог дополнительного образования", "places": [],
+             "company": {}, "skills": [], "professional_areas": [{"id": 99, "tree": "12.01.01.01"}]},
+            {"id": 3, "title": "Менеджер по продажам", "places": [], "company": {},
+             "skills": [], "professional_areas": [{"id": 98, "tree": "07.01.01.02"}]},
+        ]}}
+
+    def test_search_drops_non_it_by_default(self):
+        api = self._api()
+        with patch.object(api, "_post", return_value=Ok(self._payload())):
+            match api.search_vacancies(text="", area=1, max_pages=1, it_only=True):
+                case Ok(vacancies):
+                    assert [v["name"] for v in vacancies] == ["Python разработчик"]
+                case Err(e):
+                    pytest.fail(f"unexpected error: {e}")
+        assert api.last_response["filtered_out"] == 2
+
+    def test_search_keeps_non_it_when_disabled(self):
+        api = self._api()
+        with patch.object(api, "_post", return_value=Ok(self._payload())):
+            match api.search_vacancies(text="", area=1, max_pages=1, it_only=False):
+                case Ok(vacancies):
+                    assert len(vacancies) == 3
+                case Err(e):
+                    pytest.fail(f"unexpected error: {e}")
+
+    def test_it_only_defaults_to_config(self, monkeypatch):
+        import src.parsing.api.rabota_api as mod
+
+        monkeypatch.setattr(mod.config, "RABOTA_IT_ONLY", True)
+        api = self._api()
+        with patch.object(api, "_post", return_value=Ok(self._payload())):
+            result = api.search_vacancies(text="", area=1, max_pages=1)
+        assert len(result.ok()) == 1
+
+    @pytest.mark.parametrize("tree", [
+        "01.01.01.01",  # программист
+        "01.01.02.04",  # 1С
+        "01.01.03.09",  # системный аналитик
+        "01.01.04.12",  # информационная безопасность
+    ])
+    def test_it_subtrees_accepted(self, tree):
+        from src.parsing.api.rabota_api import _is_it_vacancy
+
+        assert _is_it_vacancy({"title": "Специалист", "professional_areas": [{"tree": tree}]})
+
+    @pytest.mark.parametrize("tree", [
+        "01.01.06.18",  # продажи, работа с клиентами (внутри 01.01!)
+        "01.01.07.21",  # интернет-маркетинг, SMM
+        "01.01.08.26",  # контент, модерация
+        "01.01.09.27",  # call-центр
+        "01.01.11.34",  # другое
+        "14.01.01.01",  # отрасль "IT / Интернет / Телеком" - слишком широко
+        "07.01.01.02",  # менеджер по продажам
+    ])
+    def test_non_it_subtrees_rejected(self, tree):
+        from src.parsing.api.rabota_api import _is_it_vacancy
+
+        assert not _is_it_vacancy({"title": "Специалист", "professional_areas": [{"tree": tree}]})
+
+    @pytest.mark.parametrize("title", [
+        "Преподаватель по программированию",
+        "Преподаватель программирования/робототехники",
+        "Учитель информатики",
+        "Методист по IT",
+    ])
+    def test_education_roles_excluded_even_with_it_tree(self, title):
+        from src.parsing.api.rabota_api import _is_it_vacancy
+
+        assert not _is_it_vacancy({
+            "title": title,
+            "professional_areas": [{"tree": "01.01.01.01"}],
+        })

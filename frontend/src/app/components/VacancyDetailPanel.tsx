@@ -19,6 +19,7 @@ interface VacancySummary {
   area?: string;
   published_at?: string;
   alternate_url?: string;
+  source?: string;
 }
 
 interface VacancyDetail {
@@ -156,6 +157,11 @@ export function VacancyDetailPanel({
                         })}
                       </span>
                     )}
+                    {vacancy.source === "rabota" && (
+                      <Badge tone="info" title="Вакансия с агрегатора Работа.ру">
+                        Работа.ру
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>
@@ -264,10 +270,10 @@ export function VacancyDetailPanel({
 
                     {detail?.alternate_url && (
                       <Button asChild className="w-full">
-                        <a href={detail.alternate_url} target="_blank" rel="noopener noreferrer">
-                          Открыть на hh.ru
-                          <ExternalLink className="ml-2 size-4" />
-                        </a>
+                    <a href={detail.alternate_url} target="_blank" rel="noopener noreferrer">
+                      {vacancy.source === "rabota" ? "Открыть на Работа.ру" : "Открыть на hh.ru"}
+                      <ExternalLink className="ml-2 size-4" />
+                    </a>
                       </Button>
                     )}
                   </div>

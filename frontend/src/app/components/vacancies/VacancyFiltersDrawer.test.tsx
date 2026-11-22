@@ -47,6 +47,8 @@ function props(over: Partial<DrawerProps> = {}): DrawerProps {
     cityFilter: "all",
     onCityChange: vi.fn(),
     allCityOptions: ["Москва", "Санкт-Петербург"],
+    sourceFilter: "all",
+    onSourceChange: vi.fn(),
     monthsFilter: null,
     onMonthsChange: vi.fn(),
     dateFrom: "",
@@ -206,5 +208,31 @@ describe("VacancyFiltersDrawer", () => {
     expect(
       screen.getByRole("button", { name: "Показать вакансии (5)" }),
     ).toBeDisabled();
+  });
+});
+
+describe("VacancyFiltersDrawer source filter", () => {
+  it("offers hh.ru and Работа.ру options", () => {
+    render(<VacancyFiltersDrawer {...props()} />);
+    fireEvent.click(screen.getByText("Все источники"));
+    expect(screen.getByText("hh.ru")).toBeInTheDocument();
+    expect(screen.getByText("Работа.ру")).toBeInTheDocument();
+  });
+
+  it("calls onSourceChange when picking a source", () => {
+    const onSourceChange = vi.fn();
+    render(<VacancyFiltersDrawer {...props({ onSourceChange })} />);
+    fireEvent.click(screen.getByText("Все источники"));
+    fireEvent.click(screen.getByText("Работа.ру"));
+    expect(onSourceChange).toHaveBeenCalledWith("rabota");
+  });
+
+  it("shows the applied source as a removable chip", () => {
+    render(
+      <VacancyFiltersDrawer
+        {...props({ applied: { ...NO_FILTERS, source: "rabota" } })}
+      />,
+    );
+    expect(screen.getByText(/Работа\.ру ✕/)).toBeInTheDocument();
   });
 });

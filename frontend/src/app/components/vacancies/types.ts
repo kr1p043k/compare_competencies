@@ -21,6 +21,8 @@ export interface Vacancy {
   area: string;
   published_at: string;
   alternate_url: string;
+  /** Агрегатор-источник: "hh" | "rabota". Нужен для метки на карточке. */
+  source?: string;
   skills: string[];
   snippet?: {
     requirement?: string;
@@ -52,6 +54,8 @@ export interface AppliedFilters {
   months: number | null;
   date_from: string;
   date_to: string;
+  /** Источник вакансий: all | hh | rabota. */
+  source?: string;
 }
 
 export interface VacanciesListProps {

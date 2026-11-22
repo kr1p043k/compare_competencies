@@ -286,6 +286,8 @@ class VacancyItem(BaseModel):
     area: str
     published_at: str | None = None
     alternate_url: str | None = None
+    # Источник вакансии: hh | rabota. Фронт показывает метку агрегатора.
+    source: str = "hh"
     skills: list[str]
     snippet: dict[str, Any] = Field(default_factory=dict)
 
@@ -311,6 +313,7 @@ class VacancyDetailResponse(BaseModel):
     published_at: str | None = None
     alternate_url: str | None = None
     employer_logo: str | None = None
+    source: str = "hh"
     skills: list[str] = Field(default_factory=list)
     schedule: Any = None
     employment: Any = None

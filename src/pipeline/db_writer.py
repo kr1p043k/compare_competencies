@@ -285,6 +285,7 @@ async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None)
             pub, v.get("alternate_url"), run_id,
             json.dumps(v, ensure_ascii=False, default=str),
             employer_logo,
+            v.get("source") or "hh",
         ))
     if not rows:
         return 0
@@ -294,8 +295,8 @@ async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None)
             employer_name, employer_id, area_name,
             snippet_requirement, snippet_responsibility,
             description, key_skills, parsed_skills, published_at, alternate_url,
-            pipeline_run_id, raw, employer_logo)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16,$17,$18::jsonb,$19)
+            pipeline_run_id, raw, employer_logo, source)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16,$17,$18::jsonb,$19,$20)
            ON CONFLICT (hh_id) DO UPDATE SET
                name=EXCLUDED.name,
                description=COALESCE(EXCLUDED.description, vacancies.description),
@@ -304,6 +305,7 @@ async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None)
                key_skills=EXCLUDED.key_skills,
                employer_logo=COALESCE(EXCLUDED.employer_logo, vacancies.employer_logo),
                parsed_skills=COALESCE(EXCLUDED.parsed_skills, vacancies.parsed_skills),
+               source=EXCLUDED.source,
                pipeline_run_id=COALESCE(EXCLUDED.pipeline_run_id, vacancies.pipeline_run_id)""",
         rows,
     )

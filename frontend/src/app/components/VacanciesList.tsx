@@ -41,6 +41,7 @@ const VACANCY_CSV_COLUMNS: { key: string; label: string }[] = [
   { key: "salary_currency", label: "Валюта" },
   { key: "experience", label: "Опыт" },
   { key: "published_at", label: "Дата публикации" },
+  { key: "source", label: "Источник" },
   { key: "alternate_url", label: "Ссылка" },
   { key: "skills", label: "Навыки" },
 ];
@@ -52,6 +53,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [searchQuery, setSearchQuery] = useState("");
   const [experienceFilter, setExperienceFilter] = useState<string>("all");
   const [cityFilter, setCityFilter] = useState<string>("all");
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [availableCities, setAvailableCities] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -71,10 +73,11 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [monthsFilter, setMonthsFilter] = useState<number | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [applied, setApplied] = useState<AppliedFilters>({ search: "", experience: "all", city: "all", months: null, date_from: "", date_to: "" });
+  const [applied, setApplied] = useState<AppliedFilters>({ search: "", experience: "all", city: "all", months: null, date_from: "", date_to: "", source: "all" });
   const activeFilterCount = [
     experienceFilter !== "all",
     cityFilter !== "all",
+    sourceFilter !== "all",
     searchQuery.trim() !== "",
     monthsFilter !== null,
     dateFrom !== "" || dateTo !== "",
@@ -143,6 +146,10 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         params.append("region", applied.city);
       }
 
+      if (applied.source && applied.source !== "all") {
+        params.append("source", applied.source);
+      }
+
       if (applied.search.trim()) {
         params.append("search", applied.search.trim());
       }
@@ -184,6 +191,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       const params = new URLSearchParams({ limit: itemsPerPage.toString(), offset: offset.toString() });
       if (applied.experience && applied.experience !== "all") params.append("experience", applied.experience);
       if (applied.city && applied.city !== "all") params.append("region", applied.city);
+      if (applied.source && applied.source !== "all") params.append("source", applied.source);
       if (applied.search.trim()) params.append("search", applied.search.trim());
       if (applied.months) params.append("months", applied.months.toString());
       if (applied.date_from) params.append("date_from", applied.date_from);
@@ -208,6 +216,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       months: monthsFilter,
       date_from: dateFrom,
       date_to: dateTo,
+      source: sourceFilter,
       ...over,
     });
     setCurrentPage(1);
@@ -221,10 +230,11 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
     setSearchQuery("");
     setExperienceFilter("all");
     setCityFilter("all");
+    setSourceFilter("all");
     setMonthsFilter(null);
     setDateFrom("");
     setDateTo("");
-    setApplied({ search: "", experience: "all", city: "all", months: null, date_from: "", date_to: "" });
+    setApplied({ search: "", experience: "all", city: "all", months: null, date_from: "", date_to: "", source: "all" });
     setCurrentPage(1);
   };
 
@@ -248,6 +258,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
     if (vacancies.length === 0) return;
     const rows = vacancies.map((vacancy) => ({
       ...vacancy,
+      source: vacancy.source === "rabota" ? "Работа.ру" : "hh.ru",
       skills: Array.isArray(vacancy.skills) ? vacancy.skills.join("; ") : "",
     }));
     const filename = `vacancies-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -685,6 +696,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         cityFilter={cityFilter}
         onCityChange={setCityFilter}
         allCityOptions={allCityOptions}
+        sourceFilter={sourceFilter}
+        onSourceChange={setSourceFilter}
         monthsFilter={monthsFilter}
         onMonthsChange={setMonthsFilter}
         dateFrom={dateFrom}

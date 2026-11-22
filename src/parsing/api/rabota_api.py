@@ -99,11 +99,16 @@ _CURRENCY_TO_CODE = {
 
 # --- IT-фильтр --------------------------------------------------------------
 # Работа.ру игнорирует professional_role/industry, поэтому «python» отдаёт и
-# педагогов. Основной признак - дерево professional_areas: ветка 01.* это
-# IT/Интернет/Телеком (01.01.01 Программирование, 01.01.03 Аналитика,
-# 01.01.04 Сети и защита информации). Ключевые слова - страховка на случай,
-# когда areas пустые или размечены неверно.
-IT_AREA_TREE_PREFIX = "01."
+# педагогов. Основной признак - дерево professional_areas. Внимание: корень
+# 01.01 - это весь «IT / Интернет / Телеком», но внутри него лежат и НЕ-IT
+# группы (01.01.06 продажи, 01.01.07 SMM/SEO, 01.01.08 контент,
+# 01.01.09 call-центр, 01.01.11 другое), поэтому берём только IT-подветки.
+IT_AREA_TREE_PREFIXES = (
+    "01.01.01.",  # Программирование, разработка (программист, тестировщик)
+    "01.01.02.",  # Виды ПО (1С, ERP, банковское, игровое)
+    "01.01.03.",  # Аналитика (бизнес/системный аналитик, техписатель)
+    "01.01.04.",  # Сети, защита информации (сисадмин/DBA, ИБ)
+)
 
 # Слова в названии вакансии/профессии. Регексы с \b (в Python 3 \b работает
 # для кириллицы), чтобы «qa» не ловилось внутри «Qatar», а «1с» - внутри «1сентября».
@@ -119,21 +124,32 @@ _IT_TITLE_PATTERNS = [
     r"\bdata\s?scientist\b", r"\bdata\s?engineer\b", r"\bdata\s?analyst\b",
     r"\bml\s?(?:engineer|инженер|разработчик)\w*", r"\bмашинн\w+ обучени\w+",
     r"\bсистемн\w+ администратор\w*", r"\bсетев\w+ инженер\w*", r"\bсисадмин\w*",
-    r"\bинформационн\w+ безопасност\w*", r"\bпентест\w*", r"\bбитрикс\w*",
-    r"\bархитектор\s+по\b", r"\bteamlead\b", r"\bteam\s?lead\b", r"\bтимлид\w*",
+    r"\bинженер\w*\s+по\s+сет\w*", r"\bинформационн\w+ безопасност\w*",
+    r"\bпентест\w*", r"\bбитрикс\w*", r"\bархитектор\s+по\b",
+    r"\bteamlead\b", r"\bteam\s?lead\b", r"\bтимлид\w*",
 ]
 _IT_TITLE_RE = re.compile("|".join(_IT_TITLE_PATTERNS), re.IGNORECASE)
+
+# Образовательные роли в IT-ветке (Работа.ру метит их как 01.01.01): для
+# анализа рынка навыков это шум, hh их тоже не отдаёт в IT-ролях.
+_NON_IT_TITLE_RE = re.compile(
+    r"\b(?:преподаватель\w*|учитель\w*|педагог\w*|репетитор\w*|тьютор\w*|методист\w*)\b",
+    re.IGNORECASE,
+)
 
 
 def _is_it_vacancy(raw: dict[str, Any]) -> bool:
     """True, если вакансия относится к IT (по дереву областей или по названию)."""
-    for area in raw.get("professional_areas") or []:
-        if isinstance(area, dict) and str(area.get("tree") or "").startswith(IT_AREA_TREE_PREFIX):
-            return True
     title = str(raw.get("title") or "")
     top = raw.get("top_position")
     if isinstance(top, dict):
         title = f"{title} {top.get('name') or ''}"
+    if _NON_IT_TITLE_RE.search(title):
+        return False
+    for area in raw.get("professional_areas") or []:
+        tree = str(area.get("tree") or "") if isinstance(area, dict) else ""
+        if tree.startswith(IT_AREA_TREE_PREFIXES):
+            return True
     return bool(_IT_TITLE_RE.search(title))
 
 
@@ -255,7 +271,11 @@ def rabota_to_hh(raw: dict[str, Any], *, id_offset: int = 0) -> dict[str, Any]:
     professional_roles = []
     for pa in raw.get("professional_areas") or []:
         if isinstance(pa, dict) and pa.get("name"):
-            professional_roles.append({"id": str(pa.get("id")), "name": pa.get("name")})
+            professional_roles.append({
+                "id": str(pa.get("id")),
+                "name": pa.get("name"),
+                "tree": pa.get("tree"),
+            })
 
     published = raw.get("publish_start_at") or raw.get("modified_date")
 

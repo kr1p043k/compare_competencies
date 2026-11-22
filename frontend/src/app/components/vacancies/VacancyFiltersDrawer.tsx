@@ -28,6 +28,8 @@ interface VacancyFiltersDrawerProps {
   cityFilter: string;
   onCityChange: (value: string) => void;
   allCityOptions: string[];
+  sourceFilter: string;
+  onSourceChange: (value: string) => void;
   monthsFilter: number | null;
   onMonthsChange: (value: number | null) => void;
   dateFrom: string;
@@ -56,6 +58,8 @@ export function VacancyFiltersDrawer({
   cityFilter,
   onCityChange,
   allCityOptions,
+  sourceFilter,
+  onSourceChange,
   monthsFilter,
   onMonthsChange,
   dateFrom,
@@ -179,6 +183,25 @@ export function VacancyFiltersDrawer({
 
             <div className="border-t border-border dark:border-border" />
 
+            {/* Source: hh.ru или Работа.ру */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
+                Источник
+              </label>
+              <Select value={sourceFilter} onValueChange={(v) => { onSourceChange(v); }}>
+                <SelectTrigger className="h-10 rounded-lg">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все источники</SelectItem>
+                  <SelectItem value="hh">hh.ru</SelectItem>
+                  <SelectItem value="rabota">Работа.ру</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="border-t border-border dark:border-border" />
+
             {/* Period presets */}
             <div className="space-y-3">
               <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
@@ -233,8 +256,17 @@ export function VacancyFiltersDrawer({
           </div>
 
           {/* Active filters */}
-          {(applied.experience !== "all" || applied.city !== "all" || applied.search || applied.months !== null || applied.date_from || applied.date_to) && (
+          {(applied.experience !== "all" || applied.city !== "all" || (applied.source && applied.source !== "all") || applied.search || applied.months !== null || applied.date_from || applied.date_to) && (
             <div className="flex flex-wrap items-center gap-2 px-6 pt-4 border-t border-border dark:border-border">
+              {applied.source && applied.source !== "all" && (
+                <Badge
+                  tone="neutral"
+                  className="cursor-pointer hover:bg-foreground/10"
+                  onClick={() => { onSourceChange("all"); onApplyFilters({ source: "all" }); }}
+                >
+                  {applied.source === "rabota" ? "Работа.ру" : "hh.ru"} ✕
+                </Badge>
+              )}
               {applied.experience !== "all" && (
                 <Badge
                   tone="neutral"

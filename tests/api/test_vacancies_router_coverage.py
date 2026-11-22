@@ -124,6 +124,7 @@ def test_list_vacancies_success(client, monkeypatch):
         "parsed_skills": json.dumps(["python", "sql"]),
         "key_skills": [],
         "employer_logo": None,
+        "source": "hh",
     }
     _use_pool(monkeypatch, FakePool(rows=[row], total=1))
     r = client.get("/api/vacancies")
@@ -136,6 +137,7 @@ def test_list_vacancies_success(client, monkeypatch):
     assert item["experience"] == "middle"
     assert item["skills"] == ["python", "sql"]
     assert item["snippet"]["requirement"] == "python"
+    assert item["source"] == "hh"
 
 
 def test_list_vacancies_bad_date_400(client, monkeypatch):
@@ -181,7 +183,7 @@ def test_detail_success(client, monkeypatch):
         "employer_name": "ООО", "employer_id": "e1", "area_name": "Москва",
         "snippet_requirement": "r", "snippet_responsibility": "",
         "published_at": _dt(), "alternate_url": "u", "parsed_skills": '["python"]',
-        "key_skills": '["sql"]', "employer_logo": None,
+        "key_skills": '["sql"]', "employer_logo": None, "source": "rabota",
     }
     _use_pool(monkeypatch, FakePool(one=row))
     r = client.get("/api/vacancies/5")
@@ -190,6 +192,7 @@ def test_detail_success(client, monkeypatch):
     assert body["id"] == "5"
     assert body["skills"] == ["python"]
     assert body["key_skills"] == ["sql"]
+    assert body["source"] == "rabota"
 
 
 def test_detail_bad_id_400(client, monkeypatch):

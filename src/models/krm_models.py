@@ -51,12 +51,19 @@ class Vacancy(Base):
         UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True,
     )
     raw: Mapped[dict | None] = mapped_column(JSONB)
+    # Источник вакансии: hh | rabota. hh_id у rabota сдвинут на 1e9,
+    # но колонка нужна явно: фронт показывает метку и фильтрует по ней.
+    source: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="hh", server_default="hh",
+    )
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     __table_args__ = (
         UniqueConstraint("hh_id", name="uq_vacancies_hh_id"),
         sa.Index("idx_vacancies_published", "published_at"),
         sa.Index("idx_vacancies_employer", "employer_name"),
+        sa.Index("idx_vacancies_source", "source"),
+        sa.CheckConstraint("source IN ('hh', 'rabota')", name="ck_vacancies_source"),
     )
 
 

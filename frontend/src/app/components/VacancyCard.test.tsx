@@ -78,3 +78,17 @@ describe("VacancyCard", () => {
     expect(screen.getByText("Спам")).toBeInTheDocument();
   });
 });
+  it("marks rabota.ru vacancies with a source badge", () => {
+    render(<VacancyCard vacancy={{ ...baseVacancy, source: "rabota", alternate_url: "https://www.rabota.ru/vacancy/1/" }} />);
+    expect(screen.getByText("Работа.ру")).toBeInTheDocument();
+    expect(screen.getByTitle("Открыть на Работа.ру")).toHaveAttribute(
+      "href",
+      "https://www.rabota.ru/vacancy/1/",
+    );
+  });
+
+  it("does not badge hh.ru vacancies", () => {
+    render(<VacancyCard vacancy={{ ...baseVacancy, source: "hh" }} />);
+    expect(screen.queryByText("Работа.ру")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Открыть на hh.ru")).toBeInTheDocument();
+  });

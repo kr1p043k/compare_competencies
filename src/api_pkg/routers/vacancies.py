@@ -94,10 +94,13 @@ def _parse_day(value: str | None) -> datetime | None:
 
 
 def build_vacancy_where(search=None, experience=None, region=None, months=None,
-                        date_from=None, date_to=None):
+                        date_from=None, date_to=None, source=None):
     """Shared WHERE builder for list + export (v45). Returns (clause, params), $N from 1."""
     conditions: list[str] = []
     params: list = []
+    if source and source.strip().lower() not in ("all", ""):
+        conditions.append(f"v.source = ${len(params) + 1}")
+        params.append(source.strip().lower())
     if experience:
         conditions.append(f"({_EXP_LEVEL_CASE}) = ${len(params) + 1}")
         params.append(experience.lower())
@@ -136,6 +139,7 @@ async def get_vacancies(
     region: str | None = Query(None, description="Город (точное название)"),
     date_from: str | None = Query(None, description="Дата публикации от (YYYY-MM-DD)"),
     date_to: str | None = Query(None, description="Дата публикации до (YYYY-MM-DD)"),
+    source: str | None = Query(None, description="Источник: hh, rabota (по умолчанию все)"),
 ):
     """Список вакансий (фильтры, пагинация)."""
     pool = await _get_db_pool()
@@ -147,7 +151,7 @@ async def get_vacancies(
 
     where_clause, params = build_vacancy_where(
         search=search, experience=experience, region=region, months=months,
-        date_from=date_from, date_to=date_to)
+        date_from=date_from, date_to=date_to, source=source)
 
     count_sql = f"SELECT COUNT(*) FROM vacancies v WHERE {where_clause}"
     total = await pool.fetchval(count_sql, *params)
@@ -157,7 +161,7 @@ async def get_vacancies(
                v.salary_currency, v.employer_name, v.area_name,
                v.snippet_requirement, v.snippet_responsibility,
                v.published_at, v.alternate_url, v.parsed_skills, v.key_skills,
-               v.employer_logo
+               v.employer_logo, v.source
         FROM vacancies v
         WHERE {where_clause}
         ORDER BY v.published_at DESC NULLS LAST, v.hh_id
@@ -193,6 +197,7 @@ async def get_vacancies(
             "published_at": r["published_at"].isoformat() if r["published_at"] else None,
             "alternate_url": r["alternate_url"],
             "employer_logo": r["employer_logo"],
+            "source": r["source"] or "hh",
             "skills": skills,
             "snippet": snippet,
         })
@@ -276,7 +281,7 @@ async def get_vacancy_detail(
                   salary_currency, employer_name, employer_id, area_name,
                   snippet_requirement, snippet_responsibility,
                   published_at, alternate_url, parsed_skills, key_skills,
-                  employer_logo
+                  employer_logo, source
            FROM vacancies WHERE hh_id = $1""",
         hh_id,
     )
@@ -319,6 +324,7 @@ async def get_vacancy_detail(
         "published_at": row["published_at"].isoformat() if row["published_at"] else None,
         "alternate_url": row["alternate_url"],
         "employer_logo": row["employer_logo"],
+        "source": row["source"] or "hh",
         "skills": skills,
         "schedule": None,
         "employment": None,

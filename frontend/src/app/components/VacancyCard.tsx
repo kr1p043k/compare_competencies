@@ -4,6 +4,7 @@ import {
   Calendar,
   ChevronRight,
   ExternalLink,
+  Globe,
   MapPin,
 } from "lucide-react";
 
@@ -21,6 +22,8 @@ interface Vacancy {
   area: string;
   published_at: string;
   alternate_url: string;
+  /** Агрегатор-источник: "hh" | "rabota". */
+  source?: string;
   skills: string[];
   is_spam?: boolean;
   spam_reason?: string;
@@ -183,6 +186,13 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
   const skills = (vacancy.skills || []).filter((s) => (s || "").trim());
   const snippet = vacancy.snippet?.requirement || vacancy.snippet?.responsibility;
 
+  // Метка агрегатора. hh - основной источник, его не помечаем (иначе бейдж
+  // будет на 95% карточек и перестанет нести смысл); Работу.ру показываем.
+  const sourceMeta =
+    vacancy.source === "rabota"
+      ? { label: "Работа.ру", title: "Вакансия с агрегатора Работа.ру", tone: "info" as const }
+      : null;
+
   const Logo = (
     <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg border border-border bg-surface">
       {vacancy.employer_logo ? (
@@ -212,6 +222,13 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
     <Badge tone="danger" title={vacancy.spam_reason || ""}>
       <AlertTriangle className="size-3" />
       Спам
+    </Badge>
+  ) : null;
+
+  const SourceChip = sourceMeta ? (
+    <Badge tone={sourceMeta.tone} title={sourceMeta.title}>
+      <Globe className="size-3" />
+      {sourceMeta.label}
     </Badge>
   ) : null;
 
@@ -246,7 +263,7 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
           href={vacancy.alternate_url}
           target="_blank"
           rel="noopener noreferrer"
-          title="Открыть на hh.ru"
+          title={vacancy.source === "rabota" ? "Открыть на Работа.ру" : "Открыть на hh.ru"}
         >
           <ExternalLink className="size-3.5" />
         </a>
@@ -268,6 +285,7 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
               {vacancy.name}
             </h3>
             {LevelChip}
+            {SourceChip}
             {SpamChip}
           </div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -320,6 +338,7 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {LevelChip}
+        {SourceChip}
         {SpamChip}
         <span className="ml-auto text-sm font-semibold text-foreground">
           {salary ?? <span className="font-normal text-subtle-foreground">з/п не указана</span>}
