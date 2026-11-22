@@ -954,7 +954,18 @@ async def get_pipeline_status(request: Request):
     }
 
 
-@router.post("/pipeline/cancel/{task_id}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+class PipelineCancelResponse(BaseModel):
+    """Ответ POST /pipeline/cancel/{task_id}."""
+
+    status: str
+    message: str
+
+
+@router.post(
+    "/pipeline/cancel/{task_id}",
+    response_model=PipelineCancelResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("10/minute")
 async def cancel_pipeline_task(task_id: str, request: Request):
     """Отменить задачу.

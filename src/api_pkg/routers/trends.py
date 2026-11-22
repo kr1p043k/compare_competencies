@@ -10,6 +10,7 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
 from src import Err, Ok
@@ -249,7 +250,59 @@ def _resolve_canonical_key(
     return None
 
 
-@router.get("/competency-trends")
+class CompetencySkillHistoryPoint(BaseModel):
+    """Точка истории навыка (месяц + частота)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    date: str | None = None
+    freq: float | int | None = None
+
+
+class CompetencySkillTrend(BaseModel):
+    """Навык внутри тренда компетенции."""
+
+    model_config = ConfigDict(extra="allow")
+
+    name: str | None = None
+    direction: str | None = None
+    change_pct: float | None = None
+    frequency: float | int | None = None
+    prev_frequency: float | int | None = None
+    history: list[CompetencySkillHistoryPoint] = Field(default_factory=list)
+
+
+class CompetencyTrend(BaseModel):
+    """Агрегированный тренд одной компетенции.
+
+    Поля необязательны: ответ может прийти из БД-кэша `trend_precomputed`,
+    записанного более старой версией расчёта. Схема документирует актуальную
+    форму, но не отбрасывает устаревшие строки кэша.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    competency_id: str | None = None
+    code: str | None = None
+    name: str | None = None
+    direction: str | None = None
+    change_pct: float | None = None
+    skill_count: int | None = None
+    active_skills_count: int | None = None
+    snapshot_date: str | None = None
+    skills: list[CompetencySkillTrend] = Field(default_factory=list)
+
+
+class CompetencyTrendsResponse(BaseModel):
+    """Ответ GET /competency-trends."""
+
+    model_config = ConfigDict(extra="allow")
+
+    total: int
+    trends: list[CompetencyTrend] = Field(default_factory=list)
+
+
+@router.get("/competency-trends", response_model=CompetencyTrendsResponse)
 @limiter.limit("60/minute")
 async def get_competency_trends(
     request: Request,

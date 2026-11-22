@@ -17,7 +17,7 @@ import httpx
 import structlog
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from src import config
 from src.api_pkg.client_ip import client_ip
@@ -418,7 +418,36 @@ async def academic_krm_competencies(
     return {"codes": codes, "count": len(codes)}
 
 
-@router.post("/academic/get-competencies")
+class AcademicRecommendResponse(BaseModel):
+    """Ответ POST /academic/get-competencies.
+
+    Локальный фолбэк (`AcademicGapAnalyzer.recommend`) специально повторяет
+    формат внешнего сервиса ЮФУ, поэтому одна схема покрывает оба исхода.
+    Поля необязательны: внешний сервис может добавить или опустить блок.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    topic: str | None = None
+    found_trends: list[dict[str, Any]] = Field(default_factory=list)
+    recommended_competencies: list[dict[str, Any]] = Field(default_factory=list)
+    rationale: str | None = None
+    topic_filter_stats: dict[str, Any] = Field(default_factory=dict)
+    trends_source: str | None = None
+
+
+class AcademicGapLocalResponse(BaseModel):
+    """Ответ POST /academic/analyze-gap-local (AcademicGapAnalyzer.analyze)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    overall_score: float
+    detailed_analysis: list[dict[str, Any]] = Field(default_factory=list)
+    summary: str
+    topic_filter_stats: dict[str, Any] = Field(default_factory=dict)
+
+
+@router.post("/academic/get-competencies", response_model=AcademicRecommendResponse)
 @limiter.limit("10/minute")
 async def academic_get_competencies(
     body: CompetenciesRequest,
@@ -479,7 +508,11 @@ async def academic_analyze_gap(
     )
 
 
-@router.post("/academic/analyze-gap-local", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.post(
+    "/academic/analyze-gap-local",
+    response_model=AcademicGapLocalResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("10/minute")
 async def academic_analyze_gap_local(
     body: CompetenciesRequest,
