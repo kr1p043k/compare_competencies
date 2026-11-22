@@ -28,6 +28,17 @@ from src.api_pkg.twofa_token_store import (
     peek_enroll,
 )
 from src.db import get_pool
+from src.models.api_responses import (
+    LoginResponse,
+    LoginTokenResponse,
+    LogoutAllResponse,
+    LogoutResponse,
+    MeResponse,
+    TwoFactorConfirmResponse,
+    TwoFactorDisableResponse,
+    TwoFactorPolicyResponse,
+    TwoFactorStatusResponse,
+)
 
 try:
     import pyotp
@@ -459,7 +470,8 @@ async def user_error_detail(request: Request | None, technical: str, user_msg: s
     return user_msg
 
 
-@router.post("/auth/login")
+@router.post("/auth/login", response_model=LoginResponse,
+             response_model_exclude_none=True)
 @limiter.limit("10/minute")
 async def login(body: LoginRequest, request: Request, response: Response):
     """Вход по email/паролю, выдача токена.
@@ -587,7 +599,7 @@ async def login(body: LoginRequest, request: Request, response: Response):
         ) from exc
 
 
-@router.post("/auth/logout")
+@router.post("/auth/logout", response_model=LogoutResponse)
 @limiter.limit("30/minute")
 async def logout(request: Request, response: Response):
     """Выход (инвалидация сессии)."""
@@ -613,7 +625,7 @@ async def logout(request: Request, response: Response):
     return {"status": "ok", "message": "Logged out"}
 
 
-@router.post("/auth/logout-all")
+@router.post("/auth/logout-all", response_model=LogoutAllResponse)
 @limiter.limit("10/minute")
 async def logout_all(request: Request, response: Response):
     """Выход отовсюду: погасить ВСЕ активные сессии пользователя.
@@ -644,7 +656,7 @@ async def logout_all(request: Request, response: Response):
     return {"status": "ok", "revoked": revoked}
 
 
-@router.get("/auth/me")
+@router.get("/auth/me", response_model=MeResponse)
 @limiter.limit("60/minute")
 async def me(request: Request):
     """Текущий пользователь по токену."""
@@ -836,7 +848,7 @@ async def _ensure_totp_table(pool) -> None:
     )
 
 
-@router.get("/auth/2fa/policy")
+@router.get("/auth/2fa/policy", response_model=TwoFactorPolicyResponse)
 @limiter.limit("60/minute")
 async def totp_policy(request: Request):
     """Публичный статус 2FA: показывать ли шаг кода на экране входа.
@@ -848,7 +860,7 @@ async def totp_policy(request: Request):
     return {"enabled": enabled}
 
 
-@router.get("/auth/2fa/status")
+@router.get("/auth/2fa/status", response_model=TwoFactorStatusResponse)
 @limiter.limit("60/minute")
 async def totp_status(request: Request):
     """Состояние 2FA для текущего админа (мастер-флаг + личное подключение)."""
@@ -911,7 +923,8 @@ async def totp_setup(request: Request, body: TotpSetupRequest | None = None):
     )
 
 
-@router.post("/auth/2fa/confirm")
+@router.post("/auth/2fa/confirm", response_model=TwoFactorConfirmResponse,
+             response_model_exclude_none=True)
 @limiter.limit("10/minute")
 async def totp_confirm(body: TotpCodeRequest, request: Request, response: Response):
     """Подтвердить код и получить recovery-коды (единственный раз)."""
@@ -961,7 +974,7 @@ async def totp_confirm(body: TotpCodeRequest, request: Request, response: Respon
     return payload
 
 
-@router.post("/auth/2fa/verify")
+@router.post("/auth/2fa/verify", response_model=LoginTokenResponse)
 @limiter.limit("10/minute")
 async def totp_verify(body: TotpChallengeRequest, request: Request, response: Response):
     """Завершить вход: проверить TOTP по challenge_id и выдать токен."""
@@ -1009,7 +1022,7 @@ async def totp_verify(body: TotpChallengeRequest, request: Request, response: Re
     return await _issue_login_response(pool, row, request, response)
 
 
-@router.post("/auth/2fa/recovery")
+@router.post("/auth/2fa/recovery", response_model=LoginTokenResponse)
 @limiter.limit("10/minute")
 async def totp_recovery(body: TotpChallengeRequest, request: Request, response: Response):
     """Вход по одноразовому recovery-коду (когда телефон недоступен)."""
@@ -1054,7 +1067,7 @@ async def totp_recovery(body: TotpChallengeRequest, request: Request, response: 
     return await _issue_login_response(pool, row, request, response)
 
 
-@router.post("/auth/2fa/disable")
+@router.post("/auth/2fa/disable", response_model=TwoFactorDisableResponse)
 @limiter.limit("10/minute")
 async def totp_disable(body: TotpCodeRequest, request: Request):
     """Отключить 2FA. Нужен действующий код или recovery-код."""

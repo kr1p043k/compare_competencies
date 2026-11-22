@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, RootModel
 
@@ -561,3 +561,99 @@ class ForecastPopularResponse(BaseModel):
     engine: str = "trend"
     prophet_fitted: bool = False
     prophet_models: int = 0
+
+
+class LoginTokenResponse(BaseModel):
+    """Успешный вход: токен сессии и данные пользователя."""
+
+    token: str
+    role: str
+    name: str
+    username: str
+
+
+class LoginTotpRequiredResponse(BaseModel):
+    """Вход требует одноразовый код TOTP."""
+
+    status: Literal["totp_required"]
+    challenge_id: str
+    expires_in: int
+
+
+class LoginTotpSetupRequiredResponse(BaseModel):
+    """Вход требует первичной настройки TOTP."""
+
+    status: Literal["totp_setup_required"]
+    enroll_id: str
+    expires_in: int
+
+
+class LoginResponse(BaseModel):
+    """Union трёх исходов /auth/login (все поля, кроме status, опциональны)."""
+
+    token: str | None = None
+    role: str | None = None
+    name: str | None = None
+    username: str | None = None
+    status: str | None = None
+    challenge_id: str | None = None
+    enroll_id: str | None = None
+    expires_in: int | None = None
+
+
+class LogoutResponse(BaseModel):
+    """Результат выхода из текущей сессии."""
+
+    status: str
+    message: str
+
+
+class LogoutAllResponse(BaseModel):
+    """Результат выхода из всех сессий пользователя."""
+
+    status: str
+    revoked: int
+
+
+class MeResponse(BaseModel):
+    """Текущий пользователь и состояние его 2FA."""
+
+    username: str
+    role: str
+    name: str
+    totp_enabled: bool
+    totp_locked_until: str | None = None
+
+
+class TwoFactorPolicyResponse(BaseModel):
+    """Публичный флаг: включена ли 2FA в системе."""
+
+    enabled: bool
+
+
+class TwoFactorStatusResponse(BaseModel):
+    """Состояние 2FA для текущего администратора."""
+
+    enabled: bool
+    enrolled: bool
+    available: bool
+    globally_enabled: bool
+    configured: bool
+    confirmed: bool
+
+
+class TwoFactorConfirmResponse(BaseModel):
+    """Подтверждение TOTP: recovery-коды и, при настройке по пропуску, сессия."""
+
+    status: str
+    recovery_codes: list[str]
+    token: str | None = None
+    role: str | None = None
+    name: str | None = None
+    username: str | None = None
+
+
+class TwoFactorDisableResponse(BaseModel):
+    """Результат отключения 2FA."""
+
+    status: str
