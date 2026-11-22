@@ -36,6 +36,7 @@ from typing import Any
 import numpy as np
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, ConfigDict
 
 from src import config
 from src.api_pkg.rate_limit import limiter
@@ -1013,7 +1014,21 @@ async def zun_competency_coverage(request: Request, competency_id: str):
 # ---------- H3. results from disk ----------
 
 
-@router.get("/teacher/zun/analyze/results")
+class ZunAnalysisPayload(BaseModel):
+    """JSON-результат ZUN-анализа с диска.
+
+    Форму задаёт офлайн-пайплайн (дисциплина или _summary.json), поэтому поля
+    не сужаются: extra=allow сохраняет всё как есть, а массив покрывает
+    ZunAnalysisResponse.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+
+ZunAnalysisResponse = ZunAnalysisPayload | list[Any]
+
+
+@router.get("/teacher/zun/analyze/results", response_model=ZunAnalysisResponse)
 @limiter.limit("60/minute")
 async def zun_analyze_results(
     request: Request,
