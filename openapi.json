@@ -136,6 +136,822 @@
         "title": "AccessCheckResponse",
         "type": "object"
       },
+      "AdminDirectionItem": {
+        "additionalProperties": true,
+        "properties": {
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "disciplines_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disciplines Count"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile"
+          }
+        },
+        "required": [
+          "dir_code"
+        ],
+        "title": "AdminDirectionItem",
+        "type": "object"
+      },
+      "AdminGrafanaDashboard": {
+        "additionalProperties": true,
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "uid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uid"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "title": "AdminGrafanaDashboard",
+        "type": "object"
+      },
+      "AdminGrafanaResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "dashboards": {
+            "items": {
+              "$ref": "#/components/schemas/AdminGrafanaDashboard"
+            },
+            "title": "Dashboards",
+            "type": "array"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "reachable": {
+            "title": "Reachable",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "enabled",
+          "reachable"
+        ],
+        "title": "AdminGrafanaResponse",
+        "type": "object"
+      },
+      "AdminLlmCostByDay": {
+        "additionalProperties": true,
+        "properties": {
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "requests": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requests"
+          }
+        },
+        "title": "AdminLlmCostByDay",
+        "type": "object"
+      },
+      "AdminLlmCostByModel": {
+        "additionalProperties": true,
+        "properties": {
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "requests": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requests"
+          }
+        },
+        "title": "AdminLlmCostByModel",
+        "type": "object"
+      },
+      "AdminLlmCostResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "by_day": {
+            "items": {
+              "$ref": "#/components/schemas/AdminLlmCostByDay"
+            },
+            "title": "By Day",
+            "type": "array"
+          },
+          "by_model": {
+            "items": {
+              "$ref": "#/components/schemas/AdminLlmCostByModel"
+            },
+            "title": "By Model",
+            "type": "array"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "requests": {
+            "title": "Requests",
+            "type": "integer"
+          },
+          "total_usd": {
+            "title": "Total Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "total_usd",
+          "requests"
+        ],
+        "title": "AdminLlmCostResponse",
+        "type": "object"
+      },
+      "AdminLogFileResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "file",
+          "total"
+        ],
+        "title": "AdminLogFileResponse",
+        "type": "object"
+      },
+      "AdminLogsResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "logs": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Logs",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "AdminLogsResponse",
+        "type": "object"
+      },
+      "AdminMonitoringResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "families": {
+            "additionalProperties": true,
+            "title": "Families",
+            "type": "object"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "AdminMonitoringResponse",
+        "type": "object"
+      },
+      "AdminMonitoringSummaryResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "busiest_by_requests": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Busiest By Requests",
+            "type": "array"
+          },
+          "errors_1h": {
+            "additionalProperties": true,
+            "title": "Errors 1H",
+            "type": "object"
+          },
+          "freshness": {
+            "additionalProperties": true,
+            "title": "Freshness",
+            "type": "object"
+          },
+          "latency_p95_by_endpoint": {
+            "additionalProperties": true,
+            "title": "Latency P95 By Endpoint",
+            "type": "object"
+          },
+          "recent_runs": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Recent Runs",
+            "type": "array"
+          },
+          "sessions_active": {
+            "title": "Sessions Active"
+          },
+          "sessions_total_open": {
+            "title": "Sessions Total Open"
+          }
+        },
+        "title": "AdminMonitoringSummaryResponse",
+        "type": "object"
+      },
+      "AdminPasswordResetResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "revoked_sessions": {
+            "title": "Revoked Sessions"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AdminPasswordResetResponse",
+        "type": "object"
+      },
+      "AdminPipelineTriggerResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "check_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check Url"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AdminPipelineTriggerResponse",
+        "type": "object"
+      },
+      "AdminSchedulerJobResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "job": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AdminSchedulerJobResponse",
+        "type": "object"
+      },
+      "AdminSchedulerStatusResponse": {
+        "additionalProperties": true,
+        "description": "Состояние планировщика (форма задаётся background_collector).",
+        "properties": {
+          "busy": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Busy"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "next_collect_in_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Collect In S"
+          },
+          "next_collect_ts": {
+            "title": "Next Collect Ts"
+          },
+          "pipeline_running": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Running"
+          },
+          "server_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Time"
+          }
+        },
+        "title": "AdminSchedulerStatusResponse",
+        "type": "object"
+      },
+      "AdminSessionItem": {
+        "additionalProperties": true,
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          },
+          "is_open": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Open"
+          },
+          "last_activity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Activity"
+          },
+          "logged_in_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logged In At"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "AdminSessionItem",
+        "type": "object"
+      },
+      "AdminSessionsResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/AdminSessionItem"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "AdminSessionsResponse",
+        "type": "object"
+      },
+      "AdminSessionsRevokeResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "revoked": {
+            "title": "Revoked"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AdminSessionsRevokeResponse",
+        "type": "object"
+      },
+      "AdminSkillUncategorizedItem": {
+        "additionalProperties": true,
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "manual": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manual"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "skill": {
+            "title": "Skill",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skill"
+        ],
+        "title": "AdminSkillUncategorizedItem",
+        "type": "object"
+      },
+      "AdminSkillsCategorizeResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "added": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Added"
+          },
+          "invalid": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Invalid",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AdminSkillsCategorizeResponse",
+        "type": "object"
+      },
+      "AdminSkillsUncategorizedResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminSkillUncategorizedItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "AdminSkillsUncategorizedResponse",
+        "type": "object"
+      },
+      "AdminStatusMessageResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AdminStatusMessageResponse",
+        "type": "object"
+      },
+      "AdminStatusResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AdminStatusResponse",
+        "type": "object"
+      },
       "AdminStepUpRequest": {
         "description": "Подтверждение опасной операции над другим администратором.",
         "properties": {
@@ -150,6 +966,649 @@
           "caller_password"
         ],
         "title": "AdminStepUpRequest",
+        "type": "object"
+      },
+      "AdminStudentActionsResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "actions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "AdminStudentActionsResponse",
+        "type": "object"
+      },
+      "AdminStudentItem": {
+        "additionalProperties": true,
+        "properties": {
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "modified": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modified"
+          },
+          "skills_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skills Count"
+          }
+        },
+        "required": [
+          "filename"
+        ],
+        "title": "AdminStudentItem",
+        "type": "object"
+      },
+      "AdminStudentsImportResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "imported": {
+            "title": "Imported"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AdminStudentsImportResponse",
+        "type": "object"
+      },
+      "AdminStudentsResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "students": {
+            "items": {
+              "$ref": "#/components/schemas/AdminStudentItem"
+            },
+            "title": "Students",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "AdminStudentsResponse",
+        "type": "object"
+      },
+      "AdminSuggestionDecisionResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "suggestion": {
+            "title": "Suggestion"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AdminSuggestionDecisionResponse",
+        "type": "object"
+      },
+      "AdminSuggestionsResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "suggestions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          }
+        },
+        "title": "AdminSuggestionsResponse",
+        "type": "object"
+      },
+      "AdminTwoFactorSettingsResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "enrolled_admins": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrolled Admins"
+          },
+          "read_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read Ok"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "AdminTwoFactorSettingsResponse",
+        "type": "object"
+      },
+      "AdminUserCreateResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "directions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Directions",
+            "type": "array"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AdminUserCreateResponse",
+        "type": "object"
+      },
+      "AdminUserDetailResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "directions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Directions",
+            "type": "array"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/AdminUserSessionItem"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
+          "totp_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totp Enabled"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AdminUserItem"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "title": "AdminUserDetailResponse",
+        "type": "object"
+      },
+      "AdminUserDirectionsResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "directions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Directions",
+            "type": "array"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id"
+        ],
+        "title": "AdminUserDirectionsResponse",
+        "type": "object"
+      },
+      "AdminUserDirectionsUpdateResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "directions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Directions",
+            "type": "array"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id"
+        ],
+        "title": "AdminUserDirectionsUpdateResponse",
+        "type": "object"
+      },
+      "AdminUserItem": {
+        "additionalProperties": true,
+        "description": "Единый вид пользователя (_user_payload).",
+        "properties": {
+          "directions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Directions",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "last_activity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Activity"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "open_sessions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Sessions"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "total_requests": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Requests"
+          },
+          "totp_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totp Enabled"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "AdminUserItem",
+        "type": "object"
+      },
+      "AdminUserPatchResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/AdminUserItem"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "title": "AdminUserPatchResponse",
+        "type": "object"
+      },
+      "AdminUserSessionItem": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          },
+          "is_open": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Open"
+          },
+          "last_activity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Activity"
+          },
+          "logged_in_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logged In At"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "AdminUserSessionItem",
+        "type": "object"
+      },
+      "AdminUsersResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "users": {
+            "items": {
+              "$ref": "#/components/schemas/AdminUserItem"
+            },
+            "title": "Users",
+            "type": "array"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "AdminUsersResponse",
+        "type": "object"
+      },
+      "AdminWhitelistAddResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "added": {
+            "title": "Added"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AdminWhitelistAddResponse",
+        "type": "object"
+      },
+      "AdminWhitelistRemoveResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "removed": {
+            "title": "Removed"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AdminWhitelistRemoveResponse",
+        "type": "object"
+      },
+      "AdminWhitelistResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "AdminWhitelistResponse",
         "type": "object"
       },
       "AlertBody": {
@@ -7796,7 +9255,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStatusMessageResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7826,7 +9287,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStatusMessageResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7856,7 +9319,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminDirectionItem"
+                  },
+                  "title": "Response Admin Directions Api Admin Directions Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -7886,7 +9355,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStatusMessageResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7916,7 +9387,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStatusMessageResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7990,7 +9463,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLlmCostResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8066,7 +9541,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLogsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8120,7 +9597,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLogFileResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8187,7 +9666,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMonitoringResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8217,7 +9698,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGrafanaResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8237,7 +9720,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMonitoringSummaryResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8267,7 +9752,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPipelineTriggerResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8297,7 +9784,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSchedulerJobResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8317,7 +9806,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSchedulerJobResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8347,7 +9838,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSchedulerStatusResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8377,7 +9870,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSchedulerStatusResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8397,7 +9892,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTwoFactorSettingsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8425,7 +9922,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTwoFactorSettingsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8492,7 +9991,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSessionsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8532,7 +10033,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSkillsCategorizeResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8574,7 +10077,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStatusMessageResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8616,7 +10121,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSuggestionsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8657,7 +10164,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSuggestionDecisionResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8698,7 +10207,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSuggestionDecisionResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8728,7 +10239,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSkillsUncategorizedResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8778,7 +10291,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStudentActionsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8808,7 +10323,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStudentsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8842,7 +10359,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStudentsImportResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8988,7 +10507,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUsersResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9028,7 +10549,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserCreateResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9069,7 +10592,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDetailResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9118,7 +10643,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserPatchResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9176,7 +10703,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStatusResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9217,7 +10746,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDirectionsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9266,7 +10797,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDirectionsUpdateResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9317,7 +10850,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPasswordResetResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9358,7 +10893,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSessionsRevokeResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9388,7 +10925,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminWhitelistResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9418,7 +10957,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminWhitelistAddResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9480,7 +11021,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminWhitelistRemoveResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -10872,7 +12415,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStatusResponse"
+                }
               }
             },
             "description": "Successful Response"

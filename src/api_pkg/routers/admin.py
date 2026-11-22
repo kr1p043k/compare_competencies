@@ -13,7 +13,7 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, WebSocket
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 
 from src import config
@@ -36,6 +36,350 @@ logger = structlog.get_logger("api")
 _ADMIN_TOTP_PRESENT = False
 
 router = APIRouter(tags=["admin"], dependencies=[Depends(require_any_role("admin", "teacher"))])
+
+
+# ---------- схемы ответов (6.2.1) ----------
+# Все модели объявлены с extra="allow" и применяются вместе с
+# response_model_exclude_unset=True: поля из payload проходят без изменений
+# (включая не описанные здесь), отсутствующие не дорисовываются в null.
+# Поэтому wire-формат не меняется, а OpenAPI получает реальную схему.
+
+
+class AdminWhitelistResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    skills: list[str] = Field(default_factory=list)
+    total: int
+
+
+class AdminWhitelistAddResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    message: str | None = None
+    added: Any = None
+    total: int | None = None
+
+
+class AdminWhitelistRemoveResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    message: str | None = None
+    removed: Any = None
+    total: int | None = None
+
+
+class AdminStudentItem(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    filename: str
+    skills_count: int | None = None
+    modified: str | None = None
+
+
+class AdminStudentsResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    students: list[AdminStudentItem] = Field(default_factory=list)
+    total: int
+
+
+class AdminPipelineTriggerResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    task_id: str | None = None
+    check_url: str | None = None
+
+
+class AdminUserItem(BaseModel):
+    """Единый вид пользователя (_user_payload)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    username: str | None = None
+    role: str | None = None
+    name: str | None = None
+    total_requests: int | None = None
+    is_active: bool | None = None
+    directions: list[str] = Field(default_factory=list)
+    totp_enabled: bool | None = None
+    open_sessions: int | None = None
+    last_activity: str | None = None
+
+
+class AdminUsersResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    users: list[AdminUserItem] = Field(default_factory=list)
+    total: int
+    limit: int | None = None
+    offset: int | None = None
+
+
+class AdminDirectionItem(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    dir_code: str
+    name: str | None = None
+    profile: str | None = None
+    disciplines_count: int | None = None
+
+
+class AdminUserDirectionsResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    user_id: str
+    directions: list[str] = Field(default_factory=list)
+
+
+class AdminUserDirectionsUpdateResponse(AdminUserDirectionsResponse):
+    status: str | None = None
+
+
+class AdminUserSessionItem(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    ip_address: str | None = None
+    user_agent: str | None = None
+    logged_in_at: str | None = None
+    last_activity: str | None = None
+    is_open: bool | None = None
+
+
+class AdminUserDetailResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    user: AdminUserItem
+    directions: list[str] = Field(default_factory=list)
+    sessions: list[AdminUserSessionItem] = Field(default_factory=list)
+    totp_enabled: bool | None = None
+
+
+class AdminUserPatchResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    user: AdminUserItem
+
+
+class AdminPasswordResetResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    revoked_sessions: Any = None
+
+
+class AdminSessionsRevokeResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    revoked: Any = None
+
+
+class AdminStatusResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+
+
+class AdminStatusMessageResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    message: str | None = None
+
+
+class AdminSessionItem(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    email: str | None = None
+    role: str | None = None
+    ip_address: str | None = None
+    user_agent: str | None = None
+    logged_in_at: str | None = None
+    last_activity: str | None = None
+    is_open: bool | None = None
+
+
+class AdminSessionsResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    sessions: list[AdminSessionItem] = Field(default_factory=list)
+    total: int
+    limit: int | None = None
+    offset: int | None = None
+
+
+class AdminMonitoringResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    total: int
+    limit: int | None = None
+    offset: int | None = None
+    families: dict[str, Any] = Field(default_factory=dict)
+
+
+class AdminGrafanaDashboard(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    uid: str | None = None
+    title: str | None = None
+    url: str | None = None
+
+
+class AdminGrafanaResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    enabled: bool
+    reachable: bool
+    reason: str | None = None
+    dashboards: list[AdminGrafanaDashboard] = Field(default_factory=list)
+
+
+class AdminLlmCostByModel(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    model: str | None = None
+    requests: int | None = None
+    cost_usd: float | None = None
+
+
+class AdminLlmCostByDay(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    day: str | None = None
+    requests: int | None = None
+    cost_usd: float | None = None
+
+
+class AdminLlmCostResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    total_usd: float
+    requests: int
+    by_model: list[AdminLlmCostByModel] = Field(default_factory=list)
+    by_day: list[AdminLlmCostByDay] = Field(default_factory=list)
+    reason: str | None = None
+
+
+class AdminMonitoringSummaryResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    latency_p95_by_endpoint: dict[str, Any] = Field(default_factory=dict)
+    busiest_by_requests: list[dict[str, Any]] = Field(default_factory=list)
+    errors_1h: dict[str, Any] = Field(default_factory=dict)
+    sessions_active: Any = None
+    sessions_total_open: Any = None
+    recent_runs: list[dict[str, Any]] = Field(default_factory=list)
+    freshness: dict[str, Any] = Field(default_factory=dict)
+
+
+class AdminLogsResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    logs: list[dict[str, Any]] = Field(default_factory=list)
+    total: int
+
+
+class AdminStudentActionsResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    actions: list[dict[str, Any]] = Field(default_factory=list)
+    total: int
+
+
+class AdminLogFileResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    file: str
+    lines: list[str] = Field(default_factory=list)
+    total: int
+
+
+class AdminUserCreateResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    email: str | None = None
+    role: str | None = None
+    directions: list[str] = Field(default_factory=list)
+
+
+class AdminStudentsImportResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    imported: Any = None
+
+
+class AdminSkillUncategorizedItem(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    skill: str
+    category: str | None = None
+    score: float | None = None
+    manual: bool | None = None
+
+
+class AdminSkillsUncategorizedResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    total: int
+    items: list[AdminSkillUncategorizedItem] = Field(default_factory=list)
+
+
+class AdminSkillsCategorizeResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    added: int | None = None
+    invalid: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AdminSuggestionsResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    suggestions: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AdminSuggestionDecisionResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    suggestion: Any = None
+    category: str | None = None
+
+
+class AdminSchedulerStatusResponse(BaseModel):
+    """Состояние планировщика (форма задаётся background_collector)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    busy: bool | None = None
+    pipeline_running: bool | None = None
+    next_collect_ts: Any = None
+    next_collect_in_s: int | None = None
+    server_time: str | None = None
+    error: str | None = None
+
+
+class AdminSchedulerJobResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    job: str | None = None
+
+
+class AdminTwoFactorSettingsResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    enabled: bool
+    read_ok: bool | None = None
+    enrolled_admins: int | None = None
 
 
 class WhitelistAddRequest(BaseModel):
@@ -106,7 +450,11 @@ def _read_log_tail_lines(path: str | Path, n: int) -> list[str]:
 # ---------- Whitelist ----------
 
 
-@router.get("/admin/whitelist", dependencies=[Depends(require_any_role("admin"))])
+@router.get(
+    "/admin/whitelist",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminWhitelistResponse,
+)
 @limiter.limit("30/minute")
 async def get_whitelist(request: Request):
     """Текущий whitelist навыков."""
@@ -114,7 +462,11 @@ async def get_whitelist(request: Request):
     return {"skills": skills, "total": len(skills)}
 
 
-@router.post("/admin/whitelist/add", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/whitelist/add",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminWhitelistAddResponse,
+)
 @limiter.limit("10/minute")
 async def whitelist_add(request: Request, body: WhitelistAddRequest):
     """Добавить навыки в whitelist."""
@@ -142,7 +494,11 @@ async def whitelist_add(request: Request, body: WhitelistAddRequest):
     }
 
 
-@router.post("/admin/whitelist/remove", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/whitelist/remove",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminWhitelistRemoveResponse,
+)
 @limiter.limit("10/minute")
 async def whitelist_remove(request: Request, body: WhitelistRemoveRequest):
     """Убрать навыки из whitelist."""
@@ -222,7 +578,7 @@ def _scan_students_dir(students_dir: Path) -> list[dict[str, Any]]:
     return students
 
 
-@router.get("/admin/students", dependencies=[Depends(require_any_role("admin"))])
+@router.get("/admin/students", dependencies=[Depends(require_any_role("admin"))], response_model=AdminStudentsResponse)
 @limiter.limit("30/minute")
 async def list_students(request: Request):
     """Список студентов."""
@@ -243,7 +599,11 @@ class PipelineTriggerRequest(BaseModel):
     run_gap_analysis: bool = True
 
 
-@router.post("/admin/pipeline/trigger", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/pipeline/trigger",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminPipelineTriggerResponse,
+)
 @limiter.limit("2/minute")
 async def admin_trigger_pipeline(
     request: Request, body: PipelineTriggerRequest, background_tasks: BackgroundTasks
@@ -416,7 +776,7 @@ async def export_full_report(request: Request):
     )
 
 
-@router.get("/admin/users", dependencies=[Depends(require_any_role("admin"))])
+@router.get("/admin/users", dependencies=[Depends(require_any_role("admin"))], response_model=AdminUsersResponse)
 @limiter.limit("30/minute")
 async def admin_users(
     request: Request,
@@ -515,7 +875,11 @@ async def admin_users(
     }
 
 
-@router.get("/admin/directions", dependencies=[Depends(require_any_role("admin"))])
+@router.get(
+    "/admin/directions",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=list[AdminDirectionItem],
+)
 @limiter.limit("30/minute")
 async def admin_directions(request: Request):
     """Список всех направлений (dir_code) из KRM-файлов для привязки РОП."""
@@ -639,7 +1003,11 @@ def _user_payload(
     }
 
 
-@router.get("/admin/users/{user_id}/directions", dependencies=[Depends(require_any_role("admin"))])
+@router.get(
+    "/admin/users/{user_id}/directions",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminUserDirectionsResponse,
+)
 @limiter.limit("30/minute")
 async def admin_user_directions(request: Request, user_id: str):
     """Направления пользователя."""
@@ -656,7 +1024,11 @@ async def admin_user_directions(request: Request, user_id: str):
         return {"user_id": user_id, "directions": sorted(row[0] for row in result)}
 
 
-@router.put("/admin/users/{user_id}/directions", dependencies=[Depends(require_any_role("admin"))])
+@router.put(
+    "/admin/users/{user_id}/directions",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminUserDirectionsUpdateResponse,
+)
 @limiter.limit("30/minute")
 async def admin_set_user_directions(request: Request, user_id: str, body: UserDirectionsBody):
     """Назначить направления пользователю."""
@@ -681,7 +1053,11 @@ async def admin_set_user_directions(request: Request, user_id: str, body: UserDi
     return {"status": "ok", "user_id": user_id, "directions": sorted(body.directions)}
 
 
-@router.get("/admin/users/{user_id}", dependencies=[Depends(require_any_role("admin"))])
+@router.get(
+    "/admin/users/{user_id}",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminUserDetailResponse,
+)
 @limiter.limit("30/minute")
 async def admin_user_detail(request: Request, user_id: str):
     """Профиль пользователя: поля, направления, сессии, статус 2FA."""
@@ -747,7 +1123,11 @@ async def admin_user_detail(request: Request, user_id: str):
     }
 
 
-@router.patch("/admin/users/{user_id}", dependencies=[Depends(require_any_role("admin"))])
+@router.patch(
+    "/admin/users/{user_id}",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminUserPatchResponse,
+)
 @limiter.limit("30/minute")
 async def admin_user_update(request: Request, user_id: str, body: UserUpdateRequest):
     """Обновить роль/active/имя с защитой от потери последнего админа."""
@@ -862,7 +1242,11 @@ async def admin_user_update(request: Request, user_id: str, body: UserUpdateRequ
     }
 
 
-@router.post("/admin/users/{user_id}/password", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/users/{user_id}/password",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminPasswordResetResponse,
+)
 @limiter.limit("10/minute")
 async def admin_user_password(request: Request, user_id: str, body: PasswordResetRequest):
     """Сбросить пароль; все открытые сессии, кроме текущей, отзываются."""
@@ -901,7 +1285,11 @@ async def admin_user_password(request: Request, user_id: str, body: PasswordRese
     return {"status": "ok", "revoked_sessions": revoked}
 
 
-@router.post("/admin/users/{user_id}/sessions/revoke", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/users/{user_id}/sessions/revoke",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminSessionsRevokeResponse,
+)
 @limiter.limit("30/minute")
 async def admin_user_sessions_revoke(request: Request, user_id: str):
     """Отозвать все открытые сессии пользователя, кроме сессии вызывающего."""
@@ -930,7 +1318,11 @@ async def admin_user_sessions_revoke(request: Request, user_id: str):
     return {"status": "ok", "revoked": revoked}
 
 
-@router.post("/admin/users/{user_id}/2fa/reset", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/users/{user_id}/2fa/reset",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminStatusResponse,
+)
 @limiter.limit("10/minute")
 async def admin_user_2fa_reset(request: Request, user_id: str, body: AdminStepUpRequest | None = None):
     """Сбросить 2FA пользователя (удалить admin_totp)."""
@@ -963,7 +1355,7 @@ async def admin_user_2fa_reset(request: Request, user_id: str, body: AdminStepUp
     return {"status": "ok"}
 
 
-@router.get("/admin/sessions", dependencies=[Depends(require_any_role("admin"))])
+@router.get("/admin/sessions", dependencies=[Depends(require_any_role("admin"))], response_model=AdminSessionsResponse)
 @limiter.limit("30/minute")
 async def admin_sessions(
     request: Request,
@@ -1028,7 +1420,11 @@ async def admin_sessions(
     }
 
 
-@router.get("/admin/monitoring", dependencies=[Depends(require_any_role("admin"))])
+@router.get(
+    "/admin/monitoring",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminMonitoringResponse,
+)
 @limiter.limit("60/minute")
 async def admin_monitoring(
     request: Request,
@@ -1113,7 +1509,11 @@ async def _grafana_status() -> dict[str, Any]:
             "dashboards": _map_dashboards(public, items)}
 
 
-@router.get("/admin/monitoring/grafana", dependencies=[Depends(require_any_role("admin"))])
+@router.get(
+    "/admin/monitoring/grafana",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminGrafanaResponse,
+)
 @limiter.limit("30/minute")
 async def admin_monitoring_grafana(request: Request):
     """Дашборды Grafana для панели мониторинга (fallback вместо 500)."""
@@ -1186,7 +1586,7 @@ async def _llm_cost_summary(days: int, pool: Any = None) -> dict[str, Any]:
     }
 
 
-@router.get("/admin/llm/cost", dependencies=[Depends(require_any_role("admin"))])
+@router.get("/admin/llm/cost", dependencies=[Depends(require_any_role("admin"))], response_model=AdminLlmCostResponse)
 @limiter.limit("30/minute")
 async def admin_llm_cost(request: Request, days: int = Query(30, ge=1, le=365)):
     """Сводка стоимости LLM-обращений (llm_interactions.cost_usd)."""
@@ -1272,7 +1672,11 @@ def _metrics_p95_and_busiest() -> tuple[dict[str, float], list[dict[str, Any]]]:
     return top_latency, top_busiest
 
 
-@router.get("/admin/monitoring/summary", dependencies=[Depends(require_any_role("admin"))])
+@router.get(
+    "/admin/monitoring/summary",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminMonitoringSummaryResponse,
+)
 @limiter.limit("30/minute")
 async def admin_monitoring_summary(request: Request):
     """Сводка для панели здоровья: латентность, ошибки, сессии, прогоны, свежесть.
@@ -1322,7 +1726,7 @@ async def admin_monitoring_summary(request: Request):
     return out
 
 
-@router.get("/admin/logs", dependencies=[Depends(require_any_role("admin"))])
+@router.get("/admin/logs", dependencies=[Depends(require_any_role("admin"))], response_model=AdminLogsResponse)
 @limiter.limit("30/minute")
 async def admin_logs(
     request: Request,
@@ -1342,7 +1746,11 @@ async def admin_logs(
     return {"logs": entries, "total": len(entries)}
 
 
-@router.get("/admin/student-actions", dependencies=[Depends(require_any_role("admin"))])
+@router.get(
+    "/admin/student-actions",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminStudentActionsResponse,
+)
 @limiter.limit("30/minute")
 async def admin_student_actions(
     request: Request,
@@ -1356,7 +1764,7 @@ async def admin_student_actions(
     return {"actions": entries, "total": len(entries)}
 
 
-@router.get("/admin/logs/file", dependencies=[Depends(require_any_role("admin"))])
+@router.get("/admin/logs/file", dependencies=[Depends(require_any_role("admin"))], response_model=AdminLogFileResponse)
 @limiter.limit("30/minute")
 async def admin_logs_file(
     request: Request,
@@ -1388,7 +1796,11 @@ class SeedDBRequest(BaseModel):
     drop: bool = False
 
 
-@router.post("/admin/db/seed", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/db/seed",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminStatusMessageResponse,
+)
 @limiter.limit("1/minute")
 async def admin_seed_db(request: Request, body: SeedDBRequest, background_tasks: BackgroundTasks):
     """Seed database from JSON files (skills, disciplines, competencies)."""
@@ -1413,7 +1825,11 @@ class CreateUserRequest(BaseModel):
     directions: list[str] = []
 
 
-@router.post("/admin/users/create", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/users/create",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminUserCreateResponse,
+)
 @limiter.limit("10/minute")
 async def admin_create_user(request: Request, body: CreateUserRequest):
     """Create a new user with bcrypt-hashed password (optionally bind directions)."""
@@ -1427,7 +1843,11 @@ class EmbeddingsRequest(BaseModel):
     force: bool = False
 
 
-@router.post("/admin/embeddings/generate", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/embeddings/generate",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminStatusMessageResponse,
+)
 @limiter.limit("1/minute")
 async def admin_generate_embeddings(request: Request, body: EmbeddingsRequest, background_tasks: BackgroundTasks):
     """Generate sentence-transformers embeddings for all skills."""
@@ -1451,7 +1871,11 @@ class StudentImportItem(BaseModel):
     skills: str = Field(default="", max_length=10000)
 
 
-@router.post("/admin/students/import", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/students/import",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminStudentsImportResponse,
+)
 @limiter.limit("5/minute")
 async def admin_import_students(request: Request, body: list[StudentImportItem]):
     """Import students from JSON array."""
@@ -1478,7 +1902,11 @@ async def admin_import_students(request: Request, body: list[StudentImportItem])
     return {"status": "ok", "imported": len(body)}
 
 
-@router.post("/admin/skills/extend", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/skills/extend",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminStatusMessageResponse,
+)
 @limiter.limit("1/minute")
 async def admin_extend_skills(request: Request, background_tasks: BackgroundTasks, yes: bool = True):
     """Analyze vacancies and extend it_skills with new skills."""
@@ -1496,7 +1924,11 @@ class CategorizeSkillsRequest(BaseModel):
     assignments: list[dict[str, str]]  # [{"skill": "...", "category": "..."}]
 
 
-@router.get("/admin/skills/uncategorized", dependencies=[Depends(require_any_role("admin"))])
+@router.get(
+    "/admin/skills/uncategorized",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminSkillsUncategorizedResponse,
+)
 @limiter.limit("20/minute")
 async def admin_skills_uncategorized(request: Request):
     """Некатегоризованные навыки it_skills + предложенная категория (эмбеддинг)."""
@@ -1533,7 +1965,11 @@ async def admin_skills_uncategorized(request: Request):
     return {"total": len(items), "items": items}
 
 
-@router.post("/admin/skills/categorize", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/skills/categorize",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminSkillsCategorizeResponse,
+)
 @limiter.limit("30/minute")
 async def admin_skills_categorize(request: Request, body: CategorizeSkillsRequest):
     """Записать навыки в указанные категории skill_taxonomy.json."""
@@ -1565,7 +2001,11 @@ async def admin_skills_categorize(request: Request, body: CategorizeSkillsReques
     return {"status": "ok", "added": added, "invalid": invalid}
 
 
-@router.get("/admin/skills/suggestions", dependencies=[Depends(require_any_role("admin"))])
+@router.get(
+    "/admin/skills/suggestions",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminSuggestionsResponse,
+)
 @limiter.limit("30/minute")
 async def admin_skills_suggestions(request: Request, status: str = "pending"):
     """Очередь предложений навыков от преподавателей."""
@@ -1577,7 +2017,11 @@ async def admin_skills_suggestions(request: Request, status: str = "pending"):
     return {"suggestions": items}
 
 
-@router.post("/admin/skills/suggestions/{suggestion_id}/approve", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/skills/suggestions/{suggestion_id}/approve",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminSuggestionDecisionResponse,
+)
 @limiter.limit("30/minute")
 async def admin_skills_approve(suggestion_id: str, request: Request):
     """Одобрить: в it_skills.json + категория таксономии."""
@@ -1623,7 +2067,11 @@ async def admin_skills_approve(suggestion_id: str, request: Request):
     return {"status": "ok", "suggestion": entry, "category": category or None}
 
 
-@router.post("/admin/skills/suggestions/{suggestion_id}/reject", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/skills/suggestions/{suggestion_id}/reject",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminSuggestionDecisionResponse,
+)
 @limiter.limit("30/minute")
 async def admin_skills_reject(request: Request, suggestion_id: str):
     """Отклонить предложение."""
@@ -1640,7 +2088,11 @@ async def admin_skills_reject(request: Request, suggestion_id: str):
     return {"status": "ok", "suggestion": entry}
 
 
-@router.get("/admin/export/db", dependencies=[Depends(require_any_role("admin"))])
+@router.get(
+    "/admin/export/db",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminStatusMessageResponse,
+)
 @limiter.limit("2/minute")
 async def admin_export_db(request: Request, background_tasks: BackgroundTasks):
     """Export all DB tables to JSON files in data/export/."""
@@ -1657,7 +2109,11 @@ def _run_export() -> None:
     logger.info("db_export_completed")
 
 
-@router.post("/admin/db/backup", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/db/backup",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminStatusMessageResponse,
+)
 @limiter.limit("1/minute")
 async def admin_backup_db(request: Request):
     """Create a PostgreSQL dump in data/backups/."""
@@ -1678,7 +2134,7 @@ class FrontendLogRequest(BaseModel):
     detail: str = ""
 
 
-@router.post("/log")
+@router.post("/log", response_model=AdminStatusResponse)
 @limiter.limit("30/minute")
 async def frontend_log(request: Request, body: FrontendLogRequest):
     """Log frontend actions (button clicks, page views, errors)."""
@@ -1842,7 +2298,11 @@ class SchedulerSettingsPatch(BaseModel):
     daily_gap_enabled: bool | None = None
 
 
-@router.get("/admin/scheduler/status", dependencies=[Depends(require_any_role("admin"))])
+@router.get(
+    "/admin/scheduler/status",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminSchedulerStatusResponse,
+)
 @limiter.limit("30/minute")
 async def scheduler_status(request: Request):
     """Состояние планировщика фоновых задач."""
@@ -1850,7 +2310,11 @@ async def scheduler_status(request: Request):
     return _status()
 
 
-@router.put("/admin/scheduler/settings", dependencies=[Depends(require_any_role("admin"))])
+@router.put(
+    "/admin/scheduler/settings",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminSchedulerStatusResponse,
+)
 @limiter.limit("10/minute")
 async def scheduler_settings_update(request: Request, body: SchedulerSettingsPatch):
     """Тумблеры планировщика (persist в data/settings/scheduler.json)."""
@@ -1863,7 +2327,11 @@ async def scheduler_settings_update(request: Request, body: SchedulerSettingsPat
     return _status()
 
 
-@router.post("/admin/scheduler/collect/now", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/scheduler/collect/now",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminSchedulerJobResponse,
+)
 @limiter.limit("5/minute")
 async def scheduler_collect_now(request: Request):
     """Внеплановый сбор (force; 409 если планировщик занят)."""
@@ -1875,7 +2343,11 @@ async def scheduler_collect_now(request: Request):
     return {"status": "started", "job": "collect"}
 
 
-@router.post("/admin/scheduler/gap/now", dependencies=[Depends(require_any_role("admin"))])
+@router.post(
+    "/admin/scheduler/gap/now",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminSchedulerJobResponse,
+)
 @limiter.limit("5/minute")
 async def scheduler_gap_now(request: Request):
     """Внеплановый gap по всем профилям (409 если планировщик занят)."""
@@ -1921,14 +2393,22 @@ async def _two_factor_payload() -> dict[str, Any]:
     }
 
 
-@router.get("/admin/security/2fa/settings", dependencies=[Depends(require_any_role("admin"))])
+@router.get(
+    "/admin/security/2fa/settings",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminTwoFactorSettingsResponse,
+)
 @limiter.limit("60/minute")
 async def two_factor_settings(request: Request):
     """Текущее состояние мастер-переключателя 2FA."""
     return await _two_factor_payload()
 
 
-@router.put("/admin/security/2fa/settings", dependencies=[Depends(require_any_role("admin"))])
+@router.put(
+    "/admin/security/2fa/settings",
+    dependencies=[Depends(require_any_role("admin"))],
+    response_model=AdminTwoFactorSettingsResponse,
+)
 @limiter.limit("10/minute")
 async def two_factor_settings_update(request: Request, body: TwoFactorSettingsPatch):
     """Включить/выключить 2FA одним кликом (только админ).

@@ -314,11 +314,15 @@ def test_export_full_report_success(monkeypatch, tmp_path):
 def test_admin_directions(monkeypatch, tmp_path):
     import src.api_pkg.routers.teacher as teacher_mod
 
-    monkeypatch.setattr(teacher_mod, "_list_krm_directions", lambda: ["09.03.02", "09.03.04"])
+    dirs = [
+        {"dir_code": "09.03.02", "name": "Информационные системы", "profile": "ИС", "disciplines_count": 24},
+        {"dir_code": "09.03.04", "name": "Программная инженерия", "profile": "ПИ", "disciplines_count": 31},
+    ]
+    monkeypatch.setattr(teacher_mod, "_list_krm_directions", lambda: dirs)
     client = _admin_client(monkeypatch, tmp_path)
     r = client.get("/admin/directions")
     assert r.status_code == 200
-    assert r.json() == ["09.03.02", "09.03.04"]
+    assert r.json() == dirs
 
 
 # ---------- users directions ----------
