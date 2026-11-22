@@ -6049,6 +6049,13 @@
         "title": "ZUNPatch",
         "type": "object"
       },
+      "ZunAnalysisPayload": {
+        "additionalProperties": true,
+        "description": "JSON-результат ZUN-анализа с диска.\n\nФорму задаёт офлайн-пайплайн (дисциплина или _summary.json), поэтому поля\nне сужаются: extra=allow сохраняет всё как есть, а массив покрывает\nZunAnalysisResponse.",
+        "properties": {},
+        "title": "ZunAnalysisPayload",
+        "type": "object"
+      },
       "ZunAnalyzeStarted": {
         "additionalProperties": true,
         "description": "POST /teacher/zun/analyze.",
@@ -15592,7 +15599,18 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ZunAnalysisPayload"
+                    },
+                    {
+                      "items": {},
+                      "type": "array"
+                    }
+                  ],
+                  "title": "Response Zun Analyze Results Api Teacher Zun Analyze Results Get"
+                }
               }
             },
             "description": "Successful Response"

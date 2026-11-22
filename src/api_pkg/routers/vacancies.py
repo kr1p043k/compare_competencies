@@ -375,7 +375,7 @@ async def get_vacancies_stats(
     }
 
 
-@router.get("/vacancies/stats/analytics")
+@router.get("/vacancies/stats/analytics", response_model=VacancyAnalyticsResponse)
 @limiter.limit("30/minute")
 async def get_vacancies_analytics(
     request: Request,
