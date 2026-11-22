@@ -794,6 +794,240 @@
         "title": "CompetencyOption",
         "type": "object"
       },
+      "CompetencySkillHistoryPoint": {
+        "additionalProperties": true,
+        "description": "Точка истории навыка (месяц + частота).",
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "freq": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Freq"
+          }
+        },
+        "title": "CompetencySkillHistoryPoint",
+        "type": "object"
+      },
+      "CompetencySkillTrend": {
+        "additionalProperties": true,
+        "description": "Навык внутри тренда компетенции.",
+        "properties": {
+          "change_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Pct"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
+          "frequency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frequency"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/CompetencySkillHistoryPoint"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "prev_frequency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Frequency"
+          }
+        },
+        "title": "CompetencySkillTrend",
+        "type": "object"
+      },
+      "CompetencyTrend": {
+        "additionalProperties": true,
+        "description": "Агрегированный тренд одной компетенции.\n\nПоля необязательны: ответ может прийти из БД-кэша `trend_precomputed`,\nзаписанного более старой версией расчёта. Схема документирует актуальную\nформу, но не отбрасывает устаревшие строки кэша.",
+        "properties": {
+          "active_skills_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Skills Count"
+          },
+          "change_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Pct"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "competency_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competency Id"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "skill_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Count"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/CompetencySkillTrend"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
+          "snapshot_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Date"
+          }
+        },
+        "title": "CompetencyTrend",
+        "type": "object"
+      },
+      "CompetencyTrendsResponse": {
+        "additionalProperties": true,
+        "description": "Ответ GET /competency-trends.",
+        "properties": {
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "trends": {
+            "items": {
+              "$ref": "#/components/schemas/CompetencyTrend"
+            },
+            "title": "Trends",
+            "type": "array"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "CompetencyTrendsResponse",
+        "type": "object"
+      },
       "CreateUserRequest": {
         "properties": {
           "directions": {
@@ -2322,6 +2556,20 @@
         "title": "LiveBody",
         "type": "object"
       },
+      "LogAck": {
+        "description": "Ответ POST /api/log.",
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "LogAck",
+        "type": "object"
+      },
       "LogActionRequest": {
         "properties": {
           "action_type": {
@@ -2893,6 +3141,25 @@
         ],
         "title": "PipelineAction",
         "type": "string"
+      },
+      "PipelineCancelResponse": {
+        "description": "Ответ POST /pipeline/cancel/{task_id}.",
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "message"
+        ],
+        "title": "PipelineCancelResponse",
+        "type": "object"
       },
       "PipelineCompletedBody": {
         "properties": {
@@ -10262,7 +10529,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CompetencyTrendsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -11620,7 +11889,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineCancelResponse"
+                }
               }
             },
             "description": "Successful Response"

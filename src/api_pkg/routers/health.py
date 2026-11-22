@@ -116,7 +116,13 @@ def _write_log_sync(entry: LogEntry) -> None:
         f.write(line + "\n")
 
 
-@router.post("/api/log")
+class LogAck(BaseModel):
+    """Ответ POST /api/log."""
+
+    ok: bool
+
+
+@router.post("/api/log", response_model=LogAck)
 @limiter.limit("20/minute")
 async def write_log(request: Request, entry: LogEntry):
     """Запись клиентского лога."""
