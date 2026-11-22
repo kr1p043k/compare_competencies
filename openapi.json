@@ -69,6 +69,13 @@
         "title": "AcademicKrmCompetenciesBody",
         "type": "object"
       },
+      "AcademicTrendsPayload": {
+        "additionalProperties": true,
+        "description": "Проксируемый JSON-объект Course Trends API.\n\nФорму задаёт внешний сервис, поэтому поля не сужаются: extra=allow\nсохраняет все ключи как есть. Часть эндпоинтов может отдать массив -\nтакие ответы покрывает AcademicTrendsResponse.",
+        "properties": {},
+        "title": "AcademicTrendsPayload",
+        "type": "object"
+      },
       "AccessCheckResponse": {
         "properties": {
           "access": {
@@ -6689,6 +6696,15 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AcademicTrendsPayload"
+                    },
+                    {
+                      "items": {},
+                      "type": "array"
+                    }
+                  ],
                   "title": "Response Glossary Api Academic Glossary Get"
                 }
               }
@@ -6761,6 +6777,15 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AcademicTrendsPayload"
+                    },
+                    {
+                      "items": {},
+                      "type": "array"
+                    }
+                  ],
                   "title": "Response List Programs Api Academic Programs Get"
                 }
               }
@@ -6794,6 +6819,15 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AcademicTrendsPayload"
+                    },
+                    {
+                      "items": {},
+                      "type": "array"
+                    }
+                  ],
                   "title": "Response Program Bundle Api Academic Programs  Pid  Get"
                 }
               }
@@ -6916,6 +6950,15 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AcademicTrendsPayload"
+                    },
+                    {
+                      "items": {},
+                      "type": "array"
+                    }
+                  ],
                   "title": "Response Course Coverage Api Academic Programs  Pid  Course Coverage Get"
                 }
               }
@@ -6959,6 +7002,15 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AcademicTrendsPayload"
+                    },
+                    {
+                      "items": {},
+                      "type": "array"
+                    }
+                  ],
                   "title": "Response Course Trends Api Academic Programs  Pid  Course Trends Get"
                 }
               }
@@ -7002,6 +7054,15 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AcademicTrendsPayload"
+                    },
+                    {
+                      "items": {},
+                      "type": "array"
+                    }
+                  ],
                   "title": "Response Recommendations Api Academic Programs  Pid  Recommendations Get"
                 }
               }
@@ -7045,6 +7106,15 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AcademicTrendsPayload"
+                    },
+                    {
+                      "items": {},
+                      "type": "array"
+                    }
+                  ],
                   "title": "Response Program Summary Api Academic Programs  Pid  Summary Get"
                 }
               }
