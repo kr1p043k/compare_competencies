@@ -4774,6 +4774,23 @@
         "title": "TaxonomyCoverageResponse",
         "type": "object"
       },
+      "TeacherDirectionDetailResponse": {
+        "additionalProperties": true,
+        "description": "Полные данные направления из KRM-JSON.\n\nФорму файла задаёт внешний пайплайн (KRM-сборка), поэтому поля описаны\nнестрого (`extra=\"allow\"`): контракт OpenAPI фиксирует базовые ключи, а\nдополнительные проходят как есть и не роняют ответ 422.",
+        "properties": {
+          "direction_name": {
+            "title": "Direction Name"
+          },
+          "disciplines": {
+            "title": "Disciplines"
+          },
+          "profile": {
+            "title": "Profile"
+          }
+        },
+        "title": "TeacherDirectionDetailResponse",
+        "type": "object"
+      },
       "TeacherDirectionOut": {
         "properties": {
           "dir_code": {
@@ -4800,6 +4817,30 @@
           "dir_code"
         ],
         "title": "TeacherDirectionOut",
+        "type": "object"
+      },
+      "TeacherGapResponse": {
+        "additionalProperties": true,
+        "description": "Gap-анализ по теме направления.\n\nНабор полей определяет `AcademicGapAnalyzer` (и опциональное LLM-усиление),\nпоэтому известные ключи объявлены как `Any`, остальные - через `extra`.",
+        "properties": {
+          "detailed_analysis": {
+            "title": "Detailed Analysis"
+          },
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "overall_score": {
+            "title": "Overall Score"
+          },
+          "summary": {
+            "title": "Summary"
+          }
+        },
+        "required": [
+          "dir_code"
+        ],
+        "title": "TeacherGapResponse",
         "type": "object"
       },
       "TeacherHistoryResponse": {
@@ -10815,7 +10856,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherDirectionDetailResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -10965,7 +11008,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherGapResponse"
+                }
               }
             },
             "description": "Successful Response"

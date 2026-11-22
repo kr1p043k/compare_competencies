@@ -15,7 +15,7 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from src import config
 from src.api_pkg.rate_limit import limiter
@@ -161,6 +161,36 @@ class DisciplineDetailResponse(BaseModel):
     competencies: list[DisciplineCompetencyOut]
 
 
+class TeacherDirectionDetailResponse(BaseModel):
+    """Полные данные направления из KRM-JSON.
+
+    Форму файла задаёт внешний пайплайн (KRM-сборка), поэтому поля описаны
+    нестрого (`extra="allow"`): контракт OpenAPI фиксирует базовые ключи, а
+    дополнительные проходят как есть и не роняют ответ 422.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    direction_name: Any = None
+    profile: Any = None
+    disciplines: Any = None
+
+
+class TeacherGapResponse(BaseModel):
+    """Gap-анализ по теме направления.
+
+    Набор полей определяет `AcademicGapAnalyzer` (и опциональное LLM-усиление),
+    поэтому известные ключи объявлены как `Any`, остальные - через `extra`.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    dir_code: str
+    overall_score: Any = None
+    detailed_analysis: Any = None
+    summary: Any = None
+
+
 # ---------- endpoints ----------
 
 
@@ -187,7 +217,11 @@ async def krm_teacher_check_access(request: Request, dir_code: str = ""):
         return {"access": False, "dir_code": dir_code}
 
 
-@router.get("/krm/teacher/directions/{dir_code}")
+@router.get(
+    "/krm/teacher/directions/{dir_code}",
+    response_model=TeacherDirectionDetailResponse,
+    response_model_exclude_unset=True,
+)
 @limiter.limit("60/minute")
 async def krm_teacher_direction(request: Request, dir_code: str):
     """Полные данные направления (direction_name/profile/disciplines)."""
@@ -247,6 +281,8 @@ async def krm_teacher_discipline_detail(request: Request, dir_code: str, discipl
 
 @router.post(
     "/krm/teacher/directions/{dir_code}/gap",
+    response_model=TeacherGapResponse,
+    response_model_exclude_unset=True,
     dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
 )
 @limiter.limit("20/minute")
