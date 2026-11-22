@@ -117,9 +117,9 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
             <BookOpen className="size-5" />
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="m-0 leading-none text-lg font-semibold text-foreground">
+            <div className="m-0 leading-none text-lg font-semibold text-foreground">
               Таксономия навыков
-            </h4>
+            </div>
             <p className="text-sm text-muted-foreground">
               {cats.length} категорий · {totalSkills} навыков · только просмотр
             </p>
@@ -138,12 +138,14 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
                 if (e.key === "Enter") submitSuggest();
               }}
               placeholder="Название навыка..."
+              aria-label="Название навыка для предложения"
               maxLength={80}
               className={cn(inputClass, "flex-1 h-9")}
             />
             <select
               value={catHint}
               onChange={(e) => setCatHint(e.target.value)}
+              aria-label="Категория для предложения навыка"
               className={cn(inputClass, "h-9 w-auto px-2 sm:max-w-48")}
             >
               <option value="">Категория (необязательно)</option>
