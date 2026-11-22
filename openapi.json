@@ -2091,6 +2091,208 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "LoginResponse": {
+        "description": "Union трёх исходов /auth/login (все поля, кроме status, опциональны).",
+        "properties": {
+          "challenge_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Challenge Id"
+          },
+          "enroll_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enroll Id"
+          },
+          "expires_in": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires In"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          }
+        },
+        "title": "LoginResponse",
+        "type": "object"
+      },
+      "LoginTokenResponse": {
+        "description": "Успешный вход: токен сессии и данные пользователя.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "role",
+          "name",
+          "username"
+        ],
+        "title": "LoginTokenResponse",
+        "type": "object"
+      },
+      "LogoutAllResponse": {
+        "description": "Результат выхода из всех сессий пользователя.",
+        "properties": {
+          "revoked": {
+            "title": "Revoked",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "revoked"
+        ],
+        "title": "LogoutAllResponse",
+        "type": "object"
+      },
+      "LogoutResponse": {
+        "description": "Результат выхода из текущей сессии.",
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "message"
+        ],
+        "title": "LogoutResponse",
+        "type": "object"
+      },
+      "MeResponse": {
+        "description": "Текущий пользователь и состояние его 2FA.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "totp_enabled": {
+            "title": "Totp Enabled",
+            "type": "boolean"
+          },
+          "totp_locked_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totp Locked Until"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "role",
+          "name",
+          "totp_enabled"
+        ],
+        "title": "MeResponse",
+        "type": "object"
+      },
       "MissingSkillItem": {
         "description": "Отсутствующий навык.",
         "properties": {
@@ -4440,6 +4642,100 @@
         "title": "TrendsResponse",
         "type": "object"
       },
+      "TwoFactorConfirmResponse": {
+        "description": "Подтверждение TOTP: recovery-коды и, при настройке по пропуску, сессия.",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "recovery_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recovery Codes",
+            "type": "array"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          }
+        },
+        "required": [
+          "status",
+          "recovery_codes"
+        ],
+        "title": "TwoFactorConfirmResponse",
+        "type": "object"
+      },
+      "TwoFactorDisableResponse": {
+        "description": "Результат отключения 2FA.",
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "TwoFactorDisableResponse",
+        "type": "object"
+      },
+      "TwoFactorPolicyResponse": {
+        "description": "Публичный флаг: включена ли 2FA в системе.",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "TwoFactorPolicyResponse",
+        "type": "object"
+      },
       "TwoFactorSettingsPatch": {
         "properties": {
           "enabled": {
@@ -4451,6 +4747,45 @@
           "enabled"
         ],
         "title": "TwoFactorSettingsPatch",
+        "type": "object"
+      },
+      "TwoFactorStatusResponse": {
+        "description": "Состояние 2FA для текущего администратора.",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "confirmed": {
+            "title": "Confirmed",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "boolean"
+          },
+          "globally_enabled": {
+            "title": "Globally Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "enrolled",
+          "available",
+          "globally_enabled",
+          "configured",
+          "confirmed"
+        ],
+        "title": "TwoFactorStatusResponse",
         "type": "object"
       },
       "UnreadCountResponse": {
@@ -9052,7 +9387,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TwoFactorConfirmResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9092,7 +9429,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TwoFactorDisableResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9122,7 +9461,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TwoFactorPolicyResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9152,7 +9493,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LoginTokenResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9231,7 +9574,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TwoFactorStatusResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9261,7 +9606,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LoginTokenResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9301,7 +9648,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9331,7 +9680,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9351,7 +9702,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutAllResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9371,7 +9724,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
               }
             },
             "description": "Successful Response"
