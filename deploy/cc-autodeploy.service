@@ -1,6 +1,6 @@
 [Unit]
 Description=Auto-deploy compare_competencies from origin/main
-Documentation=https://github.com/kr1p043k/compare_competencies
+Documentation=https://github.com/SoloveyMaks/compare_competencies
 After=network-online.target docker.service
 Wants=network-online.target
 
