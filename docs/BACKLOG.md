@@ -416,8 +416,11 @@ fallback-и с логированием; остальные — сузить д�
 
 - **6.1.2 f-string SQL (6 мест)** - везде уже передаются bind-`params`
   (`admin.py:481` - `where_clause` строится из enum-фильтров). Задача = **аудит**, не рефактор.
-- **6.2.1 `response_model`** - 49 объявлений на 220 роутов. Цель сузить: закрыть списочные/схемные
-  эндпоинты (не все 220).
+- **6.2.1 `response_model`** - **ЗАКРЫТО**: 143 -> 10 роутов без модели. Остаток 10 = N/A по природе
+  ответа: 5 бинарников `results.py` (PDF/PNG), 2 `admin.py` (xlsx/zip), 2 `chat.py` (SSE), 1 `teacher.py`
+  (xlsx). Для них `response_model` неприменим, вместо него `response_class` + явный `content` в
+  OpenAPI. Срезы: chat-history, krm_student, trends_by_profession, profiles, results, academic,
+  academic_trends, comparison, health/pipeline/trends, vacancies/zun, teacher, admin.
 - **6.4.1 `key_skills`** - `db_writer.py:298` **пишет** `key_skills`; пусто в проде, т.к. HH *basic*
   выдача не содержит `key_skills` (см. docstring `db_writer.py:193-194`). Задача = **backfill**
   для basic-вакансий (есть `raw.extracted_skills`), не «добавить запись поля».
