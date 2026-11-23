@@ -1477,6 +1477,95 @@
         "title": "DisciplineScopeIn",
         "type": "object"
       },
+      "DisciplineScopeResponse": {
+        "additionalProperties": true,
+        "description": "Область анализа дисциплин: все overrides либо одна дисциплина.",
+        "properties": {
+          "configured": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Configured"
+          },
+          "discipline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Keywords",
+            "type": "array"
+          },
+          "overrides": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overrides"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          }
+        },
+        "title": "DisciplineScopeResponse",
+        "type": "object"
+      },
+      "DisciplineScopeUpdateResponse": {
+        "description": "Сохранённая область анализа дисциплины.",
+        "properties": {
+          "discipline": {
+            "title": "Discipline",
+            "type": "string"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Keywords",
+            "type": "array"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "discipline"
+        ],
+        "title": "DisciplineScopeUpdateResponse",
+        "type": "object"
+      },
       "DisciplineSummaryOut": {
         "properties": {
           "competencies_count": {
@@ -1921,6 +2010,39 @@
           }
         },
         "title": "ForecastTopResponse",
+        "type": "object"
+      },
+      "FoundationalSkillsResponse": {
+        "description": "Список навыков, помеченных как фундаментальные.",
+        "properties": {
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          }
+        },
+        "title": "FoundationalSkillsResponse",
+        "type": "object"
+      },
+      "FoundationalUpdateResponse": {
+        "description": "Результат изменения списка фундаментальных навыков.",
+        "properties": {
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "FoundationalUpdateResponse",
         "type": "object"
       },
       "FrontendLogRequest": {
@@ -4233,6 +4355,25 @@
         "title": "ReadyBody",
         "type": "object"
       },
+      "RecommendationAck": {
+        "description": "Подтверждение с индексом добавленной рекомендации.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "RecommendationAck",
+        "type": "object"
+      },
       "RootBody": {
         "description": "Корневой health-check: подсказки для клиента/оператора.",
         "properties": {
@@ -4506,6 +4647,33 @@
         "title": "ScopePut",
         "type": "object"
       },
+      "SeedAutoResponse": {
+        "description": "Итог авто-заполнения рекомендаций.",
+        "properties": {
+          "removed_auto": {
+            "default": 0,
+            "title": "Removed Auto",
+            "type": "integer"
+          },
+          "seeded": {
+            "default": 0,
+            "title": "Seeded",
+            "type": "integer"
+          },
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "SeedAutoResponse",
+        "type": "object"
+      },
       "SeedDBRequest": {
         "properties": {
           "drop": {
@@ -4642,6 +4810,38 @@
         "title": "SkillLinkIn",
         "type": "object"
       },
+      "SkillSuggestionResponse": {
+        "description": "Результат предложения навыка.",
+        "properties": {
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          },
+          "suggestion": {
+            "additionalProperties": true,
+            "title": "Suggestion",
+            "type": "object"
+          }
+        },
+        "title": "SkillSuggestionResponse",
+        "type": "object"
+      },
+      "SkillSuggestionsResponse": {
+        "description": "Предложения навыков текущего пользователя.",
+        "properties": {
+          "suggestions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          }
+        },
+        "title": "SkillSuggestionsResponse",
+        "type": "object"
+      },
       "SsoLoginResponse": {
         "description": "Union трёх исходов /auth/sso (все поля, кроме status, опциональны).",
         "properties": {
@@ -4750,6 +4950,18 @@
           "token"
         ],
         "title": "SsoRequest",
+        "type": "object"
+      },
+      "StatusAck": {
+        "description": "Минимальное подтверждение операции.",
+        "properties": {
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "StatusAck",
         "type": "object"
       },
       "StatusResponse": {
@@ -5041,6 +5253,344 @@
         "title": "TaxonomyCoverageResponse",
         "type": "object"
       },
+      "TeacherAnalysisMetaResponse": {
+        "description": "Происхождение сохранённого отчёта и признак устаревания.",
+        "properties": {
+          "current_vac_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Vac Hash"
+          },
+          "meta": {
+            "additionalProperties": true,
+            "title": "Meta",
+            "type": "object"
+          },
+          "stale": {
+            "default": false,
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "stale_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Reason"
+          }
+        },
+        "title": "TeacherAnalysisMetaResponse",
+        "type": "object"
+      },
+      "TeacherAnalysisResponse": {
+        "additionalProperties": true,
+        "description": "Отчёт teacher-analysis с диска.\n\nФорму задаёт офлайн-пайплайн, поэтому ключи не сужаются.",
+        "properties": {},
+        "title": "TeacherAnalysisResponse",
+        "type": "object"
+      },
+      "TeacherCompetencyDetail": {
+        "description": "Компетенция в карточке дисциплины.",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "id": {
+            "title": "Id"
+          },
+          "ksa": {
+            "$ref": "#/components/schemas/TeacherCompetencyKsa"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "ksa"
+        ],
+        "title": "TeacherCompetencyDetail",
+        "type": "object"
+      },
+      "TeacherCompetencyKsa": {
+        "properties": {
+          "abilities": {
+            "items": {
+              "$ref": "#/components/schemas/TeacherKsaItem"
+            },
+            "title": "Abilities",
+            "type": "array"
+          },
+          "knowledge": {
+            "items": {
+              "$ref": "#/components/schemas/TeacherKsaItem"
+            },
+            "title": "Knowledge",
+            "type": "array"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/TeacherKsaItem"
+            },
+            "title": "Skills",
+            "type": "array"
+          }
+        },
+        "title": "TeacherCompetencyKsa",
+        "type": "object"
+      },
+      "TeacherCompetencyNode": {
+        "additionalProperties": true,
+        "description": "Узел дерева компетенций (рекурсивно).",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/TeacherCompetencyNode"
+            },
+            "title": "Children",
+            "type": "array"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "discipline_id": {
+            "title": "Discipline Id"
+          },
+          "id": {
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "weighted_coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weighted Coverage"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "TeacherCompetencyNode",
+        "type": "object"
+      },
+      "TeacherCompetencyTreeResponse": {
+        "description": "Дерево компетенций направления.",
+        "properties": {
+          "competencies": {
+            "items": {
+              "$ref": "#/components/schemas/TeacherCompetencyNode"
+            },
+            "title": "Competencies",
+            "type": "array"
+          },
+          "direction_code": {
+            "title": "Direction Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "direction_code"
+        ],
+        "title": "TeacherCompetencyTreeResponse",
+        "type": "object"
+      },
+      "TeacherCoverageDiscipline": {
+        "description": "Покрытие одной дисциплины по последнему анализу.",
+        "properties": {
+          "coverage_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Ratio"
+          },
+          "matched_skills": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matched Skills"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "total_skills": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Skills"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TeacherCoverageDiscipline",
+        "type": "object"
+      },
+      "TeacherCoverageHistoryItem": {
+        "description": "Точка истории покрытия дисциплины.",
+        "properties": {
+          "analysis_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis Date"
+          },
+          "coverage_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Ratio"
+          },
+          "discipline": {
+            "title": "Discipline",
+            "type": "string"
+          },
+          "matched_skills": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matched Skills"
+          },
+          "total_skills": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Skills"
+          }
+        },
+        "required": [
+          "discipline"
+        ],
+        "title": "TeacherCoverageHistoryItem",
+        "type": "object"
+      },
+      "TeacherCoverageResponse": {
+        "description": "Покрытие по дисциплинам на дату последнего анализа.",
+        "properties": {
+          "analysis_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis Date"
+          },
+          "disciplines": {
+            "items": {
+              "$ref": "#/components/schemas/TeacherCoverageDiscipline"
+            },
+            "title": "Disciplines",
+            "type": "array"
+          }
+        },
+        "title": "TeacherCoverageResponse",
+        "type": "object"
+      },
       "TeacherDirectionDetailResponse": {
         "additionalProperties": true,
         "description": "Полные данные направления из KRM-JSON.\n\nФорму файла задаёт внешний пайплайн (KRM-сборка), поэтому поля описаны\nнестрого (`extra=\"allow\"`): контракт OpenAPI фиксирует базовые ключи, а\nдополнительные проходят как есть и не роняют ответ 422.",
@@ -5084,6 +5634,37 @@
           "dir_code"
         ],
         "title": "TeacherDirectionOut",
+        "type": "object"
+      },
+      "TeacherDisciplineDetailResponse": {
+        "description": "Детализация дисциплины: компетенции и KSA.",
+        "properties": {
+          "competencies": {
+            "items": {
+              "$ref": "#/components/schemas/TeacherCompetencyDetail"
+            },
+            "title": "Competencies",
+            "type": "array"
+          },
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "dir_code",
+          "year"
+        ],
+        "title": "TeacherDisciplineDetailResponse",
         "type": "object"
       },
       "TeacherGapResponse": {
@@ -5152,6 +5733,592 @@
           }
         },
         "title": "TeacherHistoryResponse",
+        "type": "object"
+      },
+      "TeacherKrmDirectionItem": {
+        "description": "Направление в списке KRM.",
+        "properties": {
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "disciplines_count": {
+            "default": 0,
+            "title": "Disciplines Count",
+            "type": "integer"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile"
+          }
+        },
+        "required": [
+          "dir_code"
+        ],
+        "title": "TeacherKrmDirectionItem",
+        "type": "object"
+      },
+      "TeacherKrmDisciplineItem": {
+        "description": "Дисциплина в списке KRM с признаком попадания в область анализа.",
+        "properties": {
+          "abilities_count": {
+            "default": 0,
+            "title": "Abilities Count",
+            "type": "integer"
+          },
+          "competencies_count": {
+            "default": 0,
+            "title": "Competencies Count",
+            "type": "integer"
+          },
+          "course": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course"
+          },
+          "in_scope": {
+            "default": true,
+            "title": "In Scope",
+            "type": "boolean"
+          },
+          "knowledge_count": {
+            "default": 0,
+            "title": "Knowledge Count",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "scope_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Source"
+          },
+          "semester": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semester"
+          },
+          "skills_count": {
+            "default": 0,
+            "title": "Skills Count",
+            "type": "integer"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TeacherKrmDisciplineItem",
+        "type": "object"
+      },
+      "TeacherKrmScopeSummaryResponse": {
+        "description": "Распределение дисциплин: всего / в области / исключено.",
+        "properties": {
+          "analyzed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analyzed"
+          },
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "excluded_manual": {
+            "title": "Excluded Manual",
+            "type": "integer"
+          },
+          "excluded_manual_names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Excluded Manual Names",
+            "type": "array"
+          },
+          "excluded_no_data": {
+            "title": "Excluded No Data",
+            "type": "integer"
+          },
+          "excluded_no_data_names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Excluded No Data Names",
+            "type": "array"
+          },
+          "in_scope": {
+            "title": "In Scope",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dir_code",
+          "year",
+          "total",
+          "in_scope",
+          "excluded_manual",
+          "excluded_no_data"
+        ],
+        "title": "TeacherKrmScopeSummaryResponse",
+        "type": "object"
+      },
+      "TeacherKrmStatsResponse": {
+        "description": "Сводные счётчики KRM по направлению.",
+        "properties": {
+          "dir_code": {
+            "title": "Dir Code",
+            "type": "string"
+          },
+          "total_competencies": {
+            "default": 0,
+            "title": "Total Competencies",
+            "type": "integer"
+          },
+          "total_disciplines": {
+            "default": 0,
+            "title": "Total Disciplines",
+            "type": "integer"
+          },
+          "total_skills": {
+            "default": 0,
+            "title": "Total Skills",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dir_code"
+        ],
+        "title": "TeacherKrmStatsResponse",
+        "type": "object"
+      },
+      "TeacherKsaItem": {
+        "description": "Элемент KSA (знание, умение, навык) с идентификатором.",
+        "properties": {
+          "id": {
+            "title": "Id"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ],
+        "title": "TeacherKsaItem",
+        "type": "object"
+      },
+      "TeacherMarketSkillItem": {
+        "description": "Рыночный навык с частотой.",
+        "properties": {
+          "frequency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "default": 1,
+            "title": "Frequency"
+          },
+          "skill": {
+            "title": "Skill",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skill"
+        ],
+        "title": "TeacherMarketSkillItem",
+        "type": "object"
+      },
+      "TeacherRecommendationItem": {
+        "additionalProperties": true,
+        "description": "Рекомендация KRM в списке.\n\nФорма допускает дополнительные ключи: записи пишутся разными версиями.",
+        "properties": {
+          "competency_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competency Id"
+          },
+          "discipline_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggestion"
+          },
+          "suggestion_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggestion Type"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "TeacherRecommendationItem",
+        "type": "object"
+      },
+      "TeacherRunAnalysisResponse": {
+        "description": "Подтверждение запуска teacher-analysis.",
+        "properties": {
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "direction",
+          "run_id"
+        ],
+        "title": "TeacherRunAnalysisResponse",
+        "type": "object"
+      },
+      "TeacherSearchRunDetailResponse": {
+        "description": "Детали запуска и связанный результат анализа.",
+        "properties": {
+          "analysis": {
+            "title": "Analysis"
+          },
+          "run": {
+            "$ref": "#/components/schemas/TeacherSearchRunItem"
+          }
+        },
+        "required": [
+          "run"
+        ],
+        "title": "TeacherSearchRunDetailResponse",
+        "type": "object"
+      },
+      "TeacherSearchRunItem": {
+        "description": "Запуск поиска/анализа.",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "stats": {
+            "additionalProperties": true,
+            "title": "Stats",
+            "type": "object"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "TeacherSearchRunItem",
+        "type": "object"
+      },
+      "TeacherStatsResponse": {
+        "description": "Счётчики для дашборда преподавателя.",
+        "properties": {
+          "competencies": {
+            "default": 0,
+            "title": "Competencies",
+            "type": "integer"
+          },
+          "disciplines": {
+            "default": 0,
+            "title": "Disciplines",
+            "type": "integer"
+          },
+          "skills": {
+            "default": 0,
+            "title": "Skills",
+            "type": "integer"
+          },
+          "vacancies": {
+            "default": 0,
+            "title": "Vacancies",
+            "type": "integer"
+          }
+        },
+        "title": "TeacherStatsResponse",
+        "type": "object"
+      },
+      "TeacherStudentItem": {
+        "description": "Студент в списке для вкладки Students.",
+        "properties": {
+          "competencies_count": {
+            "default": 0,
+            "title": "Competencies Count",
+            "type": "integer"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "default": "",
+            "title": "Full Name",
+            "type": "string"
+          },
+          "has_profile": {
+            "default": false,
+            "title": "Has Profile",
+            "type": "boolean"
+          },
+          "skills_count": {
+            "default": 0,
+            "title": "Skills Count",
+            "type": "integer"
+          },
+          "target_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Level"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "TeacherStudentItem",
+        "type": "object"
+      },
+      "TeacherStudentSkillsResponse": {
+        "additionalProperties": true,
+        "description": "Профиль и навыки студента для преподавателя.",
+        "properties": {
+          "competencies": {
+            "items": {},
+            "title": "Competencies",
+            "type": "array"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "default": "",
+            "title": "Full Name",
+            "type": "string"
+          },
+          "has_profile": {
+            "default": false,
+            "title": "Has Profile",
+            "type": "boolean"
+          },
+          "skills": {
+            "items": {},
+            "title": "Skills",
+            "type": "array"
+          },
+          "target_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Level"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "user_added": {
+            "items": {},
+            "title": "User Added",
+            "type": "array"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "TeacherStudentSkillsResponse",
+        "type": "object"
+      },
+      "TeacherStudentsResponse": {
+        "description": "Страница списка студентов.",
+        "properties": {
+          "limit": {
+            "default": 0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "students": {
+            "items": {
+              "$ref": "#/components/schemas/TeacherStudentItem"
+            },
+            "title": "Students",
+            "type": "array"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "TeacherStudentsResponse",
         "type": "object"
       },
       "TopSkillsResponse": {
@@ -9404,7 +10571,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherStudentSkillsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -13946,7 +15115,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherAnalysisResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -13988,7 +15159,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherAnalysisMetaResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -14049,7 +15222,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherAnalysisResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -14196,7 +15371,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/DisciplineScopeResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -14247,7 +15424,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/DisciplineScopeUpdateResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -14388,11 +15567,9 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
-              }
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
             },
-            "description": "Successful Response"
+            "description": "Excel-выгрузка вакансий"
           },
           "422": {
             "content": {
@@ -14559,7 +15736,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherCompetencyTreeResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -14589,7 +15768,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherCoverageResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -14637,7 +15818,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeacherCoverageHistoryItem"
+                  },
+                  "title": "Response Krm Coverage History Api Teacher Krm Coverage History Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -14667,7 +15854,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeacherKrmDirectionItem"
+                  },
+                  "title": "Response Krm Directions Api Teacher Krm Directions Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -14709,7 +15902,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeacherKrmDisciplineItem"
+                  },
+                  "title": "Response Krm Disciplines Api Teacher Krm Disciplines Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -14770,7 +15969,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherDisciplineDetailResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -14800,7 +16001,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/FoundationalSkillsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -14818,7 +16021,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/FoundationalUpdateResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -14849,7 +16054,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/FoundationalUpdateResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -14891,7 +16098,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeacherMarketSkillItem"
+                  },
+                  "title": "Response Krm Market Skills Api Teacher Krm Market Skills Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -14921,7 +16134,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeacherRecommendationItem"
+                  },
+                  "title": "Response Krm Get Recommendations Api Teacher Krm Recommendations Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -14939,7 +16158,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationAck"
+                }
               }
             },
             "description": "Successful Response"
@@ -14981,7 +16202,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SeedAutoResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -15022,7 +16245,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/StatusAck"
+                }
               }
             },
             "description": "Successful Response"
@@ -15064,7 +16289,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherRunAnalysisResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -15116,7 +16343,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherKrmScopeSummaryResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -15158,7 +16387,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeacherSearchRunItem"
+                  },
+                  "title": "Response Krm Search Runs Api Teacher Krm Search Runs Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -15199,7 +16434,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherSearchRunDetailResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -15241,7 +16478,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherKrmStatsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -15462,7 +16701,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SkillSuggestionResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -15482,7 +16723,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SkillSuggestionsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -15502,7 +16745,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherStatsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -15547,7 +16792,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TeacherStudentsResponse"
+                }
               }
             },
             "description": "Successful Response"
