@@ -11,11 +11,12 @@ import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from src import config
 from src.api_pkg.rate_limit import limiter
@@ -39,6 +40,307 @@ class RecommendationIn(BaseModel):
 
 class RecommendationOut(RecommendationIn):
     id: int
+
+
+# ---------- response models ----------
+
+class TeacherStatsResponse(BaseModel):
+    """Счётчики для дашборда преподавателя."""
+
+    disciplines: int = 0
+    competencies: int = 0
+    skills: int = 0
+    vacancies: int = 0
+
+
+class TeacherKrmStatsResponse(BaseModel):
+    """Сводные счётчики KRM по направлению."""
+
+    dir_code: str
+    total_disciplines: int = 0
+    total_competencies: int = 0
+    total_skills: int = 0
+
+
+class TeacherKrmDirectionItem(BaseModel):
+    """Направление в списке KRM."""
+
+    dir_code: str
+    name: str | None = None
+    profile: str | None = None
+    disciplines_count: int = 0
+
+
+class TeacherKrmDisciplineItem(BaseModel):
+    """Дисциплина в списке KRM с признаком попадания в область анализа."""
+
+    name: str
+    year: int | None = None
+    competencies_count: int = 0
+    skills_count: int = 0
+    knowledge_count: int = 0
+    abilities_count: int = 0
+    semester: int | None = None
+    course: int | None = None
+    in_scope: bool = True
+    scope_source: str | None = None
+
+
+class TeacherKrmScopeSummaryResponse(BaseModel):
+    """Распределение дисциплин: всего / в области / исключено."""
+
+    dir_code: str
+    year: int
+    total: int
+    in_scope: int
+    excluded_manual: int
+    excluded_no_data: int
+    analyzed: int | None = None
+    excluded_manual_names: list[str] = Field(default_factory=list)
+    excluded_no_data_names: list[str] = Field(default_factory=list)
+
+
+class TeacherKsaItem(BaseModel):
+    """Элемент KSA (знание, умение, навык) с идентификатором."""
+
+    id: Any
+    text: str
+
+
+class TeacherCompetencyKsa(BaseModel):
+    knowledge: list[TeacherKsaItem] = Field(default_factory=list)
+    abilities: list[TeacherKsaItem] = Field(default_factory=list)
+    skills: list[TeacherKsaItem] = Field(default_factory=list)
+
+
+class TeacherCompetencyDetail(BaseModel):
+    """Компетенция в карточке дисциплины."""
+
+    id: Any
+    code: str | None = None
+    skills: list[str] = Field(default_factory=list)
+    ksa: TeacherCompetencyKsa
+
+
+class TeacherDisciplineDetailResponse(BaseModel):
+    """Детализация дисциплины: компетенции и KSA."""
+
+    name: str
+    dir_code: str
+    year: int
+    competencies: list[TeacherCompetencyDetail] = Field(default_factory=list)
+
+
+class StatusAck(BaseModel):
+    """Минимальное подтверждение операции."""
+
+    status: str = "ok"
+
+
+class RecommendationAck(StatusAck):
+    """Подтверждение с индексом добавленной рекомендации."""
+
+    id: int
+
+
+class TeacherRecommendationItem(BaseModel):
+    """Рекомендация KRM в списке.
+
+    Форма допускает дополнительные ключи: записи пишутся разными версиями.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    id: int
+    discipline_id: str | None = None
+    competency_id: str | None = None
+    suggestion: str | None = None
+    suggestion_type: str | None = None
+
+
+class FoundationalSkillsResponse(BaseModel):
+    """Список навыков, помеченных как фундаментальные."""
+
+    skills: list[str] = Field(default_factory=list)
+
+
+class FoundationalUpdateResponse(StatusAck):
+    """Результат изменения списка фундаментальных навыков."""
+
+    skills: list[str] = Field(default_factory=list)
+
+
+class DisciplineScopeResponse(BaseModel):
+    """Область анализа дисциплин: все overrides либо одна дисциплина."""
+
+    model_config = ConfigDict(extra="allow")
+
+    overrides: dict[str, Any] | None = None
+    discipline: str | None = None
+    configured: bool | None = None
+    skills: list[str] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+
+
+class DisciplineScopeUpdateResponse(StatusAck):
+    """Сохранённая область анализа дисциплины."""
+
+    discipline: str
+    skills: list[str] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+
+
+class SkillSuggestionResponse(StatusAck):
+    """Результат предложения навыка."""
+
+    suggestion: dict[str, Any] = Field(default_factory=dict)
+
+
+class SkillSuggestionsResponse(BaseModel):
+    """Предложения навыков текущего пользователя."""
+
+    suggestions: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class SeedAutoResponse(StatusAck):
+    """Итог авто-заполнения рекомендаций."""
+
+    seeded: int = 0
+    removed_auto: int = 0
+    total: int = 0
+
+
+class TeacherCoverageDiscipline(BaseModel):
+    """Покрытие одной дисциплины по последнему анализу."""
+
+    name: str
+    total_skills: int | None = None
+    matched_skills: int | None = None
+    coverage_ratio: float | None = None
+
+
+class TeacherCoverageResponse(BaseModel):
+    """Покрытие по дисциплинам на дату последнего анализа."""
+
+    analysis_date: str | None = None
+    disciplines: list[TeacherCoverageDiscipline] = Field(default_factory=list)
+
+
+class TeacherCoverageHistoryItem(BaseModel):
+    """Точка истории покрытия дисциплины."""
+
+    discipline: str
+    coverage_ratio: float | None = None
+    total_skills: int | None = None
+    matched_skills: int | None = None
+    analysis_date: str | None = None
+
+
+class TeacherMarketSkillItem(BaseModel):
+    """Рыночный навык с частотой."""
+
+    skill: str
+    frequency: float | int = 1
+
+
+class TeacherSearchRunItem(BaseModel):
+    """Запуск поиска/анализа."""
+
+    id: str
+    action: str | None = None
+    status: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+    stats: dict[str, Any] = Field(default_factory=dict)
+
+
+class TeacherSearchRunDetailResponse(BaseModel):
+    """Детали запуска и связанный результат анализа."""
+
+    run: TeacherSearchRunItem
+    analysis: Any = None
+
+
+class TeacherRunAnalysisResponse(StatusAck):
+    """Подтверждение запуска teacher-analysis."""
+
+    direction: str
+    run_id: str
+
+
+class TeacherCompetencyNode(BaseModel):
+    """Узел дерева компетенций (рекурсивно)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: Any
+    code: str | None = None
+    name: str | None = None
+    category: str | None = None
+    number: int | None = None
+    weighted_coverage: float | None = None
+    discipline_id: Any = None
+    children: list["TeacherCompetencyNode"] = Field(default_factory=list)
+
+
+class TeacherCompetencyTreeResponse(BaseModel):
+    """Дерево компетенций направления."""
+
+    direction_code: str
+    competencies: list[TeacherCompetencyNode] = Field(default_factory=list)
+
+
+class TeacherAnalysisResponse(BaseModel):
+    """Отчёт teacher-analysis с диска.
+
+    Форму задаёт офлайн-пайплайн, поэтому ключи не сужаются.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+
+class TeacherAnalysisMetaResponse(BaseModel):
+    """Происхождение сохранённого отчёта и признак устаревания."""
+
+    meta: dict[str, Any] = Field(default_factory=dict)
+    stale: bool = False
+    stale_reason: str | None = None
+    current_vac_hash: str | None = None
+
+
+class TeacherStudentSkillsResponse(BaseModel):
+    """Профиль и навыки студента для преподавателя."""
+
+    model_config = ConfigDict(extra="allow")
+
+    email: str
+    full_name: str = ""
+    target_level: str | None = None
+    skills: list[Any] = Field(default_factory=list)
+    user_added: list[Any] = Field(default_factory=list)
+    competencies: list[Any] = Field(default_factory=list)
+    updated_at: str | None = None
+    has_profile: bool = False
+
+
+class TeacherStudentItem(BaseModel):
+    """Студент в списке для вкладки Students."""
+
+    email: str
+    full_name: str = ""
+    target_level: str | None = None
+    skills_count: int = 0
+    competencies_count: int = 0
+    has_profile: bool = False
+
+
+class TeacherStudentsResponse(BaseModel):
+    """Страница списка студентов."""
+
+    students: list[TeacherStudentItem] = Field(default_factory=list)
+    total: int = 0
+    limit: int = 0
+    offset: int = 0
 
 
 # ---------- helpers ----------
@@ -210,7 +512,11 @@ def _load_krm_direction(dir_code: str) -> dict:
 
 # ---------- endpoints ----------
 
-@router.get("/teacher/stats", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/stats",
+    response_model=TeacherStatsResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("30/minute")
 async def teacher_stats(request: Request):
     """Real discipline/competency/skill counts from DB + vacancy stats."""
@@ -242,7 +548,11 @@ async def teacher_stats(request: Request):
     return result
 
 
-@router.get("/teacher/krm/stats", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/krm/stats",
+    response_model=TeacherKrmStatsResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("30/minute")
 async def krm_stats(request: Request, dir_code: str = "09.03.02"):
     """Статистика KRM направления."""
@@ -268,7 +578,11 @@ async def krm_stats(request: Request, dir_code: str = "09.03.02"):
     }
 
 
-@router.get("/teacher/krm/directions", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/krm/directions",
+    response_model=list[TeacherKrmDirectionItem],
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("30/minute")
 async def krm_directions(request: Request):
     """Список направлений KRM."""
@@ -292,8 +606,11 @@ async def krm_directions(request: Request):
     ]
 
 
-@router.get("/teacher/krm/disciplines",
-            dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/krm/disciplines",
+    response_model=list[TeacherKrmDisciplineItem],
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("30/minute")
 async def krm_disciplines(request: Request, dir_code: str = "09.03.02", year: int = 2025):
     """Список дисциплин выбранного набора.
@@ -337,8 +654,11 @@ async def krm_disciplines(request: Request, dir_code: str = "09.03.02", year: in
     ]
 
 
-@router.get("/teacher/krm/scope-summary",
-            dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/krm/scope-summary",
+    response_model=TeacherKrmScopeSummaryResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("30/minute")
 async def krm_scope_summary(request: Request, dir_code: str = "09.03.02",
                             year: int = 2025):
@@ -434,6 +754,7 @@ async def _db_call(coro):
 
 @router.get(
     "/teacher/krm/disciplines/{discipline_name:path}",
+    response_model=TeacherDisciplineDetailResponse,
     dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
 )
 @limiter.limit("30/minute")
@@ -511,7 +832,11 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
     }
 
 
-@router.get("/teacher/krm/recommendations", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/krm/recommendations",
+    response_model=list[TeacherRecommendationItem],
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("30/minute")
 async def krm_get_recommendations(request: Request):
     """Рекомендации KRM."""
@@ -521,7 +846,11 @@ async def krm_get_recommendations(request: Request):
     return []
 
 
-@router.post("/teacher/krm/recommendations", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.post(
+    "/teacher/krm/recommendations",
+    response_model=RecommendationAck,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 async def krm_add_recommendation(request: Request):
     """Добавить рекомендацию KRM."""
     try:
@@ -545,6 +874,7 @@ async def krm_add_recommendation(request: Request):
 
 @router.delete(
     "/teacher/krm/recommendations/{index}",
+    response_model=StatusAck,
     dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
 )
 async def krm_delete_recommendation(request: Request, index: int):
@@ -566,14 +896,22 @@ class FoundationalIn(BaseModel):
     skill: str
 
 
-@router.get("/teacher/krm/foundational", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/krm/foundational",
+    response_model=FoundationalSkillsResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("30/minute")
 async def krm_list_foundational(request: Request):
     """Ручные пометки 'фундаментальный навык'."""
     return {"skills": _load_foundational()}
 
 
-@router.post("/teacher/krm/foundational", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.post(
+    "/teacher/krm/foundational",
+    response_model=FoundationalUpdateResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 async def krm_add_foundational(request: Request):
     """Пометить навык фундаментальным вручную (идемпотентно)."""
     raw = await request.json()
@@ -590,6 +928,7 @@ async def krm_add_foundational(request: Request):
 
 @router.delete(
     "/teacher/krm/foundational/{skill:path}",
+    response_model=FoundationalUpdateResponse,
     dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
 )
 async def krm_delete_foundational(request: Request, skill: str):
@@ -606,7 +945,12 @@ async def krm_delete_foundational(request: Request, skill: str):
     return {"status": "ok", "skills": skills}
 
 
-@router.get("/teacher/discipline-scope", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/discipline-scope",
+    response_model=DisciplineScopeResponse,
+    response_model_exclude_unset=True,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("60/minute")
 async def get_discipline_scope(request: Request, discipline: str | None = None):
     """Какой участок рынка закреплён за дисциплиной и откуда он взялся.
@@ -631,7 +975,11 @@ class DisciplineScopeIn(BaseModel):
     keywords: list[str] = []
 
 
-@router.put("/teacher/discipline-scope/{discipline:path}", dependencies=[Depends(require_any_role("admin", "teacher"))])
+@router.put(
+    "/teacher/discipline-scope/{discipline:path}",
+    response_model=DisciplineScopeUpdateResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher"))],
+)
 @limiter.limit("30/minute")
 async def put_discipline_scope(request: Request, discipline: str, body: DisciplineScopeIn):
     """Уточнить инструменты: какие рыночные навыки закреплены за дисциплиной.
@@ -674,7 +1022,11 @@ async def put_discipline_scope(request: Request, discipline: str, body: Discipli
     return {"status": "ok", "discipline": discipline, "skills": skills, "keywords": keywords}
 
 
-@router.post("/teacher/skills/suggest", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.post(
+    "/teacher/skills/suggest",
+    response_model=SkillSuggestionResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("10/minute")
 async def suggest_skill(request: Request):
     """Предложить навык в таксономию (на модерацию админу)."""
@@ -701,8 +1053,11 @@ async def suggest_skill(request: Request):
     return {"status": "ok", "suggestion": entry}
 
 
-@router.get("/teacher/skills/suggestions",
-            dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/skills/suggestions",
+    response_model=SkillSuggestionsResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("30/minute")
 async def list_own_suggestions(request: Request):
     """Мои предложения (по токену)."""
@@ -723,6 +1078,7 @@ def _teacher_result_base() -> Path:
 
 @router.post(
     "/teacher/krm/recommendations/seed/auto",
+    response_model=SeedAutoResponse,
     dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
 )
 @limiter.limit("10/minute")
@@ -781,7 +1137,11 @@ async def krm_seed_auto_recommendations(request: Request, dir_code: str = "09.03
 # ---------- DB-backed coverage analysis ----------
 
 
-@router.get("/teacher/krm/coverage", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/krm/coverage",
+    response_model=TeacherCoverageResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("30/minute")
 async def krm_coverage(request: Request):
     """Coverage per discipline (latest analysis)."""
@@ -820,7 +1180,11 @@ async def krm_coverage(request: Request):
     }
 
 
-@router.get("/teacher/krm/coverage/history", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/krm/coverage/history",
+    response_model=list[TeacherCoverageHistoryItem],
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("30/minute")
 async def krm_coverage_history(request: Request, discipline: str | None = None, limit: int = 20):
     """Coverage history across analyses."""
@@ -849,7 +1213,11 @@ async def krm_coverage_history(request: Request, discipline: str | None = None, 
     ]
 
 
-@router.get("/teacher/krm/market-skills", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/krm/market-skills",
+    response_model=list[TeacherMarketSkillItem],
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("30/minute")
 async def krm_market_skills(request: Request, limit: int = 50):
     """Top market-demanded skills (from it_skills.json)."""
@@ -862,7 +1230,11 @@ async def krm_market_skills(request: Request, limit: int = 50):
     skills = await asyncio.to_thread(_load_json, path)
     return [{"skill": s, "frequency": 1} for s in list(skills)[:limit]]
 
-@router.get("/teacher/krm/search-runs", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/krm/search-runs",
+    response_model=list[TeacherSearchRunItem],
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 async def krm_search_runs(request: Request, limit: int = 20):
     """История запусков поиска."""
     from sqlalchemy import select
@@ -891,7 +1263,11 @@ async def krm_search_runs(request: Request, limit: int = 20):
     ]
 
 
-@router.get("/teacher/krm/search-runs/{run_id}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/krm/search-runs/{run_id}",
+    response_model=TeacherSearchRunDetailResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 async def krm_search_run_detail(run_id: str):
     """Детали запуска поиска."""
     from sqlalchemy import select
@@ -924,7 +1300,11 @@ async def krm_search_run_detail(run_id: str):
     }
 
 
-@router.post("/teacher/krm/run-analysis", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.post(
+    "/teacher/krm/run-analysis",
+    response_model=TeacherRunAnalysisResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 async def run_teacher_analysis_endpoint(
     background_tasks: BackgroundTasks,
     dir_code: str = "09.03.02",
@@ -961,7 +1341,19 @@ async def run_teacher_analysis_endpoint(
     return {"status": "started", "direction": dir_code, "run_id": run_id}
 
 
-@router.get("/teacher/export/vacancies", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/export/vacancies",
+    response_class=FileResponse,
+    responses={
+        200: {
+            "content": {
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            },
+            "description": "Excel-выгрузка вакансий",
+        }
+    },
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("3/minute")
 async def export_vacancies_excel(request: Request, search: str | None = None,
                                        experience: str | None = None,
@@ -1057,7 +1449,11 @@ async def export_vacancies_excel(request: Request, search: str | None = None,
                         background=BackgroundTask(excel_path.unlink, missing_ok=True))
 
 
-@router.get("/teacher/krm/competencies/tree", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/krm/competencies/tree",
+    response_model=TeacherCompetencyTreeResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 async def competency_tree(dir_code: str = "09.03.02"):
     """Competency tree with hierarchy built from parent_id and coverage data."""
     import re
@@ -1126,7 +1522,11 @@ async def competency_tree(dir_code: str = "09.03.02"):
     return {"direction_code": dir_code, "competencies": roots}
 
 
-@router.get("/teacher/analysis", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/analysis",
+    response_model=TeacherAnalysisResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 async def get_analysis(dir_code: str = "09.03.02", year: int = 2025):
     """Сводка teacher analysis направления (year=2024 - отдельная ветка каталога)."""
     import re
@@ -1173,7 +1573,11 @@ def report_staleness(meta: dict, current_vac_hash: str | None,
     return False, "fresh"
 
 
-@router.get("/teacher/analysis/meta", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/analysis/meta",
+    response_model=TeacherAnalysisMetaResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 async def get_analysis_meta(dir_code: str = "09.03.02"):
     """CQRS read-model lineage: which code/data produced the stored report + staleness."""
     from src.pipeline.teacher_analysis_runner import CODE_VERSION
@@ -1201,7 +1605,11 @@ async def get_analysis_meta(dir_code: str = "09.03.02"):
 # Existing /admin/students and /admin/users guards are untouched.
 
 
-@router.get("/admin/students/skills", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/admin/students/skills",
+    response_model=TeacherStudentSkillsResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("30/minute")
 async def admin_student_skills(request: Request, email: str = ""):
     """Навыки + компетенции студента из его self-профиля.
@@ -1264,7 +1672,11 @@ async def admin_student_skills(request: Request, email: str = ""):
     }
 
 
-@router.get("/teacher/students", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/students",
+    response_model=TeacherStudentsResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("30/minute")
 async def teacher_students(request: Request,
                            limit: int = Query(100, ge=1, le=500),
@@ -1322,6 +1734,7 @@ async def teacher_students(request: Request,
 
 @router.get(
     "/teacher/analysis/{discipline_name:path}",
+    response_model=TeacherAnalysisResponse,
     dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
 )
 async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.02",
