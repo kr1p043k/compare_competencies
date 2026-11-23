@@ -44,6 +44,34 @@ class NewPublicationsBody(BaseModel):
     articles: list[dict]
 
 
+# ---------- схемы ответов (6.2.1) ----------
+
+
+class WebhookAck(BaseModel):
+    """Подтверждение приёма вебхука."""
+
+    ok: bool
+
+
+class StudentCreatedAck(WebhookAck):
+    profile: str | None = None
+
+
+class PipelineCompletedAck(WebhookAck):
+    task_id: str | None = None
+
+
+class NewPublicationsAck(WebhookAck):
+    created: int | None = None
+
+
+class WebhookEventsResponse(BaseModel):
+    """Журнал принятых вебхуков (последние 50)."""
+
+    events: list[dict] = []
+    total: int
+
+
 def _verify_n8n_secret(request: Request) -> bool:
     token = request.headers.get("X-N8N-Webhook-Secret", "")
     from src import config
@@ -54,7 +82,7 @@ def _verify_n8n_secret(request: Request) -> bool:
     return hmac.compare_digest(token, expected.get_secret_value())
 
 
-@router.post("/api/n8n/webhook/student-created")
+@router.post("/api/n8n/webhook/student-created", response_model=StudentCreatedAck)
 async def webhook_student_created(body: StudentCreatedBody, request: Request):
     if not _verify_n8n_secret(request):
         raise HTTPException(status_code=403, detail="Invalid webhook secret")
@@ -70,7 +98,7 @@ async def webhook_student_created(body: StudentCreatedBody, request: Request):
     return {"ok": True, "profile": body.profile_name}
 
 
-@router.post("/api/n8n/webhook/pipeline-completed")
+@router.post("/api/n8n/webhook/pipeline-completed", response_model=PipelineCompletedAck)
 async def webhook_pipeline_completed(body: PipelineCompletedBody, request: Request):
     if not _verify_n8n_secret(request):
         raise HTTPException(status_code=403, detail="Invalid webhook secret")
@@ -86,7 +114,7 @@ async def webhook_pipeline_completed(body: PipelineCompletedBody, request: Reque
     return {"ok": True, "task_id": body.task_id}
 
 
-@router.post("/api/n8n/webhook/alert")
+@router.post("/api/n8n/webhook/alert", response_model=WebhookAck)
 async def webhook_alert(body: AlertBody, request: Request):
     if not _verify_n8n_secret(request):
         raise HTTPException(status_code=403, detail="Invalid webhook secret")
@@ -102,7 +130,7 @@ async def webhook_alert(body: AlertBody, request: Request):
     return {"ok": True}
 
 
-@router.post("/api/n8n/webhook/new-publications")
+@router.post("/api/n8n/webhook/new-publications", response_model=NewPublicationsAck)
 async def webhook_new_publications(body: NewPublicationsBody, request: Request):
     if not _verify_n8n_secret(request):
         raise HTTPException(status_code=403, detail="Invalid webhook secret")
@@ -153,7 +181,7 @@ async def webhook_new_publications(body: NewPublicationsBody, request: Request):
     return {"ok": True, "created": len(created)}
 
 
-@router.get("/api/n8n/webhooks")
+@router.get("/api/n8n/webhooks", response_model=WebhookEventsResponse)
 async def list_webhook_events(request: Request):
     if not _verify_n8n_secret(request):
         raise HTTPException(status_code=403, detail="Invalid webhook secret")

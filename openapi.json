@@ -4165,6 +4165,30 @@
         "title": "NewCompetencyIn",
         "type": "object"
       },
+      "NewPublicationsAck": {
+        "properties": {
+          "created": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "NewPublicationsAck",
+        "type": "object"
+      },
       "NewPublicationsBody": {
         "properties": {
           "articles": {
@@ -4344,6 +4368,30 @@
           "message"
         ],
         "title": "PipelineCancelResponse",
+        "type": "object"
+      },
+      "PipelineCompletedAck": {
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "PipelineCompletedAck",
         "type": "object"
       },
       "PipelineCompletedBody": {
@@ -6002,6 +6050,30 @@
         "title": "StudentCompetenciesResponse",
         "type": "object"
       },
+      "StudentCreatedAck": {
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "StudentCreatedAck",
+        "type": "object"
+      },
       "StudentCreatedBody": {
         "properties": {
           "profile_name": {
@@ -6961,6 +7033,43 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WebhookAck": {
+        "description": "Подтверждение приёма вебхука.",
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "WebhookAck",
+        "type": "object"
+      },
+      "WebhookEventsResponse": {
+        "description": "Журнал принятых вебхуков (последние 50).",
+        "properties": {
+          "events": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "WebhookEventsResponse",
         "type": "object"
       },
       "WhitelistAddRequest": {
@@ -9408,9 +9517,7 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
-              }
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
             },
             "description": "Successful Response"
           }
@@ -9428,9 +9535,7 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
-              }
+              "application/zip": {}
             },
             "description": "Successful Response"
           }
@@ -12569,7 +12674,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookAck"
+                }
               }
             },
             "description": "Successful Response"
@@ -12608,7 +12715,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/NewPublicationsAck"
+                }
               }
             },
             "description": "Successful Response"
@@ -12647,7 +12756,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineCompletedAck"
+                }
               }
             },
             "description": "Successful Response"
@@ -12686,7 +12797,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/StudentCreatedAck"
+                }
               }
             },
             "description": "Successful Response"
@@ -12715,7 +12828,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEventsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -18251,9 +18366,7 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
-              }
+              "text/plain": {}
             },
             "description": "Successful Response"
           }
