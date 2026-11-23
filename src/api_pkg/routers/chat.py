@@ -121,7 +121,11 @@ async def _stream(
     yield _sse("done", _json({"thread_id": thread.id, "message_id": assistant.id}))
 
 
-@router.get("/teacher/chat/stream")
+@router.get(
+    "/teacher/chat/stream",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"text/event-stream": {}}, "description": "SSE-поток чата"}},
+)
 @limiter.limit("10/minute")
 async def teacher_chat_stream(
     request: Request,
@@ -172,7 +176,11 @@ async def teacher_chat_history(
         raise HTTPException(status_code=503, detail="Не удалось загрузить историю чата") from exc
 
 
-@router.get("/student/chat/stream")
+@router.get(
+    "/student/chat/stream",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"text/event-stream": {}}, "description": "SSE-поток чата"}},
+)
 @limiter.limit("10/minute")
 async def student_chat_stream(
     request: Request,
