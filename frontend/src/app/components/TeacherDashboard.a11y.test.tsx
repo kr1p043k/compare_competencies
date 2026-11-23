@@ -24,6 +24,7 @@ vi.mock("./LlmChatPanel", () => ({ LlmChatPanel: () => null }));
 vi.mock("../../lib/errors", () => ({
   reportError: vi.fn(() => ""),
   onError: vi.fn(() => () => {}),
+  errMessage: (e: unknown) => (e instanceof Error ? e.message : undefined),
 }));
 
 const DIRECTIONS = [
