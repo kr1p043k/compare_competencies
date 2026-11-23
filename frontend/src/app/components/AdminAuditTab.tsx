@@ -253,6 +253,7 @@ export function AdminAuditTab() {
     <div className="space-y-4">
       <Card>
         <CardHeader
+              headingLevel={2}
           title="Журнал аудита"
           description="Кто, что и когда делал в системе. Фильтры применяются на сервере."
           actions={

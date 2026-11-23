@@ -32,6 +32,10 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <h4
       data-slot="card-title"
+      // Заголовок карточки всегда висит под h1 страницы (или h2 секции),
+      // поэтому h4 без override даёт поиск уровней в axe. Тег h4 оставляем
+      // ради стилей, уровень выравниваем aria-level.
+      aria-level={2}
       className={cn("leading-none", className)}
       {...props}
     />

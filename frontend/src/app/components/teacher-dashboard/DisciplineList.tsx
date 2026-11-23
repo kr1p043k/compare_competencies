@@ -146,11 +146,7 @@ export function DisciplineList({
         return (
           <div
             key={d.name}
-            onClick={() => loadDiscipline(d.name)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === "Enter") loadDiscipline(d.name); }}
-        className={`flex gap-2 items-start py-2.5 pl-2 pr-3 cursor-pointer border-b border-border ${selected?.name === d.name ? "bg-primary-soft" : "bg-transparent"} ${d.in_scope ?? true ? "opacity-100" : "opacity-55"}`}
+        className={`flex gap-2 items-start py-2.5 pl-2 pr-3 border-b border-border ${selected?.name === d.name ? "bg-primary-soft" : "bg-transparent"} ${d.in_scope ?? true ? "opacity-100" : "opacity-55"}`}
           >
             <input
               type="checkbox"
@@ -162,7 +158,13 @@ export function DisciplineList({
               onClick={(e) => e.stopPropagation()}
               className="size-[15px] accent-primary cursor-pointer shrink-0 mt-0.5"
             />
-            <div className="flex-1 min-w-0">
+            <div
+              className="flex-1 min-w-0 cursor-pointer"
+              role="button"
+              tabIndex={0}
+              onClick={() => loadDiscipline(d.name)}
+              onKeyDown={(e) => { if (e.key === "Enter") loadDiscipline(d.name); }}
+            >
             <div className="flex justify-between flex-1 min-w-0">
               <div className="text-[13px] font-semibold text-primary truncate flex-1 min-w-0">
                 {d.name}

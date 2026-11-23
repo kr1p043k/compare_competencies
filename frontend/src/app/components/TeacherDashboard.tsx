@@ -607,6 +607,7 @@ export function TeacherDashboard() {
           <select
             value={selectedDir}
             onChange={(e) => setSelectedDir(e.target.value)}
+            aria-label="Направление подготовки"
         className="w-full mt-2.5 px-2 py-1.5 rounded-md text-xs bg-card border border-border text-foreground outline-none"
           >
             {directions.map((d, idx) => (

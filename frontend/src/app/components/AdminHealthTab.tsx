@@ -41,6 +41,7 @@ export function AdminHealthTab() {
       <AdminLlmCostCard />
       <Card>
         <CardHeader
+              headingLevel={2}
           title={
             <span className="flex items-center gap-2">
               <Activity className="size-4" aria-hidden="true" />

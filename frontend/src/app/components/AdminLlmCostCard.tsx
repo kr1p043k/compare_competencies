@@ -54,6 +54,7 @@ export function AdminLlmCostCard({ days = 30 }: { days?: number }) {
   return (
     <Card>
       <CardHeader
+              headingLevel={2}
         title="Затраты LLM"
         description={`Расходы по модели llm_interactions за ${days} дн.`}
       />

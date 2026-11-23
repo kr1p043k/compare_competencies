@@ -480,9 +480,11 @@ export function AdminDashboard() {
         <TabsContent value="logs" className="space-y-4">
           <Card>
             <CardHeader
+              headingLevel={2}
               title="История запросов"
               actions={
                 <select value={logFilter} onChange={(e) => setLogFilter(e.target.value)}
+                  aria-label="Фильтр логов по пользователю"
                   className={cn(inputClass, "h-9 w-48")}>
                   <option value="all">Все пользователи</option>
                   {users.map((u) => <option key={u.username} value={u.username}>{u.name}</option>)}
@@ -539,6 +541,7 @@ export function AdminDashboard() {
         <TabsContent value="db" className="space-y-4">
           <Card>
             <CardHeader
+              headingLevel={2}
               title={
                 <span className="flex items-center gap-2">
                   <Database className="size-4" aria-hidden="true" />
@@ -582,6 +585,7 @@ export function AdminDashboard() {
 
           <Card>
             <CardHeader
+              headingLevel={2}
               title={
                 <span className="flex items-center gap-2">
                   <FileUp className="size-4" aria-hidden="true" />
@@ -592,6 +596,7 @@ export function AdminDashboard() {
             <CardBody className="space-y-3">
               <div className="flex items-center gap-3">
                 <select
+                  aria-label="Направление для PDF"
                   value={rpdDir}
                   onChange={(e) => setRpdDir(e.target.value)}
                   className={cn(inputClass, "h-9 w-auto font-mono")}
@@ -652,6 +657,7 @@ export function AdminDashboard() {
         <TabsContent value="import" className="space-y-4">
           <Card>
             <CardHeader
+              headingLevel={2}
               title={
                 <span className="flex items-center gap-2">
                   <Upload className="size-4" aria-hidden="true" />
@@ -680,6 +686,7 @@ export function AdminDashboard() {
         <TabsContent value="skills" className="space-y-4">
           <Card>
             <CardHeader
+              headingLevel={2}
               title="Предложения от преподавателей"
               actions={
                 <Button variant="secondary" size="sm" onClick={loadSug} disabled={sugLoading} iconLeft={<RefreshCw className={cn("size-4", sugLoading && "animate-spin")} />}>
@@ -703,6 +710,7 @@ export function AdminDashboard() {
                   </div>
                   <div className="flex items-center gap-2">
                     <select
+                      aria-label="Категория для предложения навыка"
                       value={sugCats[s.id] || ""}
                       onChange={(e) => setSugCats((p) => ({ ...p, [s.id]: e.target.value }))}
                       className={cn(inputClass, "h-9 w-auto px-2")}
@@ -725,6 +733,7 @@ export function AdminDashboard() {
           </Card>
           <Card>
             <CardHeader
+              headingLevel={2}
               title={
                 <span className="flex items-center gap-2">
                   <Brain className="size-4" aria-hidden="true" />
@@ -743,6 +752,7 @@ export function AdminDashboard() {
 
           <Card>
             <CardHeader
+              headingLevel={2}
               title={
                 <span className="flex items-center gap-2">
                   <BookOpen className="size-4" aria-hidden="true" />
@@ -784,6 +794,7 @@ export function AdminDashboard() {
                             </td>
                             <td className="px-3 py-1.5">
                               <select
+                                aria-label="Категория навыка"
                                 value={uncatSelections[it.skill] || it.category}
                                 onChange={(e) => setUncatSelections((prev) => ({ ...prev, [it.skill]: e.target.value }))}
                                 className={cn(inputClass, "h-8 w-auto px-2 text-xs")}
@@ -822,6 +833,7 @@ export function AdminDashboard() {
                           className={cn(inputClass, "h-9")}
                         />
                         <select
+                          aria-label="Тип KSA"
                           value={linkKsa}
                           onChange={(e) => setLinkKsa(e.target.value)}
                           className={cn(inputClass, "h-9 w-auto px-2 text-xs")}
@@ -873,6 +885,7 @@ export function AdminDashboard() {
         <TabsContent value="sched" className="space-y-4">
           <Card>
             <CardHeader
+              headingLevel={2}
               title={
                 <span className="flex items-center gap-2">
                   <Clock className="size-4" aria-hidden="true" />
@@ -922,7 +935,7 @@ export function AdminDashboard() {
           </Card>
 
           <Card>
-            <CardHeader title="Запуск вне расписания" />
+            <CardHeader headingLevel={2} title="Запуск вне расписания" />
             <CardBody className="space-y-3">
               <div className="flex items-center gap-3 flex-wrap">
                 <Button onClick={() => runSchedJob("collect", "сбор вакансий")} disabled={schedBusy}>Собрать сейчас</Button>

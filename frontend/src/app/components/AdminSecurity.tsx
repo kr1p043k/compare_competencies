@@ -143,6 +143,7 @@ export function AdminSecurity() {
   return (
     <Card>
       <CardHeader
+              headingLevel={2}
         title={
           <span className="flex items-center gap-2">
             <ShieldCheck className="size-4" aria-hidden="true" />

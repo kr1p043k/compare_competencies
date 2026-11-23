@@ -123,16 +123,19 @@ export function CardHeader({
   description,
   actions,
   className,
+  headingLevel = 3,
 }: {
   title: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
   className?: string;
+  /** Уровень заголовка для a11y: 2, если карточка висит прямо под h1 страницы. */
+  headingLevel?: 2 | 3 | 4;
 }) {
   return (
     <div className={cn("flex items-start justify-between gap-4 px-5 pt-5 pb-3", className)}>
       <div className="min-w-0">
-        <h3 className="text-base font-semibold text-foreground truncate">{title}</h3>
+        <h3 aria-level={headingLevel} className="text-base font-semibold text-foreground truncate">{title}</h3>
         {description ? (
           <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
         ) : null}

@@ -33,6 +33,7 @@ export function RopDirectionsCard({
   return (
     <Card>
       <CardHeader
+              headingLevel={2}
         title="Направления РОП"
         description="Настройте, какие направления доступны руководителю ОП."
       />

@@ -193,6 +193,7 @@ function LogsTabBase() {
 
       <Card>
         <CardHeader
+              headingLevel={2}
           title={
             <span className="flex items-center gap-2 text-lg">
               <FileText className="size-5" aria-hidden="true" />

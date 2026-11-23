@@ -456,6 +456,7 @@ export function AdminUsersTab() {
 
       <Card>
         <CardHeader
+              headingLevel={2}
           title="Пользователи"
           description="Поиск, роли, активные сессии и двухфакторная аутентификация."
           actions={

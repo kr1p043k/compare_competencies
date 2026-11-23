@@ -53,6 +53,7 @@ export function CreateUserCard({
   return (
     <Card>
       <CardHeader
+              headingLevel={2}
         title="Создать пользователя"
         description="Адрес, стартовый пароль (не короче 10 символов) и роль."
       />
