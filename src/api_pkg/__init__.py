@@ -2,7 +2,6 @@
 
 import hmac
 import os
-import re
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -14,7 +13,7 @@ from cmdstanpy.utils.logging import disable_logging as _disable_cmdstan
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -55,24 +54,6 @@ def _error_body(code: str, detail: object, request_id: str) -> dict:
     """
     message = detail if isinstance(detail, str) else "Ошибка запроса"
     return {"code": code, "message": message, "detail": detail, "request_id": request_id}
-
-
-_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{8,64}$")
-
-
-def _incoming_request_id(request: Request) -> str | None:
-    """Принять X-Request-ID от клиента или прокси, если он безопасен.
-
-    Сквозной id (7.3.2): nginx/оркестратор может прислать свой идентификатор, и
-    тогда одна цепочка логов связывает фронт, прокси и бэк. Берём только
-    значения из безопасного алфавита и разумной длины - это защита от инъекции
-    переводов строк в лог и от раздувания заголовка. Всё остальное игнорируем и
-    генерируем новый uuid4, чтобы id всегда был.
-    """
-    raw = request.headers.get("X-Request-ID")
-    if raw and _REQUEST_ID_RE.match(raw):
-        return raw
-    return None
 
 
 _metrics_token_warned = False
@@ -269,7 +250,7 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def add_request_id_middleware(request: Request, call_next):
-        request_id = _incoming_request_id(request) or str(uuid.uuid4())
+        request_id = str(uuid.uuid4())
         request.state.request_id = request_id
         logger.info(
             "Incoming request",
@@ -493,10 +474,14 @@ def create_app() -> FastAPI:
                 return
         await require_any_role("admin")(request)
 
-    @app.get("/metrics", dependencies=[Depends(_metrics_access)])
+    @app.get(
+        "/metrics",
+        dependencies=[Depends(_metrics_access)],
+        response_class=Response,
+        responses={200: {"content": {"text/plain": {}}}},
+    )
     async def metrics():
         data, content_type = get_metrics()
-        from fastapi.responses import Response
         return Response(content=data, media_type=content_type)
 
     return app
