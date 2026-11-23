@@ -45,6 +45,7 @@
 │   │   ├── 📄 competency_frequency_mapped.json   # Сопоставление с учебными
 │   │   ├── 📄 competency_mapping.json            # Коды компетенций -> навыки
 │   │   ├── 📄 skill_weights.json                 # Очищенные веса
+│   │   ├── 📄 article_weights.json               # Научные веса (build-article-weights)
 │   │   ├── 📄 hh_vacancies_detailed.json         # Детальные вакансии
 │   │   └── 📄 vacancies_IT_Sector_Multiple.xlsx  # Excel-экспорт вакансий
 │   ├── 📁 raw/                         # Сырые данные с hh.ru
@@ -59,6 +60,7 @@
 
 > Политика `data/reference/`: файлы каноничны и версионируются в git (в т.ч. `it_skills.json`, `skill_taxonomy.json`). Меняются только через скрипты/ревью; тесты не должны писать в этот каталог (используйте tmp_path).
 │   │   ├── 📄 profession_taxonomy.json     # Профессии -> домены
+│   │   ├── 📄 role_source_mix.json     # lambda смешивания рынок/наука по ролям
 │   │   ├── 📄 skill_blacklist.json     # Чёрный список
 │   │   ├── 📄 skill_taxonomy.json      # 19 категорий навыков
 │   │   ├── 📄 stop_lemmas.json         # Стоп-леммы для BM25

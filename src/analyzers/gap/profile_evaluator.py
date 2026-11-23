@@ -13,6 +13,7 @@ from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 from src.analyzers.comparison.domain_analyzer import DomainAnalyzer
 from src.analyzers.gap.gap_analyzer import GapAnalyzer
 from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
+from src.analyzers.skills.science_weights import RoleSourceMix, default_mix
 from src.artifacts import ArtifactManifest
 from src.errors import DomainError
 from src.models.data_contracts import ProfileEvaluationResult
@@ -43,6 +44,7 @@ class ProfileEvaluator:
         use_clustering: bool = True,
         skill_weights_by_level: dict[str, dict[str, float]] | None = None,
         readiness_weights: dict[str, float] | None = None,
+        source_mix: RoleSourceMix | None = None,
     ):
         self.readiness_weights = readiness_weights
         self.hybrid_weights = hybrid_weights or {}
@@ -57,6 +59,9 @@ class ProfileEvaluator:
             self.gap_analyzer_new = GapAnalyzer(self.skill_weights_by_level)
         else:
             self.gap_analyzer_new = None
+        # Смесь рыночных и научных весов по роли. Неактивна (lambda=0 или нет
+        # артефакта публикаций) - оценка идёт ровно как раньше.
+        self.source_mix = source_mix if source_mix is not None else default_mix()
 
         self.clusterers: dict[Any, VacancyClusterer] = {}
         self.cluster_models_loaded = {}
@@ -128,7 +133,20 @@ class ProfileEvaluator:
             domain_skills = set()
 
         # === 1. Skill-level метрики ===
-        match self.gap_analyzer_new.compute_metrics(user_skills_list, user_levels):
+        # Смесь источников по роли: ML-роли тянут навыки из публикаций, backend -
+        # из вакансий. Неактивная смесь = прежний GapAnalyzer и те же числа.
+        role = getattr(student, "target_profession", "") or None
+        weights_by_level = self.source_mix.blend_by_level(self.skill_weights_by_level, role)
+        gap_analyzer = self.gap_analyzer_new
+        if weights_by_level is not self.skill_weights_by_level:
+            gap_analyzer = GapAnalyzer(weights_by_level)
+            logger.debug(
+                "role_source_mix_applied",
+                profile=student.profile_name,
+                role=role,
+                lambda_=round(self.source_mix.lambda_for(role), 4),
+            )
+        match gap_analyzer.compute_metrics(user_skills_list, user_levels):
             case Err(err):
                 return Err(err)
             case Ok(val):
@@ -150,7 +168,7 @@ class ProfileEvaluator:
             case Ok(cluster_context):
                 cluster_context_val = cluster_context
                 all_weights: dict[str, float] = {}
-                for level_data in self.skill_weights_by_level.values():
+                for level_data in weights_by_level.values():
                     all_weights.update(level_data)
                 max_weight = max(all_weights.values()) if all_weights else 1.0
                 for skill, metric in metrics.items():

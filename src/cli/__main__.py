@@ -17,6 +17,7 @@ def main() -> None:
     from src.cli import (
         backfill_market_snapshots,
         backup_db,
+        build_article_weights,
         compute_competency_vectors,
         create_user,
         embeddings,
@@ -29,6 +30,7 @@ def main() -> None:
         ingest_market_skills,
         map_ksa_to_skills,
         populate_parsed_skills,
+        rag_index,
         rebuild,
         retention,
         seed_db,
@@ -116,6 +118,31 @@ def main() -> None:
     p.add_argument("--force", action="store_true")
     p.set_defaults(func=lambda a: snapshot_professions.main(force=a.force))
 
+    p = sub.add_parser(
+        "build-article-weights",
+        help="Веса навыков из научных публикаций (OpenAlex/arXiv) для смешивания по ролям",
+    )
+    p.add_argument("--professions", nargs="*", default=None, help="Подмножество профессий (по умолчанию все)")
+    p.add_argument("--per-query", type=int, default=25, help="Документов на один запрос")
+    p.add_argument("--source", default="openalex", choices=["openalex", "arxiv", "both"])
+    p.add_argument("--since", default=build_article_weights.DEFAULT_SINCE)
+    p.add_argument("--out", default=None, help="Путь к артефакту (по умолчанию data/processed/article_weights.json)")
+    p.add_argument("--min-freq", type=int, default=2, help="Срезать навыки с меньшим числом документов")
+    p.add_argument("--pause", type=float, default=None, help="Пауза между сетевыми запросами, с")
+    p.add_argument("--dry-run", action="store_true", help="Ничего не писать, только сводка")
+    p.set_defaults(
+        func=lambda a: build_article_weights.main(
+            professions=a.professions,
+            per_query=a.per_query,
+            source=a.source,
+            since=a.since,
+            out=a.out,
+            min_freq=a.min_freq,
+            dry_run=a.dry_run,
+            pause=a.pause,
+        )
+    )
+
     p = sub.add_parser("taxonomy-audit", help="Аудит пробелов таксономии навыков")
     p.add_argument("--apply", action="store_true", help="Применить предложения в skill_taxonomy.json")
     p.add_argument("--threshold", type=float, default=taxonomy_audit.DEFAULT_THRESHOLD)
@@ -146,6 +173,7 @@ def main() -> None:
 
     retention.build_parser(sub)
     set_password.build_parser(sub)
+    rag_index.build_parser(sub)
 
     args = parser.parse_args()
     args.func(args)

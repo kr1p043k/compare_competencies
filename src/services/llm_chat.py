@@ -51,6 +51,9 @@ _MAX_PUBLICATIONS = 15
 _MAX_FRONTIERS = 10
 
 _ALLOWED_BLOCK_TYPES = frozenset({"metric", "citation", "chart", "action_list", "text"})
+#: Блоки, которые модель может вернуть сама. citation собирается только из
+#: доверенной выдачи retrieval: иначе LLM придумает URL и подпись.
+_MODEL_BLOCK_TYPES = frozenset({"metric", "chart", "action_list", "text"})
 _JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 # Консервативная раскладка бюджета токенов в символы (1 токен ~ 4 символа).
 _CHARS_PER_TOKEN = 4
@@ -312,11 +315,19 @@ async def build_context(
     krm_loader: KrmLoader | None = None,
     pubs_loader: PubsLoader | None = None,
     pubs_timeout_s: float | None = None,
+    rag: Any | None = None,
+    rag_query: str = "",
+    rag_role: str | None = None,
+    rag_profile: str | None = None,
 ) -> dict[str, Any]:
     """Собирает grounded-контекст для object'а. Никогда не бросает наружу.
 
     Инъекционные ``*_loader`` позволяют тестам и вызывающим подменять источники
     (файлы/KRM/публикации) без сети и реальной файловой системы.
+
+    ``rag`` — необязательный RagService: если передан, к фактам добавляется
+    блок доказательств ``evidence`` (цитаты с номерами) и ``citations``.
+    Без него поведение и состав контекста прежние.
     """
     ctx_type = "teacher" if _str(context_type).lower() == "teacher" else "student"
 
@@ -363,6 +374,17 @@ async def build_context(
     else:
         publications = list(await pubs_loader(query, _MAX_PUBLICATIONS))[:_MAX_PUBLICATIONS]
 
+    evidence_block = ""
+    citations: list[dict[str, Any]] = []
+    rag_meta: dict[str, Any] = {}
+    if rag is not None:
+        evidence_block, citations, rag_meta = await _collect_evidence(
+            rag,
+            query=rag_query or query,
+            role=rag_role,
+            profile=rag_profile,
+        )
+
     return {
         "context_type": ctx_type,
         "context_key": context_key,
@@ -373,15 +395,78 @@ async def build_context(
         "competencies": competencies,
         "publications": publications,
         "frontiers": frontiers,
+        "evidence": evidence_block,
+        "citations": citations,
+        "rag": rag_meta,
     }
+
+
+async def _collect_evidence(
+    rag: Any,
+    *,
+    query: str,
+    role: str | None,
+    profile: str | None,
+) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
+    """Retrieval для чата. Любая ошибка = пустой блок, чат продолжает работать.
+
+    Профиль не навязывается по типу контекста: intent из вопроса (правила
+    ``rag.query.detect_intent``) точнее. ``profile`` — явный override.
+    """
+    if not _str(query):
+        return "", [], {}
+    try:
+        result = await rag.search(
+            query,
+            role=role,
+            profile=profile,
+            log=False,
+        )
+    except Exception:
+        logger.warning("llm_chat_rag_failed", exc_info=True)
+        return "", [], {}
+    context = getattr(result, "context", None)
+    if context is None or not context:
+        return "", [], {"degraded": getattr(result, "degraded", None)}
+    return (
+        context.prompt_block,
+        context.citation_blocks(),
+        {
+            "top_score": round(float(context.top_score), 3),
+            "hits": len(context.evidence),
+            "degraded": getattr(result, "degraded", None),
+            "intent": getattr(getattr(result, "query", None), "intent", None),
+            "profile": getattr(getattr(result, "query", None), "profile", None),
+        },
+    )
 
 
 # ── промпты и парсинг блоков ───────────────────────────────────────────────
 
 def _context_text(context: dict[str, Any]) -> str:
+    """Бюджетный текст контекста: доказательства впереди, факты следом.
+
+    Без ``evidence`` поведение прежнее (JSON целиком в пределах бюджета).
+    """
     budget = int(getattr(config, "LLM_CHAT_CONTEXT_TOKEN_BUDGET", 8000) or 8000)
-    text = json.dumps(context, ensure_ascii=False, default=str, separators=(",", ":"))
-    return " ".join(text.split())[: budget * _CHARS_PER_TOKEN]
+    char_budget = budget * _CHARS_PER_TOKEN
+    evidence = _str(context.get("evidence") or "")
+    if not evidence:
+        text = json.dumps(context, ensure_ascii=False, default=str, separators=(",", ":"))
+        return " ".join(text.split())[:char_budget]
+
+    facts = {
+        key: value
+        for key, value in context.items()
+        if key not in ("evidence", "citations", "rag")
+    }
+    facts_text = " ".join(
+        json.dumps(facts, ensure_ascii=False, default=str, separators=(",", ":")).split()
+    )
+    evidence_budget = int(char_budget * 0.55)
+    facts_budget = max(0, char_budget - evidence_budget - 32)
+    return f"{evidence[:evidence_budget]}\n\nФакты:\n{facts_text[:facts_budget]}"
+
 
 
 def _text_prompt(context_text: str, message: str = "", history_text: str = "") -> str:
@@ -390,6 +475,12 @@ def _text_prompt(context_text: str, message: str = "", history_text: str = "") -
         "o tekushem sostoyanii obiekta: pokrytie, kachestvo, glavnye probely. "
         "Ne vydumyvay dannyh, kotoryh net v kontekste. Otvechaesh tekstom.",
     ]
+    if "<evidence>" in (context_text or ""):
+        lines.append(
+            "Kazhdoe fakticheskoe utverzhdenie, vzyatoe iz <evidence>, pomeshay numerom "
+            "v kvadratnyh skobkah, naprimer [1] ili [2,3]. Ispolzuy tolko nomera, "
+            "kotorye est v <evidence>. Esli v kontekste net dannyh - tak i skazhi."
+        )
     _msg = _str(message)
     if looks_like_injection(_msg):
         logger.warning("llm_injection_suspected", source="chat_text")
@@ -415,6 +506,11 @@ def _blocks_prompt(
         'Primer: {"type":"metric","name":"pokrytie","value":82}, '
         '{"type":"text","content":"..."}. Ne vydumyvay dannyh.',
     ]
+    if "<evidence>" in (context_text or ""):
+        lines.append(
+            'Dlya utverzhdenij iz <evidence> dobav "citations": [n] v text-blok '
+            "ili otdelnye bloki tipa \"citation\". Nomera - tolko iz <evidence>."
+        )
     _msg = _str(message)
     if looks_like_injection(_msg):
         logger.warning("llm_injection_suspected", source="chat_blocks")
@@ -450,7 +546,7 @@ def _parse_blocks(raw: str, text: str) -> list[dict[str, Any]]:
         return fallback
     out: list[dict[str, Any]] = []
     for block in blocks:
-        if isinstance(block, dict) and block.get("type") in _ALLOWED_BLOCK_TYPES:
+        if isinstance(block, dict) and block.get("type") in _MODEL_BLOCK_TYPES:
             out.append(block)
     return out if out else fallback
 
@@ -534,6 +630,7 @@ def answer_blocks(
     history: list | None = None,
     *,
     status: list[bool] | None = None,
+    extra_blocks: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Структурные блоки моделью `config.LLM_CHAT_BLOCKS_MODEL`.
 
@@ -545,6 +642,9 @@ def answer_blocks(
 
     ``status`` - необязательный out-список: в него добавляется ``True``, если
     блоки получены от LLM (``generate`` не выбросил исключение), иначе ``False``.
+
+    ``extra_blocks`` - блоки-цитаты из RAG; добавляются в конец, чтобы фронт
+    мог показать источники рядом с ответом.
     """
     try:
         if client is None:
@@ -554,12 +654,68 @@ def answer_blocks(
         blocks = _parse_blocks(raw, text)
         if status is not None:
             status.append(True)
-        return blocks
     except Exception:
         logger.exception("llm_chat_answer_blocks_failed")
         if status is not None:
             status.append(False)
-        return [{"type": "text", "content": text}]
+        blocks = [{"type": "text", "content": text}]
+    return _with_citations(blocks, extra_blocks)
+
+
+def _referenced_numbers(text: str, limit: int = 8) -> set[int]:
+    """Номера цитат, реально упомянутые в ответе: [1], [2,3]."""
+    numbers: set[int] = set()
+    for match in re.finditer(r"\[([\d,\s]+)\]", text or ""):
+        for part in match.group(1).split(","):
+            part = part.strip()
+            if part.isdigit():
+                numbers.add(int(part))
+    return set(sorted(numbers)[:limit])
+
+
+def _citation_audit(
+    text: str, citations: list[dict[str, Any]] | None
+) -> tuple[set[int], float]:
+    """Сверить ссылки в ответе с выданными цитатами.
+
+    Возвращает (валидные упомянутые номера, groundedness). Groundedness —
+    доля упомянутых ссылок, которые действительно есть в выдаче: 1.0 значит
+    модель не придумала ни одного источника; 0.0 при ссылках — все выдуманы.
+    Нет ссылок — 0.0 (ответ не опирается на доказательства).
+    """
+    available = {c.get("n") for c in (citations or []) if isinstance(c, dict)}
+    referenced = _referenced_numbers(text)
+    if not referenced:
+        return set(), 0.0
+    valid = referenced & available
+    return valid, len(valid) / len(referenced)
+
+
+def _with_citations(
+    blocks: list[dict[str, Any]], citations: list[dict[str, Any]] | None
+) -> list[dict[str, Any]]:
+    """Добавить citation-блоки: сначала упомянутые, иначе первые три."""
+    if not citations:
+        return blocks
+    already = {
+        block.get("n")
+        for block in blocks
+        if isinstance(block, dict) and block.get("type") == "citation"
+    }
+    text = _blocks_text(blocks)
+    referenced = _referenced_numbers(text)
+    if referenced:
+        selected = [
+            citation
+            for citation in citations
+            if citation.get("n") not in already and citation.get("n") in referenced
+        ]
+    else:
+        # Модель не сослалась ни на что: показываем первые три, а не всю выдачу.
+        selected = [c for c in citations if c.get("n") not in already][:3]
+    if not selected:
+        selected = [c for c in citations if c.get("n") not in already][:3]
+    return [*blocks, *selected]
 
 
 # ── детерминированный fallback ─────────────────────────────────────────────
@@ -608,11 +764,20 @@ async def assess(
     krm_loader: KrmLoader | None = None,
     pubs_loader: PubsLoader | None = None,
     pubs_timeout_s: float | None = None,
+    use_rag: bool | None = None,
+    rag: Any | None = None,
+    rag_role: str | None = None,
+    rag_profile: str | None = None,
 ) -> dict[str, Any]:
     """Полный проход: контекст -> текст (LLM_CHAT_MODEL) -> блоки (BLOCKS_MODEL).
 
     ``message`` (вопрос пользователя) и ``history`` (последние ходы треда)
     попадают в промпт обоих LLM-вызовов. Без вопроса ответ не строим.
+
+    ``use_rag`` (по умолчанию из ``config.RAG_ENABLED``) добавляет retrieval
+    доказательств по тексту вопроса; ``rag`` позволяет передать готовый
+    сервис (тесты), иначе берётся singleton. Если индекс пуст или retrieval
+    упал, ответ строится только по фактам - как раньше.
 
     При `LLM_ASSESS_ENABLED=False` (или `enabled=False`) LLM не вызывается -
     возвращается детерминированный шаблон из метрик. Никогда не бросает наружу.
@@ -622,6 +787,18 @@ async def assess(
     """
     ctx_type = "teacher" if _str(context_type).lower() == "teacher" else "student"
     llm_enabled = config.LLM_ASSESS_ENABLED if enabled is None else bool(enabled)
+    rag_enabled = bool(getattr(config, "RAG_ENABLED", False)) if use_rag is None else bool(use_rag)
+
+    rag_service = rag
+    if rag_enabled and rag_service is None and _str(message):
+        try:
+            from src.rag.service import get_service
+
+            rag_service = get_service()
+        except Exception:
+            logger.warning("llm_chat_rag_service_unavailable", exc_info=True)
+            rag_service = None
+
     context = await build_context(
         ctx_type,
         context_key,
@@ -630,10 +807,25 @@ async def assess(
         krm_loader=krm_loader,
         pubs_loader=pubs_loader,
         pubs_timeout_s=pubs_timeout_s,
+        rag=rag_service,
+        rag_query=message,
+        rag_role=rag_role,
+        rag_profile=rag_profile,
     )
 
     text_model = config.LLM_CHAT_MODEL
     blocks_model = config.LLM_CHAT_BLOCKS_MODEL
+
+    def _rag_meta(answer_text_value: str, blocks: list[dict[str, Any]]) -> dict[str, Any]:
+        """Метаданные RAG: попадания + аудит ссылок (groundedness)."""
+        meta = dict(context.get("rag") or {})
+        citations = context.get("citations")
+        if not citations:
+            return meta
+        _, groundedness = _citation_audit(_blocks_text(blocks) or answer_text_value, citations)
+        meta["groundedness"] = round(groundedness, 3)
+        meta["citations"] = len(citations)
+        return meta
 
     def _fallback(blocks: list[dict[str, Any]]) -> dict[str, Any]:
         return {
@@ -641,10 +833,11 @@ async def assess(
             "context_key": context_key,
             "context": context,
             "text": _blocks_text(blocks),
-            "blocks": blocks,
+            "blocks": _with_citations(blocks, context.get("citations")),
             "text_model": text_model,
             "blocks_model": blocks_model,
             "llm_used": False,
+            "rag": _rag_meta(_blocks_text(blocks), blocks),
         }
 
     # Без вопроса (или с выключенным LLM) ответ не строим.
@@ -671,6 +864,7 @@ async def assess(
             message=message,
             history=history,
             status=blocks_status,
+            extra_blocks=context.get("citations") or None,
         )
         if not blocks:
             blocks = _deterministic_blocks(context)
@@ -684,6 +878,7 @@ async def assess(
             "text_model": text_model,
             "blocks_model": blocks_model,
             "llm_used": llm_used,
+            "rag": _rag_meta(text, blocks),
         }
     except Exception:
         logger.exception("llm_chat_assess_failed", context_type=ctx_type, context_key=context_key)

@@ -1,4 +1,4 @@
-"""Засев всех 13 направлений из KRM-файлов в БД.
+﻿"""Засев всех 13 направлений из KRM-файлов в БД.
 
 Каждый файл data/reference/krm_disciplines_<dir_code>.json соответствует одному
 направлению, где dir_code = имя файла без префикса (напр. 02.03.02_och).
@@ -158,7 +158,8 @@ async def seed_skills(session) -> dict[str, str]:
 
 
 async def seed_direction(
-    session, skill_map: dict[str, str], dir_code: str, path: Path, year: int = DEFAULT_YEAR
+    session, skill_map: dict[str, str], dir_code: str, path: Path, year: int = DEFAULT_YEAR,
+    replace: bool = False,
 ) -> None:
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
@@ -196,6 +197,22 @@ async def seed_direction(
 
     disc_count = comp_count = cs_count = ksa_count = 0
     skipped_comp = 0
+
+    if replace:
+        # Сид только добавляет строки, поэтому после пересборки KRM старые
+        # компетенции и их ЗУН остаются в БД (чужие темы, лишние коды).
+        # --replace чистит компетенции направления и года; ksa_entries и
+        # competency_skills уходят каскадом по FK.
+        deleted = await session.execute(
+            text(
+                "DELETE FROM competencies c USING disciplines d "
+                "WHERE c.discipline_id = d.id AND d.direction_id = :did AND d.year = :year"
+            ),
+            {"did": direction.id, "year": year},
+        )
+        await session.commit()
+        print(f"  {dir_code} [{year}]: competencies replaced "
+              f"({deleted.rowcount or 0} rows deleted)")
 
     # Матчим на (direction_id, name, year), а не только по имени: иначе сид
     # 2024 мутировал бы одноимённые строки 2025 (и наоборот).
@@ -291,7 +308,8 @@ async def seed_direction(
           + (f", skipped_comp={skipped_comp}" if skipped_comp else ""))
 
 
-async def main(drop: bool = False, only: str | None = None, year: int = DEFAULT_YEAR) -> None:
+async def main(drop: bool = False, only: str | None = None, year: int = DEFAULT_YEAR,
+               replace: bool = False) -> None:
     print("Creating tables...")
     await create_tables(drop_first=drop)
     async with async_session_factory() as session:
@@ -311,7 +329,7 @@ async def main(drop: bool = False, only: str | None = None, year: int = DEFAULT_
                 )
                 sys.exit(1)
         for dir_code, path in files:
-            await seed_direction(session, skill_map, dir_code, path, year=year)
+            await seed_direction(session, skill_map, dir_code, path, year=year, replace=replace)
     print(f"\nDone (year={year}).")
 
 
@@ -321,8 +339,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--drop", action="store_true")
     parser.add_argument("--only", default=None, help="dir_code; одно направление если указан")
+    parser.add_argument("--replace", action="store_true",
+                        help="удалить компетенции направления и года перед сидом "
+                             "(иначе старые ЗУН остаются в БД)")
     parser.add_argument("--year", type=int, default=DEFAULT_YEAR,
                         help="Год набора: 2025 (по умолчанию, krm_disciplines_<код>.json) "
                              "или иной (krm_disciplines_<код>_<год>.json)")
     args = parser.parse_args()
-    asyncio.run(main(drop=args.drop, only=args.only, year=args.year))
+    asyncio.run(main(drop=args.drop, only=args.only, year=args.year, replace=args.replace))

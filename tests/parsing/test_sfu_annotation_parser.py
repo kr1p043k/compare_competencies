@@ -108,3 +108,46 @@ class TestTitleFromText:
         # Все строки-заглушки отфильтрованы - остаётся имя файла.
         t = "Course description (annotation)\n1. Total labor intensity\n2. Department"
         assert sfu.title_from_text(t, "Web-программирование.pdf") == "Web-программирование"
+
+class TestTitleFromFilename:
+    """Имя дисциплины из имени файла: шапка PDF ненадёжна (12 файлов 2025
+    получали 'Алгоритмизация и программирование' из таблицы пререквизитов)."""
+
+    def test_annotation_rpd_prefix(self):
+        assert sfu.title_from_filename(
+            "Аннотация РПД Базы данных и СУБД.pdf") == "Базы данных и СУБД"
+
+    def test_prefers_russian_in_parens_for_english_name(self):
+        assert sfu.title_from_filename(
+            "Аннотация РПД Operating Systems (Операционные системы).pdf"
+        ) == "Операционные системы"
+
+    def test_keeps_russian_name_with_parens(self):
+        assert sfu.title_from_filename(
+            "Аннотация РПД Иностранный язык (русский язык).pdf"
+        ) == "Иностранный язык (русский язык)"
+
+    def test_praktikum_not_treated_as_junk(self):
+        assert sfu.title_from_filename(
+            "Аннотация РПД Практикум по основам программирования.pdf"
+        ) == "Практикум по основам программирования"
+
+    def test_long_title_kept(self):
+        name = ("Аннотация РПД Технологии разработки и управления жизненным циклом "
+                "серверной части веб-приложений с поддержкой ИИ.pdf")
+        assert sfu.title_from_filename(name) == (
+            "Технологии разработки и управления жизненным циклом серверной части "
+            "веб-приложений с поддержкой ИИ")
+
+    def test_plain_cyrillic_filename(self):
+        # Корпус 2024 собран с плоскими именами файлов.
+        assert sfu.title_from_filename(
+            "Алгоритмизация и программирование.pdf") == "Алгоритмизация и программирование"
+
+    def test_no_cyrillic_returns_empty(self):
+        assert sfu.title_from_filename("x.pdf") == ""
+        assert sfu.title_from_filename("ANN-Б1.О.10_Алгебра.pdf") == ""
+
+    def test_title_from_text_uses_filename_first(self):
+        text = "АННОТАЦИЯ\nрабочей программы дисциплины\nМультимедиа технологии\n"
+        assert sfu.title_from_text(text, "Аннотация РПД Базы данных и СУБД.pdf") == "Базы данных и СУБД"

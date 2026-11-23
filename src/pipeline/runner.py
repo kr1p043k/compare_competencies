@@ -22,6 +22,7 @@ from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.pipeline.helpers import console_header, console_info
 from src.pipeline.orchestrator import PipelineOrchestrator
 from src.pipeline.progress import write as _write_pipeline_progress
+from src.pipeline.rag_stage import RagIndexStage
 from src.pipeline.stages import (
     ClusterTrainingStage,
     DataCollectionStage,
@@ -368,6 +369,9 @@ def run_full_pipeline(args) -> Result[None, str]:
         ClusterTrainingStage(),
         ModelTrainingStage(),
     ])
+    # Индекс RAG обновляется после записи вакансий в БД; при RAG_ENABLED=false
+    # стадия ничего не делает (no-op).
+    stages.append(RagIndexStage(args))
     show_context_info()
 
     from src.monitoring.metrics import pipeline_run_counter

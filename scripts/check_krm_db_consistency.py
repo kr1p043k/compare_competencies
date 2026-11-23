@@ -1,4 +1,4 @@
-"""Проверка согласованности KRM-файла и БД.
+﻿"""Проверка согласованности KRM-файла и БД.
 
 За неделю БД дважды тихо разошлась с KRM: сначала 11 238 связей против 6 219
 в файле, потом 6 219 против 5 851 после чистки. Анализ читает БД, часть
@@ -47,20 +47,28 @@ def load_krm(direction: str, year: int) -> dict[str, dict]:
 
 
 def krm_links(disciplines: dict[str, dict], taxonomy: set[str] | None = None) -> int:
-    """Число связей «компетенция -> навык» в KRM.
+    """Число связей «компетенция -> навык», которые сид реально создаст.
 
-    Если передан `taxonomy` (набор имён из it_skills/rpd_skills), считаются
-    только те навыки, которые сид реально может привязать: `seed_direction`
-    пропускает всё, чего нет в справочнике (`if not skill_id: continue`).
-    Без фильтра KRM-файл 2025 даёт 8403 против 4731 в БД - это не расхождение,
-    а свободный текст из аннотаций RPD, который навыком не является.
+    Сид линкует только коды, перечисленные в `competencies` дисциплины, и
+    только навыки из справочника (it_skills/rpd_skills); связь уникальна по
+    паре (код, навык). Без фильтра KRM-файл 2025 даёт 8403 против 4731 в БД -
+    это свободный текст из аннотаций RPD, который навыком не является.
     """
     total = 0
     for body in disciplines.values():
-        for items in (body.get("skills") or {}).values():
+        comps = set(body.get("competencies") or [])
+        seen: set[tuple[str, str]] = set()
+        for code, items in (body.get("skills") or {}).items():
+            if comps and code not in comps:
+                continue
             for item in items or []:
-                if taxonomy is None or str(item).strip().lower() in taxonomy:
-                    total += 1
+                key = str(item).strip().lower()
+                if taxonomy is not None and key not in taxonomy:
+                    continue
+                if (code, key) in seen:
+                    continue
+                seen.add((code, key))
+                total += 1
     return total
 
 
@@ -133,12 +141,14 @@ def load_db(dsn: str, direction: str, year: int) -> dict:
                + (SELECT count(*) FROM ksa_entries k
                    WHERE NOT EXISTS (SELECT 1 FROM competencies c WHERE c.id = k.competency_id))"""
         ).fetchone()[0]
+        skill_names = {r[0].strip().lower() for r in conn.execute("SELECT name FROM skills")}
     return {
         "names": names,
         "links": links,
         "per_discipline": per_disc,
         "orphan_competencies": orphan_comps,
         "dangling_rows": dangling,
+        "skill_names": skill_names,
     }
 
 

@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     GENERIC_WORDS_PATH: Path = Field(default_factory=lambda: Path("data/reference/generic_words.json"))
     FILLER_WORDS_PATH: Path = Field(default_factory=lambda: Path("data/reference/filler_words.json"))
     STOP_LEMMAS_PATH: Path = Field(default_factory=lambda: Path("data/reference/stop_lemmas.json"))
+    # Смешивание рыночных и научных весов по ролям (экспертные приоры, 0..1).
+    ROLE_SOURCE_MIX_PATH: Path = Field(default_factory=lambda: Path("data/reference/role_source_mix.json"))
 
     # ---------- директории кеша ----------
     DATA_CACHE_DIR: Path = Field(default_factory=lambda: Path("data/cache"))
@@ -66,6 +68,9 @@ class Settings(BaseSettings):
 
     MODELS_DIR: Path = Field(default_factory=lambda: Path("data/models"))
     HISTORY_DIR: Path = Field(default_factory=lambda: Path("data/history"))
+    # Веса навыков из корпуса научных публикаций (артефакт build-article-weights).
+    # Нет файла - научная половина смешивания не применяется (поведение не меняется).
+    ARTICLE_WEIGHTS_PATH: Path = Field(default_factory=lambda: Path("data/processed/article_weights.json"))
 
     # ---------- база данных ----------
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/compare_competencies"
@@ -333,6 +338,13 @@ class Settings(BaseSettings):
     PRIORITY_MEDIUM_THRESHOLD: float = 0.2
     TREND_ALWAYS_HOT_BONUS: float = 0.15
 
+    # ---------- смешивание источников весов по ролям (v1) ----------
+    # lambda = доля научных (публикации) весов в смеси: 0 - только вакансии,
+    # 1 - только публикации. Значения по ролям - экспертные приоры в
+    # data/reference/role_source_mix.json (не откалиброваны на трудоустройстве,
+    # см. docs/methodology.md). Флаг выключает фичу целиком, не трогая файлы.
+    ROLE_SOURCE_MIX_ENABLED: bool = True
+
     READINESS_MARKET_WEIGHT: float = 0.45
     READINESS_SKILL_WEIGHT: float = 0.30
     READINESS_DOMAIN_WEIGHT: float = 0.0
@@ -388,6 +400,28 @@ class Settings(BaseSettings):
     # TTL кэша списка/типов публикаций; 0 — без кэша.
     HUB_CACHE_TTL_S: float = 120.0
 
+    # ---------- RAG (retrieval over РПД / вакансии / публикации) ----------
+    # Opt-in: при False retrieval не вызывается, llm_chat работает как раньше.
+    RAG_ENABLED: bool = False
+    # Профиль retrieval по умолчанию (chat_qa, rpd_gap_explain, market_evidence,
+    # curriculum_design, competency_lookup).
+    RAG_PROFILE_DEFAULT: str = "chat_qa"
+    RAG_DENSE_K: int = 50
+    RAG_SPARSE_K: int = 50
+    RAG_ENTITY_K: int = 20
+    RAG_TOP_N: int = 8
+    # Минимальный top-score; ниже — отказ от RAG-контекста (fallback на факты).
+    RAG_MIN_SCORE: float = 0.35
+    RAG_CONTEXT_BUDGET: int = 8000
+    RAG_TIMEOUT_S: float = 1.5
+    RAG_INDEX_BATCH: int = 64
+    RAG_MMR_LAMBDA: float = 0.7
+    RAG_MAX_CHUNK_TOKENS: int = 700
+    RAG_MIN_CHUNK_TOKENS: int = 40
+    RAG_ACL_DEFAULT: str = "internal"
+    # L1-кэш ответов retrieval, секунды; 0 - без кэша.
+    RAG_CACHE_TTL_S: float = 60.0
+
     # валидация путей относительно BASE_DIR
     @field_validator(
         "DATA_DIR",
@@ -414,8 +448,10 @@ class Settings(BaseSettings):
         "GENERIC_WORDS_PATH",
         "FILLER_WORDS_PATH",
         "STOP_LEMMAS_PATH",
+        "ROLE_SOURCE_MIX_PATH",
         "MODELS_DIR",
         "HISTORY_DIR",
+        "ARTICLE_WEIGHTS_PATH",
         "LOG_DIR",
         "LOG_FILE",
         "DATA_CACHE_DIR",
@@ -634,6 +670,9 @@ SKILL_BLACKLIST_PATH = settings.SKILL_BLACKLIST_PATH
 GENERIC_WORDS_PATH = settings.GENERIC_WORDS_PATH
 FILLER_WORDS_PATH = settings.FILLER_WORDS_PATH
 STOP_LEMMAS_PATH = settings.STOP_LEMMAS_PATH
+ROLE_SOURCE_MIX_ENABLED = settings.ROLE_SOURCE_MIX_ENABLED
+ROLE_SOURCE_MIX_PATH = settings.ROLE_SOURCE_MIX_PATH
+ARTICLE_WEIGHTS_PATH = settings.ARTICLE_WEIGHTS_PATH
 
 BLEND_EVALUATOR_WEIGHT = settings.BLEND_EVALUATOR_WEIGHT
 BLEND_LTR_WEIGHT = settings.BLEND_LTR_WEIGHT
@@ -669,3 +708,19 @@ HUB_API_BASE = settings.HUB_API_BASE
 HUB_API_TOKEN = settings.HUB_API_TOKEN
 HUB_API_TIMEOUT_S = settings.HUB_API_TIMEOUT_S
 HUB_CACHE_TTL_S = settings.HUB_CACHE_TTL_S
+
+RAG_ENABLED = settings.RAG_ENABLED
+RAG_PROFILE_DEFAULT = settings.RAG_PROFILE_DEFAULT
+RAG_DENSE_K = settings.RAG_DENSE_K
+RAG_SPARSE_K = settings.RAG_SPARSE_K
+RAG_ENTITY_K = settings.RAG_ENTITY_K
+RAG_TOP_N = settings.RAG_TOP_N
+RAG_MIN_SCORE = settings.RAG_MIN_SCORE
+RAG_CONTEXT_BUDGET = settings.RAG_CONTEXT_BUDGET
+RAG_TIMEOUT_S = settings.RAG_TIMEOUT_S
+RAG_INDEX_BATCH = settings.RAG_INDEX_BATCH
+RAG_MMR_LAMBDA = settings.RAG_MMR_LAMBDA
+RAG_MAX_CHUNK_TOKENS = settings.RAG_MAX_CHUNK_TOKENS
+RAG_MIN_CHUNK_TOKENS = settings.RAG_MIN_CHUNK_TOKENS
+RAG_ACL_DEFAULT = settings.RAG_ACL_DEFAULT
+RAG_CACHE_TTL_S = settings.RAG_CACHE_TTL_S

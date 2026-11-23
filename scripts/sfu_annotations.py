@@ -181,17 +181,80 @@ def _clean_title(t: str, *, require_capital: bool = False) -> str:
     return t
 
 
+_ANN_FILE_PREFIX = re.compile(
+    r"^(?:аннотаци[яи]|annotation)\s+(?:рпд|рпп|впк|опоп)\s+", re.I)
+
+
+def _clean_filename_title(name: str) -> str:
+    """Санитайзер названия из имени файла (без фильтра «мусорных» слов).
+
+    _clean_title отбрасывает 'Практикум', 'дисциплины', режет длину до 90 -
+    для имён файлов это ложно: 'Практикум по основам программирования' и
+    длинные названия архитектур лежат в официальном перечне как есть.
+    """
+    t = re.sub(r"\s+", " ", name or "").strip(" .;:,«»\"'")
+    if not (3 <= len(t) < 200):
+        return ""
+    if re.match(r"^\d", t):
+        return ""
+    if _FRAGMENT_TAIL.search(t):
+        return ""
+    return t
+
+
+def title_from_filename(fname: str) -> str:
+    """Название дисциплины из имени файла 'Аннотация РПД <Название>.pdf'.
+
+    Надёжнее шапки PDF: в 09.03.02_2025 у 12 файлов разбор шапки вернул
+    'Алгоритмизация и программирование' (первая короткая строка таблицы
+    пререквизитов), из-за чего тексты чужих дисциплин слились в одну запись
+    KRM. Имя файла задано человеком и совпадает с названием дисциплины.
+
+    Возвращает '' для файлов без префикса/с мусорным остатком - тогда
+    работает прежний разбор по тексту.
+    """
+    stem = re.sub(r"\.pdf$", "", fname or "", flags=re.I).strip()
+    if _ANN_FILE_PREFIX.match(stem):
+        name = _ANN_FILE_PREFIX.sub("", stem).strip(" _-.")
+    elif re.search(r"[а-яё]", stem, re.I) and not re.match(r"(?i)^(ann|анн|апп)\b|^\d", stem):
+        # Плоское имя файла-дисциплины ('Алгоритмизация и программирование.pdf',
+        # 'Архитектура информационных систем.pdf') - корпус 2024 собран так.
+        name = stem
+    else:
+        return ""
+    name = re.sub(r"[_]+", " ", name)
+    name = re.sub(r"\bAI ML\b", "AI/ML", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    if "(" in name and name.rstrip().endswith(")"):
+        # 'Databases and DBMS (Базы данных и СУБД)' - кириллица в скобках
+        # точнее для русского KRM; 'Иностранный язык (…)' - оставляем целиком,
+        # иначе теряется сам предмет.
+        head = name[: name.index("(")]
+        if not re.search(r"[а-яё]", head, re.I):
+            m = re.search(r"\(([^()]*)\)\s*$", name)
+            if m and re.search(r"[а-яё]", m.group(1), re.I):
+                return _clean_filename_title(m.group(1)) or ""
+    return _clean_filename_title(name) or ""
+
+
 def title_from_text(text: str, fname: str) -> str:
     """Название дисциплины из шапки аннотации.
 
     Реальные форматы (замер 2026-10-14): RU «…рабочей программы учебной
     дисциплины «X»» и «…рабочей программы «X»» (ГИА, без 'учебной
-    дисциплины'); EN 'Course description (annotation)\\nof the course\\nX'
-    и '1. Name of the course\\nX'; EN 'work program of the academic
-    discipline\\nX'; и файлы, где название - просто первая строка
+    дисциплины'); EN 'Course description (annotation)\nof the course\nX'
+    и '1. Name of the course\nX'; EN 'work program of the academic
+    discipline\nX'; и файлы, где название - просто первая строка
     ('Operating systems'). Шаблонную строку '1. Name of the course'
     старый паттерн возвращал как название (мусор-дубликаты).
+
+    Файлы 'Аннотация РПД <X>.pdf' разбираются по имени файла в первую
+    очередь (см. title_from_filename) - шапка у них часто длиннее 90
+    символов и разбор сваливался на первую короткую строку таблицы.
     """
+    by_file = title_from_filename(fname)
+    if by_file:
+        return by_file
     # 1-2) RU: рабочей программы (учебной дисциплины)? «X»
     for p in (
         r"рабочей\s+программы\s+учебной\s+дисциплины\s*[«\"']?\s*([^»\"'\n]{3,90})",

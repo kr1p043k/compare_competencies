@@ -72,6 +72,9 @@ async def _stream(
     пробрасывается - клиент видит оформленный ответ, а не оборванное соединение.
     """
     user_id = user.get("uid") if isinstance(user, dict) else None
+    # Роль обязательна: без неё AclScope падает до anon/public и retrieval
+    # не увидит корпус с acl_scope='internal' (РПД, КРМ, вакансии).
+    role = str(user.get("r") or "") if isinstance(user, dict) else ""
 
     try:
         thread = await llm_chat.get_or_create_thread(user_id, context_type, context_key)
@@ -81,7 +84,11 @@ async def _stream(
         history_messages = (history.get("messages") or [])[-_MAX_HISTORY_TURNS:]
         await llm_chat.append_turn(thread.id, "user", {"text": message}, None)
         result = await llm_chat.assess(
-            context_type, context_key, message=message, history=history_messages
+            context_type,
+            context_key,
+            message=message,
+            history=history_messages,
+            rag_role=role,
         )
     except Exception:
         logger.exception(
@@ -118,7 +125,16 @@ async def _stream(
         yield _sse("text", chunk)
     for block in blocks:
         yield _sse("block", _json(block))
-    yield _sse("done", _json({"thread_id": thread.id, "message_id": assistant.id}))
+    yield _sse(
+        "done",
+        _json(
+            {
+                "thread_id": thread.id,
+                "message_id": assistant.id,
+                "rag": result.get("rag") or {},
+            }
+        ),
+    )
 
 
 @router.get(

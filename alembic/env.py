@@ -30,8 +30,15 @@ def include_object(obj, name, type_, reflected, compare_to):
     SQLAlchemy (`ix_*`, `uq_*`), при том что набор колонок совпадает. Их сравнение
     отключено, чтобы гейт не падал на переименованиях (backlog 6.3.2).
     Таблицы, колонки и типы по-прежнему сравниваются.
+
+    Исключение - таблицы RAG: они создаются сырым DDL в миграции
+    `add_rag_tables` (HNSW-индекс pgvector, GIN по tsv, партиционирование
+    поколений), ORM-моделей у них нет намеренно, иначе пришлось бы дублировать
+    типы `vector`/`tsvector` в SQLAlchemy-моделях ради одного гейта.
     """
-    return type_ not in ("index", "unique_constraint", "foreign_key_constraint")
+    if type_ in ("index", "unique_constraint", "foreign_key_constraint"):
+        return False
+    return not (type_ == "table" and (name or "").startswith("rag_"))
 
 
 def run_migrations_offline():

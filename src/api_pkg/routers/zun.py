@@ -334,8 +334,8 @@ async def zun_my_directions(request: Request):
 
 @router.get("/teacher/zun/stats", response_model=ZunStats, response_model_exclude_unset=True)
 @limiter.limit("60/minute")
-async def zun_stats(request: Request, dir_code: str = "09.03.02"):
-    """Статистика ЗУН направления."""
+async def zun_stats(request: Request, dir_code: str = "09.03.02", year: int = 2025):
+    """Статистика ЗУН направления (year - год набора, по умолчанию 2025)."""
     _validate_dir_code(dir_code)
     pool = get_pool()
     dir_ids = await _direction_ids(pool, dir_code)
@@ -355,19 +355,21 @@ async def zun_stats(request: Request, dir_code: str = "09.03.02"):
                 COUNT(DISTINCT CASE WHEN k.id IS NOT NULL THEN c.id END) AS competencies_with_ksa,
                 COUNT(DISTINCT CASE WHEN k.id IS NOT NULL THEN disc.id END) AS disciplines_with_ksa
            FROM directions d
-           JOIN disciplines disc ON disc.direction_id = d.id
+           JOIN disciplines disc ON disc.direction_id = d.id AND disc.year = $2
            JOIN competencies c ON c.discipline_id = disc.id
            LEFT JOIN ksa_entries k ON k.competency_id = c.id
            WHERE d.id = ANY($1::uuid[])""",
         dir_ids,
+        year,
     )
     r = rows[0]
     linked = await pool.fetch(
         """SELECT COUNT(*) AS n FROM competency_skills cs
            JOIN competencies c ON c.id = cs.competency_id
            JOIN disciplines disc ON disc.id = c.discipline_id
-           WHERE disc.direction_id = ANY($1::uuid[])""",
+           WHERE disc.direction_id = ANY($1::uuid[]) AND disc.year = $2""",
         dir_ids,
+        year,
     )
     cov_rows = await pool.fetch(
         """SELECT COALESCE(AVG(coverage_ratio), 0) AS avg, COUNT(*) AS covered,
@@ -408,17 +410,18 @@ async def zun_disciplines(
     request: Request,
     dir_code: str = "09.03.02",
     q: str = "",
+    year: int = 2025,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
-    """Дисциплины (поиск, пагинация)."""
+    """Дисциплины (поиск, пагинация). `year` - год набора (по умолчанию 2025)."""
     _validate_dir_code(dir_code)
     pool = get_pool()
     dir_ids = await _direction_ids(pool, dir_code)
     if not dir_ids:
         raise HTTPException(status_code=404, detail=f"Direction '{dir_code}' not found")
 
-    params: list = [dir_ids]
+    params: list = [dir_ids, year]
     q_filter = ""
     if q:
         q_filter = " AND disc.name ILIKE $" + str(len(params) + 1)
@@ -437,10 +440,10 @@ async def zun_disciplines(
             JOIN competencies c ON c.discipline_id = disc.id
             LEFT JOIN ksa_entries k ON k.competency_id = c.id
             LEFT JOIN competency_skills cs ON cs.competency_id = c.id
-            WHERE disc.direction_id = ANY($1::uuid[]){q_filter}
+            WHERE disc.direction_id = ANY($1::uuid[]) AND disc.year = $2{q_filter}
             GROUP BY disc.id, disc.name, disc.semester, disc.control_form
             ORDER BY disc.name
-            LIMIT $2 OFFSET $3""",
+            LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}""",
         *params + [limit, offset],
     )
     cov = await _latest_coverage_subq(pool, dir_ids)
@@ -600,8 +603,9 @@ async def zun_discipline_tree(request: Request, discipline_id: str):
     response_model_exclude_unset=True,
 )
 @limiter.limit("60/minute")
-async def zun_discipline_by_name(request: Request, discipline_name: str, dir_code: str = "09.03.02"):
-    """Дисциплина по имени."""
+async def zun_discipline_by_name(request: Request, discipline_name: str, dir_code: str = "09.03.02",
+                                 year: int = 2025):
+    """Дисциплина по имени (в выбранном наборе года)."""
     _validate_dir_code(dir_code)
     pool = get_pool()
     dir_ids = await _direction_ids(pool, dir_code)
@@ -609,19 +613,21 @@ async def zun_discipline_by_name(request: Request, discipline_name: str, dir_cod
         raise HTTPException(status_code=404, detail=f"Direction '{dir_code}' not found")
     row = await pool.fetchrow(
         """SELECT id FROM disciplines
-           WHERE direction_id = ANY($1::uuid[]) AND name = $2
+           WHERE direction_id = ANY($1::uuid[]) AND name = $2 AND year = $3
            ORDER BY name LIMIT 1""",
         dir_ids,
         discipline_name,
+        year,
     )
     if not row:
         # fuzzy: drop spaces, lowercase
         norm = discipline_name.replace(" ", "").lower()
         rows = await pool.fetch(
             """SELECT id, name FROM disciplines
-               WHERE direction_id = ANY($1::uuid[])
+               WHERE direction_id = ANY($1::uuid[]) AND year = $2
                ORDER BY name""",
             dir_ids,
+            year,
         )
         for rr in rows:
             if rr["name"].replace(" ", "").lower() == norm:
@@ -643,10 +649,11 @@ async def zun_search(
     dir_code: str = "09.03.02",
     ksa_type: str = "",
     discipline_id: str = "",
+    year: int = 2025,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
-    """Поиск ЗУН-записей."""
+    """Поиск ЗУН-записей (в пределах набора года)."""
     if len(q.strip()) < 2:
         raise HTTPException(status_code=400, detail="q must be at least 2 characters")
     _validate_dir_code(dir_code)
@@ -655,8 +662,10 @@ async def zun_search(
     if not dir_ids:
         raise HTTPException(status_code=404, detail=f"Direction '{dir_code}' not found")
 
-    params: list = [dir_ids, f"%{q.strip()}%"]
-    filters = " AND disc.direction_id = ANY($1::uuid[]) AND (k.original_text ILIKE $2 OR k.cleaned_text ILIKE $2)"
+    params: list = [dir_ids, f"%{q.strip()}%", year]
+    filters = (" AND disc.direction_id = ANY($1::uuid[])"
+               " AND (k.original_text ILIKE $2 OR k.cleaned_text ILIKE $2)"
+               " AND disc.year = $3")
     if ksa_type:
         if ksa_type not in KSA_TYPES:
             raise HTTPException(status_code=400, detail="Invalid ksa_type")
@@ -864,10 +873,11 @@ async def zun_filter(
     category: str = "",
     code_prefix: str = "",
     competence_id: str = "",
+    year: int = 2025,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
-    """Фильтр ЗУН по категории/коду."""
+    """Фильтр ЗУН по категории/коду (в пределах набора года)."""
     _validate_dir_code(dir_code)
     if category and category not in CATEGORIES:
         raise HTTPException(status_code=400, detail="Invalid category")
@@ -876,8 +886,8 @@ async def zun_filter(
     if not dir_ids:
         raise HTTPException(status_code=404, detail=f"Direction '{dir_code}' not found")
 
-    params: list = [dir_ids]
-    filters = " AND disc.direction_id = ANY($1::uuid[])"
+    params: list = [dir_ids, year]
+    filters = " AND disc.direction_id = ANY($1::uuid[]) AND disc.year = $2"
     if category:
         filters += " AND c.category = $" + str(len(params) + 1)
         params.append(category)
@@ -1065,7 +1075,8 @@ async def zun_analyze_results(
 
 @router.get("/teacher/zun/competencies/search", response_model=ZunCompetencyPicker, response_model_exclude_unset=True)
 @limiter.limit("60/minute")
-async def zun_search_competencies(request: Request, q: str = "", dir_code: str = "09.03.02", limit: int = 20):
+async def zun_search_competencies(request: Request, q: str = "", dir_code: str = "09.03.02",
+                                  year: int = 2025, limit: int = 20):
     """Lightweight competency picker: [{id, code, discipline_name}]."""
     _validate_dir_code(dir_code)
     limit = max(1, min(int(limit or 20), 50))
@@ -1076,10 +1087,11 @@ async def zun_search_competencies(request: Request, q: str = "", dir_code: str =
            FROM competencies c
            JOIN disciplines d2 ON d2.id = c.discipline_id
            JOIN directions d ON d.id = d2.direction_id
-           WHERE d.code = $1 AND (c.code ILIKE $2 OR d2.name ILIKE $2)
-           ORDER BY d2.name, c.code LIMIT $3""",
+           WHERE d.code = $1 AND d2.year = $3 AND (c.code ILIKE $2 OR d2.name ILIKE $2)
+           ORDER BY d2.name, c.code LIMIT $4""",
         dir_code,
         like,
+        year,
         limit,
     )
     return {"items": [{"id": str(r["id"]), "code": r["code"], "discipline_name": r["discipline_name"]} for r in rows]}

@@ -51,6 +51,22 @@ def _load_it_skills() -> list[str]:
         return []
 
 
+def _load_science_weights() -> dict[str, float]:
+    """Научные веса навыков (0..1) из артефакта публикаций.
+
+    Научная вкладка отвечает на вопрос «что изучает область», поэтому приоритет
+    свидетельств - публикации, а не вакансии. Нет артефакта (или фича выключена)
+    - пустой словарь, и разбор идёт как раньше: рыночный список без весов.
+    """
+    try:
+        from src.analyzers.skills.science_weights import default_mix
+
+        return dict(default_mix().global_weights or {})
+    except Exception as exc:
+        logger.warning("academic_science_weights_unavailable", error=str(exc))
+        return {}
+
+
 def _sync_dsn() -> str:
     """DSN для синхронного psycopg: из настроек, без драйвера SQLAlchemy.
 
@@ -240,15 +256,25 @@ class AcademicGapAnalyzer:
     # ── шаг 2: сравнение с рынком (it_skills) ─────────────────────────────
 
     def _market_stats(self, topic_skills: list[str]) -> dict[str, Any]:
-        """Cosine-близость темы к рыночным навыкам (top-N). Возвращает также market_embs."""
+        """Cosine-близость темы к рыночным навыкам (top-N). Возвращает также market_embs.
+
+        К каждому навыку прикладывается научный вес (0..1) из артефакта
+        публикаций: порядок остаётся по семантике, но число рядом с навыком
+        показывает силу научного свидетельства, а не только близость к теме.
+        Ранжирование по весам не переключается: смесь sim × weight - эвристика
+        без валидации, а вкладка читается как «что изучает область».
+        """
         comp = self._get_comparator()
         market = _load_it_skills()
         if not market:
-            return {"top_market": [], "market_avg_sim": 0.0, "market_embs": None}
+            return {"top_market": [], "market_avg_sim": 0.0, "market_embs": None,
+                    "market_weighting": "none"}
+        science = _load_science_weights()
         try:
             topic_embs = comp.embed_skills(topic_skills)
             if len(topic_embs) == 0:
-                return {"top_market": [], "market_avg_sim": 0.0, "market_embs": None}
+                return {"top_market": [], "market_avg_sim": 0.0, "market_embs": None,
+                        "market_weighting": "none"}
             topic_emb = np.mean(topic_embs, axis=0, keepdims=True)
             market_embs = comp.embed_skills(market)
             sims = cosine_similarity(topic_emb, market_embs)[0]
@@ -269,7 +295,8 @@ class AcademicGapAnalyzer:
                                 sim=round(float(sims[i]), 3))
                     continue
                 picked.append({"skill": name,
-                               "similarity": round(clip01(sims[i]), 4)})
+                               "similarity": round(clip01(sims[i]), 4),
+                               "weight": round(science.get(name.strip().casefold(), 0.0), 4)})
                 if len(picked) >= 15:
                     break
             top = picked
@@ -277,10 +304,12 @@ class AcademicGapAnalyzer:
                 "top_market": top,
                 "market_avg_sim": round(float(sims.mean()), 4),
                 "market_embs": market_embs,
+                "market_weighting": "science" if science else "none",
             }
         except Exception as exc:
             logger.warning("gap_market_compare_failed", error=str(exc))
-            return {"top_market": [], "market_avg_sim": 0.0, "market_embs": None}
+            return {"top_market": [], "market_avg_sim": 0.0, "market_embs": None,
+                    "market_weighting": "none"}
 
     # ── шаг 3: сравнение с компетенциями КРМ ──────────────────────────────
 
@@ -296,6 +325,12 @@ class AcademicGapAnalyzer:
         has_topic = len(topic_embs) > 0
 
         market = _load_it_skills()
+        # Сила научного свидетельства по навыку: из топа темы, иначе из
+        # глобального артефакта публикаций. 0.0 = данных нет, а не «не важно».
+        science = _load_science_weights()
+        science_weight = {m["skill"].lower(): float(m.get("weight") or 0.0) for m in market_top}
+        for skill_name, weight in science.items():
+            science_weight.setdefault(skill_name, weight)
 
         results: list[dict] = []
         fstat_total = {"candidates": 0, "kept": 0, "a_drop": 0,
@@ -415,6 +450,7 @@ class AcademicGapAnalyzer:
                         "skill": market[i],
                         "similarity": round(float(market_best[i]), 3),
                         "source": "competency",
+                        "weight": round(science_weight.get(market[i].lower(), 0.0), 4),
                     })
                 # рыночные навыки, близкие к теме, которых нет в компетенции.
                 # Фильтр релевантности: навык должен быть близок не только теме,
@@ -476,6 +512,7 @@ class AcademicGapAnalyzer:
                         "skill": m["skill"],
                         "similarity": round(clip01(comp_sim), 3),
                         "source": "topic",
+                        "weight": round(science_weight.get(m["skill"].lower(), 0.0), 4),
                     })
                 fstat_per_code[code] = code_stat
 
@@ -567,6 +604,7 @@ class AcademicGapAnalyzer:
             "detailed_analysis": results,
             "summary": summary,
             "topic_filter_stats": getattr(self, "_last_topic_filter_stats", {}),
+            "market_weighting": market_stats.get("market_weighting", "none"),
         }
 
     # ── публичный метод: рекомендуемые компетенции ───────────────────────
@@ -606,9 +644,15 @@ class AcademicGapAnalyzer:
         # блок правильно. Настоящие статьи приходят из Course Trends API.
         found_trends: list[str] = []
         for m in market_stats.get("top_market", [])[:10]:
+            # Вес показываем только когда он есть: «0.00» у русского названия
+            # навыка читалось бы как «наука не подтверждает», хотя это просто
+            # отсутствие английского термина в корпусе публикаций.
+            weight = float(m.get("weight") or 0.0)
+            suffix = f", научный вес: {weight:.2f}" if weight > 0 else ""
             found_trends.append(
-                '{{title: "{}", summary: "Рыночный навык, близость к теме: {:.2f}", '
-                'keywords: ["{}"]}}'.format(m["skill"], m["similarity"], m["skill"])
+                '{{title: "{}", summary: "Рыночный навык, близость к теме: {:.2f}{}", '
+                'keywords: ["{}"]}}'.format(
+                    m["skill"], m["similarity"], suffix, m["skill"])
             )
 
         ranked = [r for r in results if r["status"] != "no_data"]
@@ -651,6 +695,7 @@ class AcademicGapAnalyzer:
             "recommended_competencies": recommended,
             "rationale": rationale,
             "topic_filter_stats": getattr(self, "_last_topic_filter_stats", {}),
+            "market_weighting": market_stats.get("market_weighting", "none"),
             # Локальный расчёт не знает о публикациях: found_trends здесь -
             # рыночные навыки. UI обязан подписать блок именно так.
             "trends_source": "market_skills",

@@ -130,6 +130,56 @@ pipeline_run_counter = Counter(
     ["status", "trigger"],
 )
 
+# --- RAG ---
+rag_retrieval_duration = Histogram(
+    "rag_retrieval_duration_seconds",
+    "RAG retrieval duration (analyze + branches + assembly)",
+    ["profile"],
+    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0),
+)
+
+rag_hits = Counter(
+    "rag_hits_total",
+    "RAG hits returned per source",
+    ["source", "profile"],
+)
+
+rag_zero_results = Counter(
+    "rag_zero_results_total",
+    "RAG queries that produced no evidence",
+    ["profile", "reason"],
+)
+
+rag_top_score = Histogram(
+    "rag_top_score",
+    "Top confidence of the returned evidence",
+    ["profile"],
+    buckets=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
+)
+
+rag_groundedness = Histogram(
+    "rag_groundedness",
+    "Share of cited numbers that exist in the retrieval output",
+    buckets=(0.0, 0.25, 0.5, 0.75, 0.9, 1.0),
+)
+
+rag_index_documents = Counter(
+    "rag_index_documents_total",
+    "RAG ingest: documents per source and outcome",
+    ["source", "status"],
+)
+
+rag_index_chunks = Counter(
+    "rag_index_chunks_total",
+    "RAG ingest: chunks written per source",
+    ["source"],
+)
+
+rag_cache_hits = Counter(
+    "rag_cache_hits_total",
+    "RAG L1 cache hits",
+)
+
 
 def track_pipeline_stage(stage_name: str):
     def decorator(func):

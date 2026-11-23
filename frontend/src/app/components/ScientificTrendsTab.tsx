@@ -55,6 +55,8 @@ interface GapSkill {
   skill: string;
   similarity: number;
   source?: string;
+  /** Научный вес навыка (0..1) из корпуса публикаций; 0 - свидетельства нет. */
+  weight?: number;
 }
 
 interface GapItem {
@@ -458,7 +460,8 @@ export function ScientificTrendsTab() {
                                     <span className="font-mono text-primary">{s.skill}</span>{" "}
                                     <span className="text-subtle-foreground">
                                       ({s.similarity.toFixed(2)}
-                                      {s.source === "competency" ? ", близок к компетенции" : ", по теме"})
+                                      {s.source === "competency" ? ", близок к компетенции" : ", по теме"}
+                                      {s.weight ? `, научный вес ${s.weight.toFixed(2)}` : ""})
                                     </span>
                                   </li>
                                 ))}
@@ -576,15 +579,16 @@ export function ScientificTrendsTab() {
                       <div className="mt-2 text-xs text-muted-foreground">
                         <span className="font-medium">Рекомендуемые навыки:</span>
                         <ul className="mt-1 space-y-0.5">
-                          {item.suggested_skills.map((s) => (
-                            <li key={s.skill + s.source}>
-                              <span className="font-mono text-primary">{s.skill}</span>{" "}
-                              <span className="text-subtle-foreground">
-                                ({s.similarity.toFixed(2)}
-                                {s.source === "competency" ? ", близок к вашим навыкам" : ", по теме"})
-                              </span>
-                            </li>
-                          ))}
+                            {item.suggested_skills.map((s) => (
+                              <li key={s.skill + s.source}>
+                                <span className="font-mono text-primary">{s.skill}</span>{" "}
+                                <span className="text-subtle-foreground">
+                                  ({s.similarity.toFixed(2)}
+                                  {s.source === "competency" ? ", близок к вашим навыкам" : ", по теме"}
+                                  {s.weight ? `, научный вес ${s.weight.toFixed(2)}` : ""})
+                                </span>
+                              </li>
+                            ))}
                         </ul>
                       </div>
                     )}

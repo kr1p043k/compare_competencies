@@ -783,13 +783,13 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
 
     comps = await _db_call(pool.fetch("""
         SELECT c.id, c.code,
-               ARRAY_AGG(k.cleaned_text ORDER BY k.sort_order) FILTER (WHERE k.cleaned_text IS NOT NULL) AS skills,
-               ARRAY_AGG(k.cleaned_text ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'knowledge' AND k.cleaned_text IS NOT NULL) AS knowledge,
-               ARRAY_AGG(k.id ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'knowledge' AND k.cleaned_text IS NOT NULL) AS knowledge_ids,
-               ARRAY_AGG(k.cleaned_text ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'abilities' AND k.cleaned_text IS NOT NULL) AS abilities,
-               ARRAY_AGG(k.id ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'abilities' AND k.cleaned_text IS NOT NULL) AS abilities_ids,
-               ARRAY_AGG(k.cleaned_text ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'skills' AND k.cleaned_text IS NOT NULL) AS prof_skills,
-               ARRAY_AGG(k.id ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'skills' AND k.cleaned_text IS NOT NULL) AS prof_skills_ids
+               ARRAY_AGG(COALESCE(k.cleaned_text, k.original_text) ORDER BY k.sort_order) FILTER (WHERE COALESCE(k.cleaned_text, k.original_text) IS NOT NULL) AS skills,
+               ARRAY_AGG(COALESCE(k.cleaned_text, k.original_text) ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'knowledge' AND COALESCE(k.cleaned_text, k.original_text) IS NOT NULL) AS knowledge,
+               ARRAY_AGG(k.id ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'knowledge' AND COALESCE(k.cleaned_text, k.original_text) IS NOT NULL) AS knowledge_ids,
+               ARRAY_AGG(COALESCE(k.cleaned_text, k.original_text) ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'abilities' AND COALESCE(k.cleaned_text, k.original_text) IS NOT NULL) AS abilities,
+               ARRAY_AGG(k.id ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'abilities' AND COALESCE(k.cleaned_text, k.original_text) IS NOT NULL) AS abilities_ids,
+               ARRAY_AGG(COALESCE(k.cleaned_text, k.original_text) ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'skills' AND COALESCE(k.cleaned_text, k.original_text) IS NOT NULL) AS prof_skills,
+               ARRAY_AGG(k.id ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'skills' AND COALESCE(k.cleaned_text, k.original_text) IS NOT NULL) AS prof_skills_ids
         FROM competencies c
         LEFT JOIN ksa_entries k ON k.competency_id = c.id
         WHERE c.discipline_id = $1 AND c.parent_id IS NULL

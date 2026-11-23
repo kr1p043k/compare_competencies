@@ -5095,6 +5095,476 @@
         "title": "PublicationTypesResponse",
         "type": "object"
       },
+      "RagCorpusItem": {
+        "properties": {
+          "chunks": {
+            "title": "Chunks",
+            "type": "integer"
+          },
+          "documents": {
+            "title": "Documents",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "documents",
+          "chunks"
+        ],
+        "title": "RagCorpusItem",
+        "type": "object"
+      },
+      "RagFeedbackRequest": {
+        "properties": {
+          "comment": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Comment",
+            "type": "string"
+          },
+          "query_log_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query Log Id"
+          },
+          "verdict": {
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "title": "Verdict",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "verdict"
+        ],
+        "title": "RagFeedbackRequest",
+        "type": "object"
+      },
+      "RagFeedbackResponse": {
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "RagFeedbackResponse",
+        "type": "object"
+      },
+      "RagIndexStats": {
+        "properties": {
+          "chunks_written": {
+            "title": "Chunks Written",
+            "type": "integer"
+          },
+          "docs_removed": {
+            "title": "Docs Removed",
+            "type": "integer"
+          },
+          "docs_seen": {
+            "title": "Docs Seen",
+            "type": "integer"
+          },
+          "docs_skipped": {
+            "title": "Docs Skipped",
+            "type": "integer"
+          },
+          "docs_upserted": {
+            "title": "Docs Upserted",
+            "type": "integer"
+          },
+          "dry_run": {
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "generation": {
+            "title": "Generation",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "generation",
+          "docs_seen",
+          "docs_upserted",
+          "docs_skipped",
+          "docs_removed",
+          "chunks_written",
+          "dry_run",
+          "errors"
+        ],
+        "title": "RagIndexStats",
+        "type": "object"
+      },
+      "RagReindexRequest": {
+        "properties": {
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "maximum": 200000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "reindex": {
+            "default": true,
+            "title": "Reindex",
+            "type": "boolean"
+          },
+          "source": {
+            "default": "rpd",
+            "pattern": "^(rpd|krm|vacancies|all)$",
+            "title": "Source",
+            "type": "string"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "title": "RagReindexRequest",
+        "type": "object"
+      },
+      "RagReindexResponse": {
+        "properties": {
+          "stats": {
+            "items": {
+              "$ref": "#/components/schemas/RagIndexStats"
+            },
+            "title": "Stats",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stats"
+        ],
+        "title": "RagReindexResponse",
+        "type": "object"
+      },
+      "RagSearchHit": {
+        "properties": {
+          "dense": {
+            "title": "Dense",
+            "type": "number"
+          },
+          "entity": {
+            "title": "Entity",
+            "type": "number"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "section": {
+            "title": "Section",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "sparse": {
+            "title": "Sparse",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "n",
+          "source",
+          "title",
+          "section",
+          "score",
+          "dense",
+          "sparse",
+          "entity",
+          "text"
+        ],
+        "title": "RagSearchHit",
+        "type": "object"
+      },
+      "RagSearchRequest": {
+        "properties": {
+          "direction": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile"
+          },
+          "query": {
+            "maxLength": 4000,
+            "minLength": 2,
+            "title": "Query",
+            "type": "string"
+          },
+          "sources": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sources"
+          },
+          "top_n": {
+            "anyOf": [
+              {
+                "maximum": 30.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top N"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "RagSearchRequest",
+        "type": "object"
+      },
+      "RagSearchResponse": {
+        "properties": {
+          "degraded": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Degraded"
+          },
+          "entities": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Entities",
+            "type": "object"
+          },
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/RagSearchHit"
+            },
+            "title": "Hits",
+            "type": "array"
+          },
+          "intent": {
+            "title": "Intent",
+            "type": "string"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "log_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log Id"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "prompt_block": {
+            "title": "Prompt Block",
+            "type": "string"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "top_score": {
+            "title": "Top Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "query",
+          "intent",
+          "profile",
+          "entities",
+          "top_score",
+          "latency_ms",
+          "hits",
+          "prompt_block"
+        ],
+        "title": "RagSearchResponse",
+        "type": "object"
+      },
+      "RagSourceItem": {
+        "properties": {
+          "active_generation": {
+            "title": "Active Generation",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "spec_version": {
+            "title": "Spec Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "source",
+          "active_generation",
+          "spec_version"
+        ],
+        "title": "RagSourceItem",
+        "type": "object"
+      },
+      "RagSourcesResponse": {
+        "properties": {
+          "corpus": {
+            "items": {
+              "$ref": "#/components/schemas/RagCorpusItem"
+            },
+            "title": "Corpus",
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/RagSourceItem"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "corpus",
+          "sources"
+        ],
+        "title": "RagSourcesResponse",
+        "type": "object"
+      },
       "ReadyBody": {
         "description": "Ответ /ready: готовность сервиса + список проблем.\n\nВ отличие от исторического ReadyResponse сюда добавлено поле `problems`:\nоркестратору (k8s/proxmox) и людям удобнее видеть, ЧТО именно не готово,\nа не угадывать по HTTP-коду.",
         "properties": {
@@ -15329,6 +15799,154 @@
         ]
       }
     },
+    "/api/rag/feedback": {
+      "post": {
+        "description": "Оценка ответа (thumbs up/down) — сырьё для golden-set.",
+        "operationId": "rag_feedback_api_rag_feedback_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RagFeedbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagFeedbackResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rag Feedback",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/api/rag/reindex": {
+      "post": {
+        "description": "Переиндексация источника. Тяжёлая операция: запускать вне пиков.",
+        "operationId": "rag_reindex_api_rag_reindex_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RagReindexRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagReindexResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rag Reindex",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/api/rag/search": {
+      "post": {
+        "description": "Отладочный поиск: те же ветки и пороги, что в чате, без LLM.",
+        "operationId": "rag_search_api_rag_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RagSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagSearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rag Search",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/api/rag/sources": {
+      "get": {
+        "description": "Состав корпуса и активные поколения индекса.",
+        "operationId": "rag_sources_api_rag_sources_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagSourcesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Rag Sources",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
     "/api/recommendations/{profile}": {
       "get": {
         "description": "Рекомендации навыков профилю.",
@@ -18031,6 +18649,16 @@
           },
           {
             "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "default": 2025,
+              "title": "Year",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -18300,7 +18928,7 @@
     },
     "/api/teacher/zun/disciplines": {
       "get": {
-        "description": "Дисциплины (поиск, пагинация).",
+        "description": "Дисциплины (поиск, пагинация). `year` - год набора (по умолчанию 2025).",
         "operationId": "zun_disciplines_api_teacher_zun_disciplines_get",
         "parameters": [
           {
@@ -18321,6 +18949,16 @@
               "default": "",
               "title": "Q",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "default": 2025,
+              "title": "Year",
+              "type": "integer"
             }
           },
           {
@@ -18381,7 +19019,7 @@
     },
     "/api/teacher/zun/disciplines/name/{discipline_name}": {
       "get": {
-        "description": "Дисциплина по имени.",
+        "description": "Дисциплина по имени (в выбранном наборе года).",
         "operationId": "zun_discipline_by_name_api_teacher_zun_disciplines_name__discipline_name__get",
         "parameters": [
           {
@@ -18401,6 +19039,16 @@
               "default": "09.03.02",
               "title": "Dir Code",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "default": 2025,
+              "title": "Year",
+              "type": "integer"
             }
           }
         ],
@@ -18624,7 +19272,7 @@
     },
     "/api/teacher/zun/filter": {
       "get": {
-        "description": "Фильтр ЗУН по категории/коду.",
+        "description": "Фильтр ЗУН по категории/коду (в пределах набора года).",
         "operationId": "zun_filter_api_teacher_zun_filter_get",
         "parameters": [
           {
@@ -18665,6 +19313,16 @@
               "default": "",
               "title": "Competence Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "default": 2025,
+              "title": "Year",
+              "type": "integer"
             }
           },
           {
@@ -18888,7 +19546,7 @@
     },
     "/api/teacher/zun/search": {
       "get": {
-        "description": "Поиск ЗУН-записей.",
+        "description": "Поиск ЗУН-записей (в пределах набора года).",
         "operationId": "zun_search_api_teacher_zun_search_get",
         "parameters": [
           {
@@ -18928,6 +19586,16 @@
               "default": "",
               "title": "Discipline Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "default": 2025,
+              "title": "Year",
+              "type": "integer"
             }
           },
           {
@@ -19063,7 +19731,7 @@
     },
     "/api/teacher/zun/stats": {
       "get": {
-        "description": "Статистика ЗУН направления.",
+        "description": "Статистика ЗУН направления (year - год набора, по умолчанию 2025).",
         "operationId": "zun_stats_api_teacher_zun_stats_get",
         "parameters": [
           {
@@ -19074,6 +19742,16 @@
               "default": "09.03.02",
               "title": "Dir Code",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "default": 2025,
+              "title": "Year",
+              "type": "integer"
             }
           }
         ],

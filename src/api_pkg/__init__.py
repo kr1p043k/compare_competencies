@@ -446,6 +446,9 @@ def create_app() -> FastAPI:
     from src.api_pkg.routers.chat import router as chat_router
     _mount(chat_router)
 
+    from src.api_pkg.routers.rag import router as rag_router
+    _mount(rag_router)
+
     from src.api_pkg.routers.subscriptions import router as subscriptions_router
     _mount(subscriptions_router)
 
