@@ -141,10 +141,10 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
           <h4 className="m-0 leading-none text-sm font-semibold text-foreground">Анализ покрытия рынком</h4>
         </div>
         <div className="p-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            {scov !== undefined && (
-              <StatCard label="Сильное покрытие" value={`${(scov * 100).toFixed(1)}%`} tone="success" />
-            )}
+          {/* Три главные метрики вместо шести: сильное покрытие, взвешенное
+              и число навыков РПД уходят в раскрывашку, иначе непонятно, какой
+              процент считать итоговым. */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             {/* Пара у покрытия: бинарный процент без качества рядом
                 читается как единственная оценка. Качество =
                 weighted_coverage (сумма уверенности матчера), поле может
@@ -163,13 +163,41 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
                 />
               }
             />
-            {wcov !== undefined && (
-              <StatCard label="Взвешенное покрытие" value={`${(wcov * 100).toFixed(1)}%`} />
-            )}
-            <StatCard label="Навыков в РПД" value={metrics.total_rpd_skills} />
-            <StatCard label="Совпало с рынком" value={metrics.market_matched} tone="success" />
-            <StatCard label="Пробелы" value={metrics.gaps} tone="danger" />
+            <StatCard
+              label="Совпало с рынком"
+              value={`${metrics.market_matched} / ${metrics.total_rpd_skills}`}
+              tone="success"
+              hint="навыков дисциплины подтверждены вакансиями"
+            />
+            <StatCard
+              label="Пробелы"
+              value={metrics.gaps}
+              tone="danger"
+              hint="навыков РПД без спроса на рынке"
+            />
           </div>
+
+          <details className="mb-4 rounded-md border border-border bg-muted/40 px-3 py-2">
+            <summary className="cursor-pointer select-none text-xs font-medium text-muted-foreground">
+              Все метрики покрытия
+            </summary>
+            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+              {scov !== undefined && (
+                <>
+                  <span className="text-muted-foreground">Сильное покрытие</span>
+                  <span className="tabular text-foreground">{(scov * 100).toFixed(1)}%</span>
+                </>
+              )}
+              {wcov !== undefined && (
+                <>
+                  <span className="text-muted-foreground">Взвешенное покрытие</span>
+                  <span className="tabular text-foreground">{(wcov * 100).toFixed(1)}%</span>
+                </>
+              )}
+              <span className="text-muted-foreground">Навыков в РПД</span>
+              <span className="tabular text-foreground">{metrics.total_rpd_skills}</span>
+            </div>
+          </details>
 
           {recommendations.length > 0 && (
             <div className="space-y-2 mb-4 scroll-mt-2" id="d-recs" >

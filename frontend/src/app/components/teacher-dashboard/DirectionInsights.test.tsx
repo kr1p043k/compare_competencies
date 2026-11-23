@@ -26,12 +26,13 @@ const text = () => document.body.textContent ?? "";
 
 describe("DirectionInsights", () => {
   it("без данных не рисует блоки рекомендаций", () => {
-    const { container } = render(<DirectionInsights analysis={analysis()} />);
-    expect(text()).not.toContain("Рекомендации");
-    // Блок рынка и разрывов рендерится всегда (details), тренды - только при наличии.
-    expect(text()).toContain("Востребованные навыки рынка");
+    render(<DirectionInsights analysis={analysis()} />);
+    expect(text()).not.toContain("Что улучшить");
+    // Блоки «не хватает в плане» и разрывов рендерятся всегда (details),
+    // тренды - только при наличии данных.
+    expect(text()).toContain("Не хватает в плане");
     expect(text()).toContain("Разрывы между планом и рынком");
-    expect(container.querySelector("#t-trends")).toBeNull();
+    expect(text()).not.toContain("Растущие и падающие навыки");
   });
 
   it("рекомендации рендерятся с приоритетом, типом и текстом", () => {
@@ -46,7 +47,7 @@ describe("DirectionInsights", () => {
         })}
       />,
     );
-    expect(screen.getByText("Рекомендации")).toBeTruthy();
+    expect(screen.getByText("Что улучшить")).toBeTruthy();
     expect(screen.getByText("Добавить практику по SQL")).toBeTruthy();
     expect(screen.getByText("Усилить Docker")).toBeTruthy();
     expect(screen.getByText("Пересмотреть РПД")).toBeTruthy();
@@ -101,7 +102,7 @@ describe("DirectionInsights", () => {
   });
 
   it("тренды: растущие и падающие с знаками", () => {
-    const { container } = render(
+    render(
       <DirectionInsights
         analysis={analysis({
           trends: {
@@ -111,7 +112,7 @@ describe("DirectionInsights", () => {
         })}
       />,
     );
-    expect(container.querySelector("#t-trends")).toBeTruthy();
+    expect(screen.getByText("Растущие и падающие навыки")).toBeTruthy();
     expect(screen.getByText("Растущие навыки")).toBeTruthy();
     expect(screen.getByText("Падающие навыки")).toBeTruthy();
     expect(text()).toContain("+25%");
@@ -119,10 +120,8 @@ describe("DirectionInsights", () => {
   });
 
   it("тренды без массивов не создают секцию со списками", () => {
-    const { container } = render(
-      <DirectionInsights analysis={analysis({ trends: { rising: [], declining: [] } })} />,
-    );
-    expect(container.querySelector("#t-trends")).toBeTruthy();
+    render(<DirectionInsights analysis={analysis({ trends: { rising: [], declining: [] } })} />);
+    expect(screen.getByText("Растущие и падающие навыки")).toBeTruthy();
     expect(screen.queryByText("Растущие навыки")).toBeNull();
     expect(screen.queryByText("Падающие навыки")).toBeNull();
   });

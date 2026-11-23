@@ -20,9 +20,9 @@ export function DirectionInsights({ analysis }: DirectionInsightsProps) {
   return (
     <>
       {(analysis.recommendations || []).length > 0 && (
-        <div id="t-recs" className={`${card} scroll-mt-2`}>
+        <div className={card}>
           <div className="text-xs font-semibold text-primary mb-2">
-            Рекомендации
+            Что улучшить
           </div>
           {(analysis.recommendations || []).map((r, i) => (
             <div
@@ -55,9 +55,9 @@ export function DirectionInsights({ analysis }: DirectionInsightsProps) {
         </div>
       )}
 
-       <details className={`${card} scroll-mt-2`}>
+       <details className={card}>
          <summary className="text-xs font-semibold text-primary cursor-pointer select-none">
-           Востребованные навыки рынка
+           Не хватает в плане
          </summary>
          <div className="text-xs text-muted-foreground mb-1.5">
            Навыки из свежих вакансий, которых нет в плане. Происхождение: частота в вакансиях
@@ -88,7 +88,7 @@ export function DirectionInsights({ analysis }: DirectionInsightsProps) {
          </div>
        </details>
 
-       <details id="t-gaps" className={`${card} scroll-mt-2`}>
+       <details className={card}>
          <summary className="text-xs font-semibold text-primary cursor-pointer select-none">
            Разрывы между планом и рынком
          </summary>
@@ -114,7 +114,7 @@ export function DirectionInsights({ analysis }: DirectionInsightsProps) {
        </details>
 
       {analysis.trends && (
-        <details id="t-trends" className={`${card} scroll-mt-2`}>
+        <details className={card}>
           <summary className="text-xs font-semibold text-primary cursor-pointer select-none mb-2">
             Растущие и падающие навыки
           </summary>

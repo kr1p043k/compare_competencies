@@ -137,13 +137,13 @@ beforeEach(() => {
 /** Рендер + ожидание данных анализа (приходят последним эффектом). */
 async function renderDashboard() {
   render(<TeacherDashboard />);
-  await screen.findByText("по спросу: 48.0%");
+  await screen.findByText("Средний охват рынка");
 }
 
 describe("TeacherDashboard", () => {
   it("показывает строгий охват рынка с парой «по спросу» в сводке", async () => {
     await renderDashboard();
-    // Строгий охват - в двух местах: сводка слева и KPI направления.
+    // Строгий охват - в шапке и в KPI направления.
     expect(screen.getAllByText("62.0%")).toHaveLength(2);
     expect(screen.getByText("Средний охват рынка")).toBeInTheDocument();
     // Пара есть и в KPI, со своим пояснением.
@@ -155,7 +155,7 @@ describe("TeacherDashboard", () => {
     ).toBeInTheDocument();
     // Происхождение знаменателя: explicit у одной дисциплины, у второй
     // поля нет - она честно показана как n/a. В шаговом рефакторе (main)
-    // это перенесено в tooltip карточки сводки (title), а не видимый текст.
+    // это перенесено в tooltip сводки (title), а не видимый текст.
     expect(screen.getByTitle("источник рынка - explicit: 1, n/a: 1")).toBeInTheDocument();
     // Знаменатель достоверен: предупреждения нет.
     expect(screen.queryByText(/недостоверно/)).not.toBeInTheDocument();
@@ -174,10 +174,8 @@ describe("TeacherDashboard", () => {
 
   it("выводит разрывы РПД и emerging-навыки с происхождением", async () => {
     await renderDashboard();
-    // Кнопка суб-навигации и якорь раздела.
-    expect(screen.getByRole("button", { name: "Разрывы" })).toBeInTheDocument();
-    expect(document.getElementById("t-gaps")).not.toBeNull();
-
+    // Сводка направления без якорной навигации: оба раздела - обычные блоки.
+    expect(screen.getByText("Не хватает в плане")).toBeInTheDocument();
     expect(screen.getByText("Разрывы между планом и рынком")).toBeInTheDocument();
     expect(screen.getByText("OceanBase")).toBeInTheDocument();
     expect(screen.getByText("3 дисциплины")).toBeInTheDocument();
@@ -199,15 +197,17 @@ describe("TeacherDashboard", () => {
     ).toBeInTheDocument();
   });
 
-  it("различает набор (перезагружает данные) и фильтр видимости списка", async () => {
+  it("различает план (перезагружает данные) и фильтр видимости списка", async () => {
     const user = userEvent.setup();
     await renderDashboard();
 
-    // Оба контроля названы по роли: «Набор» грузит данные, «Показать в
-    // списке» лишь скрывает строки. Тултипы проговаривают разницу.
-    expect(screen.getByText("Набор:")).toBeInTheDocument();
+    // «План» в шапке грузит данные, «Показать в списке» в поповере
+    // «Фильтры» лишь скрывает строки. Тултипы проговаривают разницу.
+    expect(screen.getByText("План:")).toBeInTheDocument();
     expect(screen.getByTitle(/запрашивает данные с сервера/)).toBeInTheDocument();
-    expect(screen.getByText(/Показать в списке:/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Фильтры/ }));
+    expect(screen.getByText("Показать в списке")).toBeInTheDocument();
     expect(screen.getByTitle(/Данные не перезагружает/)).toBeInTheDocument();
 
     // Фильтр видимости: у обеих дисциплин из мока years=[2025],
@@ -218,7 +218,7 @@ describe("TeacherDashboard", () => {
     expect(screen.queryByRole("button", { name: /Web-разработка/ })).not.toBeInTheDocument();
     expect(vi.mocked(api).mock.calls.length).toBe(callsBefore);
 
-    // Набор: то же «2024» здесь - новое source of truth, анализ
+    // План: то же «2024» здесь - новое source of truth, анализ
     // запрашивается заново с year=2024.
     await user.click(screen.getByRole("button", { name: "2024" }));
     await waitFor(() => {
@@ -226,10 +226,42 @@ describe("TeacherDashboard", () => {
       expect(yearCalls.length).toBeGreaterThan(0);
     });
 
-    // Фильтр не сбросился сам: вернуть строки - кнопка «все».
+    // Фильтр не сбросился сам: вернуть строки - чип «все».
+    // Поповер закрылся кликом по шапке (клик вне), открываем заново.
+    await user.click(screen.getByRole("button", { name: /Фильтры/ }));
     await user.click(screen.getByRole("button", { name: "все" }));
     expect(screen.getByRole("button", { name: /Базы данных/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Web-разработка/ })).toBeInTheDocument();
+  });
+
+  it("открывает дровер «Данные и РПД» и закрывает по Escape", async () => {
+    const user = userEvent.setup();
+    await renderDashboard();
+
+    await user.click(screen.getByRole("button", { name: /Данные и РПД/ }));
+    const dialog = screen.getByRole("dialog", { name: "Данные и РПД" });
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByText("Состав анализа")).toBeInTheDocument();
+    expect(screen.getByText("Загрузка РПД")).toBeInTheDocument();
+    // Цепочка «в наборе / в учёте / в анализе» одна: из шапки в дровер.
+    expect(screen.getByText("в наборе 2")).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Данные и РПД" })).not.toBeInTheDocument();
+  });
+
+  it("переключает разделы дисциплины: покрытие -> ЗУН -> рекомендации", async () => {
+    const user = userEvent.setup();
+    await renderDashboard();
+
+    await user.click(screen.getByRole("button", { name: /Базы данных/ }));
+    expect(screen.getByRole("tab", { name: "Покрытие" })).toHaveAttribute("aria-selected", "true");
+
+    await user.click(screen.getByRole("tab", { name: /Компетенции и ЗУН/ }));
+    expect(screen.getByRole("button", { name: /\+ Компетенция/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: /Рекомендации/ }));
+    expect(screen.getByRole("button", { name: /Добавить рекомендацию/ })).toBeInTheDocument();
   });
 
   it("передаёт чату код направления, а не имя дисциплины", async () => {
