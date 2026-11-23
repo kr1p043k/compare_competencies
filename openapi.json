@@ -6833,6 +6833,11 @@
           },
           "snippet": {
             "title": "Snippet"
+          },
+          "source": {
+            "default": "hh",
+            "title": "Source",
+            "type": "string"
           }
         },
         "title": "VacancyDetailResponse",
@@ -7010,6 +7015,11 @@
             "additionalProperties": true,
             "title": "Snippet",
             "type": "object"
+          },
+          "source": {
+            "default": "hh",
+            "title": "Source",
+            "type": "string"
           }
         },
         "required": [
@@ -18340,6 +18350,24 @@
               ],
               "description": "Дата публикации до (YYYY-MM-DD)",
               "title": "Date To"
+            }
+          },
+          {
+            "description": "Источник: hh, rabota (по умолчанию все)",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Источник: hh, rabota (по умолчанию все)",
+              "title": "Source"
             }
           }
         ],
