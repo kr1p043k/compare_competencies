@@ -13,7 +13,7 @@ from cmdstanpy.utils.logging import disable_logging as _disable_cmdstan
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -474,10 +474,14 @@ def create_app() -> FastAPI:
                 return
         await require_any_role("admin")(request)
 
-    @app.get("/metrics", dependencies=[Depends(_metrics_access)])
+    @app.get(
+        "/metrics",
+        dependencies=[Depends(_metrics_access)],
+        response_class=Response,
+        responses={200: {"content": {"text/plain": {}}}},
+    )
     async def metrics():
         data, content_type = get_metrics()
-        from fastapi.responses import Response
         return Response(content=data, media_type=content_type)
 
     return app

@@ -12,7 +12,7 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, WebSocket
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 
@@ -658,7 +658,12 @@ def _format_experience(exp: Any) -> str:
     return ""
 
 
-@router.get("/admin/export/excel", dependencies=[Depends(require_any_role("admin"))])
+@router.get(
+    "/admin/export/excel",
+    response_class=FileResponse,
+    responses={200: {"content": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}}}},
+    dependencies=[Depends(require_any_role("admin"))],
+)
 @limiter.limit("3/minute")
 async def export_excel(request: Request):
     """Экспорт вакансий в Excel."""
@@ -755,7 +760,12 @@ def _build_full_report_zip(result_dir: Path) -> bytes:
     return zip_buffer.getvalue()
 
 
-@router.get("/admin/export/full-report", dependencies=[Depends(require_any_role("admin"))])
+@router.get(
+    "/admin/export/full-report",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"application/zip": {}}}},
+    dependencies=[Depends(require_any_role("admin"))],
+)
 @limiter.limit("2/minute")
 async def export_full_report(request: Request):
     """Полный отчёт (Excel/ZIP)."""
