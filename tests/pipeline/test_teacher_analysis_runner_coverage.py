@@ -315,15 +315,25 @@ class TestDisciplineInScope:
         for name in runner.SCOPE_EXCLUDED:
             assert runner.discipline_in_scope(name) is False
 
-    def test_english_business_and_c1_kept(self):
-        assert runner.discipline_in_scope("Иностранный язык для деловой коммуникации") is True
-        assert runner.discipline_in_scope("Иностранный язык (англ. яз., уровень с1)") is True
+    def test_languages_rejected(self):
+        # Решение владельца: не-IT дисциплины (ФКиС, языки, философия и т.п.)
+        # не входят в охват. C1 раньше оставляли, но он давал 0% и только
+        # занижал среднее, поэтому языковые исключены целиком.
+        assert runner.discipline_in_scope("Иностранный язык для деловой коммуникации") is False
+        assert runner.discipline_in_scope("Иностранный язык (англ. яз., уровень с1)") is False
+        assert runner.discipline_in_scope("Иностранный язык (англ. яз., уровень C1)") is False
+        assert runner.discipline_in_scope("Иностранный язык (русский язык)") is False
 
     def test_english_lower_levels_rejected(self):
         assert runner.discipline_in_scope("Иностранный язык (англ. яз., уровень А2)") is False
 
-    def test_russian_kept(self):
-        assert runner.discipline_in_scope("Иностранный язык (русский язык)") is True
+    def test_form_suffix_ignored_in_scope(self):
+        # «…_очная» и «…» - одна дисциплина; исключение по точному имени
+        # с суффиксом пропускало второй вариант в анализ.
+        assert runner.discipline_in_scope(
+            "Экономико-правовое обеспечение инженерной деятельности") is False
+        assert runner.discipline_in_scope(
+            "Экономико-правовое обеспечение инженерной деятельности_очная") is False
 
 
 class TestGitShaShort:
