@@ -88,19 +88,44 @@ CODE_VERSION = 49  # year-aware discipline loading (SQL d2.year filter)
 # Scope v34 (user decision 12.09.2026): these disciplines are NOT part of the
 # IT-coverage picture. Data stays in DB (nothing deleted); they are only
 # excluded from teacher-analysis averages and per-discipline outputs.
-SCOPE_EXCLUDED: frozenset = frozenset({
+SCOPE_EXCLUDED_RAW: frozenset = frozenset({
     "Дисциплины по ФКиС",
     "Физическая культура и спорт",
     "Эмоциональный интеллект и критическое мышление инженера",
-    "Экономико-правовое обеспечение инженерной деятельности_очная",
+    "Экономико-правовое обеспечение инженерной деятельности",
     "Стрессоустойчивость и личная эффективность",
     "История России",
     "Философия",
     "Воображение, изображение, реальность",
+    "Безопасность жизнедеятельности",
+    "Психология профессионального саморазвития",
 })
-# English: keep only C1 (highest requirement) + business English.
-# Russian is kept (not an English variant; flagged as next-cut candidate).
-SCOPE_ENGLISH_KEEP_LEVEL = "уровень с1"
+
+#: Формы обучения в хвосте имени: «…_очная», «… (заочная)».
+_FORM_SUFFIX = re.compile(
+    r"[\s_]*(?:\(|_)?(?:очно-?заочн\w*|очн\w*|заочн\w*)(?:\))?$", re.IGNORECASE
+)
+
+
+def scope_key(name: str) -> str:
+    """Ключ сравнения дисциплин для фильтра охвата.
+
+    Раньше сравнение было точным (`name in SCOPE_EXCLUDED`), поэтому
+    «Экономико-правовое обеспечение инженерной деятельности» (без суффикса
+    формы обучения) проходил в анализ, хотя исключён вариант «…_очная».
+    """
+    key = re.sub(r"\s+", " ", (name or "").strip()).lower()
+    key = _FORM_SUFFIX.sub("", key).strip()
+    return key
+
+
+SCOPE_EXCLUDED: frozenset = frozenset(scope_key(n) for n in SCOPE_EXCLUDED_RAW)
+
+# Языковые дисциплины не входят в IT-картину покрытия (решение владельца:
+# ФКиС, английский и прочие не-IT дисциплины не учитываются). Раньше
+# оставляли C1 «как самый высокий уровень», но у него нет пересечения с
+# рынком (0% покрытия) и он только занижал среднее.
+_LANGUAGE_RE = re.compile(r"иностранный\s+язык", re.IGNORECASE)
 
 
 def _load_discipline_years(dir_code: str) -> dict[str, list[int]]:
@@ -121,12 +146,9 @@ def discipline_in_scope(name: str) -> bool:
     # Pure scope predicate (unit-tested).
     if not name:
         return False
-    if name in SCOPE_EXCLUDED:
+    if scope_key(name) in SCOPE_EXCLUDED:
         return False
-    nl = name.lower()
-    if "иностранный язык" in nl and "делов" not in nl and "русский" not in nl:
-        return SCOPE_ENGLISH_KEEP_LEVEL in nl
-    return True
+    return not _LANGUAGE_RE.search(name)
 
 
 def _git_sha_short() -> str:
