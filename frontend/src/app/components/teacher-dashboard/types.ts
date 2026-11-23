@@ -113,3 +113,49 @@ export type ZunForm = { compId: string; ksaType: string; text: string };
 
 /** Инлайн-редактирование пункта ЗУН. */
 export type KsaEdit = { id: string; text: string };
+
+/** Дисциплина в списках added/removed отчёта сравнения наборов. */
+export type IntakeDisciplineCard = {
+  name: string;
+  coverage_ratio?: number | null;
+  coverage_level?: string | null;
+  gaps?: number | null;
+};
+
+/** Дисциплина, которая есть в обоих наборах, с дельтой покрытия. */
+export type IntakeKeptDiscipline = {
+  name: string;
+  old_name?: string | null;
+  coverage_ratio_old: number;
+  coverage_ratio_new: number;
+  coverage_delta: number;
+  gaps_old: number;
+  gaps_new: number;
+  gaps_delta: number;
+  significant_change: boolean;
+};
+
+/** Сводка отчёта сравнения наборов. */
+export type IntakeSummary = {
+  added: number;
+  removed: number;
+  kept: number;
+  avg_coverage_old: number;
+  avg_coverage_new: number;
+  avg_coverage_delta: number;
+  improved: number;
+  worsened: number;
+  unchanged: number;
+};
+
+/** Ответ GET /teacher/intake-comparison. */
+export type IntakeComparisonReport = {
+  direction: string;
+  old_year: number;
+  new_year: number;
+  direction_name?: string | null;
+  added: IntakeDisciplineCard[];
+  removed: IntakeDisciplineCard[];
+  kept: IntakeKeptDiscipline[];
+  summary: IntakeSummary;
+};

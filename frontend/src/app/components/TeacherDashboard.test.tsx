@@ -25,6 +25,7 @@ vi.mock("./LlmChatPanel", () => ({
 vi.mock("../../lib/errors", () => ({
   reportError: vi.fn(() => ""),
   onError: vi.fn(() => () => {}),
+  errMessage: (e: unknown) => (e instanceof Error ? e.message : undefined),
 }));
 
 /** Ответ /teacher/krm/directions: одно направление. */

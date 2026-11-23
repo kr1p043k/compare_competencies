@@ -33,6 +33,7 @@ import type {
 import { DirectionInsights } from "./teacher-dashboard/DirectionInsights";
 import { DisciplineList } from "./teacher-dashboard/DisciplineList";
 import { DisciplineRecsSection } from "./teacher-dashboard/DisciplineRecsSection";
+import { IntakeComparison } from "./teacher-dashboard/IntakeComparison";
 import { ZunSection } from "./teacher-dashboard/ZunSection";
 
 export function TeacherDashboard() {
@@ -868,6 +869,12 @@ export function TeacherDashboard() {
               пользователь не читал и путал набор с фильтром. */}
           <div className="text-[11px] text-subtle-foreground mt-1">
             по плану выбранного набора грузятся список, охваты и анализ
+          </div>
+          {/* Что изменилось при переходе 2024 -> 2025: план и среднее покрытие.
+              Карточка живёт рядом с переключателем набора, потому что отвечает
+              на вопрос «стоит ли переключаться» без перезагрузки списка. */}
+          <div className="mt-2.5">
+            <IntakeComparison dirCode={selectedDir} />
           </div>
         </div>
         <div className="flex-1 overflow-auto">
