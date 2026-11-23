@@ -1089,7 +1089,7 @@ async def zun_search_competencies(request: Request, q: str = "", dir_code: str =
 @limiter.limit("60/minute")
 async def zun_get_scope(request: Request, dir_code: str = "09.03.02"):
     """Scope state for UI checkboxes: effective per-discipline + methodology list."""
-    from src.pipeline.teacher_analysis_runner import SCOPE_EXCLUDED
+    from src.pipeline.teacher_analysis_runner import SCOPE_EXCLUDED_RAW
     from src.teacher_scope import effective_in_scope, load_scope_overrides, scope_source
 
     _validate_dir_code(dir_code)
@@ -1109,7 +1109,7 @@ async def zun_get_scope(request: Request, dir_code: str = "09.03.02"):
         "disciplines": [
             {"name": n, "in_scope": effective_in_scope(n, over), "source": scope_source(n, over)} for n in names
         ],
-        "methodology_excluded": sorted(SCOPE_EXCLUDED),
+        "methodology_excluded": sorted(SCOPE_EXCLUDED_RAW),
     }
 
 
