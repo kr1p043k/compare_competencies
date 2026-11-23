@@ -381,3 +381,39 @@ class TestItFilter:
             "title": title,
             "professional_areas": [{"tree": "01.01.01.01"}],
         })
+
+    def test_verified_city_pairs(self):
+        api = RabotaAPI(app_id=1, secret="s", request_delay=0)
+        assert api.map_area(1) == 3     # Москва
+        assert api.map_area(2) == 4     # Санкт-Петербург
+        assert api.map_area(3) == 328   # Екатеринбург (у hh 3 - Екатеринбург!)
+        assert api.map_area(88) == 481  # Казань
+        assert api.map_area(66) == 231  # Нижний Новгород
+        assert api.map_area(76) == 284  # Ростов-на-Дону
+        assert api.map_area(78) == 299  # Самара
+        assert api.map_area(99) == 529  # Уфа
+        assert api.map_area(54) == 25   # Красноярск
+
+    def test_native_rabota_id_passes_through(self, monkeypatch):
+        import src.parsing.api.rabota_api as mod
+
+        monkeypatch.setattr(mod.config, "RABOTA_REGION_IDS", [3, 4, 481])
+        api = RabotaAPI(app_id=1, secret="s", request_delay=0)
+        assert api.map_area(481) == 481
+
+    def test_unknown_area_falls_back_to_default(self, monkeypatch):
+        import src.parsing.api.rabota_api as mod
+
+        monkeypatch.setattr(mod.config, "RABOTA_REGION_IDS", [3, 4])
+        monkeypatch.setattr(mod.config, "RABOTA_DEFAULT_REGION_ID", 3)
+        api = RabotaAPI(app_id=1, secret="s", request_delay=0)
+        assert api.map_area(999999) == 3
+
+    def test_get_areas_returns_all_known_pairs(self):
+        from src.parsing.api.rabota_api import HH_AREA_TO_RABOTA_REGION
+
+        api = RabotaAPI(app_id=1, secret="s", request_delay=0)
+        areas = api.get_areas().ok()
+        assert len(areas) == len(HH_AREA_TO_RABOTA_REGION)
+        names = {a["name"] for a in areas}
+        assert {"Москва", "Санкт-Петербург", "Казань", "Екатеринбург"} <= names

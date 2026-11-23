@@ -421,7 +421,9 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
             period = delta
             logger.info("collect_incremental", days=period)
 
-    region_ids = list(range(1, 201))
+    source_mode = (getattr(config, "VACANCY_SOURCE", "hh") or "hh").lower()
+    hh_enabled = source_mode != "rabota"
+    region_ids = list(range(1, 201)) if hh_enabled else []
     all_vacancies = []
     seen_ids: set[int] = set()
     _lock = asyncio.Lock()
@@ -475,6 +477,66 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
             logger.warning("collect_region_exception", error=str(r))
 
     logger.info("collect_total_vacancies", count=len(all_vacancies))
+
+    # --- Работа.ру: второй агрегатор (VACANCY_SOURCE=rabota|both|auto) -------
+    # У Работы.ру нет фильтра по профессии: идём по текстовым IT-запросам в
+    # их регионах, локальный IT-фильтр клиента отсекает не-IT остаток.
+    source_mode = (getattr(config, "VACANCY_SOURCE", "hh") or "hh").lower()
+    if source_mode in ("rabota", "both", "auto"):
+        try:
+            from src.parsing.api.rabota_api import RabotaAPI
+
+            rabota_api = RabotaAPI()
+            if not rabota_api.enabled:
+                logger.info("collect_rabota_skipped", reason="no_credentials")
+            else:
+                rabota_local: list[dict] = []
+                for region_id in config.RABOTA_REGION_IDS:
+                    for query in config.RABOTA_SEARCH_QUERIES:
+                        await _rate_limit()
+                        try:
+                            result = await asyncio.to_thread(
+                                rabota_api.search_vacancies,
+                                text=query,
+                                area=region_id,
+                                period_days=period,
+                                max_pages=config.RABOTA_COLLECT_MAX_PAGES,
+                                per_page=config.RABOTA_PER_PAGE,
+                                it_only=config.RABOTA_IT_ONLY,
+                            )
+                        except Exception as exc:
+                            logger.debug("collect_rabota_query_failed",
+                                         region=region_id, query=query, error=str(exc))
+                            continue
+                        if result.is_ok():
+                            for v in result.ok():
+                                vid = v.get("id")
+                                if vid and vid not in seen_ids:
+                                    seen_ids.add(vid)
+                                    rabota_local.append(v)
+                all_vacancies.extend(rabota_local)
+                logger.info("collect_rabota_done", count=len(rabota_local),
+                            regions=len(config.RABOTA_REGION_IDS),
+                            queries=len(config.RABOTA_SEARCH_QUERIES))
+                rabota_api.close()
+        except Exception as exc:
+            logger.warning("collect_rabota_failed", error=str(exc))
+
+    # Один и тот же оффер публикуется на обоих сайтах под разными id:
+    # склеиваем по (название, работодатель, город), чтобы не двоить аналитику.
+    if hh_enabled and all_vacancies:
+        from src.parsing.api.aggregator import VacancyFeed
+
+        before_dedup = len(all_vacancies)
+        all_vacancies = VacancyFeed._dedupe(all_vacancies)
+        if len(all_vacancies) != before_dedup:
+            logger.info(
+                "collect_cross_source_dedup",
+                before=before_dedup,
+                after=len(all_vacancies),
+                dropped=before_dedup - len(all_vacancies),
+            )
+
     await _refresh_history_snapshots()
 
 

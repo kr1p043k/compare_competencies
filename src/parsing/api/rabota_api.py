@@ -75,10 +75,33 @@ _RABOTA_EXPERIENCE_TO_HH: dict[int, tuple[str, str]] = {
     8: ("moreThan6", "Более 10 лет"),
 }
 
-# hh area_id -> region_id Работы.ру (у них своя нумерация регионов).
+# hh area_id -> region_id Работы.ру. Пары сверены вживую: имена из
+# https://api.hh.ru/areas/<id> и регионы Работы.ру из их геокодера/поиска.
+# Незнакомый id НЕЛЬЗЯ молча считать регионом Работы.ру: нумерации разные
+# (hh 3 = Екатеринбург, rabota 3 = Москва), поэтому map_area предупреждает.
 HH_AREA_TO_RABOTA_REGION: dict[int, int] = {
-    1: 3,    # Москва
-    2: 4,    # Санкт-Петербург
+    1: 3,      # Москва
+    2: 4,      # Санкт-Петербург
+    3: 328,    # Екатеринбург
+    54: 25,    # Красноярск
+    66: 231,   # Нижний Новгород
+    76: 284,   # Ростов-на-Дону
+    78: 299,   # Самара
+    88: 481,   # Казань
+    99: 529,   # Уфа
+}
+
+# Пары для get_areas(): hh_id -> (rabota_region_id, имя)
+_HH_AREA_NAMES: dict[int, tuple[int, str]] = {
+    1: (3, "Москва"),
+    2: (4, "Санкт-Петербург"),
+    3: (328, "Екатеринбург"),
+    54: (25, "Красноярск"),
+    66: (231, "Нижний Новгород"),
+    76: (284, "Ростов-на-Дону"),
+    78: (299, "Самара"),
+    88: (481, "Казань"),
+    99: (529, "Уфа"),
 }
 
 _CURRENCY_TO_CODE = {
@@ -430,15 +453,24 @@ class RabotaAPI:
     def map_area(area: int | None) -> int:
         """hh area_id -> region_id Работы.ру.
 
-        Известные пары (1->3 Москва, 2->4 СПб) переводятся; всё остальное
-        считается уже id региона Работы.ру, если выглядит как таковой,
-        иначе уходит регион по умолчанию.
+        Нумерации разные (hh 3 = Екатеринбург, rabota 3 = Москва), поэтому
+        неизвестный id нельзя передавать как есть: это молча дало бы чужой
+        город. Переводим только сверенные пары, остальное - регион по
+        умолчанию с предупреждением (передавайте id Работы.ру напрямую).
         """
         if area is None:
             return config.RABOTA_DEFAULT_REGION_ID
         if area in HH_AREA_TO_RABOTA_REGION:
             return HH_AREA_TO_RABOTA_REGION[area]
-        return int(area)
+        if area in config.RABOTA_REGION_IDS:
+            return int(area)
+        logger.warning(
+            "rabota_area_not_mapped",
+            area=area,
+            fallback=config.RABOTA_DEFAULT_REGION_ID,
+            hint="используйте id региона Работы.ру (RABOTA_REGION_IDS)",
+        )
+        return config.RABOTA_DEFAULT_REGION_ID
 
     # ---------------------------------------------------------------- search
     def search_vacancies(
@@ -601,8 +633,7 @@ class RabotaAPI:
         """Справки регионов у v5 нет; отдаём известные сопоставления hh->rabota."""
         return Ok([
             {"id": hh_id, "name": name, "rabota_region_id": region_id}
-            for hh_id, region_id in HH_AREA_TO_RABOTA_REGION.items()
-            for name in [("Москва" if hh_id == 1 else "Санкт-Петербург")]
+            for hh_id, (region_id, name) in _HH_AREA_NAMES.items()
         ])
 
     def resolve_region(self, address: str) -> Result[int, ApiError]:

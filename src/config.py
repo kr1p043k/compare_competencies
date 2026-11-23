@@ -183,6 +183,33 @@ class Settings(BaseSettings):
     # professional_role игнорируется), поэтому режем локально по дереву
     # professional_areas (ветка 01.* = IT/Интернет/Телеком) + ключевым словам.
     RABOTA_IT_ONLY: bool = True
+    # Регионы для планового сбора (нумерация rabota.ru, не hh). У Работы.ру
+    # нет эндпоинта со справочником регионов, поэтому список фиксированный:
+    # Москва, СПб, Казань, Екатеринбург, Н.Новгород, Самара, Ростов, Уфа,
+    # Пермь, Красноярск.
+    RABOTA_REGION_IDS: list[int] = [
+        3, 4, 481, 328, 231, 299, 284, 529, 267, 25,
+    ]
+    # Запросы для планового сбора с Работы.ру: у них нет фильтра по профессии,
+    # поэтому идём по текстовым IT-запросам, а остаток чистит локальный фильтр.
+    RABOTA_SEARCH_QUERIES: list[str] = [
+        "Python разработчик",
+        "Java разработчик",
+        "Frontend разработчик",
+        "Backend разработчик",
+        "DevOps инженер",
+        "QA инженер",
+        "системный аналитик",
+        "бизнес-аналитик",
+        "Data Scientist",
+        "Data Engineer",
+        "системный администратор",
+        "1С программист",
+        "информационная безопасность",
+        "ML инженер",
+    ]
+    # Страниц на пару (регион, запрос) в фоновом сборе: 1 = 100 вакансий.
+    RABOTA_COLLECT_MAX_PAGES: int = 1
 
     # ---------- агрегатор источников вакансий ----------
     # hh | rabota | both (единый вход через get_vacancy_feed()).
@@ -524,6 +551,9 @@ RABOTA_MAX_OFFSET = settings.RABOTA_MAX_OFFSET
 RABOTA_PER_PAGE = settings.RABOTA_PER_PAGE
 RABOTA_ID_OFFSET = settings.RABOTA_ID_OFFSET
 RABOTA_IT_ONLY = settings.RABOTA_IT_ONLY
+RABOTA_REGION_IDS = settings.RABOTA_REGION_IDS
+RABOTA_SEARCH_QUERIES = settings.RABOTA_SEARCH_QUERIES
+RABOTA_COLLECT_MAX_PAGES = settings.RABOTA_COLLECT_MAX_PAGES
 
 VACANCY_SOURCE = settings.VACANCY_SOURCE
 

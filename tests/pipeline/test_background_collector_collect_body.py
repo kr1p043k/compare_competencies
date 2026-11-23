@@ -1143,3 +1143,129 @@ def test_save_settings_atomic_failure_still_returns_merged(tmp_sched, monkeypatc
     st = sched.save_scheduler_settings({"collector_enabled": True})
     assert st["collector_enabled"] is True
     assert not (tmp_sched / "settings" / "scheduler.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# Второй агрегатор: Работа.ру в плановом сборе
+# ---------------------------------------------------------------------------
+
+
+def _rabota_vac(vid, source="rabota"):
+    """Ответ Работы.ру, уже приведённый клиентом к hh-формату."""
+    return {
+        "id": str(vid),
+        "name": f"Rabota Dev {vid}",
+        "area": {"id": 3, "name": "Москва"},
+        "employer": {"id": "42", "name": "RabotaCorp"},
+        "key_skills": [{"name": "Python"}],
+        "description": "FastAPI PostgreSQL",
+        "published_at": "2026-02-01T09:00:00+03:00",
+        "source": source,
+    }
+
+
+class _RabotaStub:
+    """Заглушка RabotaAPI: журнал вызовов и сценарные исходы."""
+
+    enabled = True
+
+    def __init__(self, vacancies=None, raise_for=(), err=False):
+        self.vacancies = vacancies if vacancies is not None else []
+        self.raise_for = set(raise_for)
+        self.err = err
+        self.calls: list[dict] = []
+        self.closed = False
+
+    def search_vacancies(self, text="", area=None, period_days=None, max_pages=None,
+                         per_page=None, it_only=None, **kw):
+        self.calls.append({"text": text, "area": area, "period_days": period_days,
+                           "max_pages": max_pages, "it_only": it_only})
+        if area in self.raise_for:
+            raise RuntimeError("rabota unavailable")
+        if self.err:
+            return Err("rabota 502")
+        return Ok(list(self.vacancies))
+
+    def close(self):
+        self.closed = True
+
+
+def _patch_rabota(monkeypatch, stub, *, source="rabota", regions=(3,), queries=("python",)):
+    import src.config as cfg
+
+    monkeypatch.setattr(cfg, "VACANCY_SOURCE", source)
+    monkeypatch.setattr(cfg, "RABOTA_REGION_IDS", list(regions))
+    monkeypatch.setattr(cfg, "RABOTA_SEARCH_QUERIES", list(queries))
+    monkeypatch.setattr(cfg, "RABOTA_COLLECT_MAX_PAGES", 1)
+    import src.parsing.api.rabota_api as rab
+
+    monkeypatch.setattr(rab, "RabotaAPI", lambda *a, **kw: stub)
+
+
+async def test_collect_rabota_only_skips_hh(tmp_sched, monkeypatch):
+    """VACANCY_SOURCE=rabota: hh не опрашивается, вакансии идут с source=rabota."""
+    hh_api = _RecordingAPI()
+    stub = _RabotaStub([_rabota_vac("1054474017"), _rabota_vac("1054474018")])
+    dbw = _DBWriterStub()
+    pool = _FakePool(before=0, after=2)
+    _patch_collect(monkeypatch, hh_api, pool, roles=("r1",), parser=_FakeVacancyParser(), dbw=dbw)
+    _patch_rabota(monkeypatch, stub)
+
+    status, new = await sched._try_collect()
+
+    assert hh_api.search_calls == [], "при source=rabota hh опрашиваться не должен"
+    assert status == "collected" and new == 2
+    assert {v.get("source") for v in dbw.saved} == {"rabota"}
+    assert stub.closed is True
+    assert len(stub.calls) == 1
+    assert stub.calls[0]["area"] == 3
+    assert stub.calls[0]["it_only"] is True
+
+
+async def test_collect_both_merges_hh_and_rabota(tmp_sched, monkeypatch):
+    """VACANCY_SOURCE=both: hh-выдача и Работа.ру склеиваются без дублей."""
+    hh_api = _RecordingAPI(by_area={1: [_vac("777")]})
+    stub = _RabotaStub([_rabota_vac("1054474017")])
+    dbw = _DBWriterStub()
+    pool = _FakePool(before=0, after=2)
+    _patch_collect(monkeypatch, hh_api, pool, roles=("r1",), parser=_FakeVacancyParser(), dbw=dbw)
+    _patch_rabota(monkeypatch, stub, source="both")
+
+    status, new = await sched._try_collect()
+
+    assert status == "collected" and new == 2
+    by_source = {v.get("source", "hh"): v["id"] for v in dbw.saved}
+    assert by_source == {"hh": 777, "rabota": 1054474017}
+
+
+async def test_collect_rabota_without_credentials_is_skipped(tmp_sched, monkeypatch):
+    """Без кредов Работа.ру просто пропускается, hh продолжает работать."""
+    hh_api = _RecordingAPI(by_area={1: [_vac("1")]})
+    stub = _RabotaStub([_rabota_vac("1054474017")])
+    stub.enabled = False
+    dbw = _DBWriterStub()
+    pool = _FakePool(before=0, after=1)
+    _patch_collect(monkeypatch, hh_api, pool, roles=("r1",), parser=_FakeVacancyParser(), dbw=dbw)
+    _patch_rabota(monkeypatch, stub, source="both")
+
+    status, _ = await sched._try_collect()
+
+    assert status == "collected"
+    assert stub.calls == []
+    assert {v.get("source", "hh") for v in dbw.saved} == {"hh"}
+
+
+async def test_collect_rabota_errors_do_not_break_sweep(tmp_sched, monkeypatch):
+    """Сбой/Err на запросах Работы.ру не роняет сбор hh."""
+    hh_api = _RecordingAPI(by_area={1: [_vac("1")]})
+    stub = _RabotaStub([], raise_for={3})
+    dbw = _DBWriterStub()
+    pool = _FakePool(before=0, after=1)
+    _patch_collect(monkeypatch, hh_api, pool, roles=("r1",), parser=_FakeVacancyParser(), dbw=dbw)
+    _patch_rabota(monkeypatch, stub, source="both", regions=(3, 4), queries=("python", "java"))
+
+    status, _ = await sched._try_collect()
+
+    assert status == "collected"
+    assert len(stub.calls) == 4, "оба региона и оба запроса должны быть опрошены"
+    assert {v.get("source", "hh") for v in dbw.saved} == {"hh"}
