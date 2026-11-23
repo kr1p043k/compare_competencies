@@ -46,12 +46,38 @@ def load_krm(direction: str, year: int) -> dict[str, dict]:
     return sub.get("disciplines") or {}
 
 
-def krm_links(disciplines: dict[str, dict]) -> int:
-    return sum(
-        len(items or [])
-        for body in disciplines.values()
-        for items in (body.get("skills") or {}).values()
-    )
+def krm_links(disciplines: dict[str, dict], taxonomy: set[str] | None = None) -> int:
+    """Число связей «компетенция -> навык» в KRM.
+
+    Если передан `taxonomy` (набор имён из it_skills/rpd_skills), считаются
+    только те навыки, которые сид реально может привязать: `seed_direction`
+    пропускает всё, чего нет в справочнике (`if not skill_id: continue`).
+    Без фильтра KRM-файл 2025 даёт 8403 против 4731 в БД - это не расхождение,
+    а свободный текст из аннотаций RPD, который навыком не является.
+    """
+    total = 0
+    for body in disciplines.values():
+        for items in (body.get("skills") or {}).values():
+            for item in items or []:
+                if taxonomy is None or str(item).strip().lower() in taxonomy:
+                    total += 1
+    return total
+
+
+def load_taxonomy() -> set[str]:
+    """Имена навыков из справочников, по которым работает сид (нижний регистр)."""
+    names: set[str] = set()
+    for filename in ("it_skills.json", "rpd_skills.json"):
+        path = REFERENCE_DIR / filename
+        if not path.exists():
+            continue
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        items = raw if isinstance(raw, list) else raw.get("skills", [])
+        for item in items:
+            name = item if isinstance(item, str) else (item.get("name") or item.get("skill") or "")
+            if name and name.strip():
+                names.add(name.strip().lower())
+    return names
 
 
 def load_db(dsn: str, direction: str, year: int) -> dict:
@@ -119,13 +145,15 @@ def load_db(dsn: str, direction: str, year: int) -> dict:
 def compare(direction: str, year: int, dsn: str) -> dict:
     disciplines = load_krm(direction, year)
     db = load_db(dsn, direction, year)
+    taxonomy = load_taxonomy() or None  # нет справочников - сравниваем как раньше (всё подряд)
 
     krm_names = set(disciplines)
     db_names = set(db["names"])
     only_db = sorted(db_names - krm_names)
     only_krm = sorted(krm_names - db_names)
 
-    krm_link_count = krm_links(disciplines)
+    krm_raw = krm_links(disciplines)
+    krm_link_count = krm_links(disciplines, taxonomy)
     links_match = krm_link_count == db["links"]
 
     mismatched = []
@@ -146,7 +174,12 @@ def compare(direction: str, year: int, dsn: str) -> dict:
         {
             "name": "число связей competency_skills",
             "ok": links_match,
-            "detail": f"БД {db['links']}, KRM {krm_link_count}",
+            "detail": (
+                f"БД {db['links']}, KRM (в справочнике) {krm_link_count}"
+                + (f" из {krm_raw}" if taxonomy is not None else "")
+                + (f"; вне справочника: {krm_raw - krm_link_count} (свободный текст RPD, сид их не привязывает)"
+                   if taxonomy is not None and krm_raw > krm_link_count else "")
+            ),
         },
         {
             # Предупреждение, а не гейт: KRM перечисляет коды компетенций

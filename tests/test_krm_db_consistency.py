@@ -74,6 +74,39 @@ def test_krm_links_counts_all_skill_entries():
     assert chk.krm_links(disciplines) == 3
 
 
+def test_krm_links_with_taxonomy_skips_free_text():
+    # Сид привязывает только навыки из справочника; длинные фразы из аннотаций
+    # RPD ("владеть методами...") в справочнике отсутствуют и не считаются.
+    disciplines = {
+        "A": {
+            "skills": {
+                "ОПК-1": ["sql", "Владеть методами анализа данных на Python"],
+                "ОПК-2": ["python"],
+            }
+        }
+    }
+    taxonomy = {"sql", "python"}
+    assert chk.krm_links(disciplines, taxonomy) == 2
+    assert chk.krm_links(disciplines) == 3
+
+
+def test_krm_links_taxonomy_match_is_case_and_space_insensitive():
+    disciplines = {"A": {"skills": {"ОПК-1": ["  SQL ", "Python"]}}}
+    assert chk.krm_links(disciplines, {"sql", "python"}) == 2
+
+
+def test_load_taxonomy_reads_reference_dicts(tmp_path, monkeypatch):
+    (tmp_path / "it_skills.json").write_text('["SQL", " Python "]', encoding="utf-8")
+    (tmp_path / "rpd_skills.json").write_text('["ETL", "sql"]', encoding="utf-8")
+    monkeypatch.setattr(chk, "REFERENCE_DIR", tmp_path)
+    assert chk.load_taxonomy() == {"sql", "python", "etl"}
+
+
+def test_load_taxonomy_ignores_missing_files(tmp_path, monkeypatch):
+    monkeypatch.setattr(chk, "REFERENCE_DIR", tmp_path)
+    assert chk.load_taxonomy() == set()
+
+
 def test_matching_state_passes():
     disciplines = {"A": {"competencies": ["ОПК-1"], "skills": {"ОПК-1": ["sql"]}}}
     result = _assert(disciplines, _db(["A"], 1, {"A": 1}))
