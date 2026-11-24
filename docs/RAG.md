@@ -50,6 +50,9 @@ python -m src.cli rag-index --source rpd              # инкременталь
 python -m src.cli rag-index --source rpd --reindex    # новое поколение + switch
 python -m src.cli rag-index --source krm
 python -m src.cli rag-index --source vacancies --from-db --limit 5000
+python -m src.cli rag-index --source publications --pub-pages 10
+python -m src.cli rag-index --source publications --pub-mode search \
+    --pub-queries "машинное обучение, python" --pub-search-pages 3
 python -m src.cli rag-index --stats
 ```
 
@@ -60,6 +63,12 @@ python -m src.cli rag-index --stats
 | `rpd` | `data/reference/sfu_annotations_all.json` | секции РПД (цели/задачи/компетенции/содержание/ФОС) |
 | `krm` | `krm_disciplines_*.json` + `skill_taxonomy.json` | синтетические карточки компетенций/дисциплин/навыков |
 | `vacancies` | таблица `vacancies` (`--from-db`) или `data/raw/hh_vacancies_basic.json` | требования/обязанности/описание/навыки |
+| `publications` | hub.sfedu.ru API (`--pub-mode list` — каталог, `search` — deep search по запросам) | аннотация / ключевые слова / предметная область / карточка |
+
+Публикации: если аннотации нет, документ всё равно индексируется как карточка
+(название, тип, авторы, издание) с `meta.partial=true`; ключевые слова и авторы
+попадают в entity-слой, поэтому работают запросы «кто занимается X» и «что
+публикуют про Y» без эмбеддингов.
 
 Идемпотентность: документ с неизменившимся `content_hash` пропускается;
 удалённые помечаются `valid_to` (tombstone), а не удаляются.
@@ -198,8 +207,6 @@ ACL-фильтр и blue-green переключение поколений ко�
 
 - реранк cross-encoder (сейчас RRF+MMR; реранкер требует офлайн-весов и
   отдельного замера латентности);
-- профиль `publications` в ингестии (hub-клиент есть, но нужен планировщик
-  сбора — логичнее в ночном пайплайне);
 - golden-set и метрики recall@k/nDCG: инфраструктура (`rag_query_log`,
   `rag_feedback`) готова, раннер `rag-eval` — следующий шаг;
 - `docs/ARCHITECTURE.md` ссылается на несуществующий `src/vector_search/` и
