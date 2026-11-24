@@ -425,3 +425,48 @@ def test_every_policy_table_has_a_step_and_savepoint(monkeypatch) -> None:
         assert f"SAVEPOINT {table}" in executed
         assert f"RELEASE SAVEPOINT {table}" in executed
         assert any(f"FROM {table} " in sql for sql in executed)
+
+
+# ---------------------------------------------------------------------------
+# RAG: журнал запросов, оценки и мёртвые поколения индекса
+# ---------------------------------------------------------------------------
+
+def test_rag_log_cleanup_uses_rag_days(monkeypatch) -> None:
+    conn = _patch_psycopg2(monkeypatch)
+    from src.cli import retention
+
+    args = SimpleNamespace(
+        apply=False, vacancies_days=730, logs_days=90, run_days=365,
+        session_days=30, rag_days=45,
+    )
+    retention.main(args)
+
+    assert "45 days" in _count_sql(conn, "rag_query_log")
+    assert "45 days" in _count_sql(conn, "rag_feedback")
+
+
+def test_rag_stale_generations_use_own_window(monkeypatch) -> None:
+    conn = _patch_psycopg2(monkeypatch)
+    from src.cli import retention
+
+    args = SimpleNamespace(
+        apply=False, vacancies_days=730, logs_days=90, run_days=365,
+        session_days=30, rag_stale_days=3,
+    )
+    retention.main(args)
+
+    sql = _count_sql(conn, "rag_documents")
+    assert "generation < s.active_generation" in sql
+    assert "3 days" in sql
+
+
+def test_rag_days_must_be_positive(monkeypatch) -> None:
+    conn = _patch_psycopg2(monkeypatch)
+    from src.cli import retention
+
+    args = SimpleNamespace(
+        apply=True, vacancies_days=730, logs_days=90, run_days=365,
+        session_days=30, rag_days=0,
+    )
+    assert retention.main(args) == 2
+    assert _deletes(conn) == []
