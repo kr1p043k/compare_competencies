@@ -821,6 +821,18 @@ export function TeacherDashboard() {
                   по спросу: {(analysis.average_market_weight_coverage * 100).toFixed(1)}%
                 </div>
               )}
+              {/* Качество рядом с охватом (P1-5): охват отвечает «сколько навыков
+                  рынка закрыто», качество - «насколько уверенно они сопоставлены».
+                  Пайплайн считает его как average_quality_coverage; без вывода в UI
+                  цифра жила только в summary. */}
+              {analysis.average_quality_coverage != null && (
+                <div
+                  className="text-[11px] text-subtle-foreground mt-1"
+                  title="Качество: средняя уверенность сопоставления навыков РПД с рынком. Навык может совпасть неточно, поэтому качество обычно ниже строгого охвата (см. глоссарий)"
+                >
+                  качество: {(analysis.average_quality_coverage * 100).toFixed(1)}%
+                </div>
+              )}
               <div className="text-subtle-foreground mt-0.5">
                 {analysis.total_disciplines} {plural(analysis.total_disciplines, "дисциплина", "дисциплины", "дисциплин")} · {analysis.total_gaps_across_all} {plural(analysis.total_gaps_across_all, "пробел", "пробела", "пробелов")}
               </div>
