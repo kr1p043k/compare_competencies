@@ -308,7 +308,9 @@ def test_retention_undefined_table_returns_zero(monkeypatch):
         def execute(self, sql: str, params=None):
             self.sqls.append(sql)
             self._calls += 1
-            if self._calls == 1:
+            # Шаг начинается с SAVEPOINT, поэтому «нет таблицы» моделируем
+            # падением на COUNT(*): именно этот запрос трогает relation.
+            if "COUNT(*)" in sql:
                 raise psycopg2.errors.UndefinedTable("relation does not exist")
 
         def fetchone(self):
