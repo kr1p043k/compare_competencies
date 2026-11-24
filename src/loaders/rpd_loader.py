@@ -211,17 +211,126 @@ def normalize_comp_code(code: str) -> str:
 
 # ─── Text extraction ────────────────────────────────────────────────────────
 
-def extract_text_pypdf(fpath: str) -> str | None:
+#: Лигатуры, которые pypdf отдаёт одним символом (U+FB00..U+FB06). Без
+#: раскрытия «ﬁ» в «fi» навыки вроде «conﬁguration» не совпадают со словарём.
+_LIGATURES = {
+    "\ufb00": "ff", "\ufb01": "fi", "\ufb02": "fl", "\ufb03": "ffi",
+    "\ufb04": "ffl", "\ufb05": "st", "\ufb06": "st",
+}
+
+#: Неразрывные и «широкие» пробелы (NBSP, thin/narrow, ideographic) - в
+#: регулярках KSA и при дедупликации они ведут себя как обычный пробел.
+_UNICODE_SPACES_RE = re.compile(r"[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]")
+
+#: Нулевой ширины и BOM: разрывают слова и ломают поиск кодов компетенций.
+_ZERO_WIDTH_RE = re.compile(r"[\u200b\u200c\u200d\u2060\ufeff]")
+
+#: Мягкий перенос (soft hyphen) - типографский «возможный дефис», его в тексте
+#: быть не должно: «про\u00adграммирование» -> «программирование».
+_SOFT_HYPHEN_RE = re.compile(r"\u00ad")
+
+#: Дефисы разного вида, которыми вёрстка рвёт слово в конце строки.
+_HYPHENS = ("-", "\u2010", "\u2011")
+
+#: Строка, начинающаяся со строчной буквы - признак переноса слова.
+_LOWER_START_RE = re.compile(r"^[а-яёa-z]")
+
+
+def normalize_pdf_text(text: str) -> str:
+    """Нормализовать сырой текст из pypdf перед разбором KSA.
+
+    PDF-вёрстка оставляет в тексте артефакты, из-за которых навыки теряются
+    или склеиваются:
+      - лигатуры («ﬁ» вместо «fi»);
+      - мягкие переносы (U+00AD);
+      - неразрывные/узкие пробелы и zero-width символы;
+      - переносы слов по дефису в конце строки («про-\\nграммирование»).
+
+    Перенос склеивается только когда следующая строка начинается со строчной
+    буквы, а слово перед дефисом - одиночный алфавитный токен: коды вида
+    «ОПК-\\n2» и перечисления с заглавной буквы не трогаются. Составные слова
+    («информационно-\\nкоммуникационные») при этом теряют дефис - для описаний
+    навыков это допустимо, а восстановление разорванных слов важнее.
+    """
+    if not text:
+        return ""
+
+    text = _SOFT_HYPHEN_RE.sub("", text)
+    for lig, repl in _LIGATURES.items():
+        text = text.replace(lig, repl)
+    text = _UNICODE_SPACES_RE.sub(" ", text)
+    text = _ZERO_WIDTH_RE.sub("", text)
+
+    # Дефисный перенос: склеиваем построчно, чтобы не трогать остальной текст.
+    out: list[str] = []
+    for line in text.split("\n"):
+        merged = False
+        if out and line:
+            prev = out[-1].rstrip()
+            nxt = line.lstrip()
+            if prev.endswith(_HYPHENS) and _LOWER_START_RE.match(nxt):
+                before_hyphen = prev[:-1]
+                last_word = before_hyphen.rsplit(" ", 1)[-1].rsplit("\t", 1)[-1]
+                # Только одиночное алфавитное слово: «ОПК-2» (цифра) и
+                # «см. - далее» (пробел перед дефисом) не склеиваем.
+                if len(last_word) >= 3 and last_word.isalpha():
+                    out[-1] = before_hyphen + nxt
+                    merged = True
+        if not merged:
+            out.append(line)
+    text = "\n".join(out)
+
+    # Схлопываем повторные пробелы внутри строк, но сохраняем переводы строк:
+    # разбор KSA опирается на границы строк.
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    return text
+
+
+def extract_text_pypdf(fpath: str, extraction_mode: str = "plain") -> str | None:
+    """Извлечь текст через pypdf с устойчивостью к битым страницам.
+
+    Раньше любое исключение на одной странице (сломанный поток, битый шрифт)
+    обнуляло ВСЮ дисциплину: общий try/except возвращал None. Теперь каждая
+    страница извлекается отдельно - уцелевшие идут в результат, сбойные
+    логируются и пропускаются. `extraction_mode="layout"` сохраняет колонки
+    таблиц (полезно, когда plain-режим склеивает ячейки и теряет KSA).
+    """
     try:
         reader = PdfReader(fpath)
-        text = ""
-        for page in reader.pages:
-            t = page.extract_text()
-            if t:
-                text += t + "\n"
-        return text if text.strip() else None
-    except Exception:
+    except Exception as exc:
+        logger.warning("pypdf_open_failed", file=fpath, error=str(exc))
         return None
+
+    parts: list[str] = []
+    failed_pages = 0
+    total_pages = len(reader.pages)
+    for i, page in enumerate(reader.pages):
+        try:
+            if extraction_mode == "plain":
+                t = page.extract_text()
+            else:
+                t = page.extract_text(extraction_mode=extraction_mode)
+        except TypeError:
+            # Старый pypdf без поддержки extraction_mode - откатываемся на plain.
+            logger.info("pypdf_layout_unsupported", file=fpath)
+            try:
+                t = page.extract_text()
+            except Exception as exc:
+                failed_pages += 1
+                logger.warning("pypdf_page_failed", file=fpath, page=i, error=str(exc))
+                continue
+        except Exception as exc:
+            failed_pages += 1
+            logger.warning("pypdf_page_failed", file=fpath, page=i, error=str(exc))
+            continue
+        if t:
+            parts.append(t)
+
+    if failed_pages:
+        logger.info("pypdf_pages_skipped", file=fpath, failed=failed_pages, total=total_pages)
+
+    text = normalize_pdf_text("\n".join(parts))
+    return text if text.strip() else None
 
 
 
@@ -252,10 +361,27 @@ def extract_text_ocr(fpath: str) -> str | None:
 
 
 def cyrillic_ratio(text: str) -> float:
+    """Доля кириллицы среди БУКВ (не среди всех символов).
+
+    Раньше делили на длину всего текста: цифры, пробелы и пунктуация
+    разбавляли знаменатель, и насыщенная таблицами РПД с 90% русских букв
+    получала ratio ниже порога OCR (0.25) - запускался лишний OCR на ~2GB
+    модели. Считаем только буквы; «ё»/«Ё» (U+0451/U+0401) тоже кириллица,
+    хотя в диапазон «а»..«я» не попадают.
+    """
     if not text:
         return 0.0
-    cyr = sum(1 for c in text if "а" <= c <= "я" or "А" <= c <= "Я")
-    return cyr / len(text)
+    letters = 0
+    cyr = 0
+    for c in text:
+        if not c.isalpha():
+            continue
+        letters += 1
+        if "а" <= c <= "я" or "А" <= c <= "Я" or c in ("ё", "Ё"):
+            cyr += 1
+    if letters == 0:
+        return 0.0
+    return cyr / letters
 
 
 # ─── KSA parser ─────────────────────────────────────────────────────────────
@@ -691,6 +817,24 @@ class RPDLoader:
         if not text:
             logger.warning("pypdf_extraction_failed", file=fpath)
             return None
+
+        # Табличный layout спасает РПД, где plain-режим склеивает колонки и
+        # теряет KSA-маркеры. Берём его только если он даёт БОЛЬШЕ маркеров:
+        # иначе оставляем прежний текст без изменений.
+        if count_ksa_markers(text) < 3:
+            try:
+                layout = extract_text_pypdf(fpath, extraction_mode="layout")
+            except Exception as exc:  # noqa: BLE001 - layout лишь оптимизация
+                logger.info("pypdf_layout_failed", file=fpath, error=str(exc))
+                layout = None
+            if layout and count_ksa_markers(layout) > count_ksa_markers(text):
+                logger.info(
+                    "pypdf_layout_used",
+                    file=fpath,
+                    plain_markers=count_ksa_markers(text),
+                    layout_markers=count_ksa_markers(layout),
+                )
+                text = layout
 
         ratio = cyrillic_ratio(text)
         if ratio >= 0.25:
