@@ -28,7 +28,7 @@ logger = structlog.get_logger(__name__)
 
 _HIT_COLUMNS = (
     "c.id AS chunk_id, c.document_id, c.text, c.section_path, c.ord, c.meta AS chunk_meta, "
-    "d.source, d.title, d.url"
+    "d.source, d.title, d.url, d.external_id"
 )
 
 
@@ -349,6 +349,7 @@ class RagStore:
             section_path=str(mapping["section_path"] or ""),
             url=mapping["url"],
             ord=int(mapping["ord"] or 0),
+            external_id=str(mapping["external_id"]) if mapping["external_id"] else None,
             meta=dict(mapping["chunk_meta"] or {}),
             score=float(score or 0.0),
         )
@@ -447,7 +448,7 @@ class RagStore:
             "JOIN rag_chunk_entities e ON e.chunk_id = c.id "
             f"WHERE {where} AND (e.entity_type, e.entity_key) IN ({', '.join(pairs)}) "
             "GROUP BY c.id, c.document_id, c.text, c.section_path, c.ord, c.meta, "
-            "d.source, d.title, d.url "
+            "d.source, d.title, d.url, d.external_id "
             "ORDER BY score DESC LIMIT :limit"
         )
         params["limit"] = int(limit)

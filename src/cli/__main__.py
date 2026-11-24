@@ -30,6 +30,7 @@ def main() -> None:
         ingest_market_skills,
         map_ksa_to_skills,
         populate_parsed_skills,
+        rag_eval,
         rag_index,
         rebuild,
         retention,
@@ -174,6 +175,7 @@ def main() -> None:
     retention.build_parser(sub)
     set_password.build_parser(sub)
     rag_index.build_parser(sub)
+    rag_eval.build_parser(sub)
 
     args = parser.parse_args()
     args.func(args)

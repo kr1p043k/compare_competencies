@@ -26,6 +26,51 @@ _TOKEN_RE = re.compile(r"[a-zа-яё0-9+#._\-]{2,}", re.IGNORECASE)
 
 _BRANCH_WEIGHTS = {"dense": 1.0, "sparse": 1.0, "entity": 1.0}
 
+#: Бонус за лексическое совпадение запроса с заголовком документа.
+#: Dense-модель ранжирует «похоже по смыслу» и нередко ставит выше документ
+#: с другим названием; если запрос почти дословно равен заголовку, это
+#: сильнее семантики (замер - docs/RAG-EVAL.md).
+_TITLE_BOOST = 0.35
+_TITLE_MIN_COVERAGE = 0.6
+_TITLE_MIN_TERM_LEN = 3
+
+
+def _token_prefix_match(left: str, right: str) -> bool:
+    """Совпадение с учётом словоформ: «моделирования» ~ «моделирование»."""
+    if left == right:
+        return True
+    limit = min(len(left), len(right), 5)
+    return limit >= 4 and left[:limit] == right[:limit]
+
+
+def title_coverage(title: str, query_text: str) -> float:
+    """Доля слов запроса, встречающихся в заголовке (с учётом словоформ)."""
+    terms = {token for token in _tokens(query_text) if len(token) >= _TITLE_MIN_TERM_LEN}
+    title_tokens = _tokens(title)
+    if not terms or not title_tokens:
+        return 0.0
+    matched = sum(
+        1
+        for term in terms
+        if any(_token_prefix_match(term, title_token) for title_token in title_tokens)
+    )
+    return matched / len(terms)
+
+
+def apply_title_boost(
+    hits: list[RetrievalHit], query_text: str, *, boost: float = _TITLE_BOOST
+) -> list[RetrievalHit]:
+    """Поднять документы, чей заголовок лексически совпадает с запросом."""
+    if not hits or boost <= 0 or not (query_text or "").strip():
+        return hits
+    for hit in hits:
+        coverage = title_coverage(hit.title, query_text)
+        if coverage >= _TITLE_MIN_COVERAGE:
+            hit.title_score = round(coverage, 4)
+            hit.score += boost * coverage
+    hits.sort(key=lambda item: item.score, reverse=True)
+    return hits
+
 
 def _tokens(text: str) -> set[str]:
     return {token.lower() for token in _TOKEN_RE.findall(text or "")}
@@ -89,14 +134,19 @@ def hit_confidence(hit: RetrievalHit) -> float:
 
     Dense cosine — калиброванная величина; FTS-ранги маленькие, поэтому
     приводим их к шкале; entity-совпадение само по себе уже сильный сигнал.
+    Заголовок, почти дословно совпавший с запросом, тоже считается сильным
+    сигналом: иначе документ с нужным названием отсекался бы порогом
+    ``min_score`` только из-за невысокого косинуса.
     """
     if hit.dense_score > 0:
-        return min(1.0, hit.dense_score)
-    if hit.entity_score > 0:
-        return min(1.0, 0.5 + 0.1 * hit.entity_score)
-    if hit.sparse_score > 0:
-        return min(1.0, hit.sparse_score * 4.0)
-    return 0.0
+        base = min(1.0, hit.dense_score)
+    elif hit.entity_score > 0:
+        base = min(1.0, 0.5 + 0.1 * hit.entity_score)
+    elif hit.sparse_score > 0:
+        base = min(1.0, hit.sparse_score * 4.0)
+    else:
+        base = 0.0
+    return min(1.0, max(base, hit.title_score * 0.8))
 
 
 def aggregate_by_document(
@@ -269,6 +319,9 @@ class HybridRetriever:
             branches,
             k=settings.rrf_k,
             weights={"dense": dense_weight, "sparse": sparse_weight, "entity": entity_boost},
+        )
+        fused = apply_title_boost(
+            fused, query.normalized or query.raw, boost=settings.title_boost
         )
         fused = dedupe(fused)
         fused = aggregate_by_document(fused, max_per_document=settings.max_per_document)

@@ -79,6 +79,9 @@ class RagSettings:
     max_per_document: int = 3
     #: Доля бюджета контекста под доказательства.
     evidence_share: float = 0.45
+    #: Бонус к fused-score, если заголовок документа лексически совпал с
+    #: запросом. 0 - выключить (замер до/после - docs/RAG-EVAL.md).
+    title_boost: float = 0.35
 
     def profile(self, name: str | None = None) -> dict[str, Any]:
         key = name or self.profile_default
@@ -116,6 +119,7 @@ def get_settings() -> RagSettings:
         min_chunk_tokens=int(_cfg("RAG_MIN_CHUNK_TOKENS", 40)),
         acl_default=str(_cfg("RAG_ACL_DEFAULT", "internal")),
         cache_ttl_s=float(_cfg("RAG_CACHE_TTL_S", 60.0)),
+        title_boost=float(_cfg("RAG_TITLE_BOOST", 0.35)),
     )
 
 
