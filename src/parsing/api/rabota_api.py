@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
 import re
 import time
 from typing import Any
@@ -31,7 +32,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from src import config
-from src.errors import ApiError, VacancyNotFoundError
+from src.errors import ApiError, RateLimitError, VacancyNotFoundError
 from src.models.hh_responses import VacancyDetailResponse, parse_response
 from src.models.vacancy import Vacancy
 from src.result import Err, Ok, Result
@@ -328,6 +329,9 @@ class RabotaAPI:
     пайплайн (search_vacancies / get_vacancy_details* / last_response).
     """
 
+    #: Статусы, которые имеет смысл повторить: лимиты, таймауты шлюза, 5xx.
+    RETRY_STATUSES = (408, 429, 500, 502, 503, 504)
+
     def __init__(
         self,
         app_id: int | None = None,
@@ -337,6 +341,9 @@ class RabotaAPI:
         id_offset: int | None = None,
         request_delay: float | None = None,
         timeout: float = 45.0,
+        max_attempts: int | None = None,
+        retry_base_delay: float = 1.0,
+        retry_max_delay: float = 30.0,
     ):
         app_id = app_id if app_id is not None else config.RABOTA_APP_ID
         if secret:
@@ -350,11 +357,18 @@ class RabotaAPI:
         self._id_offset = id_offset if id_offset is not None else getattr(config, "RABOTA_ID_OFFSET", 0)
         self._request_delay = request_delay if request_delay is not None else max(config.REQUEST_DELAY, 0.5)
         self._timeout = timeout
+        # Повторы 429/5xx делаем сами, а не через urllib3: адаптер молча
+        # глотает попытки и не отдаёт наружу Retry-After, из-за чего пайплайн
+        # видел «просто ошибку» без причины и без числа попыток.
+        self._max_attempts = max(1, int(max_attempts if max_attempts is not None else config.MAX_RETRIES + 1))
+        self._retry_base_delay = max(0.0, float(retry_base_delay))
+        self._retry_max_delay = max(self._retry_base_delay, float(retry_max_delay))
 
         self.session = requests.Session()
         retry_strategy = Retry(
             total=config.MAX_RETRIES,
-            status_forcelist=[429, 500, 502, 503, 504],
+            # Статусы не повторяем здесь - см. _post, там есть логи и Retry-After.
+            status_forcelist=[],
             backoff_factor=1.2,
             allowed_methods=["POST"],
             raise_on_status=False,
@@ -395,6 +409,23 @@ class RabotaAPI:
     def _sign(self, params: dict[str, Any]) -> str:
         return compute_signature(params, self._secret or "")
 
+    def _retry_delay(self, attempt: int, resp: requests.Response | None = None) -> float:
+        """Пауза перед повтором: Retry-After сервера, иначе экспонента + джиттер.
+
+        Джиттер нужен, чтобы параллельные сборщики не били по API синхронно
+        после общего 429. Верхняя граница - `retry_max_delay`.
+        """
+        if resp is not None:
+            header = resp.headers.get("Retry-After")
+            if header:
+                try:
+                    return min(max(float(header), 0.0), self._retry_max_delay)
+                except (TypeError, ValueError):
+                    pass  # HTTP-дата вместо секунд - считаем сами
+        base = self._retry_base_delay * (2 ** attempt)
+        jitter = random.uniform(0.0, base * 0.25)  # noqa: S311 - не криптография
+        return min(base + jitter, self._retry_max_delay)
+
     def _post(self, path: str, request: dict[str, Any], *, endpoint: str) -> Result[dict[str, Any], ApiError]:
         if not self.enabled:
             return Err(ApiError(message="Rabota.ru credentials not configured", endpoint=endpoint))
@@ -405,48 +436,87 @@ class RabotaAPI:
             "request": request,
         }
         envelope["signature"] = self._sign(envelope)
-        try:
-            resp = self.session.post(
-                f"{self._base_url}{path}",
-                data=json.dumps(envelope, ensure_ascii=False).encode("utf-8"),
-                timeout=self._timeout,
-            )
-        except requests.exceptions.Timeout:
-            logger.error("rabota_http_timeout", endpoint=endpoint)
-            return Err(ApiError(message=f"Timeout: {endpoint}", endpoint=endpoint))
-        except requests.exceptions.ConnectionError as exc:
-            logger.error("rabota_http_connection_error", endpoint=endpoint)
-            return Err(ApiError(message=f"Connection error: {endpoint}", detail=str(exc), endpoint=endpoint))
-        except Exception as exc:
-            logger.error("rabota_http_exception", endpoint=endpoint, error=str(exc))
-            return Err(ApiError(message=str(exc), endpoint=endpoint))
+        url = f"{self._base_url}{path}"
+        payload = json.dumps(envelope, ensure_ascii=False).encode("utf-8")
 
-        content_type = resp.headers.get("content-type", "")
-        if resp.status_code == 200 and "json" in content_type:
-            return Ok(resp.json())
-        if resp.status_code == 200:
-            # 200 + HTML = страница WAF, а не данные.
+        for attempt in range(self._max_attempts):
+            try:
+                resp = self.session.post(url, data=payload, timeout=self._timeout)
+            except requests.exceptions.Timeout:
+                logger.error("rabota_http_timeout", endpoint=endpoint, attempt=attempt + 1)
+                return Err(ApiError(message=f"Timeout: {endpoint}", endpoint=endpoint))
+            except requests.exceptions.ConnectionError as exc:
+                logger.error("rabota_http_connection_error", endpoint=endpoint, attempt=attempt + 1)
+                return Err(ApiError(
+                    message=f"Connection error: {endpoint}", detail=str(exc), endpoint=endpoint
+                ))
+            except Exception as exc:
+                logger.error("rabota_http_exception", endpoint=endpoint, error=str(exc))
+                return Err(ApiError(message=str(exc), endpoint=endpoint))
+
+            status = resp.status_code
+            if status == 200:
+                content_type = resp.headers.get("content-type", "")
+                if "json" in content_type:
+                    return Ok(resp.json())
+                # 200 + HTML = страница WAF, а не данные.
+                return Err(ApiError(
+                    message="Rabota.ru returned HTML instead of JSON (WAF/User-Agent?)",
+                    status_code=status,
+                    endpoint=endpoint,
+                ))
+
+            if status in self.RETRY_STATUSES:
+                delay = self._retry_delay(attempt, resp)
+                if attempt + 1 < self._max_attempts:
+                    if status == 429:
+                        logger.warning(
+                            "rabota_http_429_rate_limited",
+                            attempt=attempt + 1,
+                            retry_after=round(delay, 3),
+                            endpoint=endpoint,
+                        )
+                    else:
+                        logger.warning(
+                            "rabota_http_retry",
+                            status=status,
+                            attempt=attempt + 1,
+                            delay=round(delay, 3),
+                            endpoint=endpoint,
+                        )
+                    time.sleep(delay)
+                    continue
+                if status == 429:
+                    logger.error(
+                        "rabota_http_429_max_retries",
+                        attempts=self._max_attempts,
+                        endpoint=endpoint,
+                    )
+                    return Err(RateLimitError(
+                        message=f"Rabota.ru rate limit: 429 after {self._max_attempts} attempts",
+                        status_code=429,
+                        endpoint=endpoint,
+                        retry_after=delay,
+                    ))
+                logger.warning("rabota_http_server_error", status=status, endpoint=endpoint)
+                return Err(ApiError(
+                    message=f"Rabota.ru server error {status}",
+                    status_code=status,
+                    endpoint=endpoint,
+                    detail=resp.text[:300],
+                ))
+
+            body = resp.text[:300]
+            logger.warning("rabota_http_error", status=status, endpoint=endpoint, body=body)
             return Err(ApiError(
-                message="Rabota.ru returned HTML instead of JSON (WAF/User-Agent?)",
-                status_code=resp.status_code,
-                endpoint=endpoint,
-            ))
-        body = resp.text[:300]
-        if resp.status_code >= 500:
-            logger.warning("rabota_http_server_error", status=resp.status_code, endpoint=endpoint)
-            return Err(ApiError(
-                message=f"Rabota.ru server error {resp.status_code}",
-                status_code=resp.status_code,
+                message=f"Rabota.ru HTTP {status}: {body}",
+                status_code=status,
                 endpoint=endpoint,
                 detail=body,
             ))
-        logger.warning("rabota_http_error", status=resp.status_code, endpoint=endpoint, body=body)
-        return Err(ApiError(
-            message=f"Rabota.ru HTTP {resp.status_code}: {body}",
-            status_code=resp.status_code,
-            endpoint=endpoint,
-            detail=body,
-        ))
+
+        # Цикл исчерпан только если _max_attempts <= 0, но это отсечено в __init__.
+        return Err(ApiError(message=f"Retries exhausted: {endpoint}", endpoint=endpoint))
 
     # --------------------------------------------------------------- helpers
     @staticmethod
