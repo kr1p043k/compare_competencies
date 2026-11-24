@@ -60,6 +60,7 @@ const ANALYSIS = {
   average_market_top_coverage: 0.62,
   average_market_top_reliable: true,
   average_market_weight_coverage: 0.48,
+  average_quality_coverage: 0.413,
   coverage_level: "medium",
   total_gaps_across_all: 9,
   top_cross_discipline_gaps: [
@@ -148,6 +149,14 @@ describe("TeacherDashboard", () => {
     expect(screen.getByText("Средний охват рынка")).toBeInTheDocument();
     // Пара есть и в KPI, со своим пояснением.
     expect(screen.getByText("взвешенный охват: 48.0%")).toBeInTheDocument();
+    // P1-5: качество выводится рядом с охватом в сводке (раньше жило только
+    // в summary пайплайна).
+    expect(screen.getByText("качество: 41.3%")).toBeInTheDocument();
+    expect(
+      screen.getByTitle(
+        "Качество: средняя уверенность сопоставления навыков РПД с рынком. Навык может совпасть неточно, поэтому качество обычно ниже строгого охвата (см. глоссарий)",
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.getByTitle(
         "Взвешенный охват (по спросу): насколько востребовано то из топа рынка, что реально покрыто. Может быть выше или ниже строгого",
@@ -159,6 +168,19 @@ describe("TeacherDashboard", () => {
     expect(screen.getByTitle("источник рынка - explicit: 1, n/a: 1")).toBeInTheDocument();
     // Знаменатель достоверен: предупреждения нет.
     expect(screen.queryByText(/недостоверно/)).not.toBeInTheDocument();
+  });
+
+  it("не рисует качество, если поля нет в payload", async () => {
+    const { average_quality_coverage: _omitted, ...withoutQuality } = ANALYSIS;
+    vi.mocked(api).mockImplementation(((endpoint: string) => {
+      if (endpoint.startsWith("/teacher/analysis/meta")) return Promise.resolve({ stale: false });
+      if (endpoint.startsWith("/teacher/analysis")) return Promise.resolve(withoutQuality);
+      return route(endpoint);
+    }) as never);
+    render(<TeacherDashboard />);
+    await screen.findByText("по спросу: 48.0%");
+    // Сводка без поля не выдумывает качество: подписи нет вовсе.
+    expect(screen.queryByText(/качество:/)).toBeNull();
   });
 
   it("рисует пару «кач.» в строке дисциплины только из payload", async () => {
