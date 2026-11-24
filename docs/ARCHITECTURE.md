@@ -133,11 +133,14 @@ Histogram для длительности стадий/запросов, Counter
 **cAdvisor** - метрики Docker-контейнеров (CPU, RAM, Network, Disk): `container_cpu_usage_seconds_total`, `container_memory_usage_bytes`
 
 ### rag/ - pgvector-retrieval (RAG)
-`src/rag/` - корпус РПД/КРМ/вакансий в PostgreSQL с расширением pgvector: HNSW-индекс
-(`vector_cosine_ops`) для dense-ветки, GIN по `tsv` для FTS и точный поиск по
-`rag_chunk_entities`. Слияние веток - RRF + MMR, сборка промпт-блока с цитатами `[n]`.
-FAISS-индексов в проекте нет (старый `src/vector_search/` удалён). Подробности и
-схема таблиц - `docs/RAG.md`, оценка качества - `docs/RAG-EVAL.md`.
+`src/rag/` - корпус РПД, КРМ, вакансий и публикаций hub в PostgreSQL с расширением
+pgvector: HNSW-индекс (`vector_cosine_ops`) для dense-ветки, GIN по `tsv` для FTS и
+точный поиск по `rag_chunk_entities`. Таблицы: `rag_documents` / `rag_chunks`
+(`vector(768)` + `tsvector`) / `rag_chunk_entities`; поколения (`generation`) дают
+blue-green реиндексацию. Слияние веток - RRF + MMR, сборка промпт-блока с цитатами
+`[n]`. FAISS-индексов в проекте нет (старый `src/vector_search/` удалён): фильтры по
+ACL/направлению/году в SQL дешевле отдельного артефакта. Подробности и схема таблиц -
+`docs/RAG.md`, оценка качества - `docs/RAG-EVAL.md`.
 
 ### REST API (api_pkg)
 Модульный FastAPI-пакет `src/api_pkg/` с 10 роутерами: health, vacancies, profiles, clusters, taxonomy, trends, market, pipeline, results, admin. Встроенный startup/hooks, зависимости через Depends.
@@ -173,10 +176,12 @@ Instrumentation пайплайна: `DataCollectionStage`, `ModelTrainingStage`,
 
 **cAdvisor** собирает метрики Docker-контейнеров и доступен через Prometheus (job: `cadvisor`). Позволяет видеть per-container CPU, memory, network, disk.
 
-### Векторный поиск (pgvector)
-`src/rag/store.py` - SQL по таблицам `rag_*`: dense (HNSW, `<=>`), sparse (`ts_rank_cd`,
-`plainto_tsquery('russian', ...)`) и entity-ветка. ORM-моделей нет намеренно: DDL живёт в
-alembic-ревизии `add_rag_tables`, запросы - чистый SQL. FAISS не используется.
+### Векторный поиск (pgvector, `src/rag/`)
+`src/rag/store.py` - dense (HNSW cosine, `<=>`), sparse (`ts_rank_cd` по русскому FTS,
+`plainto_tsquery('russian', ...)`) и entity-ветка по `rag_chunk_entities`;
+`src/rag/retriever.py` - RRF-фьюжн, дедуп, MMR. ORM-моделей нет намеренно: DDL живёт в
+alembic-ревизии `add_rag_tables`, запросы - чистый SQL. Индекс строится
+`python -m src.cli rag-index`, оценки - `python -m src.cli rag-eval`.
 
 ### Вспомогательные скрипты
 Расширение белого списка навыков (`scripts/extend_it_skills.py`). Проверка кластеров (`scripts/check_clusters.py`). Обучение кластеров (`scripts/train_clusters.py`). Полная пересборка проекта (`scripts/full_rebuild.py`).
@@ -215,8 +220,8 @@ FastAPI-сервер: middleware (request_id, body limit, CORS), rate limiting, 
 ### Мониторинг (`src/monitoring/`)
 Prometheus-метрики: pipeline_stage_duration_seconds, pipeline_stage_errors_total, api_request_duration_seconds, ltr_recommendations_generated_total, ltr_model_shap_errors_total. Декоратор `@track_pipeline_stage` для инструментирования стадий пайплайна.
 
-### Векторный поиск (`src/vector_search/`)
-FAISS-обёртка: `FaissIndex` с поддержкой FlatIP и HNSW. Методы `build`, `search`, `save`, `load`. Экспортируется через `create_faiss_index()`. Готов к интеграции в EmbeddingComparator/BM25Ranker.
+### Векторный поиск (`src/rag/`)
+pgvector-хранилище: `RagStore` (upsert, поколения, три ветки поиска), `HybridRetriever` (RRF + MMR), `RagService` (analyze -> retrieve -> assemble + L1-кэш). Таблицы `rag_*` создаются миграцией `add_rag_tables`; ORM-моделей нет — доступ только через сырой SQL.
 
 ### Скоринг и фильтрация спама (`src/scoring/`)
 **`VacancyQualityScorer`** оценивает качество вакансий и отфильтровывает спам перед агрегацией в Excel.
