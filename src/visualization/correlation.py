@@ -22,6 +22,7 @@ def _safe_label(skill: str, taxonomy=None) -> str:
         text_icon = EMOJI_TO_TEXT.get(icon, "")
         return f"{text_icon} {skill}" if text_icon else skill
     except Exception:
+        logger.debug("correlation_suppressed")
         return skill
 
 
@@ -58,6 +59,7 @@ def plot_skill_correlation_heatmap(
     try:
         taxonomy = SkillTaxonomy()
     except Exception:
+        logger.debug("correlation_suppressed")
         taxonomy = None
 
     if taxonomy:

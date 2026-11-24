@@ -40,7 +40,7 @@ def test_weights_shift_coverage_toward_demand():
 def test_all_weights_zero_falls_back_to_the_unweighted_ratio():
     # A zero denominator is not "no coverage": it means the weights do not
     # describe these skills, so the unweighted ratio is the honest answer.
-    weights = {name: 0.0 for name in MARKET}
+    weights = dict.fromkeys(MARKET, 0.0)
     cov = analyzer(weights).analyze_discipline("d1", "disc", RPD).ok()
     assert cov.market_weight_coverage == cov.market_top_coverage
 

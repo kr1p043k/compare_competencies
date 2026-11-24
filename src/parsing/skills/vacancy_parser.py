@@ -46,6 +46,7 @@ class VacancyParser:
                 case Err(e):
                     return Err(e)
         except Exception as e:
+            logger.debug("vacancy_parser_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail="extract_skills_from_description"))
 
     def extract_skills_from_vacancies(
@@ -96,6 +97,7 @@ class VacancyParser:
 
             return Ok({"frequencies": dict(skill_freq), "hybrid_weights": hybrid_weights})
         except Exception as e:
+            logger.debug("vacancy_parser_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail="extract_skills_from_vacancies"))
 
     def extract_from_detailed(self, detailed_vacancies: list[dict]) -> Result[dict[str, float], DomainError]:
@@ -130,6 +132,7 @@ class VacancyParser:
             )
             return Ok(result.model_dump())
         except Exception as e:
+            logger.debug("vacancy_parser_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail="extract_from_detailed"))
 
     # --------------------- утилиты сохранения и вывода -------------------------
@@ -155,6 +158,7 @@ class VacancyParser:
             logger.info("Сохранено", path=str(filepath))
             return Ok(None)
         except Exception as e:
+            logger.debug("vacancy_parser_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail=f"save_raw_vacancies({filename})"))
 
     def save_processed_frequencies(
@@ -170,6 +174,7 @@ class VacancyParser:
             logger.info("Частоты сохранены", path=str(filepath))
             return Ok(None)
         except Exception as e:
+            logger.debug("vacancy_parser_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail=f"save_processed_frequencies({filename})"))
 
     @staticmethod
@@ -278,6 +283,7 @@ class VacancyParser:
             logger.info("Excel файл сохранён", path=str(filepath))
             return Ok(None)
         except Exception as e:
+            logger.debug("vacancy_parser_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail=f"save_to_excel({filename})"))
 
     def print_vacancies_list(self, vacancies: list[dict] | list[Vacancy]):

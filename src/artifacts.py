@@ -80,6 +80,7 @@ class ArtifactManifest:
             logger.info("artifact_manifest_saved", path=str(self.manifest_path))
             return Ok(None)
         except Exception as e:
+            logger.debug("artifacts_suppressed", error=str(e))
             return Err(ManifestError(message=str(e), artifact_path=str(self.manifest_path)))
 
     @classmethod
@@ -100,6 +101,7 @@ class ArtifactManifest:
         except json.JSONDecodeError as e:
             return Err(ManifestError(message=f"Invalid manifest JSON: {e}", artifact_path=str(manifest_path)))
         except Exception as e:
+            logger.debug("artifacts_suppressed", error=str(e))
             return Err(ManifestError(message=str(e), artifact_path=str(manifest_path)))
 
     def is_compatible(self) -> Result[bool, ManifestError]:
@@ -115,4 +117,5 @@ class ArtifactManifest:
                 return Ok(False)
             return Ok(True)
         except Exception as e:
+            logger.debug("artifacts_suppressed", error=str(e))
             return Err(ManifestError(message=str(e), artifact_path=str(self.artifact_path)))

@@ -451,9 +451,9 @@ def compute_metrics(results: list[dict]) -> dict:
 
     relevant_sets = []
     retrieved_lists = []
-    for _query, pairs in queries_grouped.items():
+    for pairs in queries_grouped.values():
         # "relevant" = the expected skill for this query
-        relevant = set(r["expected"] for r in pairs)
+        relevant = {r["expected"] for r in pairs}
         # "retrieved" = all market skills ranked by L3 confidence
         all_by_conf = sorted(pairs, key=lambda x: -x["L3"]["confidence"])
         retrieved = [r["expected"] for r in all_by_conf]

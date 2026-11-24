@@ -117,7 +117,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
         return False
 
     labels_list = list(clusterer.labels_) if hasattr(clusterer, "labels_") else []
-    unique_labels = sorted(set(label for label in labels_list if label >= 0))
+    unique_labels = sorted({label for label in labels_list if label >= 0})
     logger.info("clustering_completed", clusters=len(unique_labels))
 
     _CLUSTER_STOP = frozenset({  # noqa: N806

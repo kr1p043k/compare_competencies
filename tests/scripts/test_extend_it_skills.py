@@ -239,8 +239,9 @@ class TestExtendItSkills:
             "--vacancies", str(nonexistent),
         ])
 
+        from scripts.extend_it_skills import main
+
         with pytest.raises(SystemExit):
-            from scripts.extend_it_skills import main
             main()
 
     def test_print_coverage(self, capsys):
@@ -407,8 +408,9 @@ class TestExtendItSkills:
             "--vacancies", str(tmp_path / "nonexistent.json"),
         ])
 
+        from scripts.extend_it_skills import main
+
         with pytest.raises(SystemExit):
-            from scripts.extend_it_skills import main
             main()
 
     def test_main_interactive_and_yes_conflict(self, monkeypatch, capsys):
@@ -419,8 +421,9 @@ class TestExtendItSkills:
             "--yes",
         ])
 
+        from scripts.extend_it_skills import main
+
         with pytest.raises(SystemExit):
-            from scripts.extend_it_skills import main
             main()
 
     def test_main_with_coverage_flag(self, sample_vacancies_rich, tmp_path, monkeypatch, capsys):
@@ -568,8 +571,9 @@ class TestExtendItSkills:
             "--output", str(tmp_path / "it_skills.json"),
         ])
         monkeypatch.setattr("scripts.extend_it_skills.load_it_skills", lambda: set())  # пустое множество
+        from scripts.extend_it_skills import main
+
         with pytest.raises(SystemExit):
-            from scripts.extend_it_skills import main
             main()
 
     def test_main_yes_with_cache_cleanup_message(self, sample_vacancies_rich, tmp_path, monkeypatch, capsys):

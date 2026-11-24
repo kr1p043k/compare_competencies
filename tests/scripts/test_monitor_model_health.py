@@ -146,7 +146,7 @@ def test_post_verdict_payload_and_errors(monkeypatch: pytest.MonkeyPatch):
         raise OSError("connection refused")
 
     monkeypatch.setattr(mmh.urllib.request, "urlopen", boom)
-    with pytest.raises(OSError):
+    with pytest.raises(OSError, match="connection refused"):
         mmh.post_verdict(verdict, "https://n8n.invalid/webhook/model-health")
 
 

@@ -41,7 +41,7 @@ class TaxonomyValidator:
             issues.append(f"Структурная ошибка {path}: {e}")
             return issues
         all_domains = set()
-        for _pname, prof in validated.professions.items():
+        for prof in validated.professions.values():
             for d in prof.domains:
                 all_domains.add(d)
         return issues
@@ -171,6 +171,7 @@ class ProfessionTaxonomy:
             self._load()
             return Ok(None)
         except Exception as e:
+            logger.debug("profession_taxonomy_suppressed", error=str(e))
             return Err(DomainError(message="Taxonomy load failed", detail=str(e)))
 
     @property
@@ -282,7 +283,7 @@ class ProfessionTaxonomy:
     def compute_krm_coverage(self, profession_name: str, user_skills: list[str]) -> dict:
         """Вычисляет покрытие каждой КРМ-компетенции профессии."""
         codes = self.get_profession_competency_codes(profession_name)
-        user_set = set(s.lower().strip() for s in user_skills)
+        user_set = {s.lower().strip() for s in user_skills}
         result = {}
         for code in codes:
             req_skills = self.get_competency_skills(code)
@@ -300,7 +301,7 @@ class ProfessionTaxonomy:
     def compute_krm_coverage_result(self, profession_name: str, user_skills: list[str]) -> Result[dict, DomainError]:
         match self.get_profession_competency_codes_result(profession_name):
             case Ok(codes):
-                user_set = set(s.lower().strip() for s in user_skills)
+                user_set = {s.lower().strip() for s in user_skills}
                 result = {}
                 for code in codes:
                     match self.get_competency_skills_result(code):
@@ -325,7 +326,7 @@ class ProfessionTaxonomy:
     ) -> dict[str, DomainMetrics]:
         """Считает покрытие доменов целевой профессии."""
         domains = self.get_domains_for_profession(profession_name)
-        user_set = set(s.lower().strip() for s in user_skills)
+        user_set = {s.lower().strip() for s in user_skills}
         result = {}
         for domain in domains:
             skills = self.get_domain_skills(domain)

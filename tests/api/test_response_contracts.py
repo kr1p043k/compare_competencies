@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 import src.api_pkg.deps as deps
 from src import Ok
@@ -34,7 +35,7 @@ class _FakeTrendAnalyzer:
         return Ok({"rising": [], "falling": [], "emerging": []})
 
 
-@pytest.fixture()
+@pytest.fixture
 def app():
     application = create_app()
     open_all_gates(application)
@@ -103,5 +104,5 @@ def test_negative_control_tampered_body_fails(app):
     # иначе проверка контракта была бы пустой.
     body = _client(app).get("/health").json()
     body["status"] = 12345  # status: str -> число
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         HealthResponse.model_validate(body)

@@ -35,6 +35,7 @@ class StudentLoader:
             with open(file_path, encoding="utf-8") as f:
                 data = json.load(f)
         except Exception as e:
+            logger.debug("student_loader_suppressed", error=str(e))
             return Err(DomainError(message=f"Ошибка чтения файла студента: {e}"))
 
         skills = data.get("навыки", [])
@@ -42,7 +43,7 @@ class StudentLoader:
         if not skills:
             skills = data.get("компетенции", [])
         if not skills:
-            for _k, _v in data.items():
+            for _v in data.values():
                 if isinstance(_v, list) and _v and isinstance(_v[0], str):
                     skills = _v
                     break

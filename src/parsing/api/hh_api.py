@@ -232,6 +232,7 @@ class HeadHunterAPI:
                 status_code=resp.status_code, endpoint="token"
             ))
         except Exception as e:
+            logger.debug("hh_api_suppressed", error=str(e))
             return Err(ApiError(message=f"Token request exception: {e}", endpoint="token"))
 
     def _ensure_token(self):

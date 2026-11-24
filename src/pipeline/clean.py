@@ -63,7 +63,7 @@ def find_skills(text: str) -> set[str]:
 
 
 def clean_competency_skills(data: dict) -> dict:
-    for _disc_name, disc in data.get("disciplines", {}).items():
+    for disc in data.get("disciplines", {}).values():
         for comp_code in disc.get("competencies", []):
             ksa = disc.get("ksa", {}).get(comp_code, {})
             skills_flat = set()

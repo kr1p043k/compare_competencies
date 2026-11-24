@@ -97,7 +97,7 @@ def main() -> None:
         and g[0][ids.index(i)] == g[1][ids.index(i)]
     ]
     print(f"e3-alone-vs-unanimous-pair: {len(e3_alone)}")
-    o2 = [i for i in ids if set([e1[i][2], e2[i][2], e3[i][2]]) == {0, 1, 2}]
+    o2 = [i for i in ids if {e1[i][2], e2[i][2], e3[i][2]} == {0, 1, 2}]
     print(f"all-differ 0/1/2: {len(o2)}")
     e3_up = [i for i in e3_alone if e3[i][2] > e1[i][2]]
     e3_dn = [i for i in e3_alone if e3[i][2] < e1[i][2]]

@@ -540,6 +540,7 @@ def _parse_blocks(raw: str, text: str) -> list[dict[str, Any]]:
             try:
                 data = json.loads(match.group(0))
             except Exception:
+                logger.debug("llm_chat_suppressed")
                 data = None
     blocks = data.get("blocks") if isinstance(data, dict) else None
     if not isinstance(blocks, list) or not blocks:

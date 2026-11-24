@@ -30,6 +30,7 @@ class MetricComputer:
             )
             return Ok(None)
         except Exception as e:
+            logger.debug("metric_computer_suppressed", error=str(e))
             return Err(DomainError(message=f"Ошибка подготовки оценщика: {e}"))
 
     def compute(self, profiles: dict) -> Result[dict, DomainError]:
@@ -47,4 +48,5 @@ class MetricComputer:
                     pbar.update(1)
             return Ok(evaluations)
         except Exception as e:
+            logger.debug("metric_computer_suppressed", error=str(e))
             return Err(DomainError(message=f"Ошибка оценки профилей: {e}"))

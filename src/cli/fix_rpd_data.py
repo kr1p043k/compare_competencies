@@ -64,9 +64,9 @@ async def get_or_create_parse_version(session: AsyncSession, direction_id: int) 
 
 async def clean_noisy_skills(session: AsyncSession) -> int:
     """Remove all rpd_skills not in the clean rpd_skills.json."""
-    clean_rpd = set(
+    clean_rpd = {
         s.strip().lower() for s in load_json(RPD_SKILLS_PATH) if s.strip()
-    )
+    }
 
     result = await session.execute(
         select(Skill).where(Skill.source == "rpd_skills")
@@ -179,9 +179,7 @@ async def rematch_competencies_to_it_skills(
 ) -> int:
     """Match KSA text against it_skills and create competency_skills links."""
 
-    it_skill_names = set(
-        k for k in skill_map
-    )
+    it_skill_names = set(skill_map)
 
     direction_data = krm.get("09.03.02", {})
     disciplines_raw = direction_data.get("disciplines", {})

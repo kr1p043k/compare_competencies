@@ -43,7 +43,7 @@ async def taxonomy_coverage(    request: Request,
     for cat_id in cat_ids:
         match taxonomy_instance.get_skills_in_category(cat_id):
             case Ok(skills):
-                cat_skills = set(s.lower() for s in skills)
+                cat_skills = {s.lower() for s in skills}
             case Err(err):
                 logger.warning("taxonomy_category_skills_failed", category=cat_id, error=str(err))
                 raise HTTPException(

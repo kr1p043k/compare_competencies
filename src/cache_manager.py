@@ -59,6 +59,7 @@ class CacheManager:
                 raise
             return Ok(None)
         except Exception as e:
+            logger.debug("cache_manager_suppressed", error=str(e))
             return Err(CacheError(message=f"Save failed: {e}", cache_path=str(path)))
 
     def load(self, key: str) -> Result[Any, CacheError]:
@@ -69,6 +70,7 @@ class CacheManager:
             data = joblib.load(path)
             return Ok(data)
         except Exception as e:
+            logger.debug("cache_manager_suppressed", error=str(e))
             return Err(CacheError(message=f"Load failed: {e}", cache_path=str(path)))
 
     def invalidate(self, key: str) -> Result[bool, CacheError]:
@@ -79,6 +81,7 @@ class CacheManager:
             path.unlink()
             return Ok(True)
         except Exception as e:
+            logger.debug("cache_manager_suppressed", error=str(e))
             return Err(CacheError(message=f"Invalidate failed: {e}", cache_path=str(path)))
 
     def exists(self, key: str) -> bool:
@@ -114,6 +117,7 @@ class JsonCacheManager(CacheManager):
                 raise
             return Ok(None)
         except Exception as e:
+            logger.debug("cache_manager_suppressed", error=str(e))
             return Err(CacheError(message=f"JSON save failed: {e}", cache_path=str(path)))
 
     def load(self, key: str) -> Result[Any, CacheError]:
@@ -124,4 +128,5 @@ class JsonCacheManager(CacheManager):
             with open(path, encoding="utf-8") as f:
                 return Ok(json.load(f))
         except Exception as e:
+            logger.debug("cache_manager_suppressed", error=str(e))
             return Err(CacheError(message=f"JSON load failed: {e}", cache_path=str(path)))

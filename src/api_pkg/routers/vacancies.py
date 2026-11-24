@@ -221,6 +221,7 @@ async def get_vacancies_info():
         from src.pipeline.helpers import vacancy_file_status
         info["cache_status"] = vacancy_file_status()
     except Exception as exc:
+        logger.debug("vacancies_suppressed", error=str(exc))
         info["cache_status"] = {"error": str(exc)[:200]}
 
     if pool:

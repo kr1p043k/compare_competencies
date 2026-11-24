@@ -33,14 +33,14 @@ ADMIN_ONLY_WRITES = [
 ]
 
 
-@pytest.mark.parametrize("method,path", ADMIN_ONLY_WRITES)
+@pytest.mark.parametrize(("method", "path"), ADMIN_ONLY_WRITES)
 def test_admin_write_has_admin_gate(method, path):
     """Каждый write-эндпоинт админки закрыт гейтом ('admin',)."""
     roles = route_gate_roles(create_app(), path, method)
     assert ("admin",) in roles, f"{method} {path}: нет admin-гейта, есть {roles}"
 
 
-@pytest.mark.parametrize("method,path", ADMIN_ONLY_WRITES)
+@pytest.mark.parametrize(("method", "path"), ADMIN_ONLY_WRITES)
 def test_admin_write_rejects_anonymous(method, path):
     """Без токена - 401, а не выполнение операции."""
     client = TestClient(create_app(), raise_server_exceptions=False)
@@ -63,7 +63,7 @@ def teacher_client(monkeypatch):
     return TestClient(create_app(), raise_server_exceptions=False)
 
 
-@pytest.mark.parametrize("method,path", ADMIN_ONLY_WRITES)
+@pytest.mark.parametrize(("method", "path"), ADMIN_ONLY_WRITES)
 def test_admin_write_rejects_teacher(teacher_client, method, path):
     """Преподаватель получает 403 до выполнения операции."""
     r = teacher_client.request(method, path, json={})

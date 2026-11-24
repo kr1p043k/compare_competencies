@@ -101,7 +101,8 @@ def _load_compare() -> Any:
     sys.path.insert(0, scripts_dir)
     try:
         spec = importlib.util.spec_from_file_location("compare_intakes", _SCRIPT)
-        assert spec is not None and spec.loader is not None
+        assert spec is not None
+        assert spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
     finally:

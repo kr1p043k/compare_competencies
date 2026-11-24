@@ -23,7 +23,7 @@ class TestGapAnalyzerExtended:
         user_levels = {"python": 0.7, "sql": 0.4}
         metrics = ga.compute_metrics(user_skills, user_levels).unwrap()
         assert len(metrics) > 0
-        for _skill, metric in metrics.items():
+        for metric in metrics.values():
             assert hasattr(metric, "gap_j")
             assert hasattr(metric, "gap_m")
             assert hasattr(metric, "gap_s")

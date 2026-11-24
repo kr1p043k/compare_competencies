@@ -73,7 +73,7 @@ def test_merged_no_duplicates(monkeypatch):
         # каждый навык - один раз
         norms = [m["skill"].strip().lower() for m in body["merged"]]
         assert len(norms) == len(set(norms))
-        assert set(m["source"] for m in body["merged"]) <= {"krm", "student", "both"}
+        assert {m["source"] for m in body["merged"]} <= {"krm", "student", "both"}
     finally:
         app.dependency_overrides.clear()
 

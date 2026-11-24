@@ -298,12 +298,14 @@ class HybridRetriever:
             for hit in selected:
                 rag_hits.labels(source=hit.source, profile=profile).inc()
         except Exception:
+            logger.debug("retriever_suppressed")
             pass
 
     def _embedder_available(self) -> bool:
         try:
             return self.embedder.available
         except Exception:
+            logger.debug("retriever_suppressed")
             return False
 
     async def _dense(

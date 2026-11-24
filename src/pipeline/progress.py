@@ -49,4 +49,5 @@ def write_result(pct: int, message: str, logs: list[str] | None = None) -> Resul
         _write(pct, message, logs)
         return Ok(None)
     except Exception as e:
+        logger.debug("progress_suppressed", error=str(e))
         return Err(DomainError(message="Progress write failed", detail=str(e)))

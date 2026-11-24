@@ -144,6 +144,7 @@ def scheduler_status() -> dict:
             "server_time": datetime.now(UTC).isoformat(),
         }
     except Exception as exc:
+        logger.debug("background_collector_suppressed", error=str(exc))
         return {"error": str(exc)[:200], "busy": _scheduler_busy}
 
 

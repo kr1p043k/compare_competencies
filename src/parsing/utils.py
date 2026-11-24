@@ -78,6 +78,7 @@ def read_json(filepath: Path) -> Result[Any, DomainError]:
         with open(filepath, encoding="utf-8") as f:
             return Ok(json.load(f))
     except Exception as e:
+        logger.debug("utils_suppressed", error=str(e))
         return Err(DomainError(message="JSON read error", detail=str(e)))
 
 
@@ -89,6 +90,7 @@ def write_json(data: Any, filepath: Path) -> Result[None, DomainError]:
             json.dump(data, f, ensure_ascii=False, indent=2)
         return Ok(None)
     except Exception as e:
+        logger.debug("utils_suppressed", error=str(e))
         return Err(DomainError(message="JSON write error", detail=str(e)))
 
 
@@ -257,6 +259,7 @@ def load_queries_from_file(filepath: Path) -> Result[list[str], DomainError]:
         with open(filepath, encoding="utf-8") as f:
             return Ok([line.strip() for line in f if line.strip()])
     except Exception as e:
+        logger.debug("utils_suppressed", error=str(e))
         return Err(DomainError(message="Queries file read error", detail=str(e)))
 
 
@@ -273,6 +276,7 @@ def get_last_parsed_id() -> Result[int, DomainError]:
         raw = id_file.read_text(encoding="utf-8").strip()
         return Ok(int(raw)) if raw else Err(DomainError(message="Empty last parsed ID file"))
     except Exception as e:
+        logger.debug("utils_suppressed", error=str(e))
         return Err(DomainError(message="Get last parsed ID error", detail=str(e)))
 
 
@@ -283,6 +287,7 @@ def save_last_parsed_id(vacancy_id: int) -> Result[None, DomainError]:
         id_file.write_text(str(vacancy_id), encoding="utf-8")
         return Ok(None)
     except Exception as e:
+        logger.debug("utils_suppressed", error=str(e))
         return Err(DomainError(message="Save last parsed ID error", detail=str(e)))
 
 
@@ -312,6 +317,7 @@ def save_checkpoint(checkpoint: ParsingCheckpoint) -> Result[None, DomainError]:
         }, path)
         return Ok(None)
     except Exception as e:
+        logger.debug("utils_suppressed", error=str(e))
         return Err(DomainError(message="Checkpoint save error", detail=str(e)))
 
 
@@ -329,6 +335,7 @@ def load_checkpoint() -> Result[ParsingCheckpoint, DomainError]:
             timestamp=data["timestamp"],
         ))
     except Exception as e:
+        logger.debug("utils_suppressed", error=str(e))
         return Err(DomainError(message="Checkpoint load error", detail=str(e)))
 
 

@@ -66,7 +66,7 @@ def clean_file(path: Path, dry_run: bool) -> tuple[int, int]:
             continue
         for body in (sub.get("disciplines") or {}).values():
             ksa = body.get("ksa") or {}
-            for code, sections in ksa.items():
+            for sections in ksa.values():
                 if not isinstance(sections, dict):
                     continue
                 for kt in ("knowledge", "abilities", "skills"):

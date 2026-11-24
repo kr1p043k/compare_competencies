@@ -164,6 +164,7 @@ def save_detailed_vacancies(vacancies, log) -> Result[None, DomainError]:
         log.info("detailed_vacancies_saved", path=str(file), count=len(data))
         return Ok(None)
     except Exception as e:
+        logger.debug("helpers_suppressed", error=str(e))
         return Err(DomainError(message="Failed to save detailed vacancies", detail=str(e)))
 
 
@@ -206,5 +207,6 @@ def vacancy_file_status() -> dict:
         except OSError:
             status["students_files"] = []
     except Exception as exc:
+        logger.debug("helpers_suppressed", error=str(exc))
         status["error"] = str(exc)[:200]
     return status

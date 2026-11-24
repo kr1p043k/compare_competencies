@@ -114,6 +114,7 @@ async def krm_student_competencies(
 
             allowed = await _user_directions(user)
         except Exception:
+            logger.debug("krm_student_suppressed")
             allowed = []
         if not allowed:
             allowed = [d["dir_code"] for d in _list_all_dirs()]

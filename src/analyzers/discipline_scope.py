@@ -231,6 +231,7 @@ def scope_from_text(matcher, text: str,
     try:
         vector = provider.encode([text[:4000]], show_progress_bar=False)[0]
     except Exception:
+        logger.debug("discipline_scope_suppressed")
         return set()
     norm = float(np.linalg.norm(vector))
     if norm == 0:

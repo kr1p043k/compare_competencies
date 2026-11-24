@@ -40,6 +40,7 @@ def _load_snapshots() -> list[tuple[date, dict[str, float]]]:
                     continue
             snaps.append((dt, data))
         except Exception:
+            logger.debug("forecast_audit_suppressed")
             continue
     snaps.sort(key=lambda x: x[0])
     return snaps

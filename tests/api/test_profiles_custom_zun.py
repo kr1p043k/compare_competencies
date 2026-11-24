@@ -5,7 +5,6 @@ Real TestClient/ASGI, isolated tmp DATA_DIR, auth bypass like v33 sibling.
 import json
 
 import pytest
-import pytest as _pytest
 from fastapi.testclient import TestClient
 
 import src.api_pkg.routers.zun as _zun_mod
@@ -13,7 +12,7 @@ from src import config
 from src.api_pkg import create_app, deps
 
 
-@_pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def _allow_all_dirs(monkeypatch):
     """IDOR-guard проверяется в tests/api/test_zun_idor.py.
 
