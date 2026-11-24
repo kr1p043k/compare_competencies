@@ -40,6 +40,13 @@ DEFAULT_RUN_DAYS = 365
 #: Аудит действий живёт дольше логов: он нужен для разбора инцидентов и
 #: проверок, но и он не должен расти вечно (в записях есть email и IP).
 DEFAULT_AUDIT_DAYS = 730
+#: RAG: журнал запросов и оценки — сырьё для golden-set. 90 дней хватает,
+#: чтобы разобрать месяц-два назад, но не копить бесконечно (каждый чат-вопрос
+#: пишет строку).
+DEFAULT_RAG_DAYS = 90
+#: RAG: старое поколение индекса (blue-green). После переключения оно мертво,
+#: но неделя запаса оставляет возможность откатиться на предыдущий индекс.
+DEFAULT_RAG_STALE_DAYS = 7
 
 #: Границы допустимых значений дня для всех day-based аргументов.
 #: Интерполяция в `INTERVAL '<n> days'` без границ позволяла передать
@@ -87,10 +94,14 @@ def main(args: argparse.Namespace) -> int:
     session_days = int(getattr(args, "session_days", DEFAULT_SESSION_DAYS))
     # Отрицательные значения: --logs-days=-1 удаляло бы всё, включая свежее.
     audit_days = int(getattr(args, "audit_days", DEFAULT_AUDIT_DAYS))
+    # RAG-таблицы: журнал запросов/оценки и мёртвые поколения индекса.
+    rag_days = int(getattr(args, "rag_days", DEFAULT_RAG_DAYS))
+    rag_stale_days = int(getattr(args, "rag_stale_days", DEFAULT_RAG_STALE_DAYS))
     # Защита от опечатки: отрицательные значения удалили бы почти всю таблицу.
     for name, value in (("vacancies-days", vac_days), ("logs-days", log_days),
                         ("run-days", run_days), ("session-days", session_days),
-                        ("audit-days", audit_days)):
+                        ("audit-days", audit_days), ("rag-days", rag_days),
+                        ("rag-stale-days", rag_stale_days)):
         if value < 1:
             print(f"Ошибка: --{name} должно быть >= 1 (получено {value})")
             return 2
@@ -145,6 +156,38 @@ def main(args: argparse.Namespace) -> int:
             "DELETE FROM audit_logs "
             f"WHERE created_at < NOW() - INTERVAL '{audit_days} days'",
         ),
+        (
+            # Журнал RAG-запросов: пишется на каждый retrieval (чат, отладка).
+            # Хранит хеш запроса, не текст, но растёт линейно с трафиком.
+            "rag_query_log",
+            "SELECT COUNT(*) FROM rag_query_log "
+            f"WHERE created_at < NOW() - INTERVAL '{rag_days} days'",
+            "DELETE FROM rag_query_log "
+            f"WHERE created_at < NOW() - INTERVAL '{rag_days} days'",
+        ),
+        (
+            # Оценки ответов: FK на журнал объявлен ON DELETE SET NULL, поэтому
+            # после чистки журнала остаются строки с query_log_id IS NULL.
+            "rag_feedback",
+            "SELECT COUNT(*) FROM rag_feedback "
+            f"WHERE created_at < NOW() - INTERVAL '{rag_days} days'",
+            "DELETE FROM rag_feedback "
+            f"WHERE created_at < NOW() - INTERVAL '{rag_days} days'",
+        ),
+        (
+            # Мёртвые поколения индекса (blue-green): после переключения
+            # active_generation старые документы и чанки не видны поиску,
+            # но занимают место. Чанки уходят каскадом по FK.
+            "rag_documents",
+            "SELECT COUNT(*) FROM rag_documents d "
+            "JOIN rag_sources s ON s.source = d.source "
+            "WHERE d.generation < s.active_generation "
+            f"AND d.valid_from < NOW() - INTERVAL '{rag_stale_days} days'",
+            "DELETE FROM rag_documents d "
+            "USING rag_sources s "
+            "WHERE s.source = d.source AND d.generation < s.active_generation "
+            f"AND d.valid_from < NOW() - INTERVAL '{rag_stale_days} days'",
+        ),
     ]
 
     conn = psycopg2.connect(dsn)
@@ -188,5 +231,10 @@ def build_parser(sub) -> None:
     p.add_argument("--run-days", type=positive_days, default=DEFAULT_RUN_DAYS, metavar="N",
                    help="Удалять завершённые прогоны (completed/failed/cancelled) старше N дней")
     p.add_argument("--audit-days", type=positive_days, default=DEFAULT_AUDIT_DAYS, metavar="N")
+    p.add_argument("--rag-days", type=positive_days, default=DEFAULT_RAG_DAYS, metavar="N",
+                   help="Удалять записи rag_query_log/rag_feedback старше N дней")
+    p.add_argument("--rag-stale-days", type=positive_days, default=DEFAULT_RAG_STALE_DAYS,
+                   metavar="N", dest="rag_stale_days",
+                   help="Удалять мёртвые поколения RAG-индекса старше N дней")
     p.add_argument("--apply", action="store_true", help="Реально удалить (без флага - dry-run)")
     p.set_defaults(func=lambda a: main(a))
