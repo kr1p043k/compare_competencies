@@ -2,15 +2,18 @@ import { motion } from "motion/react";
 import { Award, BarChart3, Briefcase, GraduationCap } from "lucide-react";
 import { Badge, Card, CardBody, CardHeader } from "../../design";
 
+/** Ответ /api/profiles/{name} для просмотра профиля компетенций. */
+export interface ProfileViewData {
+  profile_name?: string;
+  target_level?: string;
+  skills_count?: number;
+  skills?: string[];
+  competencies_count?: number;
+  competencies?: string[];
+}
+
 interface ProfileViewProps {
-  data: {
-    profile_name?: string;
-    target_level?: string;
-    skills_count?: number;
-    skills?: string[];
-    competencies_count?: number;
-    competencies?: string[];
-  };
+  data: ProfileViewData;
 }
 
 const LEVEL_RU: Record<string, string> = {

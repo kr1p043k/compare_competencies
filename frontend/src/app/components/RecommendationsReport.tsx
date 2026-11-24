@@ -50,8 +50,11 @@ interface GapEntry {
   category: string;
 }
 
-interface RecommendationData {
+/** Ответ /api/results/recommendations/{profile}; поля-метки приходят от API как есть. */
+export interface RecommendationData {
   llm_enhanced?: boolean;
+  generated_at?: string;
+  message?: string;
   summary: {
     match_score: number;
     confidence: number;

@@ -2,11 +2,22 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, request } from "../../lib/api";
 import { reportError } from "../../lib/errors";
+import type { RecommendationData } from "../components/RecommendationsReport";
 
 /** Активная задача пайплайна из /api/pipeline/active. */
 export interface PipelineActive {
   task_id?: string;
   status?: string;
+}
+
+/** Сводный статус готовности результатов из /api/pipeline/status. */
+interface PipelineStatus {
+  recommendations_all_ready?: boolean;
+}
+
+/** Счётчик вакансий для журнала действий студента. */
+interface VacancyCount {
+  total?: number;
 }
 
 /** Прогресс шага пайплайна для PipelineProgress. */
@@ -27,7 +38,7 @@ interface UsePipelineParams {
   /** Реальная роль пользователя (предпросмотр роли не учитывается). */
   role: string | null;
   /** Записать свежие рекомендации (setLastResult из App). */
-  setResult: (data: any) => void;
+  setResult: (data: RecommendationData) => void;
   /** Перейти на вкладку по завершении (setActiveTab из App). */
   navigate: (next: string) => void;
 }
@@ -166,12 +177,12 @@ export function usePipeline({ profile, role, setResult, navigate }: UsePipelineP
           pipelineLoadingRef.current = false;
           sessionStorage.removeItem("pipelineTaskId");
           const prof = profileRef.current;
-          request<any>(`/api/results/recommendations/${prof}`).catch(() => null).then(d => {
+          request<RecommendationData>(`/api/results/recommendations/${prof}`).catch(() => null).then(d => {
             if (d) { setResult(d); }
             if (roleRef.current === "student" && d) {
               const q = pipelineQuery;
               const url = q ? `/api/vacancies?limit=1&search=${encodeURIComponent(q)}` : "/api/vacancies/info";
-              request<any>(url).catch(() => ({ total: 0 })).then(vi => {
+              request<VacancyCount>(url).catch(() => ({ total: 0 })).then(vi => {
                 const vc = vi.total || 0;
                 request("/api/student/log-action", {
                   method: "POST",
@@ -203,12 +214,12 @@ export function usePipeline({ profile, role, setResult, navigate }: UsePipelineP
         if (e?.message === "NOT_FOUND") {
           // Задача пропала из памяти (рестарт сервера): проверяем готовые
           // результаты через /api/pipeline/status, а не молча сбрасываем прогресс.
-          request<any>("/api/pipeline/status").catch(() => null)
+          request<PipelineStatus | null>("/api/pipeline/status").catch(() => null)
             .then(st => {
               const prof = profileRef.current;
               if (st?.recommendations_all_ready) {
                 setPipelineStep({ step: 4, total: 4, status: "completed", message: "Сервер перезапускался, но результаты готовы.", progress: 100 });
-                request<any>(`/api/results/recommendations/${prof}`).catch(() => null).then(d => {
+                request<RecommendationData>(`/api/results/recommendations/${prof}`).catch(() => null).then(d => {
                   if (d) { setResult(d); }
                 }).catch((err) => reportError("app/App.tsx", err));
                 navigate("data");

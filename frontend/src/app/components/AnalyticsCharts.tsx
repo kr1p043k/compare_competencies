@@ -21,6 +21,7 @@ import { Alert, AlertDescription } from "./ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Radar as RadarIcon, X, Loader2, AlertTriangle, ChevronDown } from "lucide-react";
 import { api } from "../api";
+import { errMessage } from "../../lib/errors";
 import { useTheme } from "../../lib/theme";
 import { profileLabel } from "../../lib/profiles";
 import { Meter } from "../../design";
@@ -33,6 +34,28 @@ const LEVELS = [
 ] as const;
 
 type LevelKey = (typeof LEVELS)[number]["key"];
+
+/** Строка агрегата покрытия по уровням (см. coverageData ниже). */
+interface CoverageRow {
+  level: string;
+  key: LevelKey;
+  pct: number;
+  hit: string[];
+  miss: string[];
+}
+
+/** Параметры точки радара из recharts: рисуем кастомный кружок. */
+interface RadarDotProps {
+  cx?: number;
+  cy?: number;
+  index?: number;
+  payload?: { skill?: string };
+}
+
+/** Payload бара покрытия для drill-down. */
+interface CoverageBarPayload {
+  payload?: { key?: LevelKey };
+}
 
 type Drill = {
   skill: string;
@@ -83,8 +106,8 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
         }
         setProfiles(sets);
         setTopSkills(top?.skills || []);
-      } catch (e: any) {
-        if (alive) setError(e?.message || "Ошибка загрузки");
+      } catch (e) {
+        if (alive) setError(errMessage(e) ?? "Ошибка загрузки");
       } finally {
         if (alive) setLoading(false);
       }
@@ -283,12 +306,12 @@ const LEVEL_BG: Record<LevelKey, string> = {
                   <ReTooltip
                     contentStyle={tipStyle}
                     cursor={{ stroke: tick, strokeWidth: 1, fill: "transparent" }}
-                    formatter={(_value: any, name: any, props: any) => {
+                    formatter={(_value: unknown, name: unknown, props: { payload?: { has?: boolean; market?: number } }) => {
                       const p = props?.payload;
-                      if (!p) return [_value, name];
+                      if (!p) return [String(_value), String(name)];
                       return [
-                        `${p.has ? "в профиле" : "нет в профиле"} · ${(p.market * 100).toFixed(0)}% от топ-навыка`,
-                        name === "market" ? "Рынок" : "Профиль",
+                        `${p.has ? "есть в профиле" : "нет в профиле"} · ${((p.market ?? 0) * 100).toFixed(0)}% от топ-навыков`,
+                        name === "market" ? "рынок" : "профиль",
                       ];
                     }}
                     labelFormatter={(label) => String(label)}
@@ -301,7 +324,7 @@ const LEVEL_BG: Record<LevelKey, string> = {
                     fill="var(--chart-1)"
                     fillOpacity={0.35}
                     strokeWidth={2}
-                    dot={(p: any) => (
+                    dot={(p: RadarDotProps) => (
                       <circle key={`dot-${p?.payload?.skill ?? p?.index ?? "x"}`} cx={p?.cx} cy={p?.cy} r={3} fill="var(--chart-1)" strokeWidth={0} cursor="pointer"
                         onClick={() => p?.payload?.skill && openDrill(p.payload.skill)} />
                     )}
@@ -311,8 +334,7 @@ const LEVEL_BG: Record<LevelKey, string> = {
                       stroke: "var(--chart-1)",
                       strokeWidth: 2,
                       cursor: "pointer",
-                      onClick: (_e: any, payload: any) => payload?.payload?.skill && openDrill(payload.payload.skill),
-                    } as any}
+                    }}
                   />
                 </RadarChart>
               </ResponsiveContainer>
@@ -363,13 +385,13 @@ const LEVEL_BG: Record<LevelKey, string> = {
                     <ReTooltip
                       contentStyle={tipStyle}
                       cursor={{ fill: dk ? "rgba(148, 163, 184, 0.12)" : "rgba(100, 116, 139, 0.12)" }}
-                      formatter={(value: any) => [`${value}%`, "Покрытие"]}
+                      formatter={(value: unknown) => [`${String(value)}%`, "Покрытие"]}
                     />
                     <Bar
                       dataKey="pct"
                       radius={[0, 6, 6, 0]}
                       cursor="pointer"
-                      onClick={(data: any) => data?.payload && openCoverageDrill(data.payload.key)}
+                      onClick={(data: CoverageBarPayload) => data?.payload?.key && openCoverageDrill(data.payload.key)}
                     >
                       {coverageData.map((c) => (
                         <Cell key={c.key} fill={LEVEL_COLORS[c.key]} />
@@ -551,7 +573,7 @@ const LEVEL_BG: Record<LevelKey, string> = {
   );
 }
 
-function CoverageDetail({ entry, onClose }: { entry: any; onClose: () => void }) {
+function CoverageDetail({ entry, onClose }: { entry: CoverageRow | null | undefined; onClose: () => void }) {
   if (!entry) return null;
   return (
     <>

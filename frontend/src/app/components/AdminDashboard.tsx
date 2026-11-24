@@ -6,7 +6,7 @@ import {
   Upload, Brain, BookOpen, Download, Clock, Activity, Shield,
 } from "lucide-react";
 import { logAction } from "../../lib/auth";
-import { reportError } from "./../../lib/errors";
+import { errMessage, reportError } from "./../../lib/errors";
 import { ApiError, request } from "../../lib/api";
 import { AdminSecurity } from "./AdminSecurity";
 import { AdminAuditTab } from "./AdminAuditTab";
@@ -29,6 +29,79 @@ import {
 
 import { AdminHealthTab } from "./AdminHealthTab";
 
+/** Пользователь в выпадающих списках админки (GET /api/admin/users). */
+interface AdminUser {
+  username: string;
+  name: string;
+}
+
+/** Запись журнала запросов (GET /api/admin/logs). */
+interface AdminLogEntry {
+  timestamp: string;
+  user: string;
+  method: string;
+  path: string;
+  detail?: string;
+  status: number;
+  duration_ms: number;
+}
+
+/** Настройки и состояние фонового планировщика. */
+interface SchedulerStatus {
+  collect_interval_hours?: number | null;
+  collector_enabled?: boolean;
+  daily_gap_enabled?: boolean;
+  last_collect_ts?: number | null;
+  last_gap_date?: string | null;
+  next_collect_ts?: number | null;
+  busy?: boolean;
+  pipeline_running?: boolean;
+}
+
+/** Предложение навыка на модерации. */
+interface SkillSuggestion {
+  id: string;
+  skill: string;
+  category?: string;
+  category_hint?: string;
+  created_by?: string;
+  created_at?: string;
+}
+
+/** Категория таксономии для выбора. */
+interface TaxonomyCategory {
+  id: string;
+  label: string;
+}
+
+/** Неклассифицированный навык. */
+interface UncategorizedSkill {
+  skill: string;
+  category?: string;
+  manual?: boolean;
+  score?: number;
+}
+
+/** Направление для селектов. */
+interface DirectionOption {
+  dir_code: string;
+}
+
+/** Вариант компетенции из поиска ZUN. */
+interface CompetencyOption {
+  id: string;
+  code?: string;
+  discipline_name?: string;
+}
+
+/** Статус запуска РПД-пайплайна. */
+interface RpdStatus {
+  status?: string;
+  stage?: string;
+  error?: string;
+  stats?: { progress?: number; stage?: string };
+}
+
 export function AdminDashboard() {
   const RPD_STAGE_LABELS: Record<string, string> = {
     saved: "файл сохранён",
@@ -44,12 +117,12 @@ export function AdminDashboard() {
     if (!stage) return "...";
     return RPD_STAGE_LABELS[stage] ?? stage;
   };
-  const [users, setUsers] = useState<any[]>([]);
-  const [logs, setLogs] = useState<any[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [logs, setLogs] = useState<AdminLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState("users");
-  const [sched, setSched] = useState<any>(null);
+  const [sched, setSched] = useState<SchedulerStatus | null>(null);
   const [schedLoading, setSchedLoading] = useState(false);
   const [schedMsg, setSchedMsg] = useState("");
   const [schedInterval, setSchedInterval] = useState("12");
@@ -57,25 +130,25 @@ export function AdminDashboard() {
   const loadSched = async () => {
     setSchedLoading(true);
     try {
-      const d = await request<any>("/api/admin/scheduler/status");
+      const d = await request<SchedulerStatus>("/api/admin/scheduler/status");
       setSched(d);
       if (d && d.collect_interval_hours != null) setSchedInterval(String(d.collect_interval_hours));
-    } catch (e: any) {
-      setSchedMsg(e?.message || "Ошибка загрузки");
+    } catch (e) {
+      setSchedMsg(errMessage(e) ?? "Ошибка загрузки");
     } finally {
       setSchedLoading(false);
     }
   };
-  const saveSched = async (patch: any) => {
+  const saveSched = async (patch: Partial<SchedulerStatus>) => {
     setSchedBusy(true);
     setSchedMsg("");
     try {
-      const d = await request<any>("/api/admin/scheduler/settings", { method: "PUT", body: patch });
+      const d = await request<SchedulerStatus>("/api/admin/scheduler/settings", { method: "PUT", body: patch });
       setSched(d);
       if (d && d.collect_interval_hours != null) setSchedInterval(String(d.collect_interval_hours));
       setSchedMsg("Сохранено");
-    } catch (e: any) {
-      setSchedMsg(e?.message || "Ошибка сохранения");
+    } catch (e) {
+      setSchedMsg(errMessage(e) ?? "Ошибка сохранения");
     } finally {
       setSchedBusy(false);
     }
@@ -85,17 +158,17 @@ export function AdminDashboard() {
     setSchedBusy(true);
     setSchedMsg("");
     try {
-      await request<any>(`/api/admin/scheduler/${job}/now`, { method: "POST" });
+      await request<{ status?: string }>(`/api/admin/scheduler/${job}/now`, { method: "POST" });
       setSchedMsg("Запущено");
       setTimeout(loadSched, 2000);
-    } catch (e: any) {
-      setSchedMsg(e?.message || "Ошибка запуска");
+    } catch (e) {
+      setSchedMsg(errMessage(e) ?? "Ошибка запуска");
     } finally {
       setSchedBusy(false);
     }
   };
   useEffect(() => { if (tab === "sched") loadSched(); }, [tab]);
-  const [sugList, setSugList] = useState<any[]>([]);
+  const [sugList, setSugList] = useState<SkillSuggestion[]>([]);
   const [sugLoading, setSugLoading] = useState(false);
   const [sugMsg, setSugMsg] = useState("");
   const [sugCats, setSugCats] = useState<Record<string, string>>({});
@@ -104,14 +177,14 @@ export function AdminDashboard() {
     setSugLoading(true);
     setSugMsg("");
     try {
-      const d = await request<any>("/api/admin/skills/suggestions?status=pending");
+      const d = await request<{ suggestions?: SkillSuggestion[] }>("/api/admin/skills/suggestions?status=pending");
       setSugList(d.suggestions || []);
       if (taxCats.length === 0) {
-        const t = await request<any>("/api/taxonomy/categories").catch(() => null);
-        if (t?.categories) setTaxCats(t.categories.map((c: any) => ({ id: c.id, label: c.label })));
+        const t = await request<{ categories?: TaxonomyCategory[] }>("/api/taxonomy/categories").catch(() => null);
+        if (t?.categories) setTaxCats(t.categories.map((c) => ({ id: c.id, label: c.label })));
       }
-    } catch (e: any) {
-      setSugMsg(e?.message || "Ошибка загрузки");
+    } catch (e) {
+      setSugMsg(errMessage(e) ?? "Ошибка загрузки");
     } finally {
       setSugLoading(false);
     }
@@ -121,17 +194,17 @@ export function AdminDashboard() {
     const cat = sugCats[id] || "";
     if (approve && !cat) { setSugMsg("Выберите категорию для одобрения"); return; }
     try {
-      await request<any>(`/api/admin/skills/suggestions/${id}/${approve ? "approve" : "reject"}`, {
+      await request<{ status?: string }>(`/api/admin/skills/suggestions/${id}/${approve ? "approve" : "reject"}`, {
         method: "POST",
         body: { category: cat },
       });
       setSugList((prev) => prev.filter((s) => s.id !== id));
       setSugMsg(approve ? `Принят в таксономию (${cat})` : "Отклонён");
-    } catch (e: any) {
-      setSugMsg("Ошибка: " + (e?.message || e));
+    } catch (e) {
+      setSugMsg("Ошибка: " + (errMessage(e) ?? String(e)));
     }
   };
-  const fmtTs = (ts: any) => {
+  const fmtTs = (ts: number | string | null | undefined) => {
     if (ts == null) return "-";
     const d = new Date(Number(ts) * 1000);
     return isNaN(d.getTime()) ? "-" : d.toLocaleString("ru-RU");
@@ -148,13 +221,13 @@ export function AdminDashboard() {
   const [exportMsg, setExportMsg] = useState("");
   const [extMsg, setExtMsg] = useState("");
   const [impMsg, setImpMsg] = useState("");
-  const [uncategorized, setUncategorized] = useState<any[]>([]);
+  const [uncategorized, setUncategorized] = useState<UncategorizedSkill[]>([]);
   const [uncatLoading, setUncatLoading] = useState(false);
   const [uncatMsg, setUncatMsg] = useState("");
   const [uncatSelections, setUncatSelections] = useState<Record<string, string>>({});
   const [linkSkill, setLinkSkill] = useState<string | null>(null);
   const [compQuery, setCompQuery] = useState("");
-  const [compResults, setCompResults] = useState<any[]>([]);
+  const [compResults, setCompResults] = useState<CompetencyOption[]>([]);
   const [compLoading, setCompLoading] = useState(false);
   const [linkKsa, setLinkKsa] = useState("skills");
   const [linkCompId, setLinkCompId] = useState("");
@@ -166,12 +239,12 @@ export function AdminDashboard() {
     if (!q.trim()) { setCompResults([]); return; }
     setCompLoading(true);
     try {
-      const d = await request<any>(
+      const d = await request<{ items?: CompetencyOption[] }>(
         `/api/teacher/zun/competencies/search?q=${encodeURIComponent(q)}&dir_code=09.03.02&limit=20`,
       );
       setCompResults(d.items || []);
-    } catch (e: any) {
-      setLinkMsg("Поиск: " + e.message);
+    } catch (e) {
+      setLinkMsg("Поиск: " + (errMessage(e) ?? ""));
     } finally {
       setCompLoading(false);
     }
@@ -181,19 +254,19 @@ export function AdminDashboard() {
     if (!linkSkill || !linkCompId) { setLinkMsg("Выберите компетенцию из поиска"); return; }
     setLinkSaving(true); setLinkMsg("");
     try {
-      const d = await request<any>(`/api/teacher/zun/competencies/${linkCompId}/skills`, {
+      const d = await request<{ skill_name?: string }>(`/api/teacher/zun/competencies/${linkCompId}/skills`, {
         method: "POST",
         body: { skill_name: linkSkill, ksa_type: linkKsa },
       });
       setLinkMsg(`Привязано: ${d.skill_name} → explicit. Учтётся в следующем teacher-анализе.`);
       setLinkSkill(null); setCompQuery(""); setCompResults([]); setLinkCompId("");
-    } catch (e: any) {
-      setLinkMsg("Ошибка: " + e.message);
+    } catch (e) {
+      setLinkMsg("Ошибка: " + (errMessage(e) ?? ""));
     } finally {
       setLinkSaving(false);
     }
   };
-  const [directions, setDirections] = useState<any[]>([]);
+  const [directions, setDirections] = useState<DirectionOption[]>([]);
   const [importJson, setImportJson] = useState("");
   const [rpdDir, setRpdDir] = useState("09.03.02");
   const [rpdFile, setRpdFile] = useState<File | null>(null);
@@ -203,7 +276,7 @@ export function AdminDashboard() {
   const [rpdYandexUrl, setRpdYandexUrl] = useState("");
   const [collectCooldown, setCollectCooldown] = useState(0);
   const [rpdRunId, setRpdRunId] = useState<string | null>(null);
-  const [rpdStatus, setRpdStatus] = useState<any>(null);
+  const [rpdStatus, setRpdStatus] = useState<RpdStatus | null>(null);
   const [rpdMsg, setRpdMsg] = useState("");
   const [rpdSources, setRpdSources] = useState<{ yandex_covered: string[] }>({ yandex_covered: [] });
 
@@ -211,15 +284,15 @@ export function AdminDashboard() {
     setLoading(true); setError(null);
     try {
       const [uData, lData, dData] = await Promise.all([
-        request<any>("/api/admin/users"),
-        request<any>("/api/admin/logs?limit=200"),
-        request<any>("/api/admin/directions"),
+        request<{ users?: AdminUser[] }>("/api/admin/users"),
+        request<{ logs?: AdminLogEntry[] }>("/api/admin/logs?limit=200"),
+        request<DirectionOption[]>("/api/admin/directions"),
       ]);
       setUsers(uData.users || []);
       setLogs(lData.logs || []);
       setDirections(Array.isArray(dData) ? dData : []);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(errMessage(e) ?? "Ошибка");
     } finally {
       setLoading(false);
     }
@@ -245,8 +318,8 @@ export function AdminDashboard() {
   }, [collectCooldown]);
 
   useEffect(() => {
-    request<any>("/api/teacher/rpd/sources")
-      .then((d) => { if (d) setRpdSources(d); })
+    request<{ yandex_covered?: string[] }>("/api/teacher/rpd/sources")
+      .then((d) => { if (d) setRpdSources({ yandex_covered: d.yandex_covered ?? [] }); })
       .catch((err) => reportError("app/components/AdminDashboard.tsx", err));
   }, []);
 
@@ -255,7 +328,7 @@ export function AdminDashboard() {
     let cancelled = false;
     let misses = 0;
     const poll = () => {
-      request<any>(`/api/teacher/rpd/status/${rpdRunId}`)
+      request<RpdStatus>(`/api/teacher/rpd/status/${rpdRunId}`)
         .catch(() => null)
         .then((s) => {
           if (cancelled) return;
@@ -316,8 +389,8 @@ export function AdminDashboard() {
       setRpdRunId(d.run_id);
       setRpdMsg("Обработка запущена...");
       setRpdFile(null);
-    } catch (e: any) {
-      setRpdMsg("Ошибка: " + e.message);
+    } catch (e) {
+      setRpdMsg("Ошибка: " + (errMessage(e) ?? ""));
       setRpdUploading(false);
     }
   }
@@ -361,21 +434,21 @@ export function AdminDashboard() {
       try { sessionStorage.setItem("rpdRunId", d.run_id); } catch (err) { reportError("app/components/AdminDashboard.tsx:383", err); }
       setRpdRunId(d.run_id);
       setRpdMsg("Сбор и обработка запущены...");
-    } catch (e: any) {
-      setRpdMsg("Ошибка: " + e.message);
+    } catch (e) {
+      setRpdMsg("Ошибка: " + (errMessage(e) ?? ""));
       setRpdCollecting(false);
     }
   }
 
   const filteredLogs = logFilter === "all" ? logs : logs.filter((l) => l.user === logFilter);
 
-  const callAction = async (url: string, body: any, setMsg: (s: string) => void, setLoad: (b: boolean) => void) => {
+  const callAction = async (url: string, body: unknown, setMsg: (s: string) => void, setLoad: (b: boolean) => void) => {
     setLoad(true); setMsg(""); logAction(url);
     try {
-      const d = await request<any>(url, { method: "POST", body });
+      const d = await request<{ status?: string; message?: string }>(url, { method: "POST", body });
       setMsg(d?.message || d?.status || "Done");
-    } catch (e: any) {
-      setMsg("Error: " + e.message);
+    } catch (e) {
+      setMsg("Error: " + (errMessage(e) ?? ""));
     } finally {
       setLoad(false);
     }
@@ -385,9 +458,9 @@ export function AdminDashboard() {
     logAction("/api/admin/export/db");
     setExportLoading(true); setExportMsg("");
     try {
-      const d = await request<any>("/api/admin/export/db");
+      const d = await request<{ status?: string; message?: string }>("/api/admin/export/db");
       setExportMsg(d?.message || "Done");
-    } catch (e: any) { setExportMsg("Error: " + e.message); }
+    } catch (e) { setExportMsg("Error: " + (errMessage(e) ?? "")); }
     finally { setExportLoading(false); }
   };
 
@@ -395,26 +468,26 @@ export function AdminDashboard() {
     setImpMsg("");
     try {
       const data = JSON.parse(importJson);
-      const d = await request<any>("/api/admin/students/import", {
+      const d = await request<{ status?: string; imported?: number }>("/api/admin/students/import", {
         method: "POST",
         body: data,
       });
       setImpMsg(`Imported: ${d.imported || "?"} students`);
-    } catch (e: any) {
-      setImpMsg("Error: " + e.message);
+    } catch (e) {
+      setImpMsg("Error: " + (errMessage(e) ?? ""));
     }
   };
 
   const loadUncategorized = async () => {
     setUncatLoading(true); setUncatMsg("");
     try {
-      const d = await request<any>("/api/admin/skills/uncategorized");
+      const d = await request<{ total?: number; items?: UncategorizedSkill[] }>("/api/admin/skills/uncategorized");
       setUncategorized(d.items || []);
       const sel: Record<string, string> = {};
-      (d.items || []).forEach((it: any) => { sel[it.skill] = it.category; });
+      (d.items || []).forEach((it: UncategorizedSkill) => { sel[it.skill] = it.category ?? ""; });
       setUncatSelections(sel);
-    } catch (e: any) {
-      setUncatMsg("Ошибка: " + e.message);
+    } catch (e) {
+      setUncatMsg("Ошибка: " + (errMessage(e) ?? ""));
     } finally {
       setUncatLoading(false);
     }
@@ -427,14 +500,14 @@ export function AdminDashboard() {
       category: uncatSelections[it.skill] || it.category,
     }));
     try {
-      const d = await request<any>("/api/admin/skills/categorize", {
+      const d = await request<{ status?: string; added?: number; invalid?: unknown }>("/api/admin/skills/categorize", {
         method: "POST",
         body: { assignments },
       });
       setUncatMsg(`Распределено навыков: ${d.added}`);
       await loadUncategorized();
-    } catch (e: any) {
-      setUncatMsg("Ошибка: " + e.message);
+    } catch (e) {
+      setUncatMsg("Ошибка: " + (errMessage(e) ?? ""));
     }
   };
 
@@ -601,7 +674,7 @@ export function AdminDashboard() {
                   onChange={(e) => setRpdDir(e.target.value)}
                   className={cn(inputClass, "h-9 w-auto font-mono")}
                 >
-                  {directions.map((d: any) => (
+                  {directions.map((d) => (
                     <option key={d.dir_code} value={d.dir_code}>{d.dir_code}</option>
                   ))}
                 </select>
@@ -804,7 +877,7 @@ export function AdminDashboard() {
                                 ))}
                               </select>
                             </td>
-                            <td className="px-3 py-1.5 text-right text-xs text-muted-foreground">{it.score.toFixed(3)}</td>
+                            <td className="px-3 py-1.5 text-right text-xs text-muted-foreground">{(it.score ?? 0).toFixed(3)}</td>
                             <td className="px-3 py-1.5 text-right">
                               <Button
                                 variant="secondary"
@@ -846,7 +919,7 @@ export function AdminDashboard() {
                       {compLoading && <p className="text-xs text-muted-foreground">Поиск...</p>}
                       {compResults.length > 0 && (
                         <div className="max-h-40 overflow-y-auto rounded-lg border border-border bg-card text-sm">
-                          {compResults.map((c: any) => (
+                          {compResults.map((c) => (
                             <button
                               key={c.id}
                               type="button"

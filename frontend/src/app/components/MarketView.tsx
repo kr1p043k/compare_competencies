@@ -8,14 +8,17 @@ interface MarketSkill {
   weight: number;
 }
 
+/** Ответ /api/vacancies (агрегат рынка навыков). */
+export interface MarketViewData {
+  skills?: MarketSkill[];
+  total?: number;
+  vacancy_count?: number | null;
+  date_from?: string | null;
+  date_to?: string | null;
+}
+
 interface MarketViewProps {
-  data: {
-    skills?: MarketSkill[];
-    total?: number;
-    vacancy_count?: number | null;
-    date_from?: string | null;
-    date_to?: string | null;
-  };
+  data: MarketViewData;
 }
 
 function fmtDate(iso: string | null | undefined): string {

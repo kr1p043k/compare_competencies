@@ -69,8 +69,14 @@ interface EvalEntry {
   gaps?: Record<string, GapDetail>;
 }
 
+/** Ответ /api/results/summary: оценки профилей по дисциплинам. */
+export interface SummaryReportData {
+  evaluations?: Record<string, EvalEntry>;
+  profiles?: string[];
+}
+
 interface SummaryReportProps {
-  data: { evaluations?: Record<string, EvalEntry>; profiles?: string[] };
+  data: SummaryReportData;
 }
 
 function scoreColor(v: number, isGap = false) {

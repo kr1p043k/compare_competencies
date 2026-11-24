@@ -28,12 +28,26 @@ import {
   SelectValue,
 } from "./ui/select";
 import { DataViewer } from "./DataViewer";
-import { MarketView } from "./MarketView";
-import { ProfileView } from "./ProfileView";
-import { RecommendationsReport } from "./RecommendationsReport";
-import { SummaryReport } from "./SummaryReport";
+import { MarketView, type MarketViewData } from "./MarketView";
+import { ProfileView, type ProfileViewData } from "./ProfileView";
+import { RecommendationsReport, type RecommendationData } from "./RecommendationsReport";
+import { SummaryReport, type SummaryReportData } from "./SummaryReport";
 import { Badge, EmptyState, Skeleton } from "../../design";
 import { profileLabel } from "../../lib/profiles";
+
+/** Возможные формы последнего результата: тип зависит от кнопки загрузки.
+ * Последний вариант - служебные ответы (пусто/ошибка) без полезной нагрузки. */
+type DataTabResult =
+  | RecommendationData
+  | SummaryReportData
+  | MarketViewData
+  | ProfileViewData
+  | { generated_at?: string; message?: string };
+
+/** Безопасный доступ к полям результата без потери типов. */
+function asRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
 
 /**
  * Вкладка «Результаты»: выбор профиля, кнопки загрузки данных, gap-анализ,
@@ -77,7 +91,7 @@ export function DataTab({
   onTargetProfessionChange: (p: string) => void;
   onCompareWithProfession: () => void;
   resultLoadedAt: Record<string, string>;
-  lastResult: any;
+  lastResult: DataTabResult | null;
   onDownloadPdf: () => void;
 }) {
   const lastLoadedIso = resultLoadedAt[profile];
@@ -266,11 +280,12 @@ export function DataTab({
           />
         )}
         {lastResult && (() => {
-          const d = lastResult as Record<string, unknown>;
+          const d = asRecord(lastResult);
+          const targetDomains = Array.isArray(d.target_domains) ? d.target_domains.map(String) : [];
           if (d.recommendations || d.closest_roles) {
             return (
               <>
-                {(d as any).focus_mode && (d as any).target_profession && (
+                {d.focus_mode && d.target_profession && (
                   <Card className="border-2 border-primary/30 bg-primary-soft/50 mb-4">
                     <CardContent className="pt-5">
                       <div className="flex items-center gap-3 mb-3">
@@ -279,49 +294,49 @@ export function DataTab({
                         </div>
                         <div>
                           <div className="font-bold text-foreground">
-                            Фокус: {(d as any).target_profession} · профиль {String((d as any).profile || "")}
+                            Фокус: {String(d.target_profession)} · профиль {String(d.profile || "")}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {((d as any).target_domains || []).join(", ")}
+                            {targetDomains.join(", ")}
                           </div>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                         <div className="rounded-lg bg-card/70 p-3">
-                          <div className="text-2xl font-bold text-primary">{Number((d as any).profession_coverage || 0).toFixed(1)}%</div>
+                          <div className="text-2xl font-bold text-primary">{Number(d.profession_coverage || 0).toFixed(1)}%</div>
                           <div className="text-xs text-muted-foreground">покрытие профессии</div>
                         </div>
                         <div className="rounded-lg bg-card/70 p-3">
-                          <div className="text-2xl font-bold text-success">{Number((d as any).coverage_strict ?? (d as any).skill_coverage ?? 0).toFixed(1)}%</div>
-                          <div className="text-xs text-muted-foreground">навыки: {(d as any).skill_strict_has ?? "-"} из {(d as any).skill_strict_total ?? "-"}</div>
+                          <div className="text-2xl font-bold text-success">{Number(d.coverage_strict ?? d.skill_coverage ?? 0).toFixed(1)}%</div>
+                          <div className="text-xs text-muted-foreground">навыки: {String(d.skill_strict_has ?? "-")} из {String(d.skill_strict_total ?? "-")}</div>
                         </div>
                         <div className="rounded-lg bg-card/70 p-3">
-                          <div className="text-2xl font-bold text-info">{Number((d as any).readiness_score || 0).toFixed(1)}%</div>
+                          <div className="text-2xl font-bold text-info">{Number(d.readiness_score || 0).toFixed(1)}%</div>
                           <div className="text-xs text-muted-foreground">готовность</div>
                         </div>
                         <div className="rounded-lg bg-card/70 p-3">
-                          <div className="text-2xl font-bold text-foreground">{Number((d as any).domain_coverage_score || 0).toFixed(1)}%</div>
+                          <div className="text-2xl font-bold text-foreground">{Number(d.domain_coverage_score || 0).toFixed(1)}%</div>
                           <div className="text-xs text-muted-foreground">покрытие доменов</div>
                         </div>
                       </div>
-                      {(d as any).krm_note && (
-                        <p className="mt-3 text-xs text-warning">{String((d as any).krm_note)}</p>
-                      )}
+                      {d.krm_note ? (
+                        <p className="mt-3 text-xs text-warning">{String(d.krm_note)}</p>
+                      ) : null}
                     </CardContent>
                   </Card>
                 )}
-                <RecommendationsReport data={lastResult as any} />
+                <RecommendationsReport data={lastResult as RecommendationData} />
               </>
             );
           }
           if (d.evaluations && Array.isArray(d.profiles)) {
-            return <SummaryReport data={lastResult as any} />;
+            return <SummaryReport data={lastResult as SummaryReportData} />;
           }
-          if (Array.isArray((d as any).skills) && typeof (d as any).total === "number") {
-            return <MarketView data={lastResult as any} />;
+          if (Array.isArray(d.skills) && typeof d.total === "number") {
+            return <MarketView data={lastResult as MarketViewData} />;
           }
-          if (Array.isArray((d as any).skills) && typeof (d as any).profile_name === "string") {
-            return <ProfileView data={lastResult as any} />;
+          if (Array.isArray(d.skills) && typeof d.profile_name === "string") {
+            return <ProfileView data={lastResult as ProfileViewData} />;
           }
           const msg = d.message as string | undefined;
           if (msg && (msg.includes("не найдены") || msg.includes("not found"))) {

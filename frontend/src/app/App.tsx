@@ -27,12 +27,13 @@ import { download, request, saveBlob } from "../lib/api";
 import { useTheme } from "../lib/theme";
 import { initApiLogger } from "../lib/logger";
 import { motion, AnimatePresence } from "motion/react";
-import { reportError } from "./../lib/errors";
+import { reportError, errMessage } from "./../lib/errors";
 import { AppHeader, AppNavTabs } from "./shell/AppHeader";
 import { isTabAllowedForRole } from "./shell/tabConfig";
 import { useTabNavigation } from "./shell/useTabNavigation";
 import { usePipeline } from "./shell/usePipeline";
 import { DataTab } from "./components/DataTab";
+import type { RecommendationData } from "./components/RecommendationsReport";
 
 const API = "/api";
 
@@ -121,7 +122,7 @@ export default function App() {
     message: string;
   }>({ type: null, message: "" });
   const [loading, setLoading] = useState(false);
-  const [lastResult, setLastResult] = useState<any>(null);
+  const [lastResult, setLastResult] = useState<RecommendationData | null>(null);
   // Защита от гонок: результат применяем только если профиль не сменился
   // (и не запущен другой запрос) с момента старта. Смена профиля
   // инвалидирует ответы в полёте — иначе они затирают обнулённый lastResult.
@@ -256,7 +257,7 @@ export default function App() {
         // Предзагрузка результатов: применяем только если профиль/запрос
         // не сменился, пока ответ шёл.
         const seq = ++resultSeqRef.current;
-        request<any>(`/api/results/recommendations/${detail.profile}`).catch(() => null).then(d => { if (d && seq === resultSeqRef.current) { setLastResult(d); } }).catch((err) => reportError("app/App.tsx", err));
+        request<RecommendationData>(`/api/results/recommendations/${detail.profile}`).catch(() => null).then(d => { if (d && seq === resultSeqRef.current) { setLastResult(d); } }).catch((err) => reportError("app/App.tsx", err));
       }
     };
     window.addEventListener("navigate-analysis", handler);
@@ -275,22 +276,22 @@ export default function App() {
     }, 5000);
   }
 
-  async function apiCall(endpoint: string, method = "GET", body: any = null) {
-    // Каждый вызов инвалидирует предыдущие: побеждает последний запрос.
+  async function apiCall(endpoint: string, method = "GET", body: unknown = null) {
+    // Счётчик отсекает устаревшие ответы: пользователь мог переключить профиль.
     const seq = ++resultSeqRef.current;
     try {
       setLoading(true);
-      showStatus("info", "Выполнение...");
-      const data = await request<any>(`${API}${endpoint}`, {
+      showStatus("info", "Загружаем...");
+      const data = await request<RecommendationData>(`${API}${endpoint}`, {
         method,
         ...(body ? { body } : {}),
       });
       if (seq !== resultSeqRef.current) return undefined;
       setLastResult(data);
-      showStatus("success", "✓ Готово");
+      showStatus("success", "Готово");
       return data;
-    } catch (e: any) {
-      if (seq === resultSeqRef.current) showStatus("error", `✗ ${e.message}`);
+    } catch (e) {
+      if (seq === resultSeqRef.current) showStatus("error", `Ошибка: ${errMessage(e) ?? String(e)}`);
     } finally {
       if (seq === resultSeqRef.current) setLoading(false);
     }
@@ -304,7 +305,7 @@ export default function App() {
       try {
         // request() уже отдаёт распарсенный JSON: раньше здесь вызывался
         // r.ok / r.json() и st всегда был null - проверка готовности не работала.
-        const st = await request<any>("/api/pipeline/status").catch(() => null);
+        const st = await request<{ recommendations_all_ready?: boolean }>("/api/pipeline/status").catch(() => null);
         return !!st?.recommendations_all_ready;
       } catch {
         return false;
@@ -322,9 +323,9 @@ export default function App() {
       for (;;) {
         await new Promise((res) => setTimeout(res, 3000));
         if (gapCancelRef.current) return;
-        let s: any = null;
+        let s: { status?: string; message?: string; step?: number } | null = null;
         try {
-          s = await request<any>(`/api/pipeline/task/${taskId}`).catch(() => null);
+          s = await request<{ status?: string; message?: string; step?: number }>(`/api/pipeline/task/${taskId}`).catch(() => null);
         } catch {
           s = null;
         }
@@ -359,9 +360,9 @@ export default function App() {
       }
       loadProfileDetail();
       loadRecommendations();
-    } catch (e: any) {
+    } catch (e) {
       setGapMsg("");
-      setToast(`Ошибка gap-анализа: ${e?.message || e}`);
+      setToast(`Ошибка gap-анализа: ${errMessage(e) ?? String(e)}`);
     } finally {
       if (!gapCancelRef.current) setGapRunning(false);
     }
@@ -403,11 +404,11 @@ export default function App() {
     if (activeTab !== "data" || !isAuth || professionsList.length > 0) return;
     // request() уже возвращает распарсенный JSON (lib/api.ts): раньше здесь
     // было r.ok ? r.json() - r.ok был undefined и список профессий не грузился.
-    request<any>(`${API}/taxonomy/professions`).catch(() => null)
+    request<{ professions?: Array<{ name?: string }> }>(`${API}/taxonomy/professions`).catch(() => null)
       .then((d) => {
-        const names = ((d?.professions || []) as any[])
+        const names = (d?.professions ?? [])
           .map((p) => p?.name)
-          .filter(Boolean);
+          .filter((n): n is string => Boolean(n));
         if (names.length > 0) {
           setProfessionsList(names);
           setTargetProfession((prev) => prev || names[0]);
