@@ -26,6 +26,7 @@ class HHVacancyProvider:
                 case Err(e):
                     return Err(DataSourceError(message=f"search failed: {e}"))
         except Exception as e:
+            logger.debug("hh_provider_suppressed", error=str(e))
             return Err(DataSourceError(message=f"search failed: {e}"))
 
     def get_details(self, vacancy_id: str) -> Result[dict, DataSourceError]:
@@ -33,6 +34,7 @@ class HHVacancyProvider:
             detail = self._api.get_vacancy(vacancy_id)
             return Ok(detail) if detail else Err(DataSourceError(message=f"vacancy {vacancy_id} not found"))
         except Exception as e:
+            logger.debug("hh_provider_suppressed", error=str(e))
             return Err(DataSourceError(message=f"detail fetch failed: {e}"))
 
     def get_areas(self) -> Result[list[dict], DataSourceError]:
@@ -45,4 +47,5 @@ class HHVacancyProvider:
             self._areas_cache = resp.json()
             return Ok(self._areas_cache)
         except Exception as e:
+            logger.debug("hh_provider_suppressed", error=str(e))
             return Err(DataSourceError(message=f"areas fetch failed: {e}"))

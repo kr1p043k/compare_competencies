@@ -60,4 +60,5 @@ class EvaluationReport:
         )
         for m in self.metrics:
             status = "✓" if m.passed else "✗" if m.passed is False else "~"
-            logger.info(f"  {status} {m.name}={m.value:.4f}" + (f" (threshold={m.threshold})" if m.threshold else ""))
+            logger.info("metric_result", status=status, name=m.name, value=round(m.value, 4),
+                        threshold=m.threshold)

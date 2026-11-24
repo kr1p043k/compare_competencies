@@ -88,7 +88,7 @@ class TestCompetencyComparatorExtended:
 
 
 @pytest.mark.parametrize(
-    "use_embeddings,level",
+    ("use_embeddings", "level"),
     [
         (False, "middle"),
         (True, "junior"),
@@ -123,7 +123,7 @@ def test_comparator_tfidf_mode(use_embeddings, level):
         # Для embedding-режима устанавливаем skill_weights, чтобы compare
         # пошёл по ветке weighted_coverage (иначе confidence может быть > 1.0)
         if use_embeddings:
-            comparator.skill_weights = {s: 1.0 for s in student_skills}
+            comparator.skill_weights = dict.fromkeys(student_skills, 1.0)
         score, confidence = comparator.compare(student_skills).unwrap()
         logger.info("Результат: score=%.4f | confidence=%.4f", score, confidence)
 

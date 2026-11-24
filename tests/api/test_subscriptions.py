@@ -79,33 +79,33 @@ class BrokenSession(FakeSession):
 
 def _sub(**kw) -> SimpleNamespace:
     now = datetime.now(UTC)
-    base = dict(
-        id="sub-1",
-        user_id="u-1",
-        topic="AI",
-        source="openalex+arxiv",
-        telegram_chat_id="@me",
-        email=None,
-        is_active=True,
-        last_checked_at=None,
-        created_at=now,
-    )
+    base = {
+        "id": "sub-1",
+        "user_id": "u-1",
+        "topic": "AI",
+        "source": "openalex+arxiv",
+        "telegram_chat_id": "@me",
+        "email": None,
+        "is_active": True,
+        "last_checked_at": None,
+        "created_at": now,
+    }
     base.update(kw)
     return SimpleNamespace(**base)
 
 
 def _notif(**kw) -> SimpleNamespace:
-    base = dict(
-        id="n-1",
-        subscription_id="sub-1",
-        title="Новая статья",
-        body="Текст",
-        article_url="https://example.org/a",
-        article_source="arxiv",
-        severity=None,
-        is_read=False,
-        created_at=datetime.now(UTC),
-    )
+    base = {
+        "id": "n-1",
+        "subscription_id": "sub-1",
+        "title": "Новая статья",
+        "body": "Текст",
+        "article_url": "https://example.org/a",
+        "article_source": "arxiv",
+        "severity": None,
+        "is_read": False,
+        "created_at": datetime.now(UTC),
+    }
     base.update(kw)
     return SimpleNamespace(**base)
 

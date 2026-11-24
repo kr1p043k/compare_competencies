@@ -69,7 +69,7 @@ def main() -> None:
 
     model = get_embedding_model()
     embs = model.encode(vocab, convert_to_numpy=True, show_progress_bar=False)
-    E = {s: e for s, e in zip(vocab, embs, strict=False)}
+    E = dict(zip(vocab, embs, strict=False))
     centroids = {}
     for role in ROLES:
         vecs = [E[s] for s in cores[role] if s in E]

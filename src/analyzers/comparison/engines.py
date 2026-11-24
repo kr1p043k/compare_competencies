@@ -75,13 +75,13 @@ class JaccardEngine:
             reverse=True,
         )[:15]
 
-        return Ok(dict(
-            score=round(avg_sim, 4),
-            weighted_coverage=round(avg_sim, 4),
-            avg_similarity=round(avg_sim, 4),
-            matches=sorted_matches,
-            missing=[],
-        ))
+        return Ok({
+            "score": round(avg_sim, 4),
+            "weighted_coverage": round(avg_sim, 4),
+            "avg_similarity": round(avg_sim, 4),
+            "matches": sorted_matches,
+            "missing": [],
+        })
 
 
 class EnsembleEngine:
@@ -106,7 +106,7 @@ class EnsembleEngine:
     ) -> Result[dict, DomainError]:
         results: dict[str, ComparisonResult] = {}
         failed_channels: list[str] = []
-        zero_result = dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[])
+        zero_result = {"score": 0.0, "weighted_coverage": 0.0, "avg_similarity": 0.0, "matches": [], "missing": []}
         for name, (engine, _weight) in self.engines.items():
             try:
                 match engine.compare(student_skills, market_skills):
@@ -129,7 +129,16 @@ class EnsembleEngine:
 
         total_weight = sum(w for _, w in self.engines.values())
         if total_weight <= 0:
-            return Ok(dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[], diag=diag))
+            return Ok(
+                {
+                    "score": 0.0,
+                    "weighted_coverage": 0.0,
+                    "avg_similarity": 0.0,
+                    "matches": [],
+                    "missing": [],
+                    "diag": diag,
+                }
+            )
 
         combined_score = sum(
             results[name].get("score", 0.0) * w
@@ -137,7 +146,7 @@ class EnsembleEngine:
         ) / total_weight
 
         all_matches: dict[str, float] = {}
-        for name, (_, _w) in self.engines.items():
+        for name in self.engines:
             for m in results[name].get("matches", []):
                 skill = m["skill"]
                 existing = all_matches.get(skill, 0.0)
@@ -152,15 +161,15 @@ class EnsembleEngine:
         avg_sim = float(np.mean([m["similarity"] for m in sorted_matches])) if sorted_matches else 0.0
         engine_details = {name: dict(res) for name, res in results.items()}
 
-        return Ok(dict(
-            score=round(combined_score, 4),
-            weighted_coverage=round(combined_score, 4),
-            avg_similarity=round(avg_sim, 4),
-            matches=sorted_matches,
-            missing=[],
-            details=engine_details,
-            diag=diag,
-        ))
+        return Ok({
+            "score": round(combined_score, 4),
+            "weighted_coverage": round(combined_score, 4),
+            "avg_similarity": round(avg_sim, 4),
+            "matches": sorted_matches,
+            "missing": [],
+            "details": engine_details,
+            "diag": diag,
+        })
 
 
 class BM25Engine:
@@ -191,11 +200,11 @@ class BM25Engine:
         market_skills: list[str],
     ) -> Result[ComparisonResult, DomainError]:
         if not student_skills or self._bm25 is None:
-            return Ok(dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[]))
+            return Ok({"score": 0.0, "weighted_coverage": 0.0, "avg_similarity": 0.0, "matches": [], "missing": []})
 
         query = " ".join(student_skills).lower().split()
         if not query:
-            return Ok(dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[]))
+            return Ok({"score": 0.0, "weighted_coverage": 0.0, "avg_similarity": 0.0, "matches": [], "missing": []})
 
         doc_scores = self._bm25.get_scores(query)
         idx_map = {s: i for i, s in enumerate(self._corpus_lower)}
@@ -210,7 +219,7 @@ class BM25Engine:
                     best[ms] = s
 
         if not best:
-            return Ok(dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[]))
+            return Ok({"score": 0.0, "weighted_coverage": 0.0, "avg_similarity": 0.0, "matches": [], "missing": []})
 
         vals = np.array(list(best.values()))
         vmin, vmax = vals.min(), vals.max()
@@ -218,7 +227,7 @@ class BM25Engine:
             for k in best:
                 best[k] = round((best[k] - vmin) / (vmax - vmin), 4)
         else:
-            best = {k: 1.0 for k in best}
+            best = dict.fromkeys(best, 1.0)
 
         avg = float(np.mean(list(best.values())))
         sorted_matches = sorted(
@@ -227,10 +236,10 @@ class BM25Engine:
             reverse=True,
         )[:15]
 
-        return Ok(dict(
-            score=round(avg, 4),
-            weighted_coverage=round(avg, 4),
-            avg_similarity=round(avg, 4),
-            matches=sorted_matches,
-            missing=[],
-        ))
+        return Ok({
+            "score": round(avg, 4),
+            "weighted_coverage": round(avg, 4),
+            "avg_similarity": round(avg, 4),
+            "matches": sorted_matches,
+            "missing": [],
+        })

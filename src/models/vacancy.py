@@ -366,7 +366,7 @@ class Vacancy:
             return vacancy
 
         except (KeyError, TypeError) as e:
-            logger.error("vacancy_parsing_failed", error=str(e), exc_info=True)
+            logger.exception("vacancy_parsing_failed", error=str(e))
             raise ValueError(f"Невалидная структура вакансии: {e}") from e
 
     def get_all_text(self) -> str:

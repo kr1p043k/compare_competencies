@@ -140,5 +140,5 @@ async def test_raw_token_is_not_stored():
 @pytest.mark.asyncio
 async def test_unknown_purpose_raises_value_error():
     pool = FakePool()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="unknown totp token purpose"):
         await store.issue_token(pool, USER_ID, "bogus", 60)

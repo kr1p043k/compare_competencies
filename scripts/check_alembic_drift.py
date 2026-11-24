@@ -152,17 +152,17 @@ def collect_signatures(database_url: str | None) -> Counter[str]:
     cfg = alembic_config.Config(str(ROOT / "alembic.ini"))
     cfg.set_main_option("script_location", str(ROOT / "alembic"))
     script = ScriptDirectory.from_config(cfg)
-    command_args: dict[str, Any] = dict(
-        message=None,
-        autogenerate=True,
-        sql=False,
-        head="head",
-        splice=False,
-        branch_label=None,
-        version_path=None,
-        rev_id=None,
-        depends_on=None,
-    )
+    command_args: dict[str, Any] = {
+        "message": None,
+        "autogenerate": True,
+        "sql": False,
+        "head": "head",
+        "splice": False,
+        "branch_label": None,
+        "version_path": None,
+        "rev_id": None,
+        "depends_on": None,
+    }
     revision_context = autogenerate.RevisionContext(cfg, script, command_args)
 
     def retrieve_migrations(rev: Any, context: Any) -> list[Any]:

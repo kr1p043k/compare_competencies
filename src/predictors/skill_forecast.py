@@ -172,6 +172,7 @@ class SkillForecastEngine(BasePredictor):
                             continue
                     snapshots.append((dt, data))
                 except Exception:
+                    logger.debug("skill_forecast_suppressed")
                     continue
         else:
             snapshots = list(snapshots)

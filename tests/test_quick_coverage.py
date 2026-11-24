@@ -30,7 +30,7 @@ class TestResultHelpers:
         assert Ok(1).unwrap_or(9) == 1
         assert Err(DomainError(message="x")).unwrap_or(9) == 9
         assert Ok(1).expect("boom") == 1
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError, match="boom"):
             Err(DomainError(message="boom")).expect("boom")
         assert Ok(1).map_err(lambda e: e) is not None
 
@@ -110,11 +110,11 @@ class TestCurriculumOptimizer:
     def _summary(self, **kw):
         from src.models.teacher_analysis import DirectionSummary
 
-        base = dict(
-            direction_code="09.03.02",
-            direction_name="d",
-            profile="base",
-        )
+        base = {
+            "direction_code": "09.03.02",
+            "direction_name": "d",
+            "profile": "base",
+        }
         base.update(kw)
         return DirectionSummary(**base)
 

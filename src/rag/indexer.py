@@ -79,6 +79,7 @@ async def index_documents(
             stats.generation = await store.active_generation(source) or 0
         except Exception:
             # dry-run не должен падать без БД: он нужен и для оценки корпуса.
+            logger.debug("indexer_suppressed")
             stats.generation = 0
         return stats
 
@@ -185,4 +186,5 @@ def _observe_index(stats: IndexStats) -> None:
             rag_index_documents.labels(source=stats.source, status="failed").inc(len(stats.errors))
         rag_index_chunks.labels(source=stats.source).inc(stats.chunks_written)
     except Exception:
+        logger.debug("indexer_suppressed")
         pass

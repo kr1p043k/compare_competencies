@@ -67,8 +67,8 @@ def test_empty_relevance_falls_back_to_global_top():
 def test_threshold_is_respected():
     # Exactly at the cutoff counts as relevant; just below does not.
     names = [f"skill{i:03d}" for i in range(10)]
-    at = {s: DISCIPLINE_RELEVANCE_THRESHOLD for s in names}
-    below = {s: DISCIPLINE_RELEVANCE_THRESHOLD - 0.01 for s in names}
+    at = dict.fromkeys(names, DISCIPLINE_RELEVANCE_THRESHOLD)
+    below = dict.fromkeys(names, DISCIPLINE_RELEVANCE_THRESHOLD - 0.01)
     assert build(MARKET, at).analyze_discipline("d", "disc", RPD).ok().market_top_coverage == pytest.approx(0.2)
     assert build(MARKET, below).analyze_discipline("d", "disc", RPD).ok().market_top_coverage == pytest.approx(
         2 / MARKET_TOP_N, rel=1e-3
@@ -76,8 +76,8 @@ def test_threshold_is_respected():
 
 
 def test_zero_weights_fall_back_to_unweighted_ratio():
-    scores = {s: 0.9 for s in ("skill000", "skill001")}
-    weights = {s: 0.0 for s in MARKET}
+    scores = dict.fromkeys(("skill000", "skill001"), 0.9)
+    weights = dict.fromkeys(MARKET, 0.0)
     cov = build(MARKET, scores, weights).analyze_discipline("d", "disc", RPD).ok()
     assert cov.market_weight_coverage == cov.market_top_coverage
 
@@ -93,7 +93,7 @@ def test_weighted_uses_the_same_denominator_as_unweighted():
 
 
 def test_coverage_is_never_negative_or_above_one():
-    scores = {s: 0.9 for s in MARKET}
+    scores = dict.fromkeys(MARKET, 0.9)
     cov = build(MARKET, scores).analyze_discipline("d", "disc", RPD).ok()
     assert 0.0 <= cov.market_top_coverage <= 1.0
     assert 0.0 <= cov.market_weight_coverage <= 1.0

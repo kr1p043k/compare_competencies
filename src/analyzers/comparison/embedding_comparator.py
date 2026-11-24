@@ -278,10 +278,10 @@ class EmbeddingComparator:
             skills_list = None
 
         if values.size == 0:
-            return dict(
-                score=0.0, weighted_coverage=0.0, avg_similarity=0.0,
-                matches=[], missing=[],
-            )
+            return {
+                "score": 0.0, "weighted_coverage": 0.0, "avg_similarity": 0.0,
+                "matches": [], "missing": [],
+            }
 
         effective = values ** 2
         if self.skill_weights and skills_list is not None:
@@ -306,13 +306,13 @@ class EmbeddingComparator:
             for i in top_idx
         ]
 
-        return dict(
-            score=round(weighted_coverage, 4),
-            weighted_coverage=round(weighted_coverage, 4),
-            avg_similarity=round(avg_similarity, 4),
-            matches=matches,
-            missing=[],
-        )
+        return {
+            "score": round(weighted_coverage, 4),
+            "weighted_coverage": round(weighted_coverage, 4),
+            "avg_similarity": round(avg_similarity, 4),
+            "matches": matches,
+            "missing": [],
+        }
 
     def get_vacancy_embedding(self, skills: list[str]) -> np.ndarray:
         if not skills:

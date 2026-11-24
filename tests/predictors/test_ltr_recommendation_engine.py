@@ -530,7 +530,7 @@ class TestLTRGenerateExplanation:
 
     def test_explanation_category_weight(self, engine_with_mocks):
         feature_order = engine_with_mocks.feature_names   # используем актуальный порядок
-        X = pd.DataFrame([{name: 0.0 for name in feature_order}])
+        X = pd.DataFrame([dict.fromkeys(feature_order, 0.0)])
         # делаем так, чтобы top_idx указывал на category_avg_weight
         idx_of_cat_avg = feature_order.index("category_avg_weight")
         shap_vals = np.zeros((1, len(feature_order)))

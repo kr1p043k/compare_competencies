@@ -90,7 +90,7 @@ def report(spread: dict[str, set[str]], total: int, wide: float) -> dict:
         groups.setdefault(_homoglyph_key(name), []).append(name)
     homoglyphs = [
         sorted(names) for names in groups.values()
-        if len(names) > 1 and len({n for n in names}) > 1
+        if len(names) > 1 and len(set(names)) > 1
         and any(set(n.lower()) & _CYR for n in names)
         and any(set(n.lower()) & _LATIN for n in names)
     ]

@@ -26,7 +26,7 @@ class DomainAnalyzer:
             self.domain_map = {}
 
     def compute_domain_coverage(self, user_skills: list[str]) -> Result[dict[str, DomainMetrics], DomainError]:
-        user_set = set(skill.lower().strip() for skill in user_skills)
+        user_set = {skill.lower().strip() for skill in user_skills}
         result = {}
         total_domains = len(self.domain_map)
 

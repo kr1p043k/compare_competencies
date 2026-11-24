@@ -28,7 +28,7 @@ def plot_cluster_insights(results: dict[str, Any], output_dir: Path):
 
         logger.info("plotting_cluster_insights", profile=profile_name, clusters=len(closest))
 
-        student_skills = set(s.lower() for s in eval_dict.get("student_skills", []))
+        student_skills = {s.lower() for s in eval_dict.get("student_skills", [])}
         cluster_skills_map = cluster_ctx.get("skills", {})
         cluster_skills_set = set(cluster_skills_map.keys())
 

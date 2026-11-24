@@ -89,6 +89,7 @@ class CrossEncoderReranker(BaseReranker):
                 detail="pip install sentence-transformers"
             ))
         except Exception as e:
+            logger.debug("reranker_suppressed", error=str(e))
             return Err(DomainError(
                 message="failed to load CrossEncoder model",
                 detail=f"{self.model_name}: {e}"

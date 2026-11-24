@@ -236,7 +236,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 student, "target_level", "middle")
             if hasattr(cluster_level, "value"):
                 cluster_level = cluster_level.value
-            student_set = set(s.lower() for s in student.skills)
+            student_set = {s.lower() for s in student.skills}
 
             # L2: целевая профессия подмешивается в ранг ролей (мягкий буст).
             target_profession = (eval_result.get("target_profession") or "").strip()
@@ -338,9 +338,9 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             )[0]
             domain_skills: set[str] = set()
             if dominant_domain and self.profile_evaluator.domain_analyzer:
-                domain_skills = set(
+                domain_skills = {
                     s.lower() for s in self.profile_evaluator.domain_analyzer.domain_map.get(dominant_domain, [])
-                )
+                }
 
             # Role relevance: skills from closest cluster get a boost
             role_similarity = 0.0
@@ -356,10 +356,11 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                         else self.profile_evaluator.clusterer
                     if level_clusterer:
                         try:
-                            role_skills = set(
+                            role_skills = {
                                 s.lower() for s in level_clusterer.get_top_skills_in_cluster(cid, top_n=50)
-                            )
+                            }
                         except Exception:
+                            logger.debug("recommendation_engine_suppressed")
                             role_skills = set(cluster_skills_map.keys())
                     else:
                         role_skills = set(cluster_skills_map.keys())
@@ -396,7 +397,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                             if vmax > vmin:
                                 reranked_norm = {s: (v - vmin) / (vmax - vmin) for s, v in raw.items()}
                             else:
-                                reranked_norm = {s: 0.5 for s in raw}
+                                reranked_norm = dict.fromkeys(raw, 0.5)
                             for skill in combined_scores:
                                 rerank_bonus = reranked_norm.get(skill, 0.0)
                                 combined_scores[skill] = 0.7 * combined_scores[skill] + 0.3 * rerank_bonus
@@ -602,6 +603,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                         case _:
                             pass
             except Exception:
+                logger.debug("recommendation_engine_suppressed")
                 dom_cat = "other"
 
             covered = len(student_set & cluster_all_skills)
@@ -706,6 +708,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         try:
             skill_cat = self._taxonomy.get_category_label(skill)
         except Exception:
+            logger.debug("recommendation_engine_suppressed")
             skill_cat = "технический"
 
         suffix = " У вас уже есть базовое понимание - углубите его." if category == SkillCategory.WEAK else ""
@@ -792,6 +795,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             if cat in hard_cats:
                 return True
         except Exception:
+            logger.debug("recommendation_engine_suppressed")
             pass
         return skill_lower in self._hard_keywords
 
@@ -806,6 +810,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         try:
             cat = self._taxonomy.get_category(skill_lower)
         except Exception:
+            logger.debug("recommendation_engine_suppressed")
             cat = None
         estimate = _TIMEFRAME_BY_CATEGORY.get(cat) if cat else None
         if estimate:

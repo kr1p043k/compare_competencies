@@ -175,4 +175,5 @@ def seed_ontology(path: str | Path) -> Result[str, DomainError]:
         logger.info("ontology_seeded", path=str(path))
         return Ok("seeded")
     except Exception as e:
+        logger.debug("skill_ontology_suppressed", error=str(e))
         return Err(DomainError(message=str(e), detail="seed_ontology"))

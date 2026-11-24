@@ -39,6 +39,7 @@ from typing import Any
 import psycopg2
 import pytest
 from sqlalchemy import create_engine, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
@@ -305,7 +306,7 @@ def _make_msg(sess: Session, thread: ChatThread, role: str, seq: int, **kw):
 # ─── Tests ──────────────────────────────────────────────────────────────────
 
 
-def test_foreign_thread_survives(sess: Session, _chat_env) -> None:
+def test_foreign_thread_survives(sess: Session, _chat_env) -> None:  # noqa: PT019 - читается по ключу
     """Isolation proof: the foreign thread survives, test rows are never committed."""
     guard = _chat_env["guard"]
 
@@ -351,9 +352,9 @@ def test_seq_uniqueness_per_thread(sess: Session) -> None:
     t = _make_thread(sess)
     _make_msg(sess, t, "user", 1)
     sess.flush()
-    with pytest.raises(Exception):  # psycopg2.errors.UniqueViolation
-        m = ChatMessage(thread=t, role="assistant", seq=1)
-        sess.add(m)
+    m = ChatMessage(thread=t, role="assistant", seq=1)
+    sess.add(m)
+    with pytest.raises(IntegrityError):  # UNIQUE (thread_id, seq)
         sess.flush()
 
 
@@ -400,8 +401,8 @@ def test_context_type_check_constraint(sess: Session) -> None:
     """Only 'teacher' and 'student' are allowed."""
     t = _make_thread(sess)
     sess.flush()  # OK = 'teacher'
-    with pytest.raises(Exception):
-        t.context_type = "boss"
+    t.context_type = "boss"
+    with pytest.raises(IntegrityError):  # CHECK context_type
         sess.flush()
 
 
@@ -410,9 +411,9 @@ def test_role_check_constraint(sess: Session) -> None:
     t = _make_thread(sess)
     _make_msg(sess, t, "user", 1)
     sess.flush()
-    with pytest.raises(Exception):
-        m = _make_msg(sess, t, "user", 99)
-        m.role = "system"
+    m = _make_msg(sess, t, "user", 99)
+    m.role = "system"
+    with pytest.raises(IntegrityError):  # CHECK role
         sess.flush()
 
 

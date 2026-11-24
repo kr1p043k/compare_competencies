@@ -87,13 +87,13 @@ class TestMapping:
         assert a["id"] != b["id"]
 
     def test_requires_id_and_title(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="has no id"):
             rabota_to_hh({"title": "x"})
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="has no title"):
             rabota_to_hh({"id": 1, "title": "  "})
 
     @pytest.mark.parametrize(
-        "raw,expected",
+        ("raw", "expected"),
         [
             ("руб./мес.", "RUB"),
             ("₽", "RUB"),

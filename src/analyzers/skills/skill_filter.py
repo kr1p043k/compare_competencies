@@ -43,6 +43,7 @@ class SkillFilter:
                 import json
                 return set(json.load(f))
         except Exception:
+            logger.debug("skill_filter_suppressed")
             return set()
 
     def filter_weights(
@@ -147,7 +148,7 @@ class SkillFilter:
                     normalized[skill] = round(norm_val, 4)
                 return Ok(normalized)
             # Все веса одинаковые
-            return Ok({skill: 1.0 for skill in skill_weights})
+            return Ok(dict.fromkeys(skill_weights, 1.0))
 
         if method == "log":
             # Логарифмическая нормализация (для больших разбросов)

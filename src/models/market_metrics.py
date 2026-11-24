@@ -51,7 +51,7 @@ class SkillMetrics:
             base_score=round(base_score, 4),
             domain_bonus=round(domain_bonus, 4),
             final_score=round(final_score, 4),
-            scores=dict(j=round(score_j, 3), m=round(score_m, 3), s=round(score_s, 3)),
+            scores={"j": round(score_j, 3), "m": round(score_m, 3), "s": round(score_s, 3)},
         )
 
         return final_score
@@ -83,7 +83,7 @@ class DomainMetrics:
     importance: float = 1.0
 
     def compute_coverage(self, user_skills: set):
-        self.user_has = len(set(s.lower() for s in self.required_skills) & user_skills)
+        self.user_has = len({s.lower() for s in self.required_skills} & user_skills)
         self.total_required = len(self.required_skills)
         self.coverage = self.user_has / self.total_required if self.total_required > 0 else 0.0
 

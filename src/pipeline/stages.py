@@ -288,6 +288,7 @@ class ModelTrainingStage(PipelineStage):
                                         with contextlib.suppress(Exception):
                                             ltr_model_metrics.labels(metric=k).set(v)
                         except Exception:
+                            logger.debug("stages_suppressed")
                             pass
                         return Ok({"model_trained": False, "reason": "already_up_to_date"})
 

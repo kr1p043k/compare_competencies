@@ -43,6 +43,7 @@ def _available_ram_bytes() -> int | None:
                     parts = line.split()
                     return int(parts[1]) * 1024
     except Exception:
+        logger.debug("startup_suppressed")
         return None
     return None
 
@@ -86,6 +87,7 @@ def register_custom_student_profiles(students_dir, already, map_codes):
                 try:
                     skills = list(map_codes(codes))
                 except Exception:
+                    logger.debug("startup_suppressed")
                     skills = []
             try:
                 level = ExperienceLevel(str(data.get("target_level", "middle")).strip().lower())
@@ -260,7 +262,7 @@ async def _run_bootstrap_safely() -> None:
     try:
         await _bootstrap()
     except Exception as e:
-        logger.error("bootstrap_failed", error=str(e), exc_info=True)
+        logger.exception("bootstrap_failed", error=str(e))
         _notify_warmup_failure("bootstrap", e)
 
 
@@ -385,6 +387,7 @@ async def _warmup_background(basic_vacancies, raw_file):
                 data = await asyncio.to_thread(_read_json, path)
                 return data.get("компетенции") or data.get("навыки") or data.get("codes") or []
             except Exception:
+                logger.debug("startup_suppressed")
                 return []
 
         def map_codes(codes):

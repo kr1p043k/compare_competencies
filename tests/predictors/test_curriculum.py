@@ -107,19 +107,19 @@ class TestCurriculumOptimizer:
 
 class TestCurriculumRecommender:
     def make_coverage(self, **overrides) -> DisciplineCoverage:
-        defaults = dict(
-            discipline_id="D1",
-            discipline_name="Test Discipline",
-            total_skills=50,
-            market_matched=20,
-            gaps=30,
-            coverage_ratio=0.4,
-            coverage_level="medium",
-            gaps_list=["python", "sql"],
-            truly_missing=[],
-            cross_references=[],
-            competencies=[CompetencyCoverage(code="CC1", total_skills=10, matched_skills=5, coverage=0.5)],
-        )
+        defaults = {
+            "discipline_id": "D1",
+            "discipline_name": "Test Discipline",
+            "total_skills": 50,
+            "market_matched": 20,
+            "gaps": 30,
+            "coverage_ratio": 0.4,
+            "coverage_level": "medium",
+            "gaps_list": ["python", "sql"],
+            "truly_missing": [],
+            "cross_references": [],
+            "competencies": [CompetencyCoverage(code="CC1", total_skills=10, matched_skills=5, coverage=0.5)],
+        }
         defaults.update(overrides)
         return DisciplineCoverage(**defaults)
 

@@ -236,6 +236,7 @@ class SkillValidator:
                             try:
                                 from src.text.ru_morph import lemma as _lemma
                             except Exception:
+                                logger.debug("skill_validator_suppressed")
                                 _lemma = _identity
                             self.__dict__["_wl_lemmatize"] = _lemma
                             # Фразы - по словам ( _wl_norm целиком склеил бы
@@ -276,6 +277,7 @@ class SkillValidator:
 
             return Ok(ValidationResult(skill=skill, is_valid=is_valid, reasons=reasons, confidence=confidence_score))
         except Exception as e:
+            logger.debug("skill_validator_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail=f"validate({skill})"))
 
     def validate_batch(self, skills: list[str], confidences: list[float] | None = None) -> tuple:

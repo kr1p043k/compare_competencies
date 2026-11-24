@@ -175,6 +175,7 @@ async def get_recommendations_result(
                 mtime = result_path.stat().st_mtime
                 payload["generated_at"] = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
             except Exception:
+                logger.debug("results_suppressed")
                 pass
             return payload
         except Exception as e:
@@ -296,6 +297,7 @@ def _shap_contributions(
         try:
             feature_value = round(float(x.iloc[row][feature]), 4)
         except Exception:  # нечисловое значение столбца - не ронять объяснение
+            logger.debug("results_suppressed")
             feature_value = None
         contributions.append(
             {

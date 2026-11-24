@@ -211,6 +211,7 @@ async def _compute_vacancy_meta() -> dict:
                 snap_cnt = await session.execute(text("SELECT COUNT(*) FROM trend_snapshots"))
                 meta["snapshots_count"] = snap_cnt.scalar() or 0
             except Exception:
+                logger.debug("forecast_suppressed")
                 pass
             if row.cnt:
                 return meta
