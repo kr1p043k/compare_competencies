@@ -234,6 +234,122 @@ class TestSearch:
             assert api._post("/x", {}, endpoint="x").is_err()
 
 
+class TestRetryBackoff:
+    """6.4.2: сбор устойчив к 429/5xx - повторы с Retry-After и джиттером."""
+
+    @staticmethod
+    def _api(**kwargs) -> RabotaAPI:
+        return RabotaAPI(app_id=983, secret="s", request_delay=0, **kwargs)
+
+    @staticmethod
+    def _json_ok(payload=None):
+        return MagicMock(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            json=MagicMock(return_value=payload or {"response": {"total": 0, "vacancies": []}}),
+        )
+
+    @staticmethod
+    def _err_resp(status, headers=None, text="err"):
+        return MagicMock(status_code=status, headers=headers or {}, text=text)
+
+    def test_429_honours_retry_after_and_retries(self):
+        api = self._api()
+        responses = [self._err_resp(429, {"Retry-After": "7"}), self._json_ok()]
+        with patch.object(api.session, "post", side_effect=responses) as mock_post, \
+                patch("src.parsing.api.rabota_api.time.sleep") as mock_sleep:
+            result = api._post("/x", {}, endpoint="x")
+        assert result.is_ok()
+        assert mock_post.call_count == 2
+        mock_sleep.assert_called_once_with(7.0)
+
+    def test_429_exhausted_returns_rate_limit_error(self):
+        from src.errors import RateLimitError
+
+        api = self._api(max_attempts=3)
+        with patch.object(api.session, "post", return_value=self._err_resp(429, {"Retry-After": "2"})) as mock_post, \
+                patch("src.parsing.api.rabota_api.time.sleep"):
+            result = api._post("/x", {}, endpoint="x")
+        assert result.is_err()
+        err = result.err()
+        assert isinstance(err, RateLimitError)
+        assert err.retry_after == 2.0
+        assert mock_post.call_count == 3
+
+    def test_503_retried_then_succeeds(self):
+        api = self._api()
+        responses = [self._err_resp(503), self._err_resp(502), self._json_ok()]
+        with patch.object(api.session, "post", side_effect=responses) as mock_post, \
+                patch("src.parsing.api.rabota_api.time.sleep"):
+            assert api._post("/x", {}, endpoint="x").is_ok()
+        assert mock_post.call_count == 3
+
+    def test_backoff_grows_exponentially_without_retry_after(self):
+        api = self._api(retry_base_delay=1.0, retry_max_delay=30.0)
+        delays: list[float] = []
+        responses = [self._err_resp(500), self._err_resp(500), self._json_ok()]
+        with patch.object(api.session, "post", side_effect=responses), \
+                patch("src.parsing.api.rabota_api.time.sleep", side_effect=delays.append), \
+                patch("src.parsing.api.rabota_api.random.uniform", return_value=0.0):
+            assert api._post("/x", {}, endpoint="x").is_ok()
+        assert delays == [1.0, 2.0]
+
+    def test_retry_after_capped_by_max_delay(self):
+        api = self._api(retry_max_delay=5.0)
+        responses = [self._err_resp(429, {"Retry-After": "9999"}), self._json_ok()]
+        with patch.object(api.session, "post", side_effect=responses), \
+                patch("src.parsing.api.rabota_api.time.sleep") as mock_sleep:
+            assert api._post("/x", {}, endpoint="x").is_ok()
+        mock_sleep.assert_called_once_with(5.0)
+
+    def test_invalid_retry_after_falls_back_to_backoff(self):
+        api = self._api(retry_base_delay=2.0)
+        responses = [
+            self._err_resp(429, {"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}),
+            self._json_ok(),
+        ]
+        with patch.object(api.session, "post", side_effect=responses), \
+                patch("src.parsing.api.rabota_api.time.sleep") as mock_sleep, \
+                patch("src.parsing.api.rabota_api.random.uniform", return_value=0.0):
+            assert api._post("/x", {}, endpoint="x").is_ok()
+        mock_sleep.assert_called_once_with(2.0)
+
+    def test_single_attempt_disables_retry(self):
+        from src.errors import RateLimitError
+
+        api = self._api(max_attempts=1)
+        with patch.object(api.session, "post", return_value=self._err_resp(429)) as mock_post, \
+                patch("src.parsing.api.rabota_api.time.sleep") as mock_sleep:
+            result = api._post("/x", {}, endpoint="x")
+        assert isinstance(result.err(), RateLimitError)
+        assert mock_post.call_count == 1
+        mock_sleep.assert_not_called()
+
+    def test_client_error_is_not_retried(self):
+        api = self._api()
+        with patch.object(api.session, "post", return_value=self._err_resp(400, text="bad request")) as mock_post, \
+                patch("src.parsing.api.rabota_api.time.sleep") as mock_sleep:
+            result = api._post("/x", {}, endpoint="x")
+        assert result.is_err()
+        assert result.err().status_code == 400
+        assert mock_post.call_count == 1
+        mock_sleep.assert_not_called()
+
+    def test_408_is_retried(self):
+        api = self._api()
+        responses = [self._err_resp(408), self._json_ok()]
+        with patch.object(api.session, "post", side_effect=responses) as mock_post, \
+                patch("src.parsing.api.rabota_api.time.sleep"):
+            assert api._post("/x", {}, endpoint="x").is_ok()
+        assert mock_post.call_count == 2
+
+    def test_status_retries_disabled_in_urllib3_adapter(self):
+        """Повторы статусов делает _post: адаптер не должен дублировать их молча."""
+        api = self._api()
+        adapter = api.session.get_adapter("https://api.rabota.ru/v5")
+        assert list(adapter.max_retries.status_forcelist) == []
+
+
 class TestDetails:
     def test_not_cached_returns_vacancy_not_found(self):
         from src.errors import VacancyNotFoundError
