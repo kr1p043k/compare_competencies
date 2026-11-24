@@ -34,6 +34,7 @@ function props(over: Partial<ListProps> = {}): ListProps {
     disciplines: [D1, D2],
     analysisByName: new Map(),
     selected: null,
+    search: "",
     setSearch: vi.fn(),
     yearFilter: 0,
     setYearFilter: vi.fn(),
@@ -51,14 +52,30 @@ function props(over: Partial<ListProps> = {}): ListProps {
 }
 
 describe("DisciplineList", () => {
-  it("рендерит фильтры, счётчик и строки дисциплин", () => {
+  it("рендерит поиск, счётчик и строки дисциплин", () => {
     render(<DisciplineList {...props()} />);
-    expect(screen.getByText("Показать в списке:")).toBeTruthy();
-    expect(screen.getByText("Все (2)")).toBeTruthy();
-    expect(screen.getByText("С пробелами (1)")).toBeTruthy();
+    expect(screen.getByLabelText("Поиск дисциплины")).toBeTruthy();
     expect(screen.getByText("2 из 2")).toBeTruthy();
     expect(screen.getByText("Веб-технологии")).toBeTruthy();
     expect(screen.getByText("Базы данных")).toBeTruthy();
+  });
+
+  it("фильтры спрятаны в поповер и открываются по кнопке", () => {
+    render(<DisciplineList {...props()} />);
+    // До клика фильтров в разметке нет: они не занимают место над списком.
+    expect(screen.queryByText("Показать в списке")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Фильтры/ }));
+    expect(screen.getByText("Показать в списке")).toBeTruthy();
+    expect(screen.getByText("Все (2)")).toBeTruthy();
+    expect(screen.getByText("С пробелами (1)")).toBeTruthy();
+  });
+
+  it("поиск передаёт введённое значение наверх", () => {
+    const setSearch = vi.fn();
+    render(<DisciplineList {...props({ setSearch })} />);
+    fireEvent.change(screen.getByLabelText("Поиск дисциплины"), { target: { value: "баз" } });
+    expect(setSearch).toHaveBeenCalledWith("баз");
   });
 
   it("клик по строке грузит дисциплину", () => {
@@ -77,6 +94,7 @@ describe("DisciplineList", () => {
   it("кнопки фильтра года переключают значение", () => {
     const setYearFilter = vi.fn();
     render(<DisciplineList {...props({ setYearFilter })} />);
+    fireEvent.click(screen.getByRole("button", { name: /Фильтры/ }));
     fireEvent.click(screen.getByText("в плане 2024"));
     expect(setYearFilter).toHaveBeenCalledWith(2024);
   });
