@@ -153,12 +153,17 @@ def main(args: argparse.Namespace) -> int:
         cur = conn.cursor()
         total = 0
         for table, count_sql, delete_sql in plan:
+            # Шаг в собственном SAVEPOINT: при отсутствии таблицы откатывается
+            # только этот шаг, а удаления предыдущих таблиц (при --apply)
+            # остаются в общей транзакции и уходят в один финальный commit,
+            # как обещано в docs/RETENTION.md.
+            cur.execute(f"SAVEPOINT {table}")
             try:
                 cur.execute(count_sql)
             except psycopg2.errors.UndefinedTable:
                 # Миграция ещё не применена (например, audit_logs на старой базе) -
                 # шаг пропускаем, а не роняем всю чистку.
-                conn.rollback()
+                cur.execute(f"ROLLBACK TO SAVEPOINT {table}")
                 print(f"{table:16} пропущено: таблицы нет")
                 continue
             n = int(cur.fetchone()[0])
@@ -167,6 +172,7 @@ def main(args: argparse.Namespace) -> int:
             if apply and n:
                 cur.execute(delete_sql)
                 print(f"{table:16} удалено: {cur.rowcount}")
+            cur.execute(f"RELEASE SAVEPOINT {table}")
         if apply:
             conn.commit()
             logger.info("retention_applied", rows=total)

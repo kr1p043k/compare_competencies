@@ -258,3 +258,170 @@ def test_session_days_must_be_positive(monkeypatch) -> None:
     )
     assert retention.main(args) == 2
     assert conn.cur.executed == []
+
+
+# ---------------------------------------------------------------------------
+# TASK 7.8.2: сверка политики docs/RETENTION.md с фактическим планом CLI
+# ---------------------------------------------------------------------------
+
+
+def test_request_logs_window_uses_created_at_with_configured_days(monkeypatch) -> None:
+    """Политика: request_logs чистится по created_at старше --logs-days."""
+    conn = _patch_psycopg2(monkeypatch)
+    from src.cli import retention
+
+    args = SimpleNamespace(
+        apply=False, vacancies_days=730, logs_days=45, run_days=365,
+        session_days=30, audit_days=730,
+    )
+    retention.main(args)
+
+    sql = _count_sql(conn, "request_logs")
+    assert "created_at < NOW() - INTERVAL '45 days'" in sql
+
+
+def test_audit_window_uses_created_at_with_default_days(monkeypatch) -> None:
+    """Политика: audit_logs чистится по created_at, по умолчанию 730 дней."""
+    conn = _patch_psycopg2(monkeypatch)
+    from src.cli import retention
+
+    args = SimpleNamespace(
+        apply=False, vacancies_days=730, logs_days=90, run_days=365,
+        session_days=30, audit_days=730,
+    )
+    retention.main(args)
+
+    sql = _count_sql(conn, "audit_logs")
+    assert "created_at < NOW() - INTERVAL '730 days'" in sql
+
+
+def test_parser_defaults_match_policy_table() -> None:
+    """Дефолты argparse = окна из таблицы политики RETENTION.md:
+    vacancies 730, logs 90, sessions 30, runs 365, audit 730, dry-run."""
+    args = _make_parser().parse_args(["retention"])
+    assert args.vacancies_days == 730
+    assert args.logs_days == 90
+    assert args.session_days == 30
+    assert args.run_days == 365
+    assert args.audit_days == 730
+    assert args.apply is False
+
+
+# --- изоляция пропуска отсутствующей таблицы (SAVEPOINT на шаг) -------------
+
+
+class UndefinedTableError(Exception):
+    """Заменитель psycopg2.errors.UndefinedTable для фейкового драйвера."""
+
+
+class _TxnCursor:
+    """Курсор, эмулирующий psycopg2: COUNT по отсутствующей таблице падает по
+    UndefinedTable; SAVEPOINT/RELEASE/DELETE просто записываются."""
+
+    def __init__(self, rows_by_table: dict[str, int], missing: set[str]) -> None:
+        self.rows_by_table = rows_by_table
+        self.missing = missing
+        self.executed: list[str] = []
+        self.rowcount = 0
+        self._last_table = ""
+
+    def execute(self, sql: str) -> None:
+        self.executed.append(sql)
+        for table in self.rows_by_table:
+            if f"FROM {table} " in sql:
+                if table in self.missing:
+                    raise UndefinedTableError(f'relation "{table}" does not exist')
+                self._last_table = table
+                self.rowcount = self.rows_by_table[table]
+                return
+
+    def fetchone(self):
+        return (self.rows_by_table.get(self._last_table, 0),)
+
+
+class _TxnConnection:
+    def __init__(self, cursor: _TxnCursor) -> None:
+        self.cur = cursor
+        self.autocommit = False
+        self.commits = 0
+        self.rollbacks = 0
+        self.closed = False
+
+    def cursor(self):
+        return self.cur
+
+    def commit(self) -> None:
+        self.commits += 1
+
+    def rollback(self) -> None:
+        self.rollbacks += 1
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _patch_fake_psycopg2(monkeypatch, conn: _TxnConnection) -> None:
+    import sys
+
+    fake = SimpleNamespace(
+        connect=lambda *a, **k: conn,
+        errors=SimpleNamespace(UndefinedTable=UndefinedTableError),
+    )
+    monkeypatch.setitem(sys.modules, "psycopg2", fake)
+
+
+def test_missing_table_step_does_not_discard_earlier_deletes(capsys, monkeypatch) -> None:
+    """--apply + отсутствующая audit_logs: удаление vacancies должно
+    сохраниться (откат только к savepoint шага), а не исчезнуть из-за
+    общего conn.rollback()."""
+    conn = _TxnConnection(
+        _TxnCursor(
+            {"vacancies": 5, "request_logs": 0, "sessions": 0,
+             "pipeline_runs": 0, "audit_logs": 0},
+            missing={"audit_logs"},
+        )
+    )
+    _patch_fake_psycopg2(monkeypatch, conn)
+    from src.cli import retention
+
+    args = SimpleNamespace(
+        apply=True, vacancies_days=730, logs_days=90, run_days=365,
+        session_days=30, audit_days=730,
+    )
+    assert retention.main(args) == 0
+
+    executed = conn.cur.executed
+    assert "DELETE FROM vacancies" in " ".join(executed)
+    assert "ROLLBACK TO SAVEPOINT audit_logs" in executed
+    # Ни одного отката всей транзакции до финального commit:
+    assert conn.rollbacks == 0
+    assert conn.commits == 1
+    out = capsys.readouterr().out
+    assert "audit_logs" in out and "пропущено" in out
+    assert "vacancies" in out and "удалено" in out
+
+
+def test_every_policy_table_has_a_step_and_savepoint(monkeypatch) -> None:
+    """Все 5 таблиц политики присутствуют в плане и каждый шаг изолирован
+    собственным SAVEPOINT (пропуск одного не роняет остальные)."""
+    conn = _TxnConnection(
+        _TxnCursor(
+            {"vacancies": 0, "request_logs": 0, "sessions": 0,
+             "pipeline_runs": 0, "audit_logs": 0},
+            missing=set(),
+        )
+    )
+    _patch_fake_psycopg2(monkeypatch, conn)
+    from src.cli import retention
+
+    args = SimpleNamespace(
+        apply=False, vacancies_days=730, logs_days=90, run_days=365,
+        session_days=30, audit_days=730,
+    )
+    assert retention.main(args) == 0
+
+    executed = conn.cur.executed
+    for table in ("vacancies", "request_logs", "sessions", "pipeline_runs", "audit_logs"):
+        assert f"SAVEPOINT {table}" in executed
+        assert f"RELEASE SAVEPOINT {table}" in executed
+        assert any(f"FROM {table} " in sql for sql in executed)
