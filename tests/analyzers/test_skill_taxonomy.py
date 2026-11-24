@@ -13,12 +13,16 @@ class TestSkillTaxonomy:
         SkillTaxonomy._instance = None
         SkillTaxonomy._taxonomy = None
         SkillTaxonomy._skill_to_category = {}
+        SkillTaxonomy._skill_to_categories = {}
         SkillTaxonomy._category_info = {}
+        SkillTaxonomy._category_skills = {}
         yield
         SkillTaxonomy._instance = None
         SkillTaxonomy._taxonomy = None
         SkillTaxonomy._skill_to_category = {}
+        SkillTaxonomy._skill_to_categories = {}
         SkillTaxonomy._category_info = {}
+        SkillTaxonomy._category_skills = {}
 
     @pytest.fixture
     def sample_taxonomy(self, tmp_path, monkeypatch):
