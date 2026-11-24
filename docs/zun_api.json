@@ -6,7 +6,7 @@
     "description": "Чтение и запись ЗУН (ksa_entries) по направлениям обучения: метаданные, сводки, дерево дисциплин (компетенция → индикаторы → ЗУН), поиск (подстрока + семантический через эмбеддинги), фильтры, связь компетенций с рыночными навыками (competency_skills), покрытие (coverage_analyses), CRUD записей ЗУН, запуск преподавательского анализа и чтение его результатов, импорт ЗУН из KRM JSON (идемпотентно).\n\nВсё построено поверх существующей схемы БД без миграций. Авторизация - JWT-токен (заголовок Authorization: Bearer <token> или cookie token). Доступны роли: admin, teacher, rop. dir_code валидируется регулярным выражением ^\\d{2}\\.\\d{2}\\.\\d{2}(?:_\\w+)?$.",
     "contact": {
       "name": "compare_competencies",
-      "url": "https://github.com/kr1p043k/compare_competencies"
+      "url": "https://github.com/SoloveyMaks/compare_competencies"
     }
   },
   "servers": [

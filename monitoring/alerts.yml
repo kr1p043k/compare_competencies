@@ -32,7 +32,7 @@ groups:
             Prometheus не смог собрать /metrics с job=backend более 2 минут.
             Проверьте контейнер compare-competencies-api, /health и (если 403)
             дефект авторизации /metrics. Раздел RUNBOOK: 5xx и недоступность API.
-          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+          runbook_url: "https://github.com/SoloveyMaks/compare_competencies/blob/main/docs/RUNBOOK.md"
 
       - alert: CcApi5xxRateHigh
         expr: >-
@@ -50,7 +50,7 @@ groups:
             Более 1% запросов к /api/* отдают 5xx. Учитываются только пути /api/*
             (middleware RequestLogMiddleware); /health и /ready сюда не входят.
             Раздел RUNBOOK: шторм 5xx и недоступность API.
-          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+          runbook_url: "https://github.com/SoloveyMaks/compare_competencies/blob/main/docs/RUNBOOK.md"
 
       - alert: CcApiP95LatencyHigh
         expr: >-
@@ -66,7 +66,7 @@ groups:
           description: >-
             p95 длительности запроса /api/* держится выше 2.5 секунд. Проверьте
             БД, LLM и тяжёлые ручки. Раздел RUNBOOK: шторм 5xx.
-          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+          runbook_url: "https://github.com/SoloveyMaks/compare_competencies/blob/main/docs/RUNBOOK.md"
 
   - name: cc-database
     rules:
@@ -86,7 +86,7 @@ groups:
             Число backend-соединений БД превышает 85% от max_connections.
             Проверьте долгие запросы и утечки соединений. Требует postgres-exporter.
             Раздел RUNBOOK: шторм 5xx.
-          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+          runbook_url: "https://github.com/SoloveyMaks/compare_competencies/blob/main/docs/RUNBOOK.md"
 
   - name: cc-node
     rules:
@@ -105,7 +105,7 @@ groups:
           description: >-
             Свободное место на корневом разделе упало ниже 15%. Требует
             node-exporter. Раздел RUNBOOK: диск заполнен.
-          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+          runbook_url: "https://github.com/SoloveyMaks/compare_competencies/blob/main/docs/RUNBOOK.md"
 
       - alert: CcDiskWillFillSoon
         expr: >-
@@ -121,7 +121,7 @@ groups:
           description: >-
             Линейный прогноз по 6 часам показывает исчерпание места на / в течение
             суток. Требует node-exporter. Раздел RUNBOOK: диск заполнен.
-          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+          runbook_url: "https://github.com/SoloveyMaks/compare_competencies/blob/main/docs/RUNBOOK.md"
 
   - name: cc-llm
     rules:
@@ -140,7 +140,7 @@ groups:
           description: >-
             Более 20% запросов к LLM завершаются со status="error". Известные
             значения метки status: ok, error. Раздел RUNBOOK: шторм 5xx.
-          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+          runbook_url: "https://github.com/SoloveyMaks/compare_competencies/blob/main/docs/RUNBOOK.md"
 
   - name: cc-pipeline
     rules:
@@ -154,7 +154,7 @@ groups:
           description: >-
             Счётчик pipeline_errors_total{stage} вырос. Посмотрите stage и
             сопутствующие логи. Раздел RUNBOOK: шторм 5xx.
-          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+          runbook_url: "https://github.com/SoloveyMaks/compare_competencies/blob/main/docs/RUNBOOK.md"
 
   # ===========================================================================
   # ОТКЛЮЧЕНО: метрик ниже в системе ЕЩЁ НЕТ. Правила оставлены закомментированными
@@ -173,7 +173,7 @@ groups:
   #     severity: critical
   #   annotations:
   #     summary: "Проба /ready падает (probe_success == 0)"
-  #     runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+  #     runbook_url: "https://github.com/SoloveyMaks/compare_competencies/blob/main/docs/RUNBOOK.md"
   #
   # 2) Свежесть retention. Нет метрики времени последнего успешного запуска
   #    (retention_last_success_timestamp_seconds не публикуется). Нужен runbook/CLI,
@@ -186,7 +186,7 @@ groups:
   #     severity: warning
   #   annotations:
   #     summary: "Чистка retention не запускалась более 3 суток"
-  #     runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+  #     runbook_url: "https://github.com/SoloveyMaks/compare_competencies/blob/main/docs/RUNBOOK.md"
   #
   # 3) Пул соединений БД. Gauge занятости пула (db_pool_* ) в /metrics НЕ
   #    публикуется. Нужно добавить Gauge в src/monitoring/metrics.py, затем:
@@ -198,5 +198,5 @@ groups:
   #     severity: warning
   #   annotations:
   #     summary: "Пул соединений БД заполнен более 90%"
-  #     runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+  #     runbook_url: "https://github.com/SoloveyMaks/compare_competencies/blob/main/docs/RUNBOOK.md"
   # ===========================================================================
