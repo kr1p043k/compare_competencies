@@ -132,8 +132,8 @@ Histogram для длительности стадий/запросов, Counter
 
 **cAdvisor** - метрики Docker-контейнеров (CPU, RAM, Network, Disk): `container_cpu_usage_seconds_total`, `container_memory_usage_bytes`
 
-### vector_search/faiss_index.py - FAISS-индексы
-Обёртка над FAISS. FlatIP (точное косинусное сходство) и HNSW (приближённое для >10k векторов). Сохранение/загрузка через `.faiss` + `.pkl` (метаданные).
+### RAG-хранилище (`src/rag/`) - pgvector
+Векторный поиск живёт в PostgreSQL (`pgvector`, HNSW + GIN-FTS), а не в FAISS. Корпус: РПД, вакансии, публикации hub, карточки KRM. `rag_documents` / `rag_chunks` (vector(768) + tsvector) / `rag_chunk_entities`; поколения (`generation`) дают blue-green реиндексацию. Подробности: `docs/RAG.md`.
 
 ### REST API (api_pkg)
 Модульный FastAPI-пакет `src/api_pkg/` с 10 роутерами: health, vacancies, profiles, clusters, taxonomy, trends, market, pipeline, results, admin. Встроенный startup/hooks, зависимости через Depends.
@@ -169,8 +169,8 @@ Instrumentation пайплайна: `DataCollectionStage`, `ModelTrainingStage`,
 
 **cAdvisor** собирает метрики Docker-контейнеров и доступен через Prometheus (job: `cadvisor`). Позволяет видеть per-container CPU, memory, network, disk.
 
-### Векторный поиск (FAISS)
-Модуль `src/vector_search/faiss_index.py` - обёртка над FAISS (FlatIP / HNSW). `build`/`search`/`save`/`load`. Экспортируется через `create_faiss_index()`. Готов к интеграции в `EmbeddingComparator` / `BM25Ranker` при росте объёма векторов (>1000).
+### Векторный поиск (pgvector, `src/rag/`)
+`src/rag/store.py` — dense (HNSW cosine) + sparse (`ts_rank_cd` по русскому FTS) + entity-поиск по `rag_chunk_entities`; `src/rag/retriever.py` — RRF-фьюжн, дедуп, MMR. Индекс строится `python -m src.cli rag-index`, оценки — `rag-eval`. Раньше здесь был FAISS (`src/vector_search/faiss_index.py`), он удалён: фильтры по ACL/направлению/году в SQL дешевле отдельного артефакта.
 
 ### Вспомогательные скрипты
 Расширение белого списка навыков (`scripts/extend_it_skills.py`). Проверка кластеров (`scripts/check_clusters.py`). Обучение кластеров (`scripts/train_clusters.py`). Полная пересборка проекта (`scripts/full_rebuild.py`).
@@ -209,8 +209,8 @@ FastAPI-сервер: middleware (request_id, body limit, CORS), rate limiting, 
 ### Мониторинг (`src/monitoring/`)
 Prometheus-метрики: pipeline_stage_duration_seconds, pipeline_stage_errors_total, api_request_duration_seconds, ltr_recommendations_generated_total, ltr_model_shap_errors_total. Декоратор `@track_pipeline_stage` для инструментирования стадий пайплайна.
 
-### Векторный поиск (`src/vector_search/`)
-FAISS-обёртка: `FaissIndex` с поддержкой FlatIP и HNSW. Методы `build`, `search`, `save`, `load`. Экспортируется через `create_faiss_index()`. Готов к интеграции в EmbeddingComparator/BM25Ranker.
+### Векторный поиск (`src/rag/`)
+pgvector-хранилище: `RagStore` (upsert, поколения, три ветки поиска), `HybridRetriever` (RRF + MMR), `RagService` (analyze -> retrieve -> assemble + L1-кэш). Таблицы `rag_*` создаются миграцией `add_rag_tables`; ORM-моделей нет — доступ только через сырой SQL.
 
 ### Скоринг и фильтрация спама (`src/scoring/`)
 **`VacancyQualityScorer`** оценивает качество вакансий и отфильтровывает спам перед агрегацией в Excel.
