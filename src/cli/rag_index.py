@@ -29,12 +29,21 @@ from src.rag import index_documents
 from src.rag.chunking import iter_krm_cards, iter_rpd_documents, iter_skill_cards
 from src.rag.chunking.vacancy import chunk_vacancy
 from src.rag.indexer import IndexStats
+from src.rag.loaders.publications import load_publications_documents
 from src.rag.store import RagStore
 from src.rag.types import Document
 
 logger = structlog.get_logger(__name__)
 
-SOURCES = ("rpd", "krm", "vacancies")
+SOURCES = ("rpd", "krm", "vacancies", "publications")
+
+
+def _split_queries(raw: Any) -> list[str]:
+    """'a, b; c' -> ['a', 'b', 'c'] (для --pub-queries)."""
+    if not raw:
+        return []
+    text = str(raw).replace(";", ",")
+    return [part.strip() for part in text.split(",") if part.strip()]
 
 
 def _read_json(path: Path) -> Any:
@@ -146,6 +155,10 @@ async def index_source(
     direction: str | None = None,
     year: int | None = None,
     limit: int | None = None,
+    pub_mode: str = "list",
+    pub_pages: int = 10,
+    pub_queries: list[str] | None = None,
+    pub_search_pages: int = 3,
 ) -> list[IndexStats]:
     stats: list[IndexStats] = []
     if source in ("rpd", "all"):
@@ -175,6 +188,22 @@ async def index_source(
                 docs, source="vacancies", full_reindex=reindex, dry_run=dry_run
             )
         )
+    if source in ("publications", "all"):
+        docs = await load_publications_documents(
+            mode=pub_mode,
+            pages=pub_pages,
+            queries=pub_queries,
+            search_pages=pub_search_pages,
+            max_tokens=config.RAG_MAX_CHUNK_TOKENS,
+            min_tokens=config.RAG_MIN_CHUNK_TOKENS,
+        )
+        if limit:
+            docs = docs[:limit]
+        stats.append(
+            await index_documents(
+                docs, source="publications", full_reindex=reindex, dry_run=dry_run
+            )
+        )
     return stats
 
 
@@ -199,6 +228,10 @@ def main(args: Any) -> None:
             direction=getattr(args, "direction", None),
             year=getattr(args, "year", None),
             limit=getattr(args, "limit", None),
+            pub_mode=str(getattr(args, "pub_mode", "list") or "list"),
+            pub_pages=int(getattr(args, "pub_pages", 10) or 10),
+            pub_queries=_split_queries(getattr(args, "pub_queries", None)),
+            pub_search_pages=int(getattr(args, "pub_search_pages", 3) or 3),
         )
     )
     for item in results:
@@ -206,13 +239,36 @@ def main(args: Any) -> None:
 
 
 def build_parser(sub) -> None:
-    parser = sub.add_parser("rag-index", help="Проиндексировать корпус RAG (РПД/КРМ/вакансии)")
+    parser = sub.add_parser("rag-index", help="Проиндексировать корпус RAG (РПД/КРМ/вакансии/публикации)")
     parser.add_argument("--source", default="all", choices=[*SOURCES, "all"])
     parser.add_argument("--reindex", action="store_true", help="Полный реиндекс в новое поколение")
     parser.add_argument("--dry-run", action="store_true", help="Только посчитать документы/чанки")
     parser.add_argument("--from-db", action="store_true", help="Вакансии из PostgreSQL, не из JSON")
     parser.add_argument("--direction", default=None, help="Код направления (09.03.02)")
     parser.add_argument("--year", type=int, default=None, help="Год набора")
-    parser.add_argument("--limit", type=int, default=None, help="Ограничить число вакансий")
+    parser.add_argument("--limit", type=int, default=None, help="Ограничить число документов")
     parser.add_argument("--stats", action="store_true", help="Показать состав индекса и выйти")
+    parser.add_argument(
+        "--pub-mode",
+        choices=["list", "search"],
+        default="list",
+        dest="pub_mode",
+        help="Публикации: листать каталог (list) или искать по запросам (search)",
+    )
+    parser.add_argument(
+        "--pub-pages", type=int, default=10, dest="pub_pages", help="Страниц каталога в режиме list"
+    )
+    parser.add_argument(
+        "--pub-queries",
+        default=None,
+        dest="pub_queries",
+        help="Запросы через запятую для режима search",
+    )
+    parser.add_argument(
+        "--pub-search-pages",
+        type=int,
+        default=3,
+        dest="pub_search_pages",
+        help="Страниц на один запрос в режиме search",
+    )
     parser.set_defaults(func=main)
