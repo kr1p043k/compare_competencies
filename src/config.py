@@ -421,6 +421,9 @@ class Settings(BaseSettings):
     RAG_ACL_DEFAULT: str = "internal"
     # L1-кэш ответов retrieval, секунды; 0 - без кэша.
     RAG_CACHE_TTL_S: float = 60.0
+    # Бонус за лексическое совпадение запроса с заголовком документа;
+    # 0 - выключить (замер до/после - docs/RAG-EVAL.md).
+    RAG_TITLE_BOOST: float = 0.35
 
     # валидация путей относительно BASE_DIR
     @field_validator(
@@ -724,3 +727,4 @@ RAG_MAX_CHUNK_TOKENS = settings.RAG_MAX_CHUNK_TOKENS
 RAG_MIN_CHUNK_TOKENS = settings.RAG_MIN_CHUNK_TOKENS
 RAG_ACL_DEFAULT = settings.RAG_ACL_DEFAULT
 RAG_CACHE_TTL_S = settings.RAG_CACHE_TTL_S
+RAG_TITLE_BOOST = settings.RAG_TITLE_BOOST

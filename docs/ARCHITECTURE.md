@@ -132,8 +132,12 @@ Histogram для длительности стадий/запросов, Counter
 
 **cAdvisor** - метрики Docker-контейнеров (CPU, RAM, Network, Disk): `container_cpu_usage_seconds_total`, `container_memory_usage_bytes`
 
-### vector_search/faiss_index.py - FAISS-индексы
-Обёртка над FAISS. FlatIP (точное косинусное сходство) и HNSW (приближённое для >10k векторов). Сохранение/загрузка через `.faiss` + `.pkl` (метаданные).
+### rag/ - pgvector-retrieval (RAG)
+`src/rag/` - корпус РПД/КРМ/вакансий в PostgreSQL с расширением pgvector: HNSW-индекс
+(`vector_cosine_ops`) для dense-ветки, GIN по `tsv` для FTS и точный поиск по
+`rag_chunk_entities`. Слияние веток - RRF + MMR, сборка промпт-блока с цитатами `[n]`.
+FAISS-индексов в проекте нет (старый `src/vector_search/` удалён). Подробности и
+схема таблиц - `docs/RAG.md`, оценка качества - `docs/RAG-EVAL.md`.
 
 ### REST API (api_pkg)
 Модульный FastAPI-пакет `src/api_pkg/` с 10 роутерами: health, vacancies, profiles, clusters, taxonomy, trends, market, pipeline, results, admin. Встроенный startup/hooks, зависимости через Depends.
@@ -169,8 +173,10 @@ Instrumentation пайплайна: `DataCollectionStage`, `ModelTrainingStage`,
 
 **cAdvisor** собирает метрики Docker-контейнеров и доступен через Prometheus (job: `cadvisor`). Позволяет видеть per-container CPU, memory, network, disk.
 
-### Векторный поиск (FAISS)
-Модуль `src/vector_search/faiss_index.py` - обёртка над FAISS (FlatIP / HNSW). `build`/`search`/`save`/`load`. Экспортируется через `create_faiss_index()`. Готов к интеграции в `EmbeddingComparator` / `BM25Ranker` при росте объёма векторов (>1000).
+### Векторный поиск (pgvector)
+`src/rag/store.py` - SQL по таблицам `rag_*`: dense (HNSW, `<=>`), sparse (`ts_rank_cd`,
+`plainto_tsquery('russian', ...)`) и entity-ветка. ORM-моделей нет намеренно: DDL живёт в
+alembic-ревизии `add_rag_tables`, запросы - чистый SQL. FAISS не используется.
 
 ### Вспомогательные скрипты
 Расширение белого списка навыков (`scripts/extend_it_skills.py`). Проверка кластеров (`scripts/check_clusters.py`). Обучение кластеров (`scripts/train_clusters.py`). Полная пересборка проекта (`scripts/full_rebuild.py`).

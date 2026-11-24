@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "k": 5,
+  "items": [
+    {
+      "query": "методы компьютерного моделирования",
+      "expect": ["Методы компьютерного моделирования"],
+      "sources": ["rpd"],
+      "note": "заголовок однозначен; id привязан к направлению 01.03.01"
+    },
+    {
+      "query": "основания геометрии дисциплина",
+      "expect": ["01.03.01:ANN-Б1.В.1_Основания геометрии.pdf"],
+      "sources": ["rpd"]
+    },
+    {
+      "query": "вариационное исчисление и методы оптимизации",
+      "expect": ["Вариационное исчисление и методы оптимизации"],
+      "sources": ["rpd"],
+      "note": "title, а не external_id: дисциплина есть в нескольких направлениях"
+    },
+    {
+      "query": "теория чисел",
+      "expect": ["Теория чисел"],
+      "sources": ["rpd"]
+    },
+    {
+      "query": "проектная деятельность",
+      "expect": ["Модуль проектной деятельности"],
+      "sources": ["rpd"]
+    },
+    {
+      "query": "что входит в компетенцию ПК-2.3",
+      "expect": ["competency:пк-2.3"],
+      "sources": ["krm"],
+      "profile": "competency_lookup"
+    },
+    {
+      "query": "компетенция УК-1",
+      "expect": ["competency:ук-1"],
+      "sources": ["krm"],
+      "profile": "competency_lookup"
+    },
+    {
+      "query": "навык Jupyter Notebook",
+      "expect": ["skill:jupyter notebook"],
+      "sources": ["krm"]
+    },
+    {
+      "query": "навык Python",
+      "expect": ["skill:python"],
+      "sources": ["krm"]
+    },
+    {
+      "query": "навык SQL",
+      "expect": ["skill:sql"],
+      "sources": ["krm"]
+    },
+    {
+      "query": "требования к Data Scientist NLP",
+      "expect": ["138132422"],
+      "sources": ["vacancies"],
+      "profile": "market_evidence",
+      "note": "жёсткий кейс: длинное описание вакансии, короткий запрос"
+    },
+    {
+      "query": "инженер по информационной безопасности junior",
+      "expect": ["Инженер по информационной безопасности"],
+      "sources": ["vacancies"],
+      "note": "title: у вакансии много одноимённых дублей с разными id"
+    }
+  ]
+}

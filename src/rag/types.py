@@ -81,6 +81,8 @@ class RetrievalHit:
     section_path: str = ""
     url: str | None = None
     ord: int = 0
+    external_id: str | None = None
+    title_score: float = 0.0
     meta: dict[str, Any] = field(default_factory=dict)
 
     @property
