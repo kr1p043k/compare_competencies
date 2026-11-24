@@ -334,6 +334,7 @@ def _decode_token(token: str) -> dict[str, Any] | None:
             return None
         return data
     except Exception:
+        logger.debug("auth_suppressed")
         return None
 
 
@@ -397,7 +398,7 @@ async def resolve_session(token: str) -> dict[str, Any] | None:
             _hash_token(token),
         )
     except Exception:
-        logger.error("resolve_session_db_error", exc_info=True)
+        logger.exception("resolve_session_db_error")
         return None
     if row is None or not row["is_active"]:
         return None
@@ -466,6 +467,7 @@ async def user_error_detail(request: Request | None, technical: str, user_msg: s
         if isinstance(user, dict) and user.get("r") == "admin" and technical:
             return technical
     except Exception:
+        logger.debug("auth_suppressed")
         pass
     return user_msg
 

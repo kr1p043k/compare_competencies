@@ -1,14 +1,14 @@
 """v33: skill-link + competency-search endpoints (fake pool, auth overridden)."""
 import uuid
 
-import pytest as _pytest
+import pytest
 from fastapi.testclient import TestClient
 
 import src.api_pkg.routers.zun as _zun_mod
 from src.api_pkg import create_app
 
 
-@_pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def _allow_all_dirs(monkeypatch):
     """IDOR-guard проверяется в tests/api/test_zun_idor.py.
 

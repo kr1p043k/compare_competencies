@@ -212,6 +212,7 @@ class RagService:
 
                 rag_cache_hits.inc()
             except Exception:
+                logger.debug("service_suppressed")
                 pass
             return RagResult(
                 query=analyzed,
@@ -264,6 +265,7 @@ class RagService:
                     profile=analyzed.profile, reason=str(context.degraded or "empty")
                 ).inc()
         except Exception:
+            logger.debug("service_suppressed")
             pass
 
         log_id = None

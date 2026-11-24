@@ -78,6 +78,7 @@ class DisciplineAwareScorer:
         try:
             mv = self._model.model_version() if self._model is not None else "unknown"
         except Exception:
+            logger.debug("discipline_relevance_suppressed")
             mv = "unknown"
         return hashlib.sha256((mv + "\n" + payload).encode("utf-8")).hexdigest()[:16]
 

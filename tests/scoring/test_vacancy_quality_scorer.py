@@ -11,16 +11,16 @@ def scorer():
 
 
 def _make_vac(overrides: dict | None = None) -> Vacancy:
-    defaults = dict(
-        id='1',
-        name='Python Developer',
-        area=Area(id=1, name='Moscow'),
-        employer=Employer(id='123', name='Tech Corp'),
-        salary=None,
-        description='Real description ' * 20,
-        key_skills=[KeySkill(name='python'), KeySkill(name='sql')],
-        snippet=Snippet(requirement=None, responsibility=None),
-    )
+    defaults = {
+        'id': '1',
+        'name': 'Python Developer',
+        'area': Area(id=1, name='Moscow'),
+        'employer': Employer(id='123', name='Tech Corp'),
+        'salary': None,
+        'description': 'Real description ' * 20,
+        'key_skills': [KeySkill(name='python'), KeySkill(name='sql')],
+        'snippet': Snippet(requirement=None, responsibility=None),
+    }
     if overrides:
         defaults.update(overrides)
     return Vacancy(**defaults)

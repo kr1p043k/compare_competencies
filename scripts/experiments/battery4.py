@@ -79,7 +79,7 @@ def main() -> None:
                 mdl = joblib.load(ROOT / "temp" / f"b4_{tag}_s{s}.joblib")["model"]
                 Xte, yte, _, _, test_order = eng._build_ranking_frame(
                     test_idx, rows, train_core, market_emb, qid_of)
-                cols = [c for c in eng.feature_names]  # artifact features
+                cols = list(eng.feature_names)  # artifact features
                 P.append(np.asarray(mdl.predict(Xte[cols])))
             troles = [rows[j]["role"] for j in test_order]
             zavg = np.mean([(p - p.mean()) / (p.std() or 1.0) for p in P], axis=0)

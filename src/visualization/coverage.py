@@ -81,7 +81,7 @@ def plot_skills_heatmap(results: dict[str, Any], top_n: int = 20, save_path: Pat
             # Молчаливые нули хуже ошибки: сводка режет student_skills,
             # heatmap по ней всегда пуст. Видимый сигнал в лог.
             logger.warning("heatmap_no_student_skills", profile=profile)
-        student_set = set(s.lower() for s in raw_skills)
+        student_set = {s.lower() for s in raw_skills}
         row = [1 if skill.lower() in student_set else 0 for skill in top_skills]
         data.append(row)
 

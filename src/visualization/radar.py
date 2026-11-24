@@ -23,7 +23,7 @@ def plot_skill_comparison_radar(
     angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
     angles += angles[:1]
 
-    fig, ax = plt.subplots(figsize=(11, 11), subplot_kw=dict(polar=True))
+    fig, ax = plt.subplots(figsize=(11, 11), subplot_kw={"polar": True})
 
     student_vals = [1 if skill in student_skills else 0 for skill in all_skills]
     student_vals += student_vals[:1]

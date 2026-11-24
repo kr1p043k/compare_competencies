@@ -160,7 +160,7 @@ def test_default_audit_days_applied_when_attribute_missing(monkeypatch):
 
 @pytest.mark.parametrize("value", [0, -1])
 def test_positive_days_type_rejects_non_positive(value):
-    with pytest.raises(Exception):
+    with pytest.raises(argparse.ArgumentTypeError, match="вне допустимого диапазона"):
         retention.positive_days(str(value))
 
 

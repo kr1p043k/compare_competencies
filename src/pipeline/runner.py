@@ -249,6 +249,7 @@ def run_status(args) -> Result[None, str]:
         show_status()
         return Ok(None)
     except Exception as e:
+        logger.debug("runner_suppressed", error=str(e))
         return Err(str(e))
 
 
@@ -304,6 +305,7 @@ def run_train_model(args=None) -> Result[None, str]:
             for k, v in m.items():
                 ltr_model_metrics.labels(metric=k).set(v)
         except Exception:
+            logger.debug("runner_suppressed")
             pass
     if not ltr_engine.is_fitted:
         console_info("❌ Обучение не удалось (недостаточно навыков)")
@@ -355,6 +357,7 @@ def run_full_pipeline(args) -> Result[None, str]:
         else:
             args._date_from = None
     except Exception:
+        logger.debug("runner_suppressed")
         args._date_from = None
 
     _write_pipeline_progress(0, "Инициализация...")

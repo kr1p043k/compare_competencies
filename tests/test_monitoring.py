@@ -31,7 +31,7 @@ class TestMonitoringMetrics:
         def failing_func():
             raise ValueError("test error")
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="test error"):
             failing_func()
 
     def test_recommendations_counter(self):

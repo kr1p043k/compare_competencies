@@ -61,6 +61,7 @@ def _holdout_mape(points: list[tuple[date, float]]) -> float | None:
     try:
         slope, intercept = np.polyfit(x, y, 1)
     except Exception:
+        logger.debug("prophet_forecast_suppressed")
         return None
     last_date, actual = points[-1]
     days_ahead = (last_date - train[0][0]).days
@@ -294,6 +295,7 @@ async def load_time_series(session: AsyncSession) -> Result[list[Snapshot], Doma
             file_snapshots.append((dt, data))
             all_skills_in_files.update(data.keys())
         except Exception:
+            logger.debug("prophet_forecast_suppressed")
             continue
 
     if not file_snapshots:

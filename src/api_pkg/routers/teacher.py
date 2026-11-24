@@ -1733,6 +1733,7 @@ async def teacher_students(request: Request,
                     "has_profile": False,
                 })
         except Exception:
+            logger.debug("teacher_suppressed")
             items.append({
                 "email": email,
                 "full_name": (r["full_name"] or ""),

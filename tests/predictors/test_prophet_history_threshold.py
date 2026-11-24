@@ -14,7 +14,7 @@ from src.predictors.prophet_forecast import (
 )
 
 
-@pytest.mark.parametrize("n,expected", [(0, False), (3, False), (5, False), (6, True), (12, True)])
+@pytest.mark.parametrize(("n", "expected"), [(0, False), (3, False), (5, False), (6, True), (12, True)])
 def test_has_enough_history_threshold(n, expected):
     assert has_enough_history(n) is expected
     assert MIN_HISTORY_POINTS == 6

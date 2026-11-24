@@ -42,6 +42,7 @@ class HhDataSource(DataSourceProtocol):
         except DataSourceError:
             raise
         except Exception as e:
+            logger.debug("data_source_suppressed", error=str(e))
             return Err(DataSourceError(message=f"Ошибка сбора вакансий: {e}"))
 
     def _load_from_cache(self) -> Result[tuple[list, VacancyParser], DataSourceError]:

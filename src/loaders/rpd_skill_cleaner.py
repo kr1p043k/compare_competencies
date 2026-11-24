@@ -91,12 +91,13 @@ class RPDSkillCleaner:
             logger.info("rpd_skills_cleaned", **self._stats)
             return Ok(cleaned)
         except Exception as e:
+            logger.debug("rpd_skill_cleaner_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail="RPDSkillCleaner.clean_skills"))
 
     def clean_discipline_data(self, data: dict) -> Result[dict, DomainError]:
         try:
             cleaned_count = 0
-            for _disc_name, disc_data in data.get("09.03.02", {}).get("disciplines", {}).items():
+            for disc_data in data.get("09.03.02", {}).get("disciplines", {}).values():
                 for comp in disc_data.get("skills", {}):
                     raw = disc_data["skills"][comp]
                     match self.clean_skills(raw):
@@ -117,6 +118,7 @@ class RPDSkillCleaner:
             )
             return Ok(data)
         except Exception as e:
+            logger.debug("rpd_skill_cleaner_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail="RPDSkillCleaner.clean_discipline_data"))
 
     def _clean_one(self, raw: str) -> str | None:
@@ -216,4 +218,5 @@ def clean_rpd_skills_file(input_path: str, output_path: str | None = None) -> Re
             case Err(e):
                 return Err(e)
     except Exception as e:
+        logger.debug("rpd_skill_cleaner_suppressed", error=str(e))
         return Err(DomainError(message=str(e), detail="clean_rpd_skills_file"))

@@ -399,6 +399,7 @@ class SkillNormalizer:
             st = tax.stat()
             return f"{st.st_mtime_ns}:{st.st_size}"
         except Exception:
+            logger.debug("skill_normalizer_suppressed")
             return "unknown"
 
     @staticmethod
@@ -418,6 +419,7 @@ class SkillNormalizer:
             SkillNormalizer._normalize_cache[skill] = (_ver, _res)
             return _res
         except Exception as e:
+            logger.debug("skill_normalizer_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail=f"normalize({skill})"))
 
     @staticmethod
@@ -467,6 +469,7 @@ class SkillNormalizer:
 
                 _folded = _fold(text)
             except Exception:
+                logger.debug("skill_normalizer_suppressed")
                 _folded = text
             if _folded != text and _folded in _canon:
                 return Ok(_canon[_folded].lower())
@@ -580,6 +583,7 @@ class SkillNormalizer:
             logger.debug("no_fuzzy_match", original=original, normalized=text)
             return Ok(text)
         except Exception as e:
+            logger.debug("skill_normalizer_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail=f"normalize({skill})"))
 
     @classmethod

@@ -152,4 +152,5 @@ class CompetencyComparator:
         try:
             return Ok(self.weighted_coverage(student_skills, weights, use_hybrid))
         except Exception as e:
+            logger.debug("comparator_suppressed", error=str(e))
             return Err(DomainError(message="Weighted coverage calculation failed", detail=str(e)))

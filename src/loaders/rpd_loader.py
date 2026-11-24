@@ -221,6 +221,7 @@ def extract_text_pypdf(fpath: str) -> str | None:
                 text += t + "\n"
         return text if text.strip() else None
     except Exception:
+        logger.debug("rpd_loader_suppressed")
         return None
 
 
@@ -248,6 +249,7 @@ def extract_text_ocr(fpath: str) -> str | None:
                 text += block[1] + "\n"
         return text
     except Exception:
+        logger.debug("rpd_loader_suppressed")
         return None
 
 

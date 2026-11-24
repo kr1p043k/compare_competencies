@@ -33,11 +33,13 @@ def _run_blocking(coro, error_message: str):
         try:
             return asyncio.run(coro)
         except Exception as e:
+            logger.debug("hh_api_async_suppressed", error=str(e))
             return Err(ApiError(message=error_message, endpoint="vacancies", detail=str(e)))
     loop = asyncio.new_event_loop()
     try:
         return loop.run_until_complete(coro)
     except Exception as e:
+        logger.debug("hh_api_async_suppressed", error=str(e))
         return Err(ApiError(message=error_message, endpoint="vacancies", detail=str(e)))
     finally:
         loop.close()
@@ -95,6 +97,7 @@ class HeadHunterAPIAsync:
             with open(self._progress_file, "w", encoding="utf-8") as f:
                 json.dump({"pct": pct, "message": f"Загрузка деталей: {loaded}/{total}"}, f, ensure_ascii=False)
         except Exception:
+            logger.debug("hh_api_async_suppressed")
             pass
 
     async def _ensure_token(self) -> Result[bool, ApiError]:
@@ -375,7 +378,7 @@ class HeadHunterAPIAsync:
         logger.info("async_batch_loading_started", total=len(vacancy_ids), max_concurrent=self.max_concurrent)
 
         all_results = []
-        self.stats = {k: 0 for k in self.stats}
+        self.stats = dict.fromkeys(self.stats, 0)
 
         total_batches = (len(vacancy_ids) + self.batch_size - 1) // self.batch_size
         self._write_progress(0, total_batches)

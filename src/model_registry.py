@@ -121,6 +121,7 @@ class ModelRegistry:
             logger.info("model_registered", model_type=model_type, version=entry["version"])
             return Ok(entry["version"])
         except Exception as e:
+            logger.debug("model_registry_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail="ModelRegistry.register"))
 
     def list_versions(self, model_type: str) -> list[dict]:

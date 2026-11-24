@@ -506,6 +506,7 @@ def _scan_students_dir(students_dir: Path) -> list[dict[str, Any]]:
                 }
             )
         except Exception:
+            logger.debug("admin_suppressed")
             students.append({"filename": f.name, "skills_count": 0, "modified": ""})
     return students
 
@@ -894,6 +895,7 @@ async def _admin_totp_present(session) -> bool:
             ).scalar_one()
         )
     except Exception:
+        logger.debug("admin_suppressed")
         return False
     if present:
         _ADMIN_TOTP_PRESENT = True
@@ -1752,6 +1754,7 @@ async def admin_logs_file(
     try:
         raw_lines = LOG_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
     except Exception:
+        logger.debug("admin_suppressed")
         return {"file": str(LOG_FILE), "lines": [], "total": 0}
 
     # Последняя строка может быть неполной (пишется на лету) - берём хвост целиком
@@ -2169,6 +2172,7 @@ async def _tail_backend_log(websocket: WebSocket, stop: asyncio.Event) -> None:
             try:
                 await websocket.send_json({"type": "error", "error": str(exc)})
             except Exception:
+                logger.debug("admin_suppressed")
                 break
         await asyncio.sleep(_TAIL_POLL_SEC)
 
@@ -2239,6 +2243,7 @@ async def admin_logs_ws(websocket: WebSocket):
             except TimeoutError:
                 pass  # клиент жив, просто нет сообщений
             except Exception:
+                logger.debug("admin_suppressed")
                 break
 
             now = loop.time()
@@ -2356,6 +2361,7 @@ async def _two_factor_payload() -> dict[str, Any]:
         )
     except Exception:
         # Таблицы может не быть до применения миграции - это не ошибка экрана.
+        logger.debug("admin_suppressed")
         enrolled = 0
     # read_ok=False означает "флаг не прочитан, показано значение по умолчанию":
     # админ должен видеть это, а не думать, что 2FA выключена осознанно.

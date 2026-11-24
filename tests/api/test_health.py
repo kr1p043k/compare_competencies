@@ -33,7 +33,8 @@ class TestRootEndpoint:
         resp = client.get("/health")
         assert resp.status_code in (200, 500)
 
-    def test_health_reports_loaded_artifact_hash(self, client, tmp_path, _clean_loaded):
+    @pytest.mark.usefixtures("_clean_loaded")
+    def test_health_reports_loaded_artifact_hash(self, client, tmp_path):
         # Кривой деплой трассируется: артефакт, реально открытый serving,
         # виден в /health с именем + коротким sha256 даже без реестра/моделей.
         art = tmp_path / "ltr_ranker_fake.joblib"

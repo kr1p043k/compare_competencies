@@ -108,7 +108,7 @@ def main() -> int:
     for year in years:
         doc = json.loads(files[year].read_text(encoding="utf-8"))
         pairs, _missing, _extra = audit.match(doc["disciplines"], db_names)
-        for _off, db_name in pairs.items():
+        for db_name in pairs.values():
             by_db.setdefault(db_name, [])
             if year not in by_db[db_name]:
                 by_db[db_name].append(year)

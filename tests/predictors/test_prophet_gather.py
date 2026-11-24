@@ -247,7 +247,7 @@ class TestObservedDrops:
         assert [r["skill"] for r in rows] == ["x", "y"]  # -50% раньше -10%
 
     def test_invalid_months(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="months must be one of"):
             compute_observed_drops(self._obs(), 5)
 
     def test_engine_keeps_observed(self):

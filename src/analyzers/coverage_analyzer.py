@@ -76,6 +76,7 @@ class CoverageAnalyzer:
         try:
             model_version = EmbeddingProviderFactory.get().model_version()
         except Exception:
+            logger.debug("coverage_analyzer_suppressed")
             model_version = "unknown"
         data = {
             "model_version": model_version,

@@ -60,6 +60,7 @@ class BM25Ranker:
             try:
                 vtext = self._extract_vacancy_text(v)
             except Exception:
+                logger.debug("bm25_ranker_suppressed")
                 vtext = ""
             parts.append((str(vid), len(vtext),
                           hashlib.sha256(vtext.encode("utf-8", errors="replace")).hexdigest()[:16]))
@@ -213,4 +214,5 @@ class BM25Ranker:
             self._corpus_hash = ch
             return Ok(weights)
         except Exception as e:
+            logger.debug("bm25_ranker_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail="calculate_weights"))

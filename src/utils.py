@@ -184,6 +184,7 @@ def safe_read_json_result(filepath: Path) -> Result[list, DomainError]:
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
         return Err(DomainError(message="JSON read error", detail=str(e)))
     except Exception as e:
+        logger.debug("utils_suppressed", error=str(e))
         return Err(DomainError(message="Unexpected JSON read error", detail=str(e)))
 
 
@@ -229,6 +230,7 @@ def safe_read_competency_json_result(filepath: Path) -> Result[list[str], Domain
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
         return Err(DomainError(message="Competency JSON read error", detail=str(e)))
     except Exception as e:
+        logger.debug("utils_suppressed", error=str(e))
         return Err(DomainError(message="Unexpected competency read error", detail=str(e)))
 
 
@@ -250,6 +252,7 @@ def validate_safe_path_result(user_path: str | Path, base_dir: Path | None = Non
             return Err(DomainError(message=f"Path '{user_path}' outside allowed directory"))
         return Ok(resolved)
     except Exception as e:
+        logger.debug("utils_suppressed", error=str(e))
         return Err(DomainError(message="Path validation failed", detail=str(e)))
 
 

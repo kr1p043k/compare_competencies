@@ -60,4 +60,5 @@ def version_dataset(
         logger.info("dataset_versioned", name=version.name, hash=file_hash, rows=rows)
         return Ok(version)
     except Exception as e:
+        logger.debug("versioning_suppressed", error=str(e))
         return Err(DomainError(message=f"versioning failed: {e}"))

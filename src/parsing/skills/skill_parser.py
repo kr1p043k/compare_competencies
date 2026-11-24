@@ -462,6 +462,7 @@ class SkillParser:
                 self._update_stats(SkillSource.KEY_SKILLS)
             return Ok(skills)
         except Exception as e:
+            logger.debug("skill_parser_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail="_extract_from_key_skills"))
 
     def _extract_from_text(
@@ -488,6 +489,7 @@ class SkillParser:
 
             return Ok(skills)
         except Exception as e:
+            logger.debug("skill_parser_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail="_extract_from_text"))
 
     def _direct_search(self, text: str, source: SkillSource) -> Result[list[ExtractedSkill], DomainError]:
@@ -539,6 +541,7 @@ class SkillParser:
 
             return Ok(skills)
         except Exception as e:
+            logger.debug("skill_parser_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail="_direct_search"))
 
     @classmethod
@@ -610,6 +613,7 @@ class SkillParser:
                     )
             return Ok(found)
         except Exception as e:
+            logger.debug("skill_parser_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail="_extract_soft_skills"))
 
     def _marker_search(self, text: str, source: SkillSource) -> Result[list[ExtractedSkill], DomainError]:
@@ -692,6 +696,7 @@ class SkillParser:
 
             return Ok(skills)
         except Exception as e:
+            logger.debug("skill_parser_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail="_marker_search"))
 
     def _regex_search(self, text: str, source: SkillSource) -> Result[list[ExtractedSkill], DomainError]:
@@ -760,6 +765,7 @@ class SkillParser:
 
             return Ok(skills)
         except Exception as e:
+            logger.debug("skill_parser_suppressed", error=str(e))
             return Err(DomainError(message=str(e), detail="_regex_search"))
 
     def _update_stats(self, source: SkillSource) -> None:

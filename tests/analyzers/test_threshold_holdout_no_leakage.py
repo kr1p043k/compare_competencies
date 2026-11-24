@@ -59,11 +59,11 @@ class TestSplitDeterminism:
         assert {y for _, y in s.test} == {0, 1}
 
     def test_invalid_inputs_raise(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="need at least 2 pairs"):
             split_scores([0.5], [1], seed=42)  # слишком мало
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="labels must be binary"):
             split_scores([0.5, 0.6], [0, 2], seed=42)  # не бинарные метки
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="length mismatch"):
             split_scores([0.5, 0.6], [0, 1, 1], seed=42)  # длина не совпала
 
 

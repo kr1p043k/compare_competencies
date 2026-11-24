@@ -254,11 +254,11 @@ class VacancyQualityScorer:
             key_skills_count = len(vacancy.key_skills)
             pre = _extracted_skill_texts(vacancy)
             if pre is not None:
-                total_skills = len(set(t.lower() for t in pre))
+                total_skills = len({t.lower() for t in pre})
             else:
                 match self._skill_parser.parse_vacancy(vacancy):
                     case Ok(parsed):
-                        total_skills = len(set(s.text.lower() for s in parsed))
+                        total_skills = len({s.text.lower() for s in parsed})
                     case Err(_):
                         total_skills = 0
 
@@ -322,6 +322,7 @@ class VacancyQualityScorer:
                 flags=flags,
             ))
         except Exception as exc:
+            logger.debug("vacancy_quality_scorer_suppressed", error=str(exc))
             return Err(ScorerError(message=str(exc), detail=f"vacancy={vacancy.id}"))
 
     def filter_vacancies(
@@ -353,6 +354,7 @@ class VacancyQualityScorer:
             )
             return Ok((clean, spam, report))
         except Exception as exc:
+            logger.debug("vacancy_quality_scorer_suppressed", error=str(exc))
             return Err(ScorerError(message=str(exc), detail=f"total={len(vacancies)}"))
 
     def _build_report(self, scores: list[QualityScore], total: int) -> dict[str, Any]:

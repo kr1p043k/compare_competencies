@@ -36,6 +36,7 @@ def model_version() -> str:
 
         lib = sentence_transformers.__version__
     except Exception:
+        logger.debug("embedder_suppressed")
         lib = "unknown"
     return f"{config.EMBEDDING_MODEL}_st{lib}"
 

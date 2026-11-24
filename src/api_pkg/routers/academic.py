@@ -98,6 +98,7 @@ def _jwt_username(token: str) -> str | None:
         username = payload.get("username") or payload.get("sub") or payload.get("user_name")
         return str(username) if username else None
     except Exception:
+        logger.debug("academic_suppressed")
         return None
 
 
@@ -112,6 +113,7 @@ def _jwt_exp(token: str) -> int | None:
         exp = payload.get("exp")
         return int(exp) if isinstance(exp, (int, float)) else None
     except Exception:
+        logger.debug("academic_suppressed")
         return None
 
 
@@ -217,7 +219,7 @@ def _local_competencies(topic: str, final_top_k: int | None, dir_codes: list[str
     """Локальные рекомендации компетенций (AcademicGapAnalyzer.recommend)."""
     from src.analyzers.academic_gap import AcademicGapAnalyzer
 
-    lag = [d for d in dir_codes or []]
+    lag = list(dir_codes or [])
     lag = lag or ["09.03.02"]
     result: dict[str, Any] = {}
     for dir_code in lag:

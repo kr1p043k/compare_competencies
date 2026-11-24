@@ -15,6 +15,7 @@ import pandas as pd
 import pytest
 
 from src import config
+from src.errors import ModelError
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 
 _RUNTIME_FEATURES = [
@@ -162,7 +163,7 @@ def test_predict_raw_without_any_model_raises():
     engine.model = None
     engine.models = []
 
-    with pytest.raises(Exception):
+    with pytest.raises(ModelError, match="No model loaded"):
         engine._predict_raw(pd.DataFrame({"a": [1]}))
 
 
