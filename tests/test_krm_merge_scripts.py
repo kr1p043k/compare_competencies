@@ -506,8 +506,10 @@ def test_build_ksa_keeps_existing_knowledge(ann_mod):
 
 
 def test_build_ksa_fills_empty_knowledge(ann_mod):
-    ksa = ann_mod.build_ksa(["ОПК-1"], ["тема из аннотации"], {})
-    assert ksa["ОПК-1"]["knowledge"] == ["тема из аннотации"]
+    # Фикстура - реальная тема, а не заголовок раздела: строки, начинающиеся
+    # с «тема/модуль/раздел», _clean_topic_item отбрасывает как шапку.
+    ksa = ann_mod.build_ksa(["ОПК-1"], ["основные понятия алгоритмизации"], {})
+    assert ksa["ОПК-1"]["knowledge"] == ["основные понятия алгоритмизации"]
 
 
 def test_build_ksa_merges_ann_abilities(ann_mod):
