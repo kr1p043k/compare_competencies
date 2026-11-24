@@ -146,7 +146,7 @@ def test_parse_golden_accepts_dict_list_and_single_string_expect() -> None:
     ],
 )
 def test_parse_golden_rejects_bad_shapes(payload) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="golden-set"):
         rag_eval.parse_golden(payload)
 
 
