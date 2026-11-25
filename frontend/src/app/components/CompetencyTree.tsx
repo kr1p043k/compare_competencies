@@ -32,8 +32,11 @@ function rowColor(val: number | undefined): string {
   return "bg-destructive/5 border-destructive/30";
 }
 
+/** Узел при сборке: временное поле `_children` вместо публичного `children`. */
+type DraftNode = CompetencyNode & { children?: CompetencyNode[]; _children?: CompetencyNode[] };
+
 function buildTree(flat: CompetencyNode[]): CompetencyNode[] {
-  const nodeMap = new Map<string, CompetencyNode & { _children: CompetencyNode[] }>();
+  const nodeMap = new Map<string, DraftNode>();
   const roots: CompetencyNode[] = [];
 
   for (const node of flat) {
@@ -46,7 +49,7 @@ function buildTree(flat: CompetencyNode[]): CompetencyNode[] {
       const parentCode = node.code.slice(0, dotIdx);
       const parent = nodeMap.get(parentCode);
       if (parent) {
-        parent._children.push(nodeMap.get(node.code)!);
+        parent._children!.push(nodeMap.get(node.code)!);
         continue;
       }
     }
@@ -54,8 +57,8 @@ function buildTree(flat: CompetencyNode[]): CompetencyNode[] {
   }
 
   for (const node of nodeMap.values()) {
-    (node as any).children = node._children;
-    delete (node as any)._children;
+    node.children = node._children;
+    delete node._children;
   }
 
   return roots;

@@ -17,8 +17,19 @@ import {
 import { AdminLlmCostCard } from "./AdminLlmCostCard";
 
 /** Вкладка «Проверка» админки: стоимость LLM и состояние сервиса. */
+/** Ответ /health: готовность зависимостей сервиса. */
+interface HealthPayload {
+  status?: string;
+  version?: string;
+  api_ready?: boolean;
+  evaluator?: boolean;
+  recommendation_engine?: boolean;
+  ltr_model_version?: string | null;
+  clusters_versions?: Record<string, string | null>;
+}
+
 export function AdminHealthTab() {
-  const [health, setHealth] = useState<any>(null);
+  const [health, setHealth] = useState<HealthPayload | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [healthMsg, setHealthMsg] = useState("");
 
@@ -26,7 +37,7 @@ export function AdminHealthTab() {
     setHealthLoading(true);
     setHealthMsg("");
     try {
-      const d = await request<any>("/health");
+      const d = await request<HealthPayload>("/health");
       setHealth(d);
       setHealthMsg("Сервис отвечает");
     } catch (e) {

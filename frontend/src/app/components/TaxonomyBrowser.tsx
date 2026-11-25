@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, ChevronDown, Search, Loader2 } from "lucide-react";
 import { api } from "../api";
-import { reportError } from "./../../lib/errors";
+import { reportError, errMessage } from "./../../lib/errors";
 import { fuzzyMatch } from "../../lib/fuzzy";
 import { Badge, Button, Card, EmptyState, ErrorState, PageHeader, inputClass } from "../../design";
 import { cn } from "./ui/utils";
@@ -12,6 +12,15 @@ interface TaxCategory {
   icon: string;
   total: number;
   skills: string[];
+}
+
+/** Предложение навыка текущего пользователя (GET /teacher/skills/suggestions). */
+interface MySkillSuggestion {
+  id: string;
+  skill: string;
+  status: string;
+  created_at?: string;
+  category_hint?: string;
 }
 
 /** Тон бейджа статуса предложения навыка. */
@@ -35,11 +44,11 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
   const [catHint, setCatHint] = useState("");
   const [suggestMsg, setSuggestMsg] = useState("");
   const [suggestBusy, setSuggestBusy] = useState(false);
-  const [myList, setMyList] = useState<any[]>([]);
+  const [myList, setMyList] = useState<MySkillSuggestion[]>([]);
 
   const loadMine = () => {
     if (!showSuggest) return;
-    api<{ suggestions: unknown[] }>("/teacher/skills/suggestions").then((d) => setMyList(d?.suggestions || [])).catch((err) => reportError("app/components/TaxonomyBrowser.tsx", err));
+    api<{ suggestions: MySkillSuggestion[] }>("/teacher/skills/suggestions").then((d) => setMyList(d?.suggestions || [])).catch((err) => reportError("app/components/TaxonomyBrowser.tsx", err));
   };
 
   const submitSuggest = async () => {
@@ -56,8 +65,8 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
       setCatHint("");
       setSuggestMsg("Отправлено на модерацию админу");
       loadMine();
-    } catch (e: any) {
-      setSuggestMsg(e?.message || "Ошибка отправки");
+    } catch (e) {
+      setSuggestMsg(errMessage(e) ?? "Ошибка отправки");
     } finally {
       setSuggestBusy(false);
     }
@@ -168,7 +177,7 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
           )}
           {myList.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
-              {myList.map((s: any) => (
+              {myList.map((s) => (
                 <Badge
                   key={s.id}
                   tone={suggestStatusTone(s.status)}

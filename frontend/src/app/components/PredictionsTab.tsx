@@ -9,6 +9,7 @@ import { Badge } from "./ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import { request } from "../../lib/api";
+import { errMessage } from "../../lib/errors";
 import { PageHeader } from "./PageHeader";
 
 interface ForecastItem {
@@ -35,6 +36,31 @@ interface ObservedItem {
   first_frequency: number;
   last_frequency: number;
   points: number;
+}
+
+/** Ответ /api/forecast/engine: состояние фонового обучения Prophet. */
+interface ForecastEngineInfo {
+  engine?: string;
+  state?: string;
+  done?: number;
+  total?: number;
+  eta_seconds?: number | null;
+  prophet_models?: number;
+}
+
+/** Ответ /api/forecast/{top,observed}: срез прогноза с метаданными окна. */
+interface ForecastPayload {
+  forecasts?: Array<ForecastItem | ObservedItem>;
+  required_points?: number;
+  max_points?: number;
+  vacancies_count?: number;
+  data_from?: string | null;
+  data_to?: string | null;
+  snapshots_count?: number;
+  engine?: string;
+  prophet_models?: number;
+  months?: number;
+  requested_months?: number;
 }
 
 export function PredictionsTab() {
@@ -72,7 +98,7 @@ export function PredictionsTab() {
     const poll = async () => {
       try {
         if (stop) return;
-        const data = await request<any>("/api/forecast/engine").catch(() => null);
+        const data = await request<ForecastEngineInfo>("/api/forecast/engine").catch(() => null);
         if (!data || stop) return;
         setFitStatus({ state: data.state, done: data.done, total: data.total, eta_seconds: data.eta_seconds });
         if (data.engine === "prophet" || data.state === "ready" || data.state === "failed") {
@@ -101,12 +127,12 @@ export function PredictionsTab() {
       const url = direction === "declining"
         ? `/api/forecast/observed?n=25&months=${effMonths}&sort=${effSort}`
         : `/api/forecast/top?n=25&months=${effMonths}&direction=${direction}&sort=${effSort}`;
-      const data = await request<any>(url, { signal: ctrl.signal });
+      const data = await request<ForecastPayload>(url, { signal: ctrl.signal });
       if (direction === "declining") {
-        setObserved((data.forecasts || []).filter((f: ObservedItem) => (f.skill || "").trim()));
+        setObserved((data.forecasts ?? []).filter((f): f is ObservedItem => "points" in f && (f.skill || "").trim() !== ""));
         setObservedMeta({ required_points: data.required_points, max_points: data.max_points });
       } else {
-        setForecasts((data.forecasts || []).filter((f: ForecastItem) => (f.skill || "").trim()));
+        setForecasts((data.forecasts ?? []).filter((f): f is ForecastItem => !("points" in f) && (f.skill || "").trim() !== ""));
       }
       setVacanciesCount(data.vacancies_count || 0);
       setDataFrom(data.data_from || null);
@@ -115,12 +141,12 @@ export function PredictionsTab() {
       if (typeof data.engine === "string") {
         setEngineInfo({ engine: data.engine, prophet_models: data.prophet_models ?? 0 });
       }
-      if (data.requested_months && data.months !== data.requested_months) {
+      if (data.requested_months && data.months !== data.requested_months && typeof data.months === "number") {
         setMonths(data.months);
       }
-    } catch (e: any) {
-      if (e?.name === "AbortError") return;
-      setError(e.message);
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") return;
+      setError(errMessage(e) ?? String(e));
     } finally {
       if (abortRef.current === ctrl) setLoading(false);
     }

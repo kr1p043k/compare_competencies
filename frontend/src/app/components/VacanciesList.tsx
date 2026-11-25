@@ -175,9 +175,9 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         .filter(city => city && city !== "Не указано")
         .sort();
       setAvailableCities(cities);
-    } catch (err: any) {
+    } catch (err) {
       if (seq !== vacanciesSeqRef.current || !mountedRef.current) return;
-      setError(err.message);
+      setError(err instanceof Error ? err.message : "Ошибка загрузки вакансий");
     } finally {
       if (seq === vacanciesSeqRef.current && mountedRef.current) setLoading(false);
     }

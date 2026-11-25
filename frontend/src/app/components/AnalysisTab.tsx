@@ -10,14 +10,13 @@ import {
   Users,
 } from "lucide-react";
 import { request } from "../../lib/api";
+import { errMessage } from "../../lib/errors";
 
 interface AnalysisTabProps {
   selectedProfile: string;
   onProfileChange: (profile: string) => void;
   pipelineQuery?: string;
   pipelineRegions?: string;
-  analysisData?: any;
-  onDataLoaded?: (data: any) => void;
   loading?: boolean;
 }
 
@@ -48,8 +47,8 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
         `/api/trends/by-profession?profession=${encodeURIComponent(prof)}&limit=30`,
       );
       setProfSkills(d.skills || []);
-    } catch (e: any) {
-      setProfError(e?.message || "Не удалось загрузить тренды профессии. Попробуйте позже.");
+    } catch (e) {
+      setProfError(errMessage(e) ?? "Не удалось загрузить тренды профессии. Попробуйте позже.");
     } finally {
       setProfLoading(false);
     }
